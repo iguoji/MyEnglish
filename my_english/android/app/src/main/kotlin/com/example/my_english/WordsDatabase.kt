@@ -1,0 +1,390 @@
+// package 相当于 PHP namespace，让本类与 MainActivity 位于同一模块。
+package com.example.my_english
+
+// ContentValues 是 Android 写 SQLite 时使用的键值对象，类似 PHP insert 的关联数组。
+import android.content.ContentValues
+// Context 用来确定数据库文件属于哪个 App。
+import android.content.Context
+// SQLiteDatabase 提供事务、查询和写入 API。
+import android.database.sqlite.SQLiteDatabase
+// SQLiteOpenHelper 负责数据库创建、版本升级和连接复用。
+import android.database.sqlite.SQLiteOpenHelper
+// JSONArray 负责还原 SQLite 中保存的 definitions_json。
+import org.json.JSONArray
+
+/**
+ * word/meaning 本地 SQLite 数据库。
+ *
+ * 这相当于 PHP 项目中的 Migration + Store：onCreate 建表，公开方法只负责 SQLite
+ * 查询和 CRUD。JSON 读取及内存模式完全由 Dart Store 管理，不会进入本数据库。
+ */
+class WordsDatabase(context: Context) :
+    SQLiteOpenHelper(context, databaseName, null, databaseVersion) {
+
+    // companion object 类似 PHP 类常量区，所有实例共享同一份配置。
+    companion object {
+        // 数据库文件保存在 Android App 私有目录，卸载应用时由系统删除。
+        private const val databaseName = "my_english.db"
+        // 版本 2 删除 words.spelling 的 UNIQUE 约束，允许不同 Word 使用相同拼写。
+        private const val databaseVersion = 2
+    }
+
+    // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
+    override fun onConfigure(db: SQLiteDatabase) {
+        // 先执行 SQLiteOpenHelper 标准配置。
+        super.onConfigure(db)
+        // Android SQLite 默认可能关闭外键，这里显式开启。
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+
+    // 数据库文件第一次创建时执行，作用类似 PHP migration up()。
+    override fun onCreate(db: SQLiteDatabase) {
+        // 创建允许重复 spelling 的 words 表。
+        createWordsTable(db)
+        // 创建关联 meanings 表。
+        createMeaningsTable(db)
+        // 最后建立查询索引。
+        createIndexes(db)
+    }
+
+    // 已安装旧版本升级时执行，作用类似 Laravel migration 的后续版本。
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // 只有从版本 1 升到 2 或更高时，才需要删除 spelling 唯一约束。
+        if (oldVersion < 2 && newVersion >= 2) {
+            // SQLite 无法直接 DROP UNIQUE，所以用新表复制数据完成迁移。
+            migrateToVersion2(db)
+        }
+    }
+
+    /** 创建 words 表；spelling 只要求非空，不再带 UNIQUE。 */
+    private fun createWordsTable(db: SQLiteDatabase) {
+        // execSQL 执行固定结构 SQL，不拼接任何用户输入。
+        db.execSQL(
+            """
+            CREATE TABLE words (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                spelling TEXT NOT NULL COLLATE BINARY,
+                difficulty INTEGER NULL CHECK (difficulty IS NULL OR difficulty >= 0),
+                reviewed_at INTEGER NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER NULL
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /** 创建 meanings 表；外键仍然通过 Word.id 关联，不依赖 spelling。 */
+    private fun createMeaningsTable(db: SQLiteDatabase) {
+        // definitions 数组继续以 JSON 字符串保存。
+        db.execSQL(
+            """
+            CREATE TABLE meanings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                word_id INTEGER NOT NULL,
+                sort_index INTEGER NOT NULL DEFAULT 0,
+                pos TEXT NOT NULL,
+                definitions_json TEXT NOT NULL,
+                created_at INTEGER NULL,
+                updated_at INTEGER NULL,
+                deleted_at INTEGER NULL,
+                FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /** 创建首页和 Meaning 批量查询需要的普通索引。 */
+    private fun createIndexes(db: SQLiteDatabase) {
+        // 首页默认按 id 读取；该索引优化软删除过滤与稳定排序。
+        db.execSQL("CREATE INDEX words_deleted_id ON words(deleted_at, id)")
+        // 一次查询全部 Meaning 时按 word_id 和排序值组织，该索引避免额外全表排序。
+        db.execSQL(
+            "CREATE INDEX meanings_word_sort ON meanings(word_id, deleted_at, sort_index DESC)",
+        )
+    }
+
+    /** 把版本 1 的 UNIQUE spelling 表迁移成版本 2 的普通 spelling 字段。 */
+    private fun migrateToVersion2(db: SQLiteDatabase) {
+        // 先重命名子表，保留全部 Meaning 数据和旧索引。
+        db.execSQL("ALTER TABLE meanings RENAME TO meanings_v1")
+        // 再重命名父表；SQLite 会同步调整旧子表中的外键目标。
+        db.execSQL("ALTER TABLE words RENAME TO words_v1")
+
+        // 按版本 2 结构创建没有 spelling UNIQUE 的新父表。
+        createWordsTable(db)
+        // 创建重新指向新 words 表的 Meaning 子表。
+        createMeaningsTable(db)
+
+        // 明确列名复制 Word，避免未来增加字段时发生列顺序错位。
+        db.execSQL(
+            """
+            INSERT INTO words (
+                id, spelling, difficulty, reviewed_at, created_at, updated_at, deleted_at
+            )
+            SELECT
+                id, spelling, difficulty, reviewed_at, created_at, updated_at, deleted_at
+            FROM words_v1
+            """.trimIndent(),
+        )
+        // Meaning 同样保留原主键、外键、排序和全部时间字段。
+        db.execSQL(
+            """
+            INSERT INTO meanings (
+                id, word_id, sort_index, pos, definitions_json,
+                created_at, updated_at, deleted_at
+            )
+            SELECT
+                id, word_id, sort_index, pos, definitions_json,
+                created_at, updated_at, deleted_at
+            FROM meanings_v1
+            """.trimIndent(),
+        )
+
+        // 先删除旧子表，避免外键级联影响已复制的数据。
+        db.execSQL("DROP TABLE meanings_v1")
+        // 再删除带 UNIQUE 约束的旧父表。
+        db.execSQL("DROP TABLE words_v1")
+        // 旧索引随旧表删除后，使用原名称重建版本 2 索引。
+        createIndexes(db)
+    }
+
+    /** 一次性读取全部未软删除 Word，并用第二次查询组装 Meaning，避免 N+1 查询。 */
+    fun getAllWords(): List<Map<String, Any?>> {
+        // readableDatabase 会复用现有连接。
+        val db = readableDatabase
+        // 先按 word_id 分组读取全部 Meaning。
+        val meaningsByWord = mutableMapOf<Long, MutableList<Map<String, Any?>>>()
+        // query 返回 Cursor，use 会在完成后自动关闭。
+        db.query(
+            // 查询 meanings 表。
+            "meanings",
+            // null 表示读取全部列。
+            null,
+            // 只读取未软删除 Meaning。
+            "deleted_at IS NULL",
+            // 本查询没有占位参数。
+            null,
+            // 不分组。
+            null,
+            // 不使用 HAVING。
+            null,
+            // 按 word_id 聚合，并按 index 从大到小保持 README 顺序。
+            "word_id ASC, sort_index DESC, id ASC",
+        ).use { cursor ->
+            // moveToNext 类似遍历数据库结果集。
+            while (cursor.moveToNext()) {
+                // 当前 Meaning 所属单词 id。
+                val wordId = cursor.getLong(cursor.getColumnIndexOrThrow("word_id"))
+                // definitions_json 还原成平台通道支持的字符串 List。
+                val definitions = jsonArrayToStrings(
+                    cursor.getString(cursor.getColumnIndexOrThrow("definitions_json")),
+                )
+                // 构造 Dart Meaning.fromMap 所需字段。
+                val meaning = linkedMapOf<String, Any?>(
+                    "id" to cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                    "word_id" to wordId,
+                    "index" to cursor.getInt(cursor.getColumnIndexOrThrow("sort_index")),
+                    "pos" to cursor.getString(cursor.getColumnIndexOrThrow("pos")),
+                    "definitions" to definitions,
+                    "created_at" to cursor.nullableLong("created_at"),
+                    "updated_at" to cursor.nullableLong("updated_at"),
+                    "deleted_at" to cursor.nullableLong("deleted_at"),
+                )
+                // getOrPut 对应 PHP `$map[$wordId] ??= []`，再追加当前 Meaning。
+                meaningsByWord.getOrPut(wordId) { mutableListOf() }.add(meaning)
+            }
+        }
+
+        // 创建最终结果列表；ArrayList 适合已知会连续追加大量元素的场景。
+        val words = ArrayList<Map<String, Any?>>()
+        // 再读取全部 Word；这与上一条查询构成固定两次 SQL，不会每个 Word 查询一次。
+        db.query(
+            "words",
+            null,
+            "deleted_at IS NULL",
+            null,
+            null,
+            null,
+            "id ASC",
+        ).use { cursor ->
+            // 逐条构造 Dart Word.fromMap 所需字段。
+            while (cursor.moveToNext()) {
+                // 读取主键供 meaningsByWord 关联。
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow("id"))
+                // linkedMapOf 保持字段顺序，便于调试日志阅读。
+                words.add(
+                    linkedMapOf(
+                        "id" to id,
+                        "spelling" to cursor.getString(
+                            cursor.getColumnIndexOrThrow("spelling"),
+                        ),
+                        "meanings" to (meaningsByWord[id] ?: emptyList<Map<String, Any?>>()),
+                        "difficulty" to cursor.nullableLong("difficulty"),
+                        "reviewed_at" to cursor.nullableLong("reviewed_at"),
+                        "created_at" to cursor.nullableLong("created_at"),
+                        "updated_at" to cursor.nullableLong("updated_at"),
+                        "deleted_at" to cursor.nullableLong("deleted_at"),
+                    ),
+                )
+            }
+        }
+        // 返回一次性加载的完整列表，Flutter ListView.builder 只会构建可见行。
+        return words
+    }
+
+    /** 创建一个 Word 及其全部 Meaning，并返回自增主键。 */
+    fun createWord(payload: Map<*, *>): Long {
+        // 获取可写连接。
+        val db = writableDatabase
+        // 开始事务，保证 Word 与 Meaning 同时成功或同时失败。
+        db.beginTransaction()
+        try {
+            // 当前时间供缺失 created_at/updated_at 时使用。
+            val now = System.currentTimeMillis()
+            // 从 Dart Map 创建 words 表字段。
+            val values = wordValuesFromPayload(payload, now, touchUpdatedAt = false)
+            // insertOrThrow 返回 SQLite 新生成的主键。
+            val wordId = db.insertOrThrow("words", null, values)
+            // 写入所有嵌套 Meaning。
+            replaceMeanings(db, wordId, payload["meanings"])
+            // 标记事务成功。
+            db.setTransactionSuccessful()
+            // 把 id 返回 Dart Store。
+            return wordId
+        } finally {
+            // 释放事务锁。
+            db.endTransaction()
+        }
+    }
+
+    /** 更新 Word，并用提交的 Meaning 列表替换旧关系数据。 */
+    fun updateWord(payload: Map<*, *>) {
+        // 更新必须携带主键。
+        val id = (payload["id"] as? Number)?.toLong() ?: error("updateWord 缺少有效 id")
+        // 获取可写连接并开始事务。
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 使用当前时间作为 updated_at 回退值。
+            val values = wordValuesFromPayload(
+                payload,
+                System.currentTimeMillis(),
+                touchUpdatedAt = true,
+            )
+            // 根据 id 更新单词主体。
+            val changed = db.update("words", values, "id = ?", arrayOf(id.toString()))
+            // 0 行表示目标不存在，主动抛错而不是静默成功。
+            if (changed == 0) error("找不到要更新的单词 id=$id")
+            // 删除旧 Meaning 后按新提交列表重建，保持操作简单且原子。
+            db.delete("meanings", "word_id = ?", arrayOf(id.toString()))
+            replaceMeanings(db, id, payload["meanings"])
+            // 标记整个更新成功。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常时自动回滚。
+            db.endTransaction()
+        }
+    }
+
+    /** 软删除 Word：首页查询会自动排除 deleted_at 非空记录。 */
+    fun softDeleteWord(id: Long) {
+        // 使用同一毫秒值记录删除与最后更新时间。
+        val now = System.currentTimeMillis()
+        // 组装局部更新字段。
+        val values = ContentValues().apply {
+            put("deleted_at", now)
+            put("updated_at", now)
+        }
+        // 根据主键更新；Meaning 保留供未来恢复或审计。
+        val changed = writableDatabase.update(
+            "words",
+            values,
+            "id = ?",
+            arrayOf(id.toString()),
+        )
+        // 删除不存在 id 时给调用方明确错误。
+        if (changed == 0) error("找不到要删除的单词 id=$id")
+    }
+
+    /** 把 Dart Word.toMap 的字段转换成 SQLite ContentValues。 */
+    private fun wordValuesFromPayload(
+        payload: Map<*, *>,
+        now: Long,
+        touchUpdatedAt: Boolean,
+    ): ContentValues {
+        // spelling 为业务必填字段，并移除意外首尾空格。
+        val spelling = payload["spelling"]?.toString()?.trim().orEmpty()
+        // 空拼写不允许进入数据库。
+        require(spelling.isNotEmpty()) { "spelling 不能为空" }
+        // apply 让多次 put 都作用于同一个 ContentValues。
+        return ContentValues().apply {
+            // 保存区分大小写的拼写。
+            put("spelling", spelling)
+            // 非空 difficulty 必须大于等于 0，数据库 CHECK 会再次保护。
+            putNullableLong("difficulty", (payload["difficulty"] as? Number)?.toLong())
+            // 保存最近复习时间。
+            putNullableLong("reviewed_at", (payload["reviewed_at"] as? Number)?.toLong())
+            // 新数据没有 created_at 时使用 now。
+            put("created_at", (payload["created_at"] as? Number)?.toLong() ?: now)
+            // 编辑操作始终使用 now；创建时允许保留导入数据传入的 updated_at。
+            put(
+                "updated_at",
+                if (touchUpdatedAt) now else (payload["updated_at"] as? Number)?.toLong() ?: now,
+            )
+            // 支持未来恢复/软删除数据同步。
+            putNullableLong("deleted_at", (payload["deleted_at"] as? Number)?.toLong())
+        }
+    }
+
+    /** 将提交的 Meaning 列表写入指定 Word。 */
+    private fun replaceMeanings(db: SQLiteDatabase, wordId: Long, rawMeanings: Any?) {
+        // MethodChannel 把 Dart List 还原成 Kotlin List；其他类型按空列表处理。
+        val meanings = rawMeanings as? List<*> ?: emptyList<Any?>()
+        // 遍历每条 Meaning Map。
+        for (rawMeaning in meanings) {
+            // 类型不正确时跳过并进入下一项，避免原生 ClassCastException。
+            val meaning = rawMeaning as? Map<*, *> ?: continue
+            // definitions 应为字符串列表。
+            val definitions = (meaning["definitions"] as? List<*>)
+                // 把动态项统一转换为字符串。
+                ?.map { it.toString() }
+                // 缺失时使用空数组。
+                ?: emptyList()
+            // 组装数据库字段。
+            val values = ContentValues().apply {
+                put("word_id", wordId)
+                put("sort_index", (meaning["index"] as? Number)?.toInt() ?: 0)
+                put("pos", meaning["pos"]?.toString() ?: "")
+                put("definitions_json", JSONArray(definitions).toString())
+                putNullableLong("created_at", (meaning["created_at"] as? Number)?.toLong())
+                putNullableLong("updated_at", (meaning["updated_at"] as? Number)?.toLong())
+                putNullableLong("deleted_at", (meaning["deleted_at"] as? Number)?.toLong())
+            }
+            // 外键与事务会确保关联正确。
+            db.insertOrThrow("meanings", null, values)
+        }
+    }
+
+    /** 将 SQLite 保存的 definitions JSON 文本还原为字符串列表。 */
+    private fun jsonArrayToStrings(value: String): List<String> {
+        // 解析 JSON 数组。
+        val array = JSONArray(value)
+        // 按数组长度生成不可变 List。
+        return List(array.length()) { index -> array.getString(index) }
+    }
+
+    /** ContentValues 没有便捷可空 Long API，因此统一封装 put/putNull。 */
+    private fun ContentValues.putNullableLong(key: String, value: Long?) {
+        // 非空写真实数值，空值显式写 SQLite NULL。
+        if (value == null) putNull(key) else put(key, value)
+    }
+
+    /** Cursor 安全读取可空 INTEGER 字段。 */
+    private fun android.database.Cursor.nullableLong(columnName: String): Long? {
+        // 先找到列下标，字段不存在时立即抛出便于定位 schema 错误。
+        val index = getColumnIndexOrThrow(columnName)
+        // SQLite NULL 对应 Kotlin null，否则读取 Long。
+        return if (isNull(index)) null else getLong(index)
+    }
+}
