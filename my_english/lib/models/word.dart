@@ -13,6 +13,8 @@ class Word {
     this.meanings = const <Meaning>[],
     // null 表示没有难度，任何非空非负数都是有效难度。
     this.difficulty,
+    // null 表示未加入任何分组，首页会把它归入内置"未分组"。
+    this.groupId,
     // 最近复习时间供未来复习模块使用。
     this.reviewedAt,
     // 创建、更新和软删除时间。
@@ -32,6 +34,9 @@ class Word {
 
   /// 可空难度，最小值为 0 且没有最大值。
   final int? difficulty;
+
+  /// 所属分组主键；null 表示"未分组"，本轮由内存 GroupStore 提供分组列表。
+  final int? groupId;
 
   /// 最近复习时间。
   final DateTime? reviewedAt;
@@ -100,6 +105,8 @@ class Word {
       meanings: List<Meaning>.unmodifiable(parsedMeanings),
       // difficulty 类型错误时主动报错。
       difficulty: _readInt(map['difficulty'], 'Word.difficulty'),
+      // 分组外键；现有 words.json 没有该字段时保持 null 即"未分组"。
+      groupId: _readInt(map['group_id'], 'Word.group_id'),
       // 日期同时支持 SQLite 毫秒数和 JSON 字符串。
       reviewedAt: _readDate(map['reviewed_at'], 'Word.reviewed_at'),
       createdAt: _readDate(map['created_at'], 'Word.created_at'),
@@ -120,12 +127,50 @@ class Word {
       'meanings': meanings.map((meaning) => meaning.toMap()).toList(),
       // null 会原样传给 SQLite。
       'difficulty': difficulty,
+      // 分组外键；原生端暂未使用该字段，落地 group 表后直接生效。
+      'group_id': groupId,
       // 时间统一传毫秒时间戳。
       'reviewed_at': reviewedAt?.millisecondsSinceEpoch,
       'created_at': createdAt?.millisecondsSinceEpoch,
       'updated_at': updatedAt?.millisecondsSinceEpoch,
       'deleted_at': deletedAt?.millisecondsSinceEpoch,
     };
+  }
+
+  /// 返回移动到指定分组后的新 Word；null 表示移回"未分组"。
+  Word withGroup(int? newGroupId) {
+    // 仅替换分组字段并刷新更新时间，其余字段原样保留。
+    return Word(
+      id: id,
+      spelling: spelling,
+      meanings: meanings,
+      difficulty: difficulty,
+      groupId: newGroupId,
+      reviewedAt: reviewedAt,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      deletedAt: deletedAt,
+    );
+  }
+
+  /// 返回按表单结果编辑后的新 Word，供"修改单词"提交时使用。
+  Word edited({
+    required String spelling,
+    required List<Meaning> meanings,
+    required int? groupId,
+  }) {
+    // 编辑会刷新 updatedAt；创建时间与主键保持不变。
+    return Word(
+      id: id,
+      spelling: spelling,
+      meanings: meanings,
+      difficulty: difficulty,
+      groupId: groupId,
+      reviewedAt: reviewedAt,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      deletedAt: deletedAt,
+    );
   }
 }
 

@@ -135,6 +135,24 @@ class SettingsStore extends ChangeNotifier {
   /// 页面只读访问当前主题偏好。
   AppThemePreference get theme => _theme;
 
+  /// 每日复习目标；本轮先保存在内存，原生持久化随分组一起在下一轮落地。
+  int _dailyGoal = 100;
+
+  /// 页面只读访问每日复习目标。
+  int get dailyGoal => _dailyGoal;
+
+  /// 修改每日复习目标；负数一律钳制为 0。
+  void setDailyGoal(int value) {
+    // 目标不允许是负数。
+    final normalized = value < 0 ? 0 : value;
+    // 值没有变化时不触发重建。
+    if (_dailyGoal == normalized) return;
+    // 更新内存值。
+    _dailyGoal = normalized;
+    // 通知设置面板与首页副标题刷新。
+    notifyListeners();
+  }
+
   /// MaterialApp 直接读取的主题模式。
   ThemeMode get themeMode => _theme.themeMode;
 

@@ -1,0 +1,219 @@
+// material.dart 提供 Drawer、ListTile 风格布局所需组件。
+import 'package:flutter/material.dart';
+
+// 引入设计稿色板令牌。
+import '../../../common/theme.dart';
+
+/// 右侧抽屉菜单：App 信息、四个功能入口与页脚联系方式。
+class HomeDrawer extends StatelessWidget {
+  /// 四个入口的动作全部由首页注入，抽屉自身不包含业务逻辑。
+  const HomeDrawer({
+    required this.onAddWord,
+    required this.onOpenSettings,
+    required this.onExport,
+    required this.onAbout,
+    super.key,
+  });
+
+  /// 点击"添加单词"后由首页打开单词表单。
+  final VoidCallback onAddWord;
+
+  /// 点击"设置"后由首页打开设置面板。
+  final VoidCallback onOpenSettings;
+
+  /// 点击"数据导出"后的动作；本轮为占位提示。
+  final VoidCallback onExport;
+
+  /// 点击"关于"后的动作；本轮为占位提示。
+  final VoidCallback onAbout;
+
+  /// 输出与设计稿一致的 252 宽抽屉内容。
+  @override
+  Widget build(BuildContext context) {
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+
+    // Drawer 是 Material 标准侧边面板；宽度固定为设计稿的 252。
+    return Drawer(
+      width: 252,
+      // 表面使用卡片色。
+      backgroundColor: tokens.card,
+      // 抽屉自带圆角在右侧展开时不需要，设为直角贴边。
+      shape: const RoundedRectangleBorder(),
+      // SafeArea 避开状态栏，保持顶部信息完整可见。
+      child: SafeArea(
+        // Column 从上到下排列头部、菜单项和页脚。
+        child: Column(
+          // 子项默认左对齐。
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 头部：应用图标、名称与版本号。
+            Padding(
+              // 与设计稿一致的头部内边距。
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+              child: Row(
+                children: [
+                  // 42×42 圆角方块内放一个"词"字，作为应用图标。
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTokens.accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      '词',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  // 图标与文字间距。
+                  const SizedBox(width: 12),
+                  // 名称与版本纵向排列。
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 应用名称。
+                      Text(
+                        'MyEnglish',
+                        style: TextStyle(
+                          color: tokens.text,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      // 版本号与 pubspec 保持一致。
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '版本 v0.1.0',
+                          style: TextStyle(color: tokens.muted, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // 头部下方分隔线。
+            Divider(height: 1, color: tokens.rowBorder),
+            // 菜单项区域上下留 8 像素。
+            const SizedBox(height: 8),
+            // 四个功能入口，图标与文案对应设计稿。
+            _DrawerItem(
+              key: const Key('drawer-add-word'),
+              icon: Icons.add_circle_outline,
+              label: '添加单词',
+              onTap: onAddWord,
+            ),
+            _DrawerItem(
+              key: const Key('drawer-settings'),
+              icon: Icons.tune_rounded,
+              label: '设置',
+              onTap: onOpenSettings,
+            ),
+            _DrawerItem(
+              key: const Key('drawer-export'),
+              icon: Icons.file_download_outlined,
+              label: '数据导出',
+              onTap: onExport,
+            ),
+            _DrawerItem(
+              key: const Key('drawer-about'),
+              icon: Icons.info_outline,
+              label: '关于',
+              onTap: onAbout,
+            ),
+            // Spacer 把页脚推到底部。
+            const Spacer(),
+            // 页脚上方分隔线。
+            Divider(height: 1, color: tokens.rowBorder),
+            // 页脚：仓库地址与作者邮箱。
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // GitHub 小标题。
+                  Text('GitHub', style: TextStyle(color: tokens.muted, fontSize: 11)),
+                  // 仓库地址使用主色，视觉上表示可点击链接。
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Text(
+                      'github.com/iguoji/MyEnglish',
+                      style: TextStyle(color: AppTokens.accent, fontSize: 12.5),
+                    ),
+                  ),
+                  // 两条信息之间的间距。
+                  const SizedBox(height: 12),
+                  // 邮箱小标题。
+                  Text('作者邮箱', style: TextStyle(color: tokens.muted, fontSize: 11)),
+                  // 邮箱同样使用主色。
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Text(
+                      'liushanzai@gmail.com',
+                      style: TextStyle(color: AppTokens.accent, fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 抽屉里的单个功能入口：左图标右文字，整行可点。
+class _DrawerItem extends StatelessWidget {
+  /// 接收图标、文案与点击动作。
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    super.key,
+  });
+
+  /// 入口图标。
+  final IconData icon;
+
+  /// 入口文案。
+  final String label;
+
+  /// 点击动作，由首页决定行为。
+  final VoidCallback onTap;
+
+  /// 输出 13 像素上下内边距的入口行。
+  @override
+  Widget build(BuildContext context) {
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+    // InkWell 提供整行点击反馈。
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        // 与设计稿一致的行内边距。
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        child: Row(
+          children: [
+            // 17 像素灰色描边图标。
+            Icon(icon, size: 17, color: tokens.muted),
+            // 图标与文字间距。
+            const SizedBox(width: 12),
+            // 入口文案使用主文字色。
+            Text(
+              label,
+              style: TextStyle(color: tokens.text, fontSize: 14.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

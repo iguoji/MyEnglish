@@ -6,38 +6,38 @@ abstract final class AppTheme {
   /// Tabler 主蓝色，作为按钮、选中项和进度状态的品牌色。
   static const primaryColor = Color(0xFF206BC4);
 
-  /// 浅色页面背景。
-  static const backgroundColor = Color(0xFFF5F7FB);
+  /// 浅色页面背景（设计稿 cPage）。
+  static const backgroundColor = Color(0xFFF6F8FB);
 
-  /// 浅色主要文字。
-  static const textColor = Color(0xFF1F2937);
+  /// 浅色主要文字（设计稿 cTx）。
+  static const textColor = Color(0xFF182433);
 
-  /// 浅色次要文字。
-  static const mutedColor = Color(0xFF65748B);
+  /// 浅色次要文字（设计稿 cTs）。
+  static const mutedColor = Color(0xFF667382);
 
-  /// 浅色普通控件边框。
-  static const borderColor = Color(0xFFD9DEE3);
+  /// 浅色输入框等控件边框（设计稿 cIb）。
+  static const borderColor = Color(0xFFDCE1E7);
 
   /// Tabler 浅色表格分隔线，对应 `--tblr-border-color: #e6e7e9`。
   static const tableBorderColor = Color(0xFFE6E7E9);
 
-  /// 深色页面背景；与内容表面保持可识别但克制的层次。
-  static const darkBackgroundColor = Color(0xFF15171A);
+  /// 深色页面背景（设计稿 cPage）。
+  static const darkBackgroundColor = Color(0xFF141A22);
 
-  /// 深色列表和输入框表面。
-  static const darkSurfaceColor = Color(0xFF1D2125);
+  /// 深色列表和输入框表面（设计稿 cCard）。
+  static const darkSurfaceColor = Color(0xFF1B232E);
 
-  /// 深色主要文字。
-  static const darkTextColor = Color(0xFFF1F3F5);
+  /// 深色主要文字（设计稿 cTx）。
+  static const darkTextColor = Color(0xFFE6EBF1);
 
-  /// 深色次要文字。
-  static const darkMutedColor = Color(0xFFA7B0BA);
+  /// 深色次要文字（设计稿 cTs）。
+  static const darkMutedColor = Color(0xFF93A0AF);
 
-  /// 深色控件边框。
-  static const darkBorderColor = Color(0xFF3A4149);
+  /// 深色输入框等控件边框（设计稿 cIb）。
+  static const darkBorderColor = Color(0xFF364250);
 
-  /// 深色表格行分隔线。
-  static const darkTableBorderColor = Color(0xFF2B3035);
+  /// 深色分组与列表分隔线（设计稿 cBd）。
+  static const darkTableBorderColor = Color(0xFF2B3644);
 
   /// Material 3 浅色色板；copyWith 固定项目需要的 Tabler 中性色。
   static final ColorScheme _lightScheme =
@@ -128,4 +128,106 @@ abstract final class AppTheme {
       radius: Radius.circular(2),
     ),
   );
+}
+
+/// 设计稿色板的完整令牌集合，命名与设计稿 CSS 变量一一对应。
+///
+/// 页面通过 AppTokens.of(context) 取当前明暗对应的一组颜色，
+/// 作用类似小程序在 WXSS 里读取一组主题 CSS 变量。
+class AppTokens {
+  /// 私有构造器；只允许使用下方两个预设实例。
+  const AppTokens._({
+    required this.page,
+    required this.card,
+    required this.sub,
+    required this.expand,
+    required this.border,
+    required this.rowBorder,
+    required this.text,
+    required this.textSecondary,
+    required this.textMedium,
+    required this.inputBorder,
+    required this.muted,
+    required this.check,
+  });
+
+  /// 页面背景（cPage）。
+  final Color page;
+
+  /// 卡片与列表表面（cCard）。
+  final Color card;
+
+  /// 次级底色，如分组头与开关轨道（cSub）。
+  final Color sub;
+
+  /// 展开释义区域底色（cExp）。
+  final Color expand;
+
+  /// 分组与区域分隔线（cBd）。
+  final Color border;
+
+  /// 列表行分隔线（cRb）。
+  final Color rowBorder;
+
+  /// 主要文字（cTx）。
+  final Color text;
+
+  /// 次要文字（cTs）。
+  final Color textSecondary;
+
+  /// 中等强调文字（cTm）。
+  final Color textMedium;
+
+  /// 输入框与按钮边框（cIb）。
+  final Color inputBorder;
+
+  /// 弱化文字，如计数与占位（cMut）。
+  final Color muted;
+
+  /// 未选中复选框边框与开关轨道（chk）。
+  final Color check;
+
+  /// 品牌主色，与设计稿 accent 一致。
+  static const Color accent = AppTheme.primaryColor;
+
+  /// 危险色，用于删除与难度徽章。
+  static const Color danger = Color(0xFFD63939);
+
+  /// 浅色令牌，与设计稿浅色 CSS 变量一致。
+  static const AppTokens light = AppTokens._(
+    page: AppTheme.backgroundColor,
+    card: Color(0xFFFFFFFF),
+    sub: Color(0xFFF1F4F7),
+    expand: Color(0xFFF8FAFC),
+    border: AppTheme.tableBorderColor,
+    rowBorder: Color(0xFFEEF0F3),
+    text: AppTheme.textColor,
+    textSecondary: AppTheme.mutedColor,
+    textMedium: Color(0xFF3F4A58),
+    inputBorder: AppTheme.borderColor,
+    muted: Color(0xFF9AA3AF),
+    check: Color(0xFFC6CCD3),
+  );
+
+  /// 深色令牌，与设计稿深色 CSS 变量一致。
+  static const AppTokens dark = AppTokens._(
+    page: AppTheme.darkBackgroundColor,
+    card: AppTheme.darkSurfaceColor,
+    sub: Color(0xFF212B37),
+    expand: Color(0xFF1F2833),
+    border: AppTheme.darkTableBorderColor,
+    rowBorder: Color(0xFF26303C),
+    text: AppTheme.darkTextColor,
+    textSecondary: AppTheme.darkMutedColor,
+    textMedium: Color(0xFFC3CCD6),
+    inputBorder: AppTheme.darkBorderColor,
+    muted: Color(0xFF71808F),
+    check: Color(0xFF4A5866),
+  );
+
+  /// 按当前主题亮度返回对应令牌集合。
+  static AppTokens of(BuildContext context) {
+    // 深色主题返回深色令牌，其余返回浅色令牌。
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
+  }
 }

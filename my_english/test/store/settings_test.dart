@@ -44,9 +44,9 @@ void main() {
     // 修改回美式和 Light。
     await settings.setAccent(PronunciationAccent.american);
     await settings.setTheme(AppThemePreference.light);
-    // 原生收到稳定字符串值。
-    expect(calls[1], const MethodCall('setAccent', 'american'));
-    expect(calls[2], const MethodCall('setTheme', 'light'));
+    // MethodCall 未实现相等运算符，必须使用 flutter_test 的 isMethodCall 匹配器。
+    expect(calls[1], isMethodCall('setAccent', arguments: 'american'));
+    expect(calls[2], isMethodCall('setTheme', arguments: 'light'));
     // Store 内存同步更新。
     expect(settings.accent, PronunciationAccent.american);
     expect(settings.theme, AppThemePreference.light);
@@ -72,6 +72,22 @@ void main() {
     expect(settings.accent, PronunciationAccent.american);
     // 产品默认主题是 Light，不跟随系统。
     expect(settings.theme, AppThemePreference.light);
+    // 释放资源。
+    settings.dispose();
+  });
+
+  // 每日复习目标当前为内存设置：默认 100，负数钳制为 0。
+  test('daily goal defaults to 100 and never goes negative', () {
+    // 纯内存 Store 即可验证。
+    final settings = SettingsStore.inMemory();
+    // 产品默认目标为 100。
+    expect(settings.dailyGoal, 100);
+    // 正常步进 +5。
+    settings.setDailyGoal(105);
+    expect(settings.dailyGoal, 105);
+    // 负数一律钳制为 0。
+    settings.setDailyGoal(-5);
+    expect(settings.dailyGoal, 0);
     // 释放资源。
     settings.dispose();
   });

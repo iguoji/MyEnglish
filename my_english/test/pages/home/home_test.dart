@@ -10,7 +10,7 @@ import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
-// 引入单词行，以检查展开后的动态高度。
+// 引入单词行，检查高度、徽章与展开内容。
 import 'package:my_english/pages/home/widgets/word_list_tile.dart';
 // 引入音频接口，测试使用不会访问真实网络的受控实现。
 import 'package:my_english/services/word_audio.dart';
@@ -21,47 +21,92 @@ import 'package:my_english/store/word.dart';
 
 /// 注册首页 Widget 测试。
 void main() {
-  // 验证顶部完整时间与唯一秒级监听器。
-  testWidgets('home page uses a plain header and one clock listener', (
+  // 验证顶部问候、收录统计副标题与汉堡按钮。
+  testWidgets('header shows greeting, subline and hamburger menu', (
     tester,
   ) async {
-    // 使用内存 Store 渲染首页，避免测试依赖 Android MethodChannel。
+    // 使用内存 Store 渲染首页。
     await _pumpHome(tester);
 
-    // 顶部不能出现 Card。
-    expect(find.byType(Card), findsNothing);
-    // 日期时间必须符合“年月日 时分秒”。
-    expect(
-      find.byWidgetPredicate(
-        // 正则只校验格式，不绑定测试运行时的具体秒数。
-        (widget) =>
-            widget is Text &&
-            RegExp(
-              r'^\d{4}年\d{2}月\d{2}日 \d{2}:\d{2}:\d{2}$',
-            ).hasMatch(widget.data ?? ''),
-      ),
-      findsOneWidget,
-    );
-    // 整页只有 HomeHeader 中一个 DateTime ValueListenableBuilder。
+    // 副标题包含收录数量与默认每日目标。
+    expect(find.text('已收录 2 个单词 · 今日复习 0/100'), findsOneWidget);
+    // 右上角汉堡按钮存在。
+    expect(find.byKey(const Key('open-menu')), findsOneWidget);
+    // 顶部不再显示秒级时间，也没有任何 DateTime 监听器。
     expect(
       find.byWidgetPredicate(
         (widget) => widget is ValueListenableBuilder<DateTime>,
       ),
-      findsOneWidget,
-    );
-    // 单词行内部没有秒级监听器。
-    expect(
-      find.descendant(
-        of: find.byType(WordListTile),
-        matching: find.byWidgetPredicate(
-          (widget) => widget is ValueListenableBuilder<DateTime>,
-        ),
-      ),
       findsNothing,
     );
 
-    // 卸载页面并释放 Timer。
+    // 卸载页面。
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证汉堡按钮打开右侧抽屉，抽屉包含四个入口与仓库信息。
+  testWidgets('hamburger opens the end drawer with menu entries', (
+    tester,
+  ) async {
+    // 打开首页。
+    await _pumpHome(tester);
+
+    // 点击汉堡按钮。
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+    // 四个入口全部出现。
+    expect(find.text('添加单词'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('数据导出'), findsOneWidget);
+    expect(find.text('关于'), findsOneWidget);
+    // 页脚显示真实仓库地址。
+    expect(find.text('github.com/iguoji/MyEnglish'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证抽屉"设置"打开新设计的设置面板，且三项设置全部可用。
+  testWidgets('settings sheet updates accent, dark mode and daily goal', (
+    tester,
+  ) async {
+    // 首页持有这份可观察内存设置。
+    final settings = SettingsStore.inMemory();
+    // 注入首页。
+    await _pumpHome(tester, settings: settings);
+
+    // 打开抽屉再进入设置。
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('drawer-settings')));
+    await tester.pumpAndSettle();
+    // 三项设置标题都存在。
+    expect(find.text('发音'), findsOneWidget);
+    expect(find.text('黑暗模式'), findsOneWidget);
+    expect(find.text('每日复习'), findsOneWidget);
+    // 默认值：美式、Light、100。
+    expect(settings.accent, PronunciationAccent.american);
+    expect(settings.theme, AppThemePreference.light);
+    expect(settings.dailyGoal, 100);
+
+    // 切换到英式。
+    await tester.tap(find.byKey(const Key('accent-british')));
+    await tester.pump();
+    expect(settings.accent, PronunciationAccent.british);
+    // 打开黑暗模式开关。
+    await tester.tap(find.byKey(const Key('dark-mode-switch')));
+    await tester.pump();
+    expect(settings.theme, AppThemePreference.dark);
+    // 每日复习 +5。
+    await tester.tap(find.byKey(const Key('goal-plus')));
+    await tester.pump();
+    expect(settings.dailyGoal, 105);
+
+    // 完成关闭面板并清理。
+    await tester.tap(find.byKey(const Key('settings-done')));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    settings.dispose();
   });
 
   // 验证列表贴屏、占满底部且外层只有顶部边框。
@@ -83,7 +128,7 @@ void main() {
     final border = decoration.border! as Border;
     // 顶部是实线。
     expect(border.top.style, BorderStyle.solid);
-    // 列表顶部与各行统一使用 Tabler 表格边框色 #E6E7E9。
+    // 列表顶部统一使用 Tabler 表格边框色 #E6E7E9。
     expect(border.top.color, const Color(0xFFE6E7E9));
     // 左右和底部不属于列表外框。
     expect(border.left.style, BorderStyle.none);
@@ -102,7 +147,7 @@ void main() {
     // Expanded 让列表底部到达屏幕底部。
     expect(tester.getBottomRight(listFinder).dy, logicalHeight);
 
-    // 清理页面 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -113,18 +158,24 @@ void main() {
     // 打开首页。
     await _pumpHome(tester);
 
-    // 页面只需要一个垂直 Scrollbar。
+    // 页面只需要一个垂直 Scrollbar（chips 横向列表没有 Scrollbar）。
     final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
     // 真机首次打开时滑块已经可见。
     expect(scrollbar.thumbVisibility, isTrue);
     // 用户可以直接按住滑块拖动。
     expect(scrollbar.interactive, isTrue);
-    // 读取业务列表。
-    final listView = tester.widget<ListView>(find.byType(ListView));
+    // 读取业务列表：带 116 底部内边距的那一个。
+    final listView = tester.widget<ListView>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ListView &&
+            widget.padding == const EdgeInsets.only(bottom: 116),
+      ),
+    );
     // 两者必须共享同一个控制器，拖动才会真正改变列表位置。
     expect(scrollbar.controller, same(listView.controller));
 
-    // 清理页面 Timer 和 ScrollController。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -146,20 +197,20 @@ void main() {
     await tester.enterText(find.byType(TextField), 'not-a-real-word');
     // 再推进一次防抖时间。
     await tester.pump(const Duration(milliseconds: 121));
-    // 页面显示无匹配状态。
-    expect(find.text('未找到匹配的单词'), findsOneWidget);
+    // 页面按设计稿显示无匹配状态。
+    expect(find.text('未找到相关单词'), findsOneWidget);
 
-    // 清理页面 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证搜索框固定 40 高、图标 24，并保持文字垂直居中。
+  // 验证搜索框固定 40 高、图标 20，并保持文字垂直居中。
   testWidgets('search field is 40 pixels high with centered content', (
     tester,
   ) async {
     // 渲染首页。
     await _pumpHome(tester);
-    // 读取 TextField 实例配置。
+    // 读取搜索输入框实例配置（页面此时只有这一个 TextField）。
     final textField = tester.widget<TextField>(find.byType(TextField));
     // 实际布局高度必须为 40 逻辑像素。
     expect(tester.getSize(find.byType(TextField)).height, 40);
@@ -168,42 +219,70 @@ void main() {
     // 输入文字和 placeholder 使用一致行高。
     expect(textField.style?.height, 1.2);
     expect(textField.decoration!.hintStyle?.height, 1.2);
-    // 左侧搜索图标保持清晰的 24 像素。
+    // 左侧搜索图标为 20 像素。
     final searchIcon = textField.decoration!.prefixIcon! as Icon;
-    expect(searchIcon.size, 24);
+    expect(searchIcon.size, 20);
 
-    // 清理页面 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证列表惰性创建可变高度行，并能展开 Meaning。
-  testWidgets('list lazily builds rows and expands meanings', (tester) async {
-    // 打开首页并等待内存数据加载。
-    await _pumpHome(tester);
-    // 首页只有一个业务 ListView。
-    final listView = tester.widget<ListView>(find.byType(ListView));
-    // 可展开内容高度不同，所以不能再使用固定 itemExtent。
-    expect(listView.itemExtent, isNull);
-    // 收起时第一行使用当前要求的 40 像素标题高度。
+  // 验证点击单词行同时播放发音并展开释义（设计稿行为）。
+  testWidgets('tapping a row plays audio and expands meanings together', (
+    tester,
+  ) async {
+    // 使用可手动结束的假播放器。
+    final audioPlayer = _ControlledAudioPlayer();
+    // 明确设置英式，确认首页读取当前持久化设置而非写死美式。
+    final settings = SettingsStore.inMemory(
+      accent: PronunciationAccent.british,
+    );
+    // 注入设置与播放器。
+    await _pumpHome(tester, settings: settings, audioPlayer: audioPlayer);
+
+    // 收起时第一行高度为设计稿的 36 像素标题行。
     expect(
       tester.getSize(find.byType(WordListTile).first).height,
       WordListTile.headerHeight,
     );
 
-    // 点击 ability 行右侧展开箭头；单词文字现在专门负责播放。
-    await tester.tap(find.byIcon(Icons.keyboard_arrow_down).first);
-    // 等待 160ms 展开动画结束。
-    await tester.pumpAndSettle();
-    // 两个 Meaning 各自显示为一行。
+    // 点击 ability 行；喇叭动画持续循环，因此用固定时长 pump 而非 pumpAndSettle。
+    await tester.tap(find.text('ability'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    // 只发出一次播放请求。
+    expect(audioPlayer.playCount, 1);
+    // 参数保留真实 spelling。
+    expect(audioPlayer.lastSpelling, 'ability');
+    // 参数使用设置中的英式口音。
+    expect(audioPlayer.lastAccent, PronunciationAccent.british);
+    // 播放期间左侧出现动画喇叭。
+    expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+    // 释义同步展开：两个 Meaning 各自显示为一行。
     expect(find.text('能力；才能'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
-    // 展开后整项高度必须大于标题行。
+    // 展开后整项高度大于标题行。
     expect(
       tester.getSize(find.byType(WordListTile).first).height,
       greaterThan(WordListTile.headerHeight),
     );
 
-    // 清理页面 Timer。
+    // 播放尚未结束时重复点击同一行：不重新请求，只切换展开。
+    await tester.tap(find.text('ability'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(audioPlayer.playCount, 1);
+    // 释义已被收起。
+    expect(find.text('能力；才能'), findsNothing);
+
+    // 手动模拟原生播放自然结束。
+    audioPlayer.complete();
+    await tester.pump();
+    // Future 完成后喇叭消失。
+    expect(find.byIcon(Icons.volume_up_rounded), findsNothing);
+
+    // 释放 SettingsStore 和页面资源。
+    settings.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -226,17 +305,13 @@ void main() {
         ],
       ),
     ];
-    // 注入包含重复 spelling 的测试 Store。
-    await tester.pumpWidget(
-      MaterialApp(home: HomePage(store: _MemoryWordStore(words))),
-    );
-    // 等待异步 getAll 完成。
-    await tester.pump();
+    // 注入包含重复 spelling 的测试数据。
+    await _pumpHome(tester, words: words);
 
     // 列表必须显示两行相同文本。
     expect(find.text('same'), findsNWidgets(2));
-    // 只点击第一行的展开箭头。
-    await tester.tap(find.byIcon(Icons.keyboard_arrow_down).first);
+    // 只点击第一行。
+    await tester.tap(find.text('same').first);
     // 等待展开动画完成。
     await tester.pumpAndSettle();
     // 第一行 Meaning 已显示。
@@ -244,12 +319,12 @@ void main() {
     // 第二行没有被相同 spelling 连带展开。
     expect(find.text('第二条'), findsNothing);
 
-    // 清理页面 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证字母、难度、日期都有双向排序，且 null 难度/日期始终在末尾。
-  testWidgets('sort bar toggles all fields and keeps null values last', (
+  // 验证字母、难度、日期都有双向排序；null 难度按 0 参与，null 日期固定在末尾。
+  testWidgets('sort bar toggles all fields with the agreed null rules', (
     tester,
   ) async {
     // 第一个单词更新时间最新，但难度最低。
@@ -268,7 +343,7 @@ void main() {
         difficulty: 3,
         createdAt: DateTime(2026, 6, 1),
       ),
-      // 第三个单词故意没有难度和日期。
+      // 第三个单词故意没有难度和日期，难度层按 0 参与比较。
       const Word(id: 23, spelling: 'middle'),
     ];
     // 使用稳定测试数据打开首页。
@@ -285,20 +360,20 @@ void main() {
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['zebra', 'middle', 'apple']);
 
-    // 第一次点难度默认高到低，null 在末尾。
+    // 第一次点难度默认高到低，null 难度按 0 落在最后。
     await tester.tap(find.byKey(const Key('word-sort-difficulty')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
-    // 再点难度低到高，null 仍在末尾。
+    // 再点难度切到升序，从 0/null 开始，然后是 1、3。
     await tester.tap(find.byKey(const Key('word-sort-difficulty')));
     await tester.pump();
-    _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
+    _expectTextsInVerticalOrder(tester, <String>['middle', 'zebra', 'apple']);
 
     // 第一次点日期默认最近到最早；zebra 使用 updatedAt 排在 apple 前。
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
-    // 再点日期从早到晚，null 仍然固定在末尾。
+    // 再点日期从早到晚，空日期仍然固定在末尾。
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
@@ -307,90 +382,269 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证播放状态立即显示喇叭，同一单词播放中重复 tap 不会重新请求。
-  testWidgets('word tap plays once and shows speaker until completion', (
+  // 验证每种排序都执行约定的多级次序，保底编号升序。
+  testWidgets('sorting applies the agreed multi-level tie-breakers', (
     tester,
   ) async {
-    // 使用可手动结束的假播放器。
-    final audioPlayer = _ControlledAudioPlayer();
-    // 明确设置英式，确认首页读取当前持久化设置而非写死美式。
-    final settings = SettingsStore.inMemory(
-      accent: PronunciationAccent.british,
+    // 四个单词难度完全相同，用来检验难度排序的后续层级。
+    final sameDifficultyWords = <Word>[
+      // 日期第二新，应排第二。
+      Word(
+        id: 31,
+        spelling: 'delta',
+        difficulty: 5,
+        createdAt: DateTime(2026, 3, 1),
+      ),
+      // 日期最新，应排第一。
+      Word(
+        id: 32,
+        spelling: 'alpha',
+        difficulty: 5,
+        createdAt: DateTime(2026, 5, 1),
+      ),
+      // 无日期，与 bravo 同组后比拼写。
+      const Word(id: 33, spelling: 'echo', difficulty: 5),
+      // 无日期，拼写字母序在 echo 之前。
+      const Word(id: 34, spelling: 'bravo', difficulty: 5),
+    ];
+    // 打开首页。
+    await _pumpHome(tester, words: sameDifficultyWords);
+    // 点击难度排序；所有难度相同，顺序完全由后续层级决定。
+    await tester.tap(find.byKey(const Key('word-sort-difficulty')));
+    await tester.pump();
+    // 先日期降序，无日期组固定在后并按拼写升序。
+    _expectTextsInVerticalOrder(
+      tester,
+      <String>['alpha', 'delta', 'bravo', 'echo'],
     );
-    // 注入设置与播放器。
-    await _pumpHome(tester, settings: settings, audioPlayer: audioPlayer);
 
-    // tap 单词文字只播放，不展开 Meaning。
-    await tester.tap(find.text('ability'));
+    // 三个重复拼写单词用来检验字母排序的难度、日期层级。
+    final sameSpellingWords = <Word>[
+      // 难度最低，应排最后。
+      Word(
+        id: 41,
+        spelling: 'same',
+        difficulty: 1,
+        createdAt: DateTime(2026, 7, 1),
+      ),
+      // 难度最高但日期较旧，应排第二。
+      Word(
+        id: 42,
+        spelling: 'same',
+        difficulty: 9,
+        createdAt: DateTime(2026, 1, 1),
+      ),
+      // 难度同为最高且日期更新，应排第一。
+      Word(
+        id: 43,
+        spelling: 'same',
+        difficulty: 9,
+        createdAt: DateTime(2026, 6, 1),
+      ),
+    ];
+    // 重新打开首页。
+    await _pumpHome(tester, words: sameSpellingWords);
+    // 点击字母排序；拼写完全相同，顺序由难度降序和日期降序决定。
+    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
     await tester.pump();
-    // 只发出一次播放请求。
-    expect(audioPlayer.playCount, 1);
-    // 参数保留真实 spelling。
-    expect(audioPlayer.lastSpelling, 'ability');
-    // 参数使用设置中的英式口音。
-    expect(audioPlayer.lastAccent, PronunciationAccent.british);
-    // 播放期间左侧出现动画喇叭。
-    expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
-    // 播放动作不会展开释义。
-    expect(find.text('能力；才能'), findsNothing);
+    // 文字相同无法用文本定位，改为逐行读取列表项的 Word 主键。
+    expect(_visibleWordIds(tester), <int>[43, 42, 41]);
 
-    // 播放尚未结束时重复 tap 同一文字。
-    await tester.tap(find.text('ability'));
+    // 两个字段完全相同的单词只剩编号可比，Store 顺序故意倒置。
+    final twinWords = <Word>[
+      // 编号大的排在 Store 前面。
+      Word(
+        id: 52,
+        spelling: 'twin',
+        difficulty: 2,
+        createdAt: DateTime(2026, 4, 1),
+      ),
+      // 编号小的应在排序后排到前面。
+      Word(
+        id: 51,
+        spelling: 'twin',
+        difficulty: 2,
+        createdAt: DateTime(2026, 4, 1),
+      ),
+    ];
+    // 重新打开首页。
+    await _pumpHome(tester, words: twinWords);
+    // 点击字母排序触发完整比较链。
+    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
     await tester.pump();
-    // 请求次数保持 1。
-    expect(audioPlayer.playCount, 1);
+    // 前三级全部打平后按编号升序。
+    expect(_visibleWordIds(tester), <int>[51, 52]);
 
-    // 手动模拟原生播放自然结束。
-    audioPlayer.complete();
-    await tester.pump();
-    // Future 完成后喇叭消失。
-    expect(find.byIcon(Icons.volume_up_rounded), findsNothing);
-
-    // 释放 SettingsStore 和页面资源。
-    settings.dispose();
+    // 清理页面资源。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证右上角设置图标打开底部面板，选择结果写回同一 Store。
-  testWidgets('settings button opens sheet and updates both preferences', (
+  // 验证分组视角切换：难度视角生成"难度 N"与"无难度"分组头。
+  testWidgets('difficulty mode groups words by difficulty value', (
     tester,
   ) async {
-    // 首页持有这份可观察内存设置。
-    final settings = SettingsStore.inMemory();
-    // 注入首页。
-    await _pumpHome(tester, settings: settings);
+    // 打开首页（ability 难度 3，abandon 无难度）。
+    await _pumpHome(tester);
 
-    // 点击右上角齿轮。
-    await tester.tap(find.byKey(const Key('open-settings')));
+    // 打开模式菜单。
+    await tester.tap(find.byKey(const Key('group-mode-button')));
     await tester.pumpAndSettle();
-    // BottomSheet 显示两项设置。
-    expect(find.text('发音'), findsOneWidget);
-    expect(find.text('主题'), findsOneWidget);
-    // 首次默认值是美式和 Light。
-    expect(settings.accent, PronunciationAccent.american);
-    expect(settings.theme, AppThemePreference.light);
-
-    // 切换到英式。
-    await tester.tap(find.text('英式'));
-    await tester.pump();
-    expect(settings.accent, PronunciationAccent.british);
-    // 切换到 Dark。
-    await tester.tap(find.text('Dark'));
-    await tester.pump();
-    expect(settings.theme, AppThemePreference.dark);
-
-    // 关闭面板并清理。
-    await tester.tap(find.byTooltip('关闭'));
+    // 选择难度视角。
+    await tester.tap(find.byKey(const Key('group-mode-difficulty')));
     await tester.pumpAndSettle();
+    // 出现两个难度分组头。
+    expect(find.text('难度 3'), findsWidgets);
+    expect(find.text('无难度'), findsWidgets);
+
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
-    settings.dispose();
+  });
+
+  // 验证分组头点击可折叠该组单词，"折叠/展开"按钮可整体切换。
+  testWidgets('section headers collapse and expand rows', (tester) async {
+    // 打开首页；默认全部单词在"未分组"。
+    await _pumpHome(tester);
+
+    // 初始两行单词都可见。
+    expect(find.text('ability'), findsOneWidget);
+    // 点击"未分组"分组头折叠。
+    await tester.tap(find.byKey(const Key('section-c0')));
+    await tester.pumpAndSettle();
+    // 折叠后行消失。
+    expect(find.text('ability'), findsNothing);
+    // 顶部按钮此时显示"展开"。
+    await tester.tap(find.byKey(const Key('toggle-collapse-all')));
+    await tester.pumpAndSettle();
+    // 全部展开后行回来了。
+    expect(find.text('ability'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证选择模式：勾选、全选、反选与复制到分组。
+  testWidgets('select mode supports selecting and copying words', (
+    tester,
+  ) async {
+    // 打开首页。
+    await _pumpHome(tester);
+
+    // 进入选择模式。
+    await tester.tap(find.byKey(const Key('toggle-select-mode')));
+    await tester.pump();
+    // 出现选择工具行。
+    expect(find.text('已选 0'), findsOneWidget);
+    // 点击 ability 行改为切换勾选而不是播放。
+    await tester.tap(find.text('ability'));
+    await tester.pump();
+    expect(find.text('已选 1'), findsOneWidget);
+    // 全选两条。
+    await tester.tap(find.byKey(const Key('select-all')));
+    await tester.pump();
+    expect(find.text('已选 2'), findsOneWidget);
+    // 反选后回到 0。
+    await tester.tap(find.byKey(const Key('invert-selection')));
+    await tester.pump();
+    expect(find.text('已选 0'), findsOneWidget);
+
+    // 重新勾选一条并执行复制。
+    await tester.tap(find.text('abandon'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('copy-selected')));
+    await tester.pumpAndSettle();
+    // 选择目标"未分组"。
+    await tester.tap(find.byKey(const Key('pick-group-0')));
+    await tester.pumpAndSettle();
+    // 复制成功后列表出现两条 abandon。
+    expect(find.text('abandon'), findsNWidgets(2));
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证左滑露出"修改/删除"，删除需二次确认后生效。
+  testWidgets('swipe left reveals actions and delete needs confirmation', (
+    tester,
+  ) async {
+    // 打开首页。
+    await _pumpHome(tester);
+
+    // 在 ability 行上向左拖动超过阈值。
+    await tester.drag(find.text('ability'), const Offset(-80, 0));
+    await tester.pumpAndSettle();
+    // 点击删除操作（每行都有同名 key，取第一行 ability 的那个）。
+    await tester.tap(find.byKey(const Key('swipe-delete')).first);
+    await tester.pumpAndSettle();
+    // 出现确认对话框。
+    expect(find.text('删除单词'), findsOneWidget);
+    expect(find.textContaining('ability'), findsWidgets);
+    // 先取消：单词仍在。
+    await tester.tap(find.byKey(const Key('delete-cancel')));
+    await tester.pumpAndSettle();
+    expect(find.text('ability'), findsOneWidget);
+
+    // 再来一次并确认删除。
+    await tester.drag(find.text('ability'), const Offset(-80, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('swipe-delete')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('delete-confirm')));
+    await tester.pumpAndSettle();
+    // 单词已被删除。
+    expect(find.text('ability'), findsNothing);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证抽屉"添加单词"表单可以创建新单词。
+  testWidgets('add word form creates a new word', (tester) async {
+    // 打开首页。
+    await _pumpHome(tester);
+
+    // 抽屉 → 添加单词。
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('drawer-add-word')));
+    await tester.pumpAndSettle();
+    // 表单标题为"添加单词"。
+    expect(find.text('添加单词'), findsOneWidget);
+    // 输入拼写。
+    await tester.enterText(find.byKey(const Key('form-spelling')), 'brandnew');
+    await tester.pump();
+    // 提交表单。
+    await tester.tap(find.byKey(const Key('form-submit')));
+    await tester.pumpAndSettle();
+    // 新单词出现在列表。
+    expect(find.text('brandnew'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证底部"随身听/默写"按钮存在并显示目标数量。
+  testWidgets('floating pills show the target word count', (tester) async {
+    // 打开首页（两个单词）。
+    await _pumpHome(tester);
+
+    // 两个按钮都显示全部可见数量。
+    expect(find.text('随身听 · 2'), findsOneWidget);
+    expect(find.text('默写 · 2'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   // 验证加载失败不仅显示标题，也输出真实异常内容。
   testWidgets('load error details are visible and selectable', (tester) async {
     // 使用固定抛错 Store 模拟 JSON 解析失败。
     await tester.pumpWidget(
-      const MaterialApp(home: HomePage(store: _ThrowingWordStore())),
+      MaterialApp(
+        home: HomePage(
+          store: const _ThrowingWordStore(),
+          audioPlayer: _SilentAudioPlayer(),
+        ),
+      ),
     );
     // 等待异步 getAll 进入 catch 并刷新页面。
     await tester.pump();
@@ -406,11 +660,11 @@ void main() {
     // data 保存构造 SelectableText 时传入的原始错误文本。
     expect(details.data, contains('broken-json-at-word-3'));
 
-    // 清理页面 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证窄屏大字体不会让左右 flex 布局溢出。
+  // 验证窄屏大字体不会让首页布局溢出。
   testWidgets('home page does not overflow on a narrow large-text screen', (
     tester,
   ) async {
@@ -434,32 +688,31 @@ void main() {
     // 搜索框仍然可见。
     expect(find.text('搜索单词'), findsOneWidget);
     // 高性能列表仍然存在。
-    expect(find.byType(ListView), findsOneWidget);
+    expect(find.byType(ListView), findsWidgets);
 
-    // 清理页面 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证后台停止、前台恢复 Timer 不会产生异常。
-  testWidgets('lifecycle changes stop and restart the clock safely', (
-    tester,
-  ) async {
+  // 验证后台/前台切换不会产生异常。
+  testWidgets('lifecycle changes are handled safely', (tester) async {
     // 打开首页。
     await _pumpHome(tester);
-    // 模拟小程序 App Hide。
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    // 模拟 App 失焦进入后台；新版 Flutter 校验状态机，paused 不能直接跳回
+    // resumed，因此用 inactive 表示离开前台（首页对任何非前台状态处理一致）。
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     // 虚拟推进两秒。
     await tester.pump(const Duration(seconds: 2));
     // 后台阶段无异常。
     expect(tester.takeException(), isNull);
-    // 模拟小程序 App Show。
+    // 模拟 App 回到前台；inactive → resumed 是合法状态转移。
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     // 处理恢复更新。
     await tester.pump();
     // 恢复阶段无异常。
     expect(tester.takeException(), isNull);
 
-    // 清理恢复后的 Timer。
+    // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
@@ -474,11 +727,15 @@ Future<void> _pumpHome(
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
     MaterialApp(
-      // HomePage 通过构造器注入测试 Store。
+      // HomePage 通过构造器注入测试 Store 与静音播放器。
       home: HomePage(
+        // UniqueKey 强制每次 pump 创建全新 State；否则同一用例内换数据重
+        // 新渲染时，Flutter 会复用旧 State 并保留旧 Store 与旧单词列表。
+        key: UniqueKey(),
         store: _MemoryWordStore(words ?? _sampleWords()),
         settings: settings,
-        audioPlayer: audioPlayer,
+        // 默认注入静音播放器，避免点击行时访问不存在的原生通道。
+        audioPlayer: audioPlayer ?? _SilentAudioPlayer(),
       ),
     ),
   );
@@ -505,6 +762,15 @@ void _expectTextsInVerticalOrder(WidgetTester tester, List<String> texts) {
   }
 }
 
+/// 从上到下读取当前列表每一行对应的 Word 主键。
+List<int?> _visibleWordIds(WidgetTester tester) {
+  // widgetList 按组件树顺序返回，与 ListView 从上到下的显示顺序一致。
+  return tester
+      .widgetList<WordListTile>(find.byType(WordListTile))
+      .map((tile) => tile.item.id)
+      .toList(growable: false);
+}
+
 /// 构造两条稳定测试数据，作用类似 PHPUnit fixture。
 List<Word> _sampleWords() {
   // 返回 ability 和 abandon，供搜索用例区分匹配结果。
@@ -527,29 +793,63 @@ List<Word> _sampleWords() {
   ];
 }
 
-/// 不依赖 Android SQLite 的测试 Store，类似小程序测试中的假 Store。
+/// 支持增删改的内存 Store，让选择/复制/删除/表单用例真实生效。
 class _MemoryWordStore implements WordStore {
-  /// 接收固定 fixture。
-  const _MemoryWordStore(this.words);
+  /// 接收初始 fixture，并复制为内部可变列表。
+  _MemoryWordStore(List<Word> initial) : _words = List<Word>.of(initial);
 
   /// 内存中的单词集合。
-  final List<Word> words;
+  final List<Word> _words;
 
-  /// 异步返回全部测试数据。
+  /// 异步返回全部数据副本。
   @override
-  Future<List<Word>> getAll() async => words;
+  Future<List<Word>> getAll() async => List<Word>.unmodifiable(_words);
 
-  /// 当前首页测试不使用创建；实现接口以保持 Fake 完整。
+  /// 生成新的自增主键并追加。
   @override
-  Future<int> create(Word word) async => word.id ?? 1;
+  Future<int> create(Word word) async {
+    // 计算当前最大主键。
+    var maxId = 0;
+    for (final item in _words) {
+      final id = item.id;
+      if (id != null && id > maxId) maxId = id;
+    }
+    // 新主键。
+    final newId = maxId + 1;
+    // 带主键落入内存。
+    _words.add(
+      Word(
+        id: newId,
+        spelling: word.spelling,
+        meanings: word.meanings,
+        difficulty: word.difficulty,
+        groupId: word.groupId,
+        reviewedAt: word.reviewedAt,
+        createdAt: word.createdAt ?? DateTime.now(),
+        updatedAt: word.updatedAt ?? DateTime.now(),
+      ),
+    );
+    // 返回主键。
+    return newId;
+  }
 
-  /// 当前首页测试不需要实际更新内存集合。
+  /// 按主键替换。
   @override
-  Future<void> update(Word word) async {}
+  Future<void> update(Word word) async {
+    // 定位目标下标。
+    final index = _words.indexWhere((item) => item.id == word.id);
+    // 找不到时抛出与生产实现一致的错误。
+    if (index < 0) throw StateError('找不到要更新的内存单词 id=${word.id}');
+    // 替换对象。
+    _words[index] = word;
+  }
 
-  /// 当前首页测试不需要实际删除内存集合。
+  /// 按主键移除。
   @override
-  Future<void> delete(int id) async {}
+  Future<void> delete(int id) async {
+    // 直接过滤目标。
+    _words.removeWhere((item) => item.id == id);
+  }
 }
 
 /// 固定抛错 Store 用于检查首页错误输出区域。
@@ -577,6 +877,17 @@ class _ThrowingWordStore implements WordStore {
   /// 其余接口不属于本测试流程。
   @override
   Future<void> delete(int id) async => throw UnimplementedError();
+}
+
+/// 立即完成的静音播放器；默认注入避免测试访问原生通道。
+class _SilentAudioPlayer implements WordAudioPlayer {
+  /// 播放立即成功。
+  @override
+  Future<void> play(String spelling, PronunciationAccent accent) async {}
+
+  /// 停止同样立即成功。
+  @override
+  Future<void> stop() async {}
 }
 
 /// 可控制完成时机的假音频播放器，避免 Widget 测试访问网络或 Android。

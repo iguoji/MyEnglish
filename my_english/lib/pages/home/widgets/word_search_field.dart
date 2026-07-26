@@ -26,8 +26,8 @@ class WordSearchField extends StatelessWidget {
           color: colorScheme.surface,
           // 四周使用 Tabler 风格的一像素浅色边框。
           border: Border.all(color: colorScheme.outline),
-          // 6 像素小圆角，避免过度卡片化。
-          borderRadius: BorderRadius.circular(6),
+          // 8 像素圆角与设计稿输入框一致。
+          borderRadius: BorderRadius.circular(8),
         ),
         // TextField 对应小程序 input；输入值变化时会调用 onChanged。
         child: TextField(
@@ -65,8 +65,8 @@ class WordSearchField extends StatelessWidget {
               Icons.search,
               // 图标颜色与 placeholder 保持一致。
               color: colorScheme.onSurfaceVariant,
-              // 从原来的 18 提升到 24，使图标更清晰也更容易识别。
-              size: 24,
+              // 设计稿使用更轻量的小图标，这里取 20 兼顾清晰度。
+              size: 20,
             ),
             // 将图标区域固定为 40×40，让图标在输入框内严格居中。
             prefixIconConstraints: const BoxConstraints(
