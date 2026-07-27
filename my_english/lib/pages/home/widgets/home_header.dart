@@ -93,14 +93,15 @@ class HomeHeader extends StatelessWidget {
             onTap: onMenuPressed,
             // 圆角反馈与按钮尺寸贴合。
             borderRadius: BorderRadius.circular(8),
-            // SizedBox 固定触控区域为 40×40，并在正中放置统一的 Tabler 菜单图标。
+            // SizedBox 固定触控区域为 40×40，图标贴右对齐右侧分界线。
             child: SizedBox(
               width: 40,
               height: 40,
-              // Center 让 20px 图标在 40×40 触控区内真正居中；
-              // 若直接把 Icon 放进 SizedBox，紧约束会把它撑成 40×40，
-              // 三横线字形被挤到框的左上角，视觉中心偏离盒子中心、与右侧分界线对不齐。
-              child: Center(
+              // Align(centerRight) 让 20px 图标在 40×40 触控区内靠右、垂直居中，
+              // 使其右边缘对齐右侧分界线；SizedBox 的紧约束会把字形挤到左上角，
+              // 必须显式对齐才能贴右。
+              child: Align(
+                alignment: Alignment.centerRight,
                 child: Icon(
                   // menu2 是 Tabler 的三横线菜单图标，不再用 Container 手工模拟图标。
                   TablerIcons.menu2,
