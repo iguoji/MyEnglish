@@ -1,5 +1,7 @@
 // material.dart 提供 Text、Row 等界面组件，类似小程序内置的 view、text 组件集合。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 提供统一的 Tabler 图标字形，禁止回退到 Flutter 内置 Icons。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -91,30 +93,15 @@ class HomeHeader extends StatelessWidget {
             onTap: onMenuPressed,
             // 圆角反馈与按钮尺寸贴合。
             borderRadius: BorderRadius.circular(8),
-            // SizedBox 固定触控区域为 40×40。
+            // SizedBox 固定触控区域为 40×40，并在正中放置统一的 Tabler 菜单图标。
             child: SizedBox(
               width: 40,
               height: 40,
-              // Column 垂直排列三条横线，构成设计稿手绘风格的汉堡图标。
-              child: Column(
-                // 三条线整体垂直居中。
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // 逐条生成 16×2 的横线，间距 4.5 像素与设计稿一致。
-                  for (var line = 0; line < 3; line += 1) ...[
-                    // 第一条线之前不加间距。
-                    if (line > 0) const SizedBox(height: 4.5),
-                    // 单条横线：主文字色圆角矩形。
-                    Container(
-                      width: 16,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: tokens.text,
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ],
-                ],
+              child: Icon(
+                // menu2 是 Tabler 的三横线菜单图标，不再用 Container 手工模拟图标。
+                TablerIcons.menu2,
+                size: 20,
+                color: tokens.text,
               ),
             ),
           ),

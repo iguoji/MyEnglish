@@ -3,6 +3,8 @@ import 'dart:async';
 
 // material.dart 提供页面、布局、加载指示器和按钮等 Flutter UI 组件。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 提供分组头的勾选和折叠方向图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入公共主题与设计令牌。
 import '../../common/theme.dart';
@@ -61,7 +63,11 @@ class HomePage extends StatefulWidget {
 /// 一个分组区块：标题信息与其中经过搜索、排序后的单词。
 class _WordSection {
   /// 创建区块。
-  const _WordSection({required this.key, required this.name, required this.words});
+  const _WordSection({
+    required this.key,
+    required this.name,
+    required this.words,
+  });
 
   /// 稳定标识，用于折叠与筛选（如 c1、d5、u20260726）。
   final String key;
@@ -211,7 +217,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _reassignOrphanWords() async {
     // 收集所有指向不存在分组的单词。
     final orphans = _allWords
-        .where((word) => word.groupId != null && _groups.byId(word.groupId) == null)
+        .where(
+          (word) => word.groupId != null && _groups.byId(word.groupId) == null,
+        )
         .toList(growable: false);
     // 没有孤儿时直接结束。
     if (orphans.isEmpty) return;
@@ -236,58 +244,61 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return 0;
 
       // 字母排序链。
-      case WordSortField.alphabet: {
-        // 第一级：拼写按用户当前选择的升降序。
-        final bySpelling = _compareSpelling(first, second, isAscending);
-        // 拼写不同就直接得出结论。
-        if (bySpelling != 0) return bySpelling;
-        // 第二级：相同拼写按难度从高到低。
-        final byDifficulty = _compareDifficulty(first, second, false);
-        // 难度不同立即返回。
-        if (byDifficulty != 0) return byDifficulty;
-        // 第三级：仍然相同时按日期从新到旧。
-        final byDate = _compareDate(first, second, false);
-        // 日期不同立即返回。
-        if (byDate != 0) return byDate;
-        // 保底：编号升序。
-        return _compareId(first, second);
-      }
+      case WordSortField.alphabet:
+        {
+          // 第一级：拼写按用户当前选择的升降序。
+          final bySpelling = _compareSpelling(first, second, isAscending);
+          // 拼写不同就直接得出结论。
+          if (bySpelling != 0) return bySpelling;
+          // 第二级：相同拼写按难度从高到低。
+          final byDifficulty = _compareDifficulty(first, second, false);
+          // 难度不同立即返回。
+          if (byDifficulty != 0) return byDifficulty;
+          // 第三级：仍然相同时按日期从新到旧。
+          final byDate = _compareDate(first, second, false);
+          // 日期不同立即返回。
+          if (byDate != 0) return byDate;
+          // 保底：编号升序。
+          return _compareId(first, second);
+        }
 
       // 难度排序链。
-      case WordSortField.difficulty: {
-        // 第一级：难度按用户当前方向；null 难度按 0 参与，因此升序从 0/null 开始。
-        final byDifficulty = _compareDifficulty(first, second, isAscending);
-        // 难度不同就直接得出结论。
-        if (byDifficulty != 0) return byDifficulty;
-        // 第二级：难度相同按日期从新到旧。
-        final byDate = _compareDate(first, second, false);
-        // 日期不同立即返回。
-        if (byDate != 0) return byDate;
-        // 第三级：再按拼写 A 到 Z。
-        final bySpelling = _compareSpelling(first, second, true);
-        // 拼写不同立即返回。
-        if (bySpelling != 0) return bySpelling;
-        // 保底：编号升序。
-        return _compareId(first, second);
-      }
+      case WordSortField.difficulty:
+        {
+          // 第一级：难度按用户当前方向；null 难度按 0 参与，因此升序从 0/null 开始。
+          final byDifficulty = _compareDifficulty(first, second, isAscending);
+          // 难度不同就直接得出结论。
+          if (byDifficulty != 0) return byDifficulty;
+          // 第二级：难度相同按日期从新到旧。
+          final byDate = _compareDate(first, second, false);
+          // 日期不同立即返回。
+          if (byDate != 0) return byDate;
+          // 第三级：再按拼写 A 到 Z。
+          final bySpelling = _compareSpelling(first, second, true);
+          // 拼写不同立即返回。
+          if (bySpelling != 0) return bySpelling;
+          // 保底：编号升序。
+          return _compareId(first, second);
+        }
 
       // 日期排序链。
-      case WordSortField.date: {
-        // 第一级：日期按用户当前方向，空日期在任何方向都排在末尾。
-        final byDate = _compareDate(first, second, isAscending);
-        // 日期不同就直接得出结论。
-        if (byDate != 0) return byDate;
-        // 第二级：日期相同按难度从高到低。
-        final byDifficulty = _compareDifficulty(first, second, false);
-        // 难度不同立即返回。
-        if (byDifficulty != 0) return byDifficulty;
-        // 第三级：再按拼写 A 到 Z。
-        final bySpelling = _compareSpelling(first, second, true);
-        // 拼写不同立即返回。
-        if (bySpelling != 0) return bySpelling;
-        // 保底：编号升序。
-        return _compareId(first, second);
-      }
+      case WordSortField.date:
+        {
+          // 第一级：日期按用户当前方向，空日期在任何方向都排在末尾。
+          final byDate = _compareDate(first, second, isAscending);
+          // 日期不同就直接得出结论。
+          if (byDate != 0) return byDate;
+          // 第二级：日期相同按难度从高到低。
+          final byDifficulty = _compareDifficulty(first, second, false);
+          // 难度不同立即返回。
+          if (byDifficulty != 0) return byDifficulty;
+          // 第三级：再按拼写 A 到 Z。
+          final bySpelling = _compareSpelling(first, second, true);
+          // 拼写不同立即返回。
+          if (bySpelling != 0) return bySpelling;
+          // 保底：编号升序。
+          return _compareId(first, second);
+        }
     }
   }
 
@@ -379,7 +390,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final result = _compareWords(first, second, isAscending);
       // 业务字段全部打平时回到原始下标。
       if (result != 0) return result;
-      return (originalIndexes[first] ?? 0).compareTo(originalIndexes[second] ?? 0);
+      return (originalIndexes[first] ?? 0).compareTo(
+        originalIndexes[second] ?? 0,
+      );
     });
     // 返回排序副本。
     return filtered;
@@ -405,7 +418,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       // 没有分组或分组已删除的单词全部归入"未分组"。
       final ungrouped = _allWords
-          .where((word) => word.groupId == null || _groups.byId(word.groupId) == null)
+          .where(
+            (word) =>
+                word.groupId == null || _groups.byId(word.groupId) == null,
+          )
           .toList();
       // 未分组只有在确实有单词或没有任何自定义分组时才显示。
       if (ungrouped.isNotEmpty || _groups.groups.isEmpty) {
@@ -422,8 +438,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 难度视角：数值从高到低，"无难度"固定在最后。
     if (_mode == GroupMode.difficulty) {
       // 收集出现过的难度值（含 null）。
-      final values = <int?>{for (final word in _allWords) word.difficulty}.toList()
-        ..sort((a, b) => (b ?? -1).compareTo(a ?? -1));
+      final values = <int?>{
+        for (final word in _allWords) word.difficulty,
+      }.toList()..sort((a, b) => (b ?? -1).compareTo(a ?? -1));
       // 逐个难度生成区块。
       for (final value in values) {
         sections.add(
@@ -462,7 +479,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 逐天生成区块。
     for (final dayKey in sortedKeys) {
       // 还原该天日期对象用于格式化标题。
-      final day = DateTime(dayKey ~/ 10000, dayKey % 10000 ~/ 100, dayKey % 100);
+      final day = DateTime(
+        dayKey ~/ 10000,
+        dayKey % 10000 ~/ 100,
+        dayKey % 100,
+      );
       sections.add(
         _WordSection(
           key: '$prefix$dayKey',
@@ -472,7 +493,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final date = dateOf(word);
               if (date == null) return false;
               final local = date.toLocal();
-              return local.year * 10000 + local.month * 100 + local.day == dayKey;
+              return local.year * 10000 + local.month * 100 + local.day ==
+                  dayKey;
             }).toList(),
           ),
         ),
@@ -902,8 +924,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         groupId: null,
         name: GroupStore.ungroupedName,
         wordCount: _allWords
-            .where((word) =>
-                word.groupId == null || _groups.byId(word.groupId) == null)
+            .where(
+              (word) =>
+                  word.groupId == null || _groups.byId(word.groupId) == null,
+            )
             .length,
       ),
     ];
@@ -957,9 +981,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 先移除旧提示。
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     // 轻量提示避免用户以为按钮坏了。
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('「$feature」将在下一轮实现，敬请期待')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('「$feature」将在下一轮实现，敬请期待')));
   }
 
   /// 将任意异常转换成用户可见的详情，不再只显示笼统失败文案。
@@ -1103,7 +1127,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               section: entry.section,
               isCollapsed: _collapsedKeys.contains(entry.section.key),
               selectMode: _selectMode,
-              isAllSelected: entry.section.words.isNotEmpty &&
+              isAllSelected:
+                  entry.section.words.isNotEmpty &&
                   entry.section.words.every(_selectedWords.contains),
               onTap: () => setState(() {
                 // 点击分组头切换折叠状态。
@@ -1113,7 +1138,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }),
               onToggleSelect: () => setState(() {
                 // 分组头勾选：全选或全不选该区块。
-                final allSelected = entry.section.words.isNotEmpty &&
+                final allSelected =
+                    entry.section.words.isNotEmpty &&
                     entry.section.words.every(_selectedWords.contains);
                 if (allSelected) {
                   _selectedWords.removeAll(entry.section.words);
@@ -1168,16 +1194,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 组织全部分组区块。
     final sections = _buildSections();
     // 当前筛选 key 失效（分组被删除等）时回退到"全部"。
-    final activeFilter =
-        sections.any((section) => section.key == _filterKey) ? _filterKey : null;
+    final activeFilter = sections.any((section) => section.key == _filterKey)
+        ? _filterKey
+        : null;
     // 应用筛选后的区块。
     var shownSections = activeFilter == null
         ? sections
         : sections.where((section) => section.key == activeFilter).toList();
     // 搜索时隐藏没有匹配的分组。
     if (_query.isNotEmpty) {
-      shownSections =
-          shownSections.where((section) => section.words.isNotEmpty).toList();
+      shownSections = shownSections
+          .where((section) => section.words.isNotEmpty)
+          .toList();
     }
     // 当前可见（参与全选与随身听/默写目标）的全部单词。
     final visibleWords = <Word>[
@@ -1197,7 +1225,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     // 筛选 chips 使用未过滤的区块名（含"全部"）。
     final chips = <GroupFilterChip>[
-      GroupFilterChip(sectionKey: null, name: '全部', isActive: activeFilter == null),
+      GroupFilterChip(
+        sectionKey: null,
+        name: '全部',
+        isActive: activeFilter == null,
+      ),
       for (final section in sections)
         GroupFilterChip(
           sectionKey: section.key,
@@ -1206,11 +1238,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
     ];
     // 随身听/默写的目标数量：有勾选用勾选数，否则用全部可见数。
-    final selectedVisible =
-        visibleWords.where(_selectedWords.contains).length;
-    final targetCount = selectedVisible > 0 ? selectedVisible : visibleWords.length;
+    final selectedVisible = visibleWords.where(_selectedWords.contains).length;
+    final targetCount = selectedVisible > 0
+        ? selectedVisible
+        : visibleWords.length;
     // 全部可见分组是否都已折叠，决定按钮文案。
-    final allCollapsed = shownSections.isNotEmpty &&
+    final allCollapsed =
+        shownSections.isNotEmpty &&
         shownSections.every((section) => _collapsedKeys.contains(section.key));
 
     // Scaffold 是页面根骨架；endDrawer 提供右侧抽屉。
@@ -1482,13 +1516,10 @@ class _SectionHeader extends StatelessWidget {
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: isAllSelected
-                      ? const Text(
-                          '✓',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            height: 1,
-                          ),
+                      ? const Icon(
+                          TablerIcons.check,
+                          color: Colors.white,
+                          size: 13,
                         )
                       : null,
                 ),
@@ -1517,9 +1548,10 @@ class _SectionHeader extends StatelessWidget {
             AnimatedRotation(
               turns: isCollapsed ? 0 : 0.25,
               duration: const Duration(milliseconds: 150),
-              child: Text(
-                '❯',
-                style: TextStyle(color: tokens.muted, fontSize: 10),
+              child: Icon(
+                TablerIcons.chevronRight,
+                color: tokens.muted,
+                size: 14,
               ),
             ),
           ],

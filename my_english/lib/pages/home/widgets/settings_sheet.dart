@@ -3,6 +3,8 @@ import 'dart:async';
 
 // material.dart 提供底部面板与主题颜色。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 提供每日目标步进器的加减图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -252,7 +254,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     // 减 5。
                     _StepButton(
                       key: const Key('goal-minus'),
-                      label: '−',
+                      icon: TablerIcons.minus,
                       onTap: () => widget.settings.setDailyGoal(
                         widget.settings.dailyGoal - 5,
                       ),
@@ -275,7 +277,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     // 加 5。
                     _StepButton(
                       key: const Key('goal-plus'),
-                      label: '＋',
+                      icon: TablerIcons.plus,
                       onTap: () => widget.settings.setDailyGoal(
                         widget.settings.dailyGoal + 5,
                       ),
@@ -326,10 +328,7 @@ class _SettingRow extends StatelessWidget {
       child: Row(
         children: [
           // 左侧标签。
-          Text(
-            label,
-            style: TextStyle(color: tokens.text, fontSize: 14.5),
-          ),
+          Text(label, style: TextStyle(color: tokens.text, fontSize: 14.5)),
           // 撑开中间空间。
           const Spacer(),
           // 右侧控件。
@@ -342,11 +341,11 @@ class _SettingRow extends StatelessWidget {
 
 /// 每日复习目标的 28×28 步进按钮。
 class _StepButton extends StatelessWidget {
-  /// 接收符号与动作。
-  const _StepButton({required this.label, required this.onTap, super.key});
+  /// 接收 Tabler 图标与动作。
+  const _StepButton({required this.icon, required this.onTap, super.key});
 
-  /// 按钮符号（− 或 ＋）。
-  final String label;
+  /// 步进按钮使用的 Tabler 图标数据。
+  final IconData icon;
 
   /// 点击动作。
   final VoidCallback onTap;
@@ -369,10 +368,7 @@ class _StepButton extends StatelessWidget {
           border: Border.all(color: tokens.inputBorder),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          label,
-          style: TextStyle(color: tokens.textMedium, fontSize: 15, height: 1),
-        ),
+        child: Icon(icon, color: tokens.textMedium, size: 15),
       ),
     );
   }

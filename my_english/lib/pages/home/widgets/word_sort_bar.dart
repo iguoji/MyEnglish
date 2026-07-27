@@ -1,5 +1,7 @@
 // material.dart 提供横向布局与文字按钮。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 提供升序、降序和可排序状态图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -128,7 +130,7 @@ class WordSortBar extends StatelessWidget {
   }
 }
 
-/// 单个排序项：文字在左，紧贴其右显示 ↑/↓/↕ 方向符号。
+/// 单个排序项：文字在左，紧贴其右显示 Tabler 排序方向图标。
 class _SortChip extends StatelessWidget {
   /// 默认项不传 isAscending，其他三项必须传入方向。
   const _SortChip({
@@ -161,10 +163,14 @@ class _SortChip extends StatelessWidget {
     final tokens = AppTokens.of(context);
     // 选中项用主色，其余用中等文字色。
     final labelColor = isSelected ? AppTokens.accent : tokens.textMedium;
-    // 未选中显示双向箭头 ↕，选中后按方向显示 ↑ 或 ↓；默认项没有箭头。
-    final arrow = isAscending == null ? '' : (isSelected ? (isAscending! ? '↑' : '↓') : '↕');
-    // 箭头颜色：选中用主色，未选中用弱化色。
-    final arrowColor = isSelected ? AppTokens.accent : tokens.muted;
+    // 默认项没有图标；未选中显示可排序，选中后显示当前升降方向。
+    final IconData? sortIcon = isAscending == null
+        ? null
+        : isSelected
+        ? (isAscending! ? TablerIcons.arrowUp : TablerIcons.arrowDown)
+        : TablerIcons.arrowsSort;
+    // 图标颜色：选中用主色，未选中用弱化色。
+    final iconColor = isSelected ? AppTokens.accent : tokens.muted;
 
     // InkWell 提供点击反馈；纯文字按钮保持工具行紧凑。
     return InkWell(
@@ -191,14 +197,10 @@ class _SortChip extends StatelessWidget {
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
-            // 有箭头时紧贴文字右侧 3 像素。
-            if (arrow.isNotEmpty) ...[
+            // 有排序状态时紧贴文字右侧放置 Tabler 图标。
+            if (sortIcon != null) ...[
               const SizedBox(width: 3),
-              // 11 号小箭头符号。
-              Text(
-                arrow,
-                style: TextStyle(color: arrowColor, fontSize: 11),
-              ),
+              Icon(sortIcon, color: iconColor, size: 13),
             ],
           ],
         ),
@@ -242,7 +244,11 @@ class _ActionText extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Text(
           label,
-          style: TextStyle(color: color, fontSize: 13.5, fontWeight: fontWeight),
+          style: TextStyle(
+            color: color,
+            fontSize: 13.5,
+            fontWeight: fontWeight,
+          ),
         ),
       ),
     );

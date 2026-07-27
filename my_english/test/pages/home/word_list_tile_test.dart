@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 // flutter_test 提供 Widget 测试驱动。
 import 'package:flutter_test/flutter_test.dart';
+// 测试识别 Tabler 勾选图标，避免继续把文字字符当图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入全局模型。
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
@@ -109,7 +111,7 @@ void main() {
       onToggleSelect: () => toggled += 1,
     );
     // 未选中时没有对勾。
-    expect(find.text('✓'), findsNothing);
+    expect(find.byIcon(TablerIcons.check), findsNothing);
     // 点击勾选框（单词左侧 18×18 区域）。
     await tester.tapAt(
       tester.getTopLeft(find.text('ability')) + const Offset(-18, 8),
@@ -118,14 +120,9 @@ void main() {
     expect(toggled, 1);
 
     // 渲染选中状态。
-    await pumpTile(
-      tester,
-      item: sample,
-      selectMode: true,
-      isSelected: true,
-    );
+    await pumpTile(tester, item: sample, selectMode: true, isSelected: true);
     // 选中后出现白色对勾。
-    expect(find.text('✓'), findsOneWidget);
+    expect(find.byIcon(TablerIcons.check), findsOneWidget);
   });
 
   // 左滑打开操作区、右滑关闭，回调收到正确方向。
@@ -166,9 +163,6 @@ void main() {
       find.byType(AnimatedContainer),
     );
     // transform 的 x 平移等于 -128。
-    expect(
-      container.transform!.getTranslation().x,
-      -WordListTile.actionWidth,
-    );
+    expect(container.transform!.getTranslation().x, -WordListTile.actionWidth);
   });
 }

@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 // flutter_test 提供 Widget 测试驱动，作用类似 PHPUnit 加小程序自动化工具。
 import 'package:flutter_test/flutter_test.dart';
+// 测试直接识别 Tabler 图标，确保界面不会回退到 Flutter 内置图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
@@ -257,7 +259,7 @@ void main() {
     // 参数使用设置中的英式口音。
     expect(audioPlayer.lastAccent, PronunciationAccent.british);
     // 播放期间左侧出现动画喇叭。
-    expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+    expect(find.byIcon(TablerIcons.volume2), findsOneWidget);
     // 释义同步展开：两个 Meaning 各自显示为一行。
     expect(find.text('能力；才能'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
@@ -279,7 +281,7 @@ void main() {
     audioPlayer.complete();
     await tester.pump();
     // Future 完成后喇叭消失。
-    expect(find.byIcon(Icons.volume_up_rounded), findsNothing);
+    expect(find.byIcon(TablerIcons.volume2), findsNothing);
 
     // 释放 SettingsStore 和页面资源。
     settings.dispose();
@@ -413,10 +415,12 @@ void main() {
     await tester.tap(find.byKey(const Key('word-sort-difficulty')));
     await tester.pump();
     // 先日期降序，无日期组固定在后并按拼写升序。
-    _expectTextsInVerticalOrder(
-      tester,
-      <String>['alpha', 'delta', 'bravo', 'echo'],
-    );
+    _expectTextsInVerticalOrder(tester, <String>[
+      'alpha',
+      'delta',
+      'bravo',
+      'echo',
+    ]);
 
     // 三个重复拼写单词用来检验字母排序的难度、日期层级。
     final sameSpellingWords = <Word>[
@@ -638,37 +642,40 @@ void main() {
   // 验证加载失败不仅显示标题，也输出真实异常内容。
   testWidgets('load error details are visible and selectable', (tester) async {
     // 本用例故意注入抛错 Store；首页的 debugPrint/debugPrintStack 属于预期内
-    // 诊断日志，这里临时静音避免污染测试输出，用例结束自动恢复。
+    // 诊断日志，这里临时静音避免污染测试输出。
     final originalDebugPrint = debugPrint;
     // 空实现丢弃日志。
     debugPrint = (String? message, {int? wrapWidth}) {};
-    // 用例结束后恢复原始日志通道。
-    addTearDown(() => debugPrint = originalDebugPrint);
-    // 使用固定抛错 Store 模拟 JSON 解析失败。
-    await tester.pumpWidget(
-      MaterialApp(
-        home: HomePage(
-          store: const _ThrowingWordStore(),
-          audioPlayer: _SilentAudioPlayer(),
+    try {
+      // 使用固定抛错 Store 模拟 JSON 解析失败。
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomePage(
+            store: const _ThrowingWordStore(),
+            audioPlayer: _SilentAudioPlayer(),
+          ),
         ),
-      ),
-    );
-    // 等待异步 getAll 进入 catch 并刷新页面。
-    await tester.pump();
+      );
+      // 等待异步 getAll 进入 catch 并刷新页面。
+      await tester.pump();
 
-    // 保留用户可理解的错误标题。
-    expect(find.text('单词数据加载失败'), findsOneWidget);
-    // 详情使用可长按选择的 SelectableText。
-    final detailsFinder = find.byKey(const Key('word-load-error-details'));
-    // 错误详情控件只出现一次。
-    expect(detailsFinder, findsOneWidget);
-    // 读取 SelectableText 本身，确认具体错误不只输出在控制台。
-    final details = tester.widget<SelectableText>(detailsFinder);
-    // data 保存构造 SelectableText 时传入的原始错误文本。
-    expect(details.data, contains('broken-json-at-word-3'));
+      // 保留用户可理解的错误标题。
+      expect(find.text('单词数据加载失败'), findsOneWidget);
+      // 详情使用可长按选择的 SelectableText。
+      final detailsFinder = find.byKey(const Key('word-load-error-details'));
+      // 错误详情控件只出现一次。
+      expect(detailsFinder, findsOneWidget);
+      // 读取 SelectableText 本身，确认具体错误不只输出在控制台。
+      final details = tester.widget<SelectableText>(detailsFinder);
+      // data 保存构造 SelectableText 时传入的原始错误文本。
+      expect(details.data, contains('broken-json-at-word-3'));
 
-    // 清理页面。
-    await tester.pumpWidget(const SizedBox.shrink());
+      // 清理页面。
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      // Widget 测试会在 tearDown 前检查全局调试变量，因此必须在测试主体结束前恢复。
+      debugPrint = originalDebugPrint;
+    }
   });
 
   // 验证窄屏大字体不会让首页布局溢出。

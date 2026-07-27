@@ -1,5 +1,7 @@
 // material.dart 提供弹出菜单、横向滚动与按钮组件。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 负责当前项、下拉和管理等全部图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -97,7 +99,7 @@ class GroupFilterBar extends StatelessWidget {
           tooltip: '切换分组视角',
           // 选中后通知首页切换模式。
           onSelected: onModeSelected,
-          // itemBuilder 逐个生成模式选项，当前项显示 ✓ 并使用主色。
+          // itemBuilder 逐个生成模式选项，当前项显示 Tabler 勾选图标并使用主色。
           itemBuilder: (context) => GroupMode.values
               .map(
                 (option) => PopupMenuItem<GroupMode>(
@@ -114,24 +116,29 @@ class GroupFilterBar extends StatelessWidget {
                         option.label,
                         style: TextStyle(
                           fontSize: 13.5,
-                          fontWeight: option == mode ? FontWeight.w600 : FontWeight.w400,
-                          color: option == mode ? AppTokens.accent : tokens.text,
+                          fontWeight: option == mode
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: option == mode
+                              ? AppTokens.accent
+                              : tokens.text,
                         ),
                       ),
                       // 撑开中间空间。
                       const Spacer(),
-                      // 当前项显示勾选符号。
+                      // 当前项显示 Tabler 勾选图标，不再用文字字符模拟。
                       if (option == mode)
-                        const Text(
-                          '✓',
-                          style: TextStyle(fontSize: 11, color: AppTokens.accent),
+                        const Icon(
+                          TablerIcons.check,
+                          size: 14,
+                          color: AppTokens.accent,
                         ),
                     ],
                   ),
                 ),
               )
               .toList(growable: false),
-          // child 是常驻按钮外观：模式名 + ▼。
+          // child 是常驻按钮外观：模式名加 Tabler 下拉图标。
           child: Container(
             // 固定 32 高与设计稿一致。
             height: 32,
@@ -158,10 +165,11 @@ class GroupFilterBar extends StatelessWidget {
                 ),
                 // 名称与箭头间距。
                 const SizedBox(width: 5),
-                // 小号下拉箭头。
-                Text(
-                  '▼',
-                  style: TextStyle(fontSize: 8, color: tokens.textSecondary),
+                // 小号 Tabler 下拉箭头。
+                Icon(
+                  TablerIcons.chevronDown,
+                  size: 14,
+                  color: tokens.textSecondary,
                 ),
               ],
             ),
@@ -199,7 +207,9 @@ class GroupFilterBar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: chip.isActive ? AppTokens.accent : tokens.card,
                       border: Border.all(
-                        color: chip.isActive ? AppTokens.accent : tokens.inputBorder,
+                        color: chip.isActive
+                            ? AppTokens.accent
+                            : tokens.inputBorder,
                       ),
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -239,7 +249,11 @@ class GroupFilterBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               // 列表管理图标近似设计稿的调节线条。
-              child: Icon(Icons.tune, size: 15, color: tokens.muted),
+              child: Icon(
+                TablerIcons.adjustmentsHorizontal,
+                size: 16,
+                color: tokens.muted,
+              ),
             ),
           ),
         ),

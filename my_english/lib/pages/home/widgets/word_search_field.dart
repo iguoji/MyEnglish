@@ -1,5 +1,7 @@
 // 引入 Flutter Material 组件，类似小程序页面使用 input 和 icon 的基础组件库。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 提供统一的搜索图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 /// 首页搜索框；组件本身不保存关键词，只把输入变化通知给父页面。
 class WordSearchField extends StatelessWidget {
@@ -62,7 +64,7 @@ class WordSearchField extends StatelessWidget {
             // prefixIcon 相当于小程序 input 左侧放置一个 icon 节点。
             prefixIcon: Icon(
               // 使用 Flutter 自带的搜索图标。
-              Icons.search,
+              TablerIcons.search,
               // 图标颜色与 placeholder 保持一致。
               color: colorScheme.onSurfaceVariant,
               // 设计稿使用更轻量的小图标，这里取 20 兼顾清晰度。

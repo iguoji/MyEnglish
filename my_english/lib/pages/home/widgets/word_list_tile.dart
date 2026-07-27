@@ -1,5 +1,7 @@
 // material.dart 提供手势、动画、布局、文字与图标组件。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 统一提供勾选框与发音状态图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 公共日期 helper 负责今年与非今年的显示规则。
 import '../../../common/date.dart';
@@ -124,7 +126,8 @@ class WordListTile extends StatelessWidget {
                   // 拖拽结束时按累计位移方向通知首页。
                   onHorizontalDragEnd: _handleDragEnd,
                   // 累计本次拖拽的横向位移。
-                  onHorizontalDragUpdate: (details) => _dragDistance += details.delta.dx,
+                  onHorizontalDragUpdate: (details) =>
+                      _dragDistance += details.delta.dx,
                   // 拖拽开始时清零累计值。
                   onHorizontalDragStart: (details) => _dragDistance = 0,
                   // AnimatedContainer 平移标题行，产生滑开动画。
@@ -200,7 +203,8 @@ class WordListTile extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   // 任何非空难度都显示红色徽章。
-                                  if (item.difficulty case final difficulty?) ...[
+                                  if (item.difficulty
+                                      case final difficulty?) ...[
                                     _DifficultyBadge(difficulty: difficulty),
                                     // 徽章与日期之间留白。
                                     const SizedBox(width: 10),
@@ -346,12 +350,9 @@ class _CheckBox extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(5),
         ),
-        // 选中时显示白色对勾。
+        // 选中时显示白色 Tabler 对勾，不再用文字字符模拟图标。
         child: isSelected
-            ? const Text(
-                '✓',
-                style: TextStyle(color: Colors.white, fontSize: 11, height: 1),
-              )
+            ? const Icon(TablerIcons.check, color: Colors.white, size: 13)
             : null,
       ),
     );
@@ -388,7 +389,10 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
       duration: const Duration(milliseconds: 650),
     );
     // CurvedAnimation 让缩放起止更平滑。
-    final curved = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
     // Tween 定义最小与最大尺寸。
     _scale = Tween<double>(begin: 0.84, end: 1).animate(curved);
     // reverse=true 在放大后自动缩回并持续循环。
@@ -410,9 +414,9 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
     // ScaleTransition 只重绘图标，不触发行布局变化。
     return ScaleTransition(
       scale: _scale,
-      // volume_up 是用户熟悉的播放中扬声器符号。
+      // volume2 是 Tabler 中用户熟悉的播放中扬声器图标。
       child: const Icon(
-        Icons.volume_up_rounded,
+        TablerIcons.volume2,
         // 16 像素与设计稿喇叭一致。
         size: 16,
         // 使用品牌主色表达活动状态。

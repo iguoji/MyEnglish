@@ -1,5 +1,7 @@
 // material.dart 提供 Drawer、ListTile 风格布局所需组件。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 统一提供应用内图标，避免使用 Flutter Material 内置图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -53,7 +55,7 @@ class HomeDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
               child: Row(
                 children: [
-                  // 42×42 圆角方块内放一个"词"字，作为应用图标。
+                  // 42×42 圆角方块内使用 Tabler 书本图标，避免把汉字当作图标。
                   Container(
                     width: 42,
                     height: 42,
@@ -62,13 +64,10 @@ class HomeDrawer extends StatelessWidget {
                       color: AppTokens.accent,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
-                      '词',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    child: const Icon(
+                      TablerIcons.book2,
+                      color: Colors.white,
+                      size: 23,
                     ),
                   ),
                   // 图标与文字间距。
@@ -106,25 +105,25 @@ class HomeDrawer extends StatelessWidget {
             // 四个功能入口，图标与文案对应设计稿。
             _DrawerItem(
               key: const Key('drawer-add-word'),
-              icon: Icons.add_circle_outline,
+              icon: TablerIcons.circlePlus,
               label: '添加单词',
               onTap: onAddWord,
             ),
             _DrawerItem(
               key: const Key('drawer-settings'),
-              icon: Icons.tune_rounded,
+              icon: TablerIcons.adjustmentsHorizontal,
               label: '设置',
               onTap: onOpenSettings,
             ),
             _DrawerItem(
               key: const Key('drawer-export'),
-              icon: Icons.file_download_outlined,
+              icon: TablerIcons.fileExport,
               label: '数据导出',
               onTap: onExport,
             ),
             _DrawerItem(
               key: const Key('drawer-about'),
-              icon: Icons.info_outline,
+              icon: TablerIcons.infoCircle,
               label: '关于',
               onTap: onAbout,
             ),
@@ -139,7 +138,10 @@ class HomeDrawer extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // GitHub 小标题。
-                  Text('GitHub', style: TextStyle(color: tokens.muted, fontSize: 11)),
+                  Text(
+                    'GitHub',
+                    style: TextStyle(color: tokens.muted, fontSize: 11),
+                  ),
                   // 仓库地址使用主色，视觉上表示可点击链接。
                   const Padding(
                     padding: EdgeInsets.only(top: 2),
@@ -151,7 +153,10 @@ class HomeDrawer extends StatelessWidget {
                   // 两条信息之间的间距。
                   const SizedBox(height: 12),
                   // 邮箱小标题。
-                  Text('作者邮箱', style: TextStyle(color: tokens.muted, fontSize: 11)),
+                  Text(
+                    '作者邮箱',
+                    style: TextStyle(color: tokens.muted, fontSize: 11),
+                  ),
                   // 邮箱同样使用主色。
                   const Padding(
                     padding: EdgeInsets.only(top: 2),
@@ -207,10 +212,7 @@ class _DrawerItem extends StatelessWidget {
             // 图标与文字间距。
             const SizedBox(width: 12),
             // 入口文案使用主文字色。
-            Text(
-              label,
-              style: TextStyle(color: tokens.text, fontSize: 14.5),
-            ),
+            Text(label, style: TextStyle(color: tokens.text, fontSize: 14.5)),
           ],
         ),
       ),

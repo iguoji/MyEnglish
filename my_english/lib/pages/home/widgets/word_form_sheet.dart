@@ -1,5 +1,7 @@
 // material.dart 提供底部面板、输入框、标签与按钮。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 统一提供表单内的选择、添加和删除图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -77,7 +79,8 @@ class _WordFormSheet extends StatefulWidget {
 /// 单个"词性+释义"编辑块的临时数据。
 class _MeaningDraft {
   /// 创建编辑块。
-  _MeaningDraft({this.pos = '', List<String>? defs}) : defs = defs ?? <String>[];
+  _MeaningDraft({this.pos = '', List<String>? defs})
+    : defs = defs ?? <String>[];
 
   /// 词性文字。
   String pos;
@@ -101,7 +104,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   late final List<_MeaningDraft> _meanings;
 
   /// 每个编辑块的释义草稿输入控制器，与 _meanings 一一对应。
-  final List<TextEditingController> _draftControllers = <TextEditingController>[];
+  final List<TextEditingController> _draftControllers =
+      <TextEditingController>[];
 
   /// 初始化：编辑模式回填数据，新增模式给一个空块。
   @override
@@ -234,7 +238,9 @@ class _WordFormSheetState extends State<_WordFormSheet> {
 
     // Padding 让面板跟随键盘上移。
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       // 顶部圆角卡片容器。
       child: Container(
         constraints: BoxConstraints(
@@ -295,7 +301,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                             // 未分组 + 全部自定义分组。
                             itemBuilder: (context) {
                               // 当前生效的分组 id（未分组用 0 表示）。
-                              final current = _groupId ?? GroupStore.ungroupedId;
+                              final current =
+                                  _groupId ?? GroupStore.ungroupedId;
                               // 组装菜单项。
                               return [
                                 for (final option in [
@@ -324,23 +331,23 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                                           ),
                                         ),
                                         const Spacer(),
-                                        // 当前项显示勾选。
+                                        // 当前项显示 Tabler 勾选图标。
                                         if (option.id == current)
-                                          const Text(
-                                            '✓',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: AppTokens.accent,
-                                            ),
+                                          const Icon(
+                                            TablerIcons.check,
+                                            size: 14,
+                                            color: AppTokens.accent,
                                           ),
                                       ],
                                     ),
                                   ),
                               ];
                             },
-                            // 常驻外观：分组名 + ▼，浅色底与右侧竖线分隔。
+                            // 常驻外观：分组名 + Tabler 下拉图标，浅色底与右侧竖线分隔。
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 11),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                              ),
                               decoration: BoxDecoration(
                                 color: tokens.sub,
                                 border: Border(
@@ -364,13 +371,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  // 下拉箭头。
-                                  Text(
-                                    '▼',
-                                    style: TextStyle(
-                                      fontSize: 8,
-                                      color: tokens.textSecondary,
-                                    ),
+                                  // 使用 Tabler 下拉箭头，不再显示文字三角符号。
+                                  Icon(
+                                    TablerIcons.chevronDown,
+                                    size: 14,
+                                    color: tokens.textSecondary,
                                   ),
                                 ],
                               ),
@@ -383,7 +388,10 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                               controller: _spelling,
                               // 输入变化刷新提交按钮透明度。
                               onChanged: (value) => setState(() {}),
-                              style: TextStyle(color: tokens.text, fontSize: 15),
+                              style: TextStyle(
+                                color: tokens.text,
+                                fontSize: 15,
+                              ),
                               decoration: InputDecoration(
                                 isDense: true,
                                 hintText: '输入单词拼写',
@@ -415,7 +423,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                     ),
                     const SizedBox(height: 8),
                     // 逐块渲染"词性+释义"编辑卡。
-                    for (var index = 0; index < _meanings.length; index += 1) ...[
+                    for (
+                      var index = 0;
+                      index < _meanings.length;
+                      index += 1
+                    ) ...[
                       if (index > 0) const SizedBox(height: 8),
                       _buildMeaningCard(tokens, index),
                     ],
@@ -436,12 +448,23 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                           border: Border.all(color: tokens.check),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          '＋ 添加词性',
-                          style: TextStyle(
-                            color: tokens.textSecondary,
-                            fontSize: 12.5,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              TablerIcons.plus,
+                              size: 15,
+                              color: tokens.textSecondary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              '添加词性',
+                              style: TextStyle(
+                                color: tokens.textSecondary,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -559,7 +582,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                     _meanings.removeAt(index);
                     _draftControllers.removeAt(index).dispose();
                   }),
-                  icon: Icon(Icons.close, size: 16, color: tokens.muted),
+                  icon: Icon(TablerIcons.x, size: 16, color: tokens.muted),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints.tightFor(
                     width: 28,
@@ -576,7 +599,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (var defIndex = 0; defIndex < meaning.defs.length; defIndex += 1)
+                for (
+                  var defIndex = 0;
+                  defIndex < meaning.defs.length;
+                  defIndex += 1
+                )
                   Container(
                     padding: const EdgeInsets.fromLTRB(10, 5, 9, 5),
                     decoration: BoxDecoration(
@@ -600,9 +627,10 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                           onTap: () => setState(() {
                             meaning.defs.removeAt(defIndex);
                           }),
-                          child: Text(
-                            '×',
-                            style: TextStyle(color: tokens.muted, fontSize: 13),
+                          child: Icon(
+                            TablerIcons.x,
+                            color: tokens.muted,
+                            size: 14,
                           ),
                         ),
                       ],

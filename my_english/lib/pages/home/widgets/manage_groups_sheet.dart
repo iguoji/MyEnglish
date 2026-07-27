@@ -1,5 +1,7 @@
 // material.dart 提供底部面板、输入框与按钮。
 import 'package:flutter/material.dart';
+// tabler_icons_plus 提供分组新增、排序和删除图标。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -121,12 +123,23 @@ class _ManageGroupsSheet extends StatelessWidget {
                             border: Border.all(color: tokens.check),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            '＋ 新建分组',
-                            style: TextStyle(
-                              color: tokens.textSecondary,
-                              fontSize: 13,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                TablerIcons.folderPlus,
+                                size: 16,
+                                color: tokens.textSecondary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '新建分组',
+                                style: TextStyle(
+                                  color: tokens.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -210,21 +223,21 @@ class _GroupEditRow extends StatelessWidget {
         const SizedBox(width: 8),
         // 上移按钮。
         _SquareButton(
-          label: '↑',
+          icon: TablerIcons.arrowUp,
           enabled: canMoveUp,
           onTap: () => groups.moveUp(groupId),
         ),
         const SizedBox(width: 8),
         // 下移按钮。
         _SquareButton(
-          label: '↓',
+          icon: TablerIcons.arrowDown,
           enabled: canMoveDown,
           onTap: () => groups.moveDown(groupId),
         ),
         const SizedBox(width: 8),
         // 删除按钮；分组里的单词由首页监听后移回"未分组"。
         _SquareButton(
-          label: '×',
+          icon: TablerIcons.trash,
           enabled: canDelete,
           onTap: () => groups.remove(groupId),
         ),
@@ -235,15 +248,15 @@ class _GroupEditRow extends StatelessWidget {
 
 /// 34×34 描边方块按钮；不可用时降低透明度。
 class _SquareButton extends StatelessWidget {
-  /// 接收文字、可用状态与动作。
+  /// 接收 Tabler 图标、可用状态与动作。
   const _SquareButton({
-    required this.label,
+    required this.icon,
     required this.enabled,
     required this.onTap,
   });
 
-  /// 按钮符号。
-  final String label;
+  /// 按钮使用的 Tabler 图标数据。
+  final IconData icon;
 
   /// 是否可用。
   final bool enabled;
@@ -272,10 +285,7 @@ class _SquareButton extends StatelessWidget {
             border: Border.all(color: tokens.inputBorder),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(
-            label,
-            style: TextStyle(color: tokens.textMedium, fontSize: 13),
-          ),
+          child: Icon(icon, color: tokens.textMedium, size: 15),
         ),
       ),
     );
