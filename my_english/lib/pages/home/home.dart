@@ -1442,22 +1442,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
                 // 列表占满剩余高度并贴屏左右边缘。
                 Expanded(
-                  // 整个列表容器只有顶部一条外边框，颜色对齐 HTML 原型(--cBd/#e6e7e9)。
-                  child: DecoratedBox(
-                    // key 供 Widget 测试准确定位。
-                    key: const Key('word-list'),
-                    // 前景装饰会在列表内容之后绘制，避免 ListView 的白色背景把顶部线盖住。
-                    position: DecorationPosition.foreground,
-                    // 使用当前主题 surface 和原型顶部分隔线色（border = cBd）。
-                    decoration: BoxDecoration(
-                      color: tokens.card,
-                      border: Border(
-                        // 明确使用 1 个逻辑像素，让高分辨率真机也能稳定绘制清晰横线。
-                        top: BorderSide(color: tokens.border, width: 1),
+                  // ColoredBox 只负责先绘制列表白底；类似小程序中先设置容器 background。
+                  child: ColoredBox(
+                    color: tokens.card,
+                    // 单独用前景 DecoratedBox 绘制边框，不能把白色背景也放进前景装饰，
+                    // 否则白色会像一层遮罩盖住 loading、空状态和全部单词行。
+                    child: DecoratedBox(
+                      // key 供 Widget 测试准确定位。
+                      key: const Key('word-list'),
+                      // 前景装饰会在列表内容之后绘制，避免 ListView 把顶部线盖住。
+                      position: DecorationPosition.foreground,
+                      // 整个列表容器只有顶部一条外边框，对齐 HTML 原型(--cBd/#e6e7e9)。
+                      decoration: BoxDecoration(
+                        border: Border(
+                          // 明确使用 1 个逻辑像素，让高分辨率真机也能稳定绘制清晰横线。
+                          top: BorderSide(color: tokens.border, width: 1),
+                        ),
+                      ),
+                      // 根据加载状态返回对应内容。
+                      child: _buildListContent(
+                        entries,
+                        visibleWords.isNotEmpty,
                       ),
                     ),
-                    // 根据加载状态返回对应内容。
-                    child: _buildListContent(entries, visibleWords.isNotEmpty),
                   ),
                 ),
               ],

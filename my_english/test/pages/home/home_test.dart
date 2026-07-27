@@ -134,6 +134,8 @@ void main() {
     expect(listBox.position, DecorationPosition.foreground);
     // 生产代码明确使用 BoxDecoration。
     final decoration = listBox.decoration as BoxDecoration;
+    // 前景装饰只能画边框，不能再带白色背景，否则会遮住列表中的所有内容。
+    expect(decoration.color, isNull);
     // 生产代码明确使用 Border。
     final border = decoration.border! as Border;
     // 顶部是实线。
@@ -146,6 +148,11 @@ void main() {
     expect(border.left.style, BorderStyle.none);
     expect(border.right.style, BorderStyle.none);
     expect(border.bottom.style, BorderStyle.none);
+    // 列表白底由外层 ColoredBox 在内容之前绘制。
+    final background = tester.widget<ColoredBox>(
+      find.ancestor(of: listFinder, matching: find.byType(ColoredBox)).first,
+    );
+    expect(background.color, Colors.white);
     // 左边缘紧贴逻辑屏幕 0 坐标。
     expect(tester.getTopLeft(listFinder).dx, 0);
     // 物理像素换算成 Flutter 使用的逻辑宽度。
