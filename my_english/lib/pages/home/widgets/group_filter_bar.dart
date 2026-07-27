@@ -248,9 +248,9 @@ class GroupFilterBar extends StatelessWidget {
                 border: Border.all(color: tokens.inputBorder),
                 borderRadius: BorderRadius.circular(8),
               ),
-              // 列表管理图标近似设计稿的调节线条。
+              // 文件夹 + 齿轮，直接表达"管理分组/分类"的语义，比原先的调节滑块更贴切。
               child: Icon(
-                TablerIcons.adjustmentsHorizontal,
+                TablerIcons.folderCog,
                 size: 16,
                 color: tokens.muted,
               ),
