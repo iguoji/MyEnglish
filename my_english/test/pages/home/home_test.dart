@@ -170,7 +170,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证滚动条始终显示、支持拖动，并与 ListView 使用同一控制器。
+  // 验证滚动条始终显示、支持拖动，并与吸顶列表使用同一控制器。
   testWidgets('word list has an interactive draggable scrollbar', (
     tester,
   ) async {
@@ -183,16 +183,15 @@ void main() {
     expect(scrollbar.thumbVisibility, isTrue);
     // 用户可以直接按住滑块拖动。
     expect(scrollbar.interactive, isTrue);
-    // 读取业务列表：带 116 底部内边距的那一个。
-    final listView = tester.widget<ListView>(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is ListView &&
-            widget.padding == const EdgeInsets.only(bottom: 116),
-      ),
+    // 读取首页真正承载分组和单词的 CustomScrollView。
+    final scrollView = tester.widget<CustomScrollView>(
+      find.byKey(const Key('word-list-scroll-view')),
     );
     // 两者必须共享同一个控制器，拖动才会真正改变列表位置。
-    expect(scrollbar.controller, same(listView.controller));
+    expect(scrollbar.controller, same(scrollView.controller));
+    // 最后一段 SliverPadding 继续为悬浮学习按钮保留 116 像素空间。
+    final bottomPadding = scrollView.slivers.last as SliverPadding;
+    expect(bottomPadding.padding, const EdgeInsets.only(bottom: 116));
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -531,6 +530,61 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // 验证长分组滚动时，当前分组行固定在列表顶部，并由下一组自然接替。
+  testWidgets('section header stays pinned while its words scroll', (
+    tester,
+  ) async {
+    // 第一组准备足够多的单词，保证只滚动组内内容时还不会到达下一分组。
+    final words = <Word>[
+      for (var index = 0; index < 24; index++)
+        Word(
+          id: index + 1,
+          spelling: 'word${index.toString().padLeft(2, '0')}',
+          difficulty: 3,
+        ),
+      // 第二个难度值用于确认页面确实生成了多个独立吸顶区块。
+      const Word(id: 100, spelling: 'lower', difficulty: 2),
+    ];
+    // 用长列表打开首页。
+    await _pumpHome(tester, words: words);
+    // 切换到按难度分组，得到“难度 3”和“难度 2”两个区块。
+    await tester.tap(find.byKey(const Key('group-mode-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('group-mode-difficulty')));
+    await tester.pumpAndSettle();
+
+    // 从滚动组件配置中读取全部 Sliver；屏幕外分组尚未挂载，也仍应存在于配置列表。
+    final scrollView = tester.widget<CustomScrollView>(
+      find.byKey(const Key('word-list-scroll-view')),
+    );
+    // 每个分组都使用独立的主轴组，避免多个 pinned 标题永久堆叠。
+    final sectionGroups = scrollView.slivers
+        .whereType<SliverMainAxisGroup>()
+        .toList(growable: false);
+    expect(sectionGroups, hasLength(2));
+    // 每个主轴组的第一个 Sliver 都是对应分组的吸顶标题。
+    final stickyHeaders = sectionGroups
+        .map((group) => group.children.first as SliverPersistentHeader)
+        .toList(growable: false);
+    expect(stickyHeaders, hasLength(2));
+    expect(stickyHeaders.every((header) => header.pinned), isTrue);
+
+    // 记录第一组标题刚出现时的位置，也就是列表内容区顶部。
+    final firstHeader = find.byKey(const Key('section-d3'));
+    final initialTop = tester.getTopLeft(firstHeader).dy;
+    // 只滚动第一组内部的若干单词，不触及下一分组。
+    await tester.drag(
+      find.byKey(const Key('word-list-scroll-view')),
+      const Offset(0, -180),
+    );
+    await tester.pumpAndSettle();
+    // 单词已经滚动，但“难度 3”仍停留在原来的列表顶部。
+    expect(tester.getTopLeft(firstHeader).dy, closeTo(initialTop, 0.1));
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 验证分组头点击可折叠该组单词，"折叠/展开"按钮可整体切换。
   testWidgets('section headers collapse and expand rows', (tester) async {
     // 打开首页；默认全部单词在"未分组"。
@@ -770,8 +824,8 @@ void main() {
     expect(tester.takeException(), isNull);
     // 搜索框仍然可见。
     expect(find.text('搜索单词'), findsOneWidget);
-    // 高性能列表仍然存在。
-    expect(find.byType(ListView), findsWidgets);
+    // 使用 Sliver 的高性能业务列表仍然存在。
+    expect(find.byKey(const Key('word-list-scroll-view')), findsOneWidget);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -847,7 +901,7 @@ void _expectTextsInVerticalOrder(WidgetTester tester, List<String> texts) {
 
 /// 从上到下读取当前列表每一行对应的 Word 主键。
 List<int?> _visibleWordIds(WidgetTester tester) {
-  // widgetList 按组件树顺序返回，与 ListView 从上到下的显示顺序一致。
+  // widgetList 按组件树顺序返回，与各分组 SliverList 从上到下的显示顺序一致。
   return tester
       .widgetList<WordListTile>(find.byType(WordListTile))
       .map((tile) => tile.item.id)

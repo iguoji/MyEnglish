@@ -85,27 +85,12 @@ class _WordSection {
   final List<Word> words;
 }
 
-/// 扁平化列表条目：要么是分组头，要么是一行单词。
-class _ListEntry {
-  /// 分组头条目。
-  const _ListEntry.header(this.section) : word = null;
-
-  /// 单词行条目。
-  const _ListEntry.row(this.section, this.word);
-
-  /// 条目所属区块。
-  final _WordSection section;
-
-  /// 单词数据；null 表示这是分组头。
-  final Word? word;
-}
-
 /// 下划线表示状态类仅当前文件可见；Observer 接收 App Show/Hide 等状态。
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Scaffold key 用于以编程方式打开右侧抽屉。
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  /// Scrollbar 和 ListView 必须共享同一个控制器，滑块才可以被直接拖动。
+  /// Scrollbar 和 CustomScrollView 必须共享同一个控制器，滑块才可以被直接拖动。
   final ScrollController _scrollController = ScrollController();
 
   /// 搜索防抖定时器；上万条数据时避免每按一个键立即重复过滤。
@@ -129,7 +114,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 自定义分组 Store；本轮为内存实现，重启后重置。
   final GroupStore _groups = GroupStore();
 
-  /// Store 一次加载的全部未删除单词；ListView 仍然只惰性构建可见行。
+  /// Store 一次加载全部未删除单词；每组 SliverList 仍然只惰性构建可见行。
   List<Word> _allWords = const <Word>[];
 
   /// 保存已展开的 Word 对象；spelling 可重复，所以不能把拼写当作行身份。
@@ -1077,7 +1062,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   /// 根据加载状态选择进度、错误、空状态或高性能列表。
-  Widget _buildListContent(List<_ListEntry> entries, bool hasVisibleRows) {
+  Widget _buildListContent(
+    List<_WordSection> shownSections,
+    bool hasVisibleRows,
+  ) {
     // 数据源尚未返回时显示居中进度圈。
     if (_isLoading) {
       // SizedBox 限定小型进度圈尺寸。
@@ -1139,7 +1127,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     // 搜索无匹配或完全没有数据时显示空状态。
-    if (!hasVisibleRows && entries.isEmpty) {
+    if (!hasVisibleRows && shownSections.isEmpty) {
       // 空状态占据列表剩余区域中心。
       return Center(
         child: Text(
@@ -1155,88 +1143,115 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Scrollbar 提供始终可见且可直接拖动到任意位置的滑块。
     return Scrollbar(
-      // 与 ListView 共用控制器，否则拖动滑块无法控制列表。
+      // 与 CustomScrollView 共用控制器，否则拖动滑块无法控制列表。
       controller: _scrollController,
       // 真机上无需先滚动一次就能看到滑块。
       thumbVisibility: true,
       // interactive=true 允许手指或鼠标按住滑块快速拖到底部。
       interactive: true,
-      // ListView.builder 只创建屏幕附近的行，适合上万单词。
-      child: ListView.builder(
+      // CustomScrollView 允许分组头使用原生 Sliver 吸顶，同时仍然惰性创建单词行。
+      child: CustomScrollView(
+        // key 供测试准确识别首页真正的纵向业务列表。
+        key: const Key('word-list-scroll-view'),
         // 使用同一个 ScrollController。
         controller: _scrollController,
-        // 底部保留 116 像素，避免最后几行被浮动按钮遮住。
-        padding: const EdgeInsets.only(bottom: 116),
-        // 分组头与单词行都在同一个扁平列表里。
-        itemCount: entries.length,
-        // builder 按需构建当前可见 index。
-        itemBuilder: (context, index) {
-          // 取得当前条目。
-          final entry = entries[index];
-          // 分组头条目。
-          if (entry.word == null) {
-            return _SectionHeader(
-              section: entry.section,
-              isCollapsed: _collapsedKeys.contains(entry.section.key),
-              selectMode: _selectMode,
-              isAllSelected:
-                  entry.section.words.isNotEmpty &&
-                  entry.section.words.every(_selectedWords.contains),
-              onTap: () => setState(() {
-                // 点击分组头切换折叠状态。
-                if (!_collapsedKeys.remove(entry.section.key)) {
-                  _collapsedKeys.add(entry.section.key);
-                }
-              }),
-              onToggleSelect: () => setState(() {
-                // 分组头勾选：全选或全不选该区块。
-                final allSelected =
-                    entry.section.words.isNotEmpty &&
-                    entry.section.words.every(_selectedWords.contains);
-                if (allSelected) {
-                  _selectedWords.removeAll(entry.section.words);
-                } else {
-                  _selectedWords.addAll(entry.section.words);
-                }
-              }),
-            );
-          }
-          // 单词行条目。
-          final word = entry.word!;
-          return WordListTile(
-            // ObjectKey 使用对象身份，同 spelling 的多条数据不会冲突。
-            key: ObjectKey(word),
-            // 传入一次性加载的数据项。
-            item: word,
-            // 传入静态年份参考。
-            dateReference: _dateReference,
-            // 根据页面 Set 判断当前行是否展开。
-            isExpanded: _expandedWords.contains(word),
-            // 全部中文释义统一使用首页设置中选择的全角分隔符。
-            definitionSeparator: _settings.definitionSeparator.symbol,
-            // 只有当前具体对象显示播放动画。
-            isPlaying: identical(_playingWord, word),
-            // 选择模式与勾选状态。
-            selectMode: _selectMode,
-            isSelected: _selectedWords.contains(word),
-            // 当前行是否滑开操作区。
-            isSwipedOpen: identical(_swipedWord, word),
-            // 点击整行：播放并展开 / 勾选 / 收起滑动。
-            onTap: () => _handleRowTap(word),
-            // 勾选框独立切换选中。
-            onToggleSelect: () => _toggleSelected(word),
-            // 滑动打开或关闭操作区。
-            onSwipeChanged: (open) => _handleSwipeChanged(word, open),
-            // 左滑操作：修改与删除。
-            onEdit: () {
-              // 先收起操作区再打开表单。
-              setState(() => _swipedWord = null);
-              _openWordForm(editing: word);
-            },
-            onDelete: () => _confirmDelete(word),
-          );
-        },
+        // slivers 类似小程序中按顺序拼接多个“吸顶标题 + 长列表”区块。
+        slivers: [
+          // 每个分组都由一个固定高度吸顶头和一个惰性单词列表组成。
+          for (final section in shownSections)
+            // SliverMainAxisGroup 把标题和本组单词限制在同一滚动区段；
+            // 当前组结束时，下一组标题会把旧标题顶走，而不是让多个标题叠在顶部。
+            SliverMainAxisGroup(
+              slivers: [
+                // pinned=true 让当前分组行停在列表顶部，直到下一分组将它顶走。
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SectionHeaderDelegate(
+                    // 头部内容仍复用原来的折叠、整组选中交互。
+                    child: _buildSectionHeader(section),
+                  ),
+                ),
+                // 分组折叠后只保留吸顶标题，不再生成其中的单词行。
+                if (!_collapsedKeys.contains(section.key))
+                  SliverList(
+                    // SliverChildBuilderDelegate 只创建屏幕附近的行，适合上万单词。
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _buildWordRow(section.words[index]),
+                      childCount: section.words.length,
+                    ),
+                  ),
+              ],
+            ),
+          // 底部留白避免最后几行被“学习”悬浮按钮遮住。
+          const SliverPadding(padding: EdgeInsets.only(bottom: 116)),
+        ],
       ),
+    );
+  }
+
+  /// 构造一个分组头；独立成方法后，普通位置与 Sliver 吸顶位置使用完全相同的交互。
+  Widget _buildSectionHeader(_WordSection section) {
+    // 当前分组是否已经全部选中。
+    final isAllSelected =
+        section.words.isNotEmpty &&
+        section.words.every(_selectedWords.contains);
+    // 返回原有的分组头组件，视觉尺寸与样式不变。
+    return _SectionHeader(
+      section: section,
+      isCollapsed: _collapsedKeys.contains(section.key),
+      selectMode: _selectMode,
+      isAllSelected: isAllSelected,
+      onTap: () => setState(() {
+        // 点击分组头切换折叠状态。
+        if (!_collapsedKeys.remove(section.key)) {
+          _collapsedKeys.add(section.key);
+        }
+      }),
+      onToggleSelect: () => setState(() {
+        // 已经全选时整组取消，否则把该组全部加入选择集合。
+        if (isAllSelected) {
+          _selectedWords.removeAll(section.words);
+        } else {
+          _selectedWords.addAll(section.words);
+        }
+      }),
+    );
+  }
+
+  /// 构造单个单词行；由每个分组自己的 SliverList 按需调用。
+  Widget _buildWordRow(Word word) {
+    // 返回原有单词行组件，播放、展开、选择和左滑逻辑全部保持不变。
+    return WordListTile(
+      // ObjectKey 使用对象身份，同 spelling 的多条数据不会冲突。
+      key: ObjectKey(word),
+      // 传入一次性加载的数据项。
+      item: word,
+      // 传入静态年份参考。
+      dateReference: _dateReference,
+      // 根据页面 Set 判断当前行是否展开。
+      isExpanded: _expandedWords.contains(word),
+      // 全部中文释义统一使用首页设置中选择的全角分隔符。
+      definitionSeparator: _settings.definitionSeparator.symbol,
+      // 只有当前具体对象显示播放动画。
+      isPlaying: identical(_playingWord, word),
+      // 选择模式与勾选状态。
+      selectMode: _selectMode,
+      isSelected: _selectedWords.contains(word),
+      // 当前行是否滑开操作区。
+      isSwipedOpen: identical(_swipedWord, word),
+      // 点击整行：播放并展开 / 勾选 / 收起滑动。
+      onTap: () => _handleRowTap(word),
+      // 勾选框独立切换选中。
+      onToggleSelect: () => _toggleSelected(word),
+      // 滑动打开或关闭操作区。
+      onSwipeChanged: (open) => _handleSwipeChanged(word, open),
+      // 左滑操作：修改与删除。
+      onEdit: () {
+        // 先收起操作区再打开表单。
+        setState(() => _swipedWord = null);
+        _openWordForm(editing: word);
+      },
+      onDelete: () => _confirmDelete(word),
     );
   }
 
@@ -1265,18 +1280,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final visibleWords = <Word>[
       for (final section in shownSections) ...section.words,
     ];
-    // 扁平化为分组头 + 单词行。
-    final entries = <_ListEntry>[];
-    for (final section in shownSections) {
-      // 分组头始终显示。
-      entries.add(_ListEntry.header(section));
-      // 折叠时不铺开该区块的单词行。
-      if (!_collapsedKeys.contains(section.key)) {
-        for (final word in section.words) {
-          entries.add(_ListEntry.row(section, word));
-        }
-      }
-    }
     // 筛选 chips 使用未过滤的区块名（含"全部"）。
     final chips = <GroupFilterChip>[
       GroupFilterChip(
@@ -1450,7 +1453,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     child: DecoratedBox(
                       // key 供 Widget 测试准确定位。
                       key: const Key('word-list'),
-                      // 前景装饰会在列表内容之后绘制，避免 ListView 把顶部线盖住。
+                      // 前景装饰会在滚动内容之后绘制，避免列表白底把顶部线盖住。
                       position: DecorationPosition.foreground,
                       // 整个列表容器只有顶部一条外边框，对齐 HTML 原型(--cBd/#e6e7e9)。
                       decoration: BoxDecoration(
@@ -1461,7 +1464,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                       // 根据加载状态返回对应内容。
                       child: _buildListContent(
-                        entries,
+                        shownSections,
                         visibleWords.isNotEmpty,
                       ),
                     ),
@@ -1538,6 +1541,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+}
+
+/// 把普通分组头包装为 Flutter 原生可吸顶的 Sliver 标题。
+class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
+  /// 接收实际分组头；状态和点击逻辑仍由首页统一管理。
+  const _SectionHeaderDelegate({required this.child});
+
+  /// 分组行必须始终保持原型规定的 34 逻辑像素高度。
+  static const double height = 34;
+
+  /// 真正显示的分组头组件。
+  final Widget child;
+
+  /// 最小高度与最大高度相同，因此滚动时只吸顶，不会缩放或拉伸。
+  @override
+  double get minExtent => height;
+
+  /// 固定最大高度，防止吸顶过程中发生尺寸跳动。
+  @override
+  double get maxExtent => height;
+
+  /// Flutter 每一帧滚动时调用这里，把分组头放进 Sliver 当前计算出的区域。
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    // SizedBox.expand 让浅色背景完整覆盖吸顶区域，下面的单词不会透出来。
+    return SizedBox.expand(child: child);
+  }
+
+  /// 首页状态变化会创建新的 child，此时要求 Flutter 重建标题内容。
+  @override
+  bool shouldRebuild(covariant _SectionHeaderDelegate oldDelegate) {
+    // 对象发生变化即重建，确保折叠箭头、数量和选择状态立即更新。
+    return oldDelegate.child != child;
   }
 }
 
