@@ -76,6 +76,12 @@ class _ManageGroupsSheet extends StatelessWidget {
                     InkWell(
                       key: const Key('manage-done'),
                       onTap: () => Navigator.of(context).pop(),
+                      // 纯文字“完成”不需要按压背景，只保留点击行为。
+                      overlayColor: const WidgetStatePropertyAll<Color>(
+                        Colors.transparent,
+                      ),
+                      // 禁止水波纹扩散，避免真机点击时出现一块灰色背景。
+                      splashFactory: NoSplash.splashFactory,
                       child: const Text(
                         '完成',
                         style: TextStyle(

@@ -157,6 +157,12 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     InkWell(
                       key: const Key('settings-done'),
                       onTap: () => Navigator.of(context).pop(),
+                      // “完成”是纯文字动作，点击时不显示 Material 默认背景色。
+                      overlayColor: const WidgetStatePropertyAll<Color>(
+                        Colors.transparent,
+                      ),
+                      // 关闭水波纹，保持与首页“完成”等文字动作一致。
+                      splashFactory: NoSplash.splashFactory,
                       child: const Text(
                         '完成',
                         style: TextStyle(

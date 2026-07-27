@@ -565,6 +565,32 @@ void main() {
     await tester.pump();
     // 出现选择工具行。
     expect(find.text('已选 0'), findsOneWidget);
+    // 首页全部纯文字动作都必须关闭按压背景和水波纹。
+    for (final key in <String>[
+      'toggle-collapse-all',
+      'toggle-select-mode',
+      'select-all',
+      'invert-selection',
+      'move-selected',
+      'copy-selected',
+    ]) {
+      // 从带 key 的动作组件内部取得真正响应点击的 InkWell。
+      final inkWell = tester.widget<InkWell>(
+        find
+            .descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
+      // 按下时覆盖层仍应透明。
+      expect(
+        inkWell.overlayColor!.resolve(const <WidgetState>{WidgetState.pressed}),
+        Colors.transparent,
+      );
+      // 同时禁用水波纹，确保真机不会闪出背景色。
+      expect(inkWell.splashFactory, NoSplash.splashFactory);
+    }
     // 点击 ability 行改为切换勾选而不是播放。
     await tester.tap(find.text('ability'));
     await tester.pump();

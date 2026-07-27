@@ -97,6 +97,15 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: backgroundColor,
     // Divider 和自定义列表边线统一读取此颜色。
     dividerColor: tableBorderColor,
+    // 纯文字 TextButton 只改变文字本身，不在按下时出现灰色或蓝色背景块。
+    textButtonTheme: const TextButtonThemeData(
+      style: ButtonStyle(
+        // pressed、hovered、focused 等状态都保持透明覆盖层。
+        overlayColor: WidgetStatePropertyAll<Color>(Colors.transparent),
+        // 同时关闭水波纹，避免透明覆盖层之外仍出现扩散动画。
+        splashFactory: NoSplash.splashFactory,
+      ),
+    ),
     // 不指定 fontFamily，让 Android 根据中英文自动选择系统字体。
     scrollbarTheme: const ScrollbarThemeData(
       // 桌面和移动端始终使用清晰但不过黑的灰蓝滑块。
@@ -118,6 +127,15 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: darkBackgroundColor,
     // 深色列表分隔线。
     dividerColor: darkTableBorderColor,
+    // 深色模式与浅色模式保持一致：纯文字按钮按下时不增加背景色。
+    textButtonTheme: const TextButtonThemeData(
+      style: ButtonStyle(
+        // 所有交互状态都使用透明覆盖层。
+        overlayColor: WidgetStatePropertyAll<Color>(Colors.transparent),
+        // 禁用 Material 默认水波纹。
+        splashFactory: NoSplash.splashFactory,
+      ),
+    ),
     // 深色滚动条稍亮，保证真机上容易找到并拖动。
     scrollbarTheme: const ScrollbarThemeData(
       // 半亮灰色不会像纯白一样抢眼。

@@ -1,5 +1,7 @@
 // flutter_test 提供普通 test 和 expect 断言。
 import 'package:flutter_test/flutter_test.dart';
+// material.dart 提供 Colors、NoSplash 和 WidgetState，检查文字按钮交互样式。
+import 'package:flutter/material.dart';
 // 引入项目 Material 3 双主题。
 import 'package:my_english/common/theme.dart';
 
@@ -18,5 +20,21 @@ void main() {
     expect(AppTheme.light.dividerColor, AppTheme.tableBorderColor);
     // 深色使用独立分隔线，不能继续显示刺眼浅灰。
     expect(AppTheme.dark.dividerColor, AppTheme.darkTableBorderColor);
+  });
+
+  // 全局 TextButton（如重新加载、设置完成）按下时不能出现 Material 默认背景。
+  test('text buttons never paint a pressed background', () {
+    // 逐一验证浅色与深色主题，避免切换主题后问题重新出现。
+    for (final theme in <ThemeData>[AppTheme.light, AppTheme.dark]) {
+      // 取得全局 TextButton 样式。
+      final style = theme.textButtonTheme.style!;
+      // 按下状态解析后必须仍为完全透明。
+      expect(
+        style.overlayColor!.resolve(const <WidgetState>{WidgetState.pressed}),
+        Colors.transparent,
+      );
+      // 水波纹工厂必须使用 NoSplash，不能在文字后方扩散色块。
+      expect(style.splashFactory, NoSplash.splashFactory);
+    }
   });
 }

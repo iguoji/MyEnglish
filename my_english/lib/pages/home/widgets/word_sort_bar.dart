@@ -232,13 +232,17 @@ class _ActionText extends StatelessWidget {
   /// 点击动作。
   final VoidCallback onTap;
 
-  /// 输出带轻点反馈的文字按钮。
+  /// 输出不带背景反馈的纯文字按钮。
   @override
   Widget build(BuildContext context) {
-    // InkWell 提供反馈但不引入 Material 按钮的默认尺寸膨胀。
+    // InkWell 保留按钮语义、键盘操作与触控能力，但关闭会形成背景色的视觉反馈。
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
+      // pressed、hovered、focused 状态都不绘制半透明背景。
+      overlayColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+      // 关闭 Material 水波纹，确保点击前后只有文字颜色，不出现背景块。
+      splashFactory: NoSplash.splashFactory,
       child: Padding(
         // 与排序项相同的纵向触控内边距。
         padding: const EdgeInsets.symmetric(vertical: 4),
