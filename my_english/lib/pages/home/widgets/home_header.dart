@@ -97,11 +97,16 @@ class HomeHeader extends StatelessWidget {
             child: SizedBox(
               width: 40,
               height: 40,
-              child: Icon(
-                // menu2 是 Tabler 的三横线菜单图标，不再用 Container 手工模拟图标。
-                TablerIcons.menu2,
-                size: 20,
-                color: tokens.text,
+              // Center 让 20px 图标在 40×40 触控区内真正居中；
+              // 若直接把 Icon 放进 SizedBox，紧约束会把它撑成 40×40，
+              // 三横线字形被挤到框的左上角，视觉中心偏离盒子中心、与右侧分界线对不齐。
+              child: Center(
+                child: Icon(
+                  // menu2 是 Tabler 的三横线菜单图标，不再用 Container 手工模拟图标。
+                  TablerIcons.menu2,
+                  size: 20,
+                  color: tokens.text,
+                ),
               ),
             ),
           ),
