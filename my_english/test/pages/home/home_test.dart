@@ -10,6 +10,9 @@ import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
+// 引入两个学习页，核对它们收到的单词快照与首页完全一致。
+import 'package:my_english/pages/dictation/dictation_page.dart';
+import 'package:my_english/pages/listening/listening_page.dart';
 // 引入单词行，检查高度、徽章与展开内容。
 import 'package:my_english/pages/home/widgets/word_list_tile.dart';
 // 引入音频接口，测试使用不会访问真实网络的受控实现。
@@ -758,6 +761,115 @@ void main() {
     expect(find.text('学习'), findsOneWidget);
     expect(find.text('随身听 · 2'), findsNothing);
 
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证未勾选时，随身听和默写都接收首页当前完整列表顺序。
+  testWidgets('learning pages receive the same full ordered snapshot', (
+    tester,
+  ) async {
+    // 故意使用与字母升序不同的原始顺序，避免测试仅因默认数据巧合通过。
+    const words = <Word>[
+      Word(id: 21, spelling: 'zebra'),
+      Word(id: 22, spelling: 'apple'),
+      Word(id: 23, spelling: 'middle'),
+    ];
+    // 渲染首页。
+    await _pumpHome(tester, words: words);
+    // 切换为字母升序，当前首页列表应变为 apple、middle、zebra。
+    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
+    await tester.pump();
+    expect(_visibleWordIds(tester), <int?>[22, 23, 21]);
+
+    // 展开学习菜单并进入随身听。
+    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('open-player')));
+    await tester.pumpAndSettle();
+    // 直接读取随身听 Widget 接收的 Word 对象顺序。
+    final listeningPage = tester.widget<ListeningPage>(
+      find.byType(ListeningPage),
+    );
+    expect(
+      listeningPage.words.map((word) => word.id).toList(growable: false),
+      <int?>[22, 23, 21],
+    );
+    // 返回首页。
+    await tester.tap(find.byKey(const Key('close-listening')));
+    await tester.pumpAndSettle();
+
+    // 再次展开同一菜单并进入默写。
+    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('open-dict')));
+    await tester.pumpAndSettle();
+    // 默写的真正学习列表必须与刚才的随身听完全相同。
+    final dictationPage = tester.widget<DictationPage>(
+      find.byType(DictationPage),
+    );
+    expect(
+      dictationPage.words.map((word) => word.id).toList(growable: false),
+      <int?>[22, 23, 21],
+    );
+    // 销毁学习页并停止测试音频。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证用户以任意点击顺序勾选时，学习页仍按首页列表顺序过滤。
+  testWidgets('selected learning snapshot preserves visible list order', (
+    tester,
+  ) async {
+    // 原数据与上一用例一致。
+    const words = <Word>[
+      Word(id: 21, spelling: 'zebra'),
+      Word(id: 22, spelling: 'apple'),
+      Word(id: 23, spelling: 'middle'),
+    ];
+    // 打开首页并切换到字母升序。
+    await _pumpHome(tester, words: words);
+    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
+    await tester.pump();
+    // 进入选择模式。
+    await tester.tap(find.byKey(const Key('toggle-select-mode')));
+    await tester.pump();
+    // 故意先勾选列表底部 zebra，再勾选中间 middle。
+    await tester.tap(find.text('zebra'));
+    await tester.pump();
+    await tester.tap(find.text('middle'));
+    await tester.pump();
+    expect(find.text('已选 2'), findsOneWidget);
+
+    // 打开随身听。
+    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('open-player')));
+    await tester.pumpAndSettle();
+    // 不能使用点击顺序 zebra、middle，而必须使用首页顺序 middle、zebra。
+    final listeningPage = tester.widget<ListeningPage>(
+      find.byType(ListeningPage),
+    );
+    expect(
+      listeningPage.words.map((word) => word.id).toList(growable: false),
+      <int?>[23, 21],
+    );
+    // 返回首页。
+    await tester.tap(find.byKey(const Key('close-listening')));
+    await tester.pumpAndSettle();
+
+    // 打开默写。
+    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('open-dict')));
+    await tester.pumpAndSettle();
+    // 默写收到的学习列表必须与随身听一致。
+    final dictationPage = tester.widget<DictationPage>(
+      find.byType(DictationPage),
+    );
+    expect(
+      dictationPage.words.map((word) => word.id).toList(growable: false),
+      <int?>[23, 21],
+    );
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });

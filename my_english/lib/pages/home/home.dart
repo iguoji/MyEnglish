@@ -1280,6 +1280,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final visibleWords = <Word>[
       for (final section in shownSections) ...section.words,
     ];
+    // 把首页当前顺序冻结成只读快照，页面跳转后不受后续重建中的临时列表影响。
+    final visibleWordSnapshot = List<Word>.unmodifiable(visibleWords);
     // 筛选 chips 使用未过滤的区块名（含"全部"）。
     final chips = <GroupFilterChip>[
       GroupFilterChip(
@@ -1302,8 +1304,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 真正传给学习页面的数据必须保持当前列表顺序；有选择时仅保留勾选项。
     final learningWords = List<Word>.unmodifiable(
       selectedVisible > 0
-          ? visibleWords.where(_selectedWords.contains)
-          : visibleWords,
+          ? visibleWordSnapshot.where(_selectedWords.contains)
+          : visibleWordSnapshot,
     );
     // 全部可见分组是否都已折叠，决定按钮文案。
     final allCollapsed =
