@@ -12,8 +12,12 @@ import '../../common/theme.dart';
 import '../../common/date.dart';
 // Word 是全应用共享模型，不属于首页私有文件。
 import '../../models/word.dart';
-// 音频服务位于页面之外，未来随身听页可以直接复用。
+// 音频服务由首页、随身听和默写共同复用。
 import '../../services/word_audio.dart';
+// 新版原型中的全屏默写页。
+import '../dictation/dictation_page.dart';
+// 新版原型中的全屏随身听页。
+import '../listening/listening_page.dart';
 // 分组 Store 提供自定义分组数据（本轮为内存实现）。
 import '../../store/group.dart';
 // 设置 Store 提供持久化口音、主题与每日复习目标。
@@ -26,6 +30,8 @@ import 'widgets/group_filter_bar.dart';
 import 'widgets/home_drawer.dart';
 // 顶部问候与汉堡按钮。
 import 'widgets/home_header.dart';
+// 右下角可展开的新版学习入口。
+import 'widgets/learning_fab.dart';
 // 分组管理面板。
 import 'widgets/manage_groups_sheet.dart';
 // 移动/复制目标选择面板。
@@ -128,6 +134,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 选择模式下被勾选的 Word 对象集合。
   final Set<Word> _selectedWords = <Word>{};
+
+  /// 新版学习悬浮按钮是否已经展开。
+  bool _learningMenuOpen = false;
 
   /// 当前处于下载或播放状态的具体 Word 对象。
   Word? _playingWord;
@@ -976,14 +985,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// 底部占位按钮：随身听与默写页面在下一轮实现。
+  /// 尚未在本轮原型中定义具体页面的菜单项使用统一提示。
   void _showComingSoon(String feature) {
-    // 先移除旧提示。
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    // 轻量提示避免用户以为按钮坏了。
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('「$feature」将在下一轮实现，敬请期待')));
+    ).showSnackBar(SnackBar(content: Text('「$feature」功能正在整理中')));
   }
 
   /// 将任意异常转换成用户可见的详情，不再只显示笼统失败文案。
@@ -1242,6 +1249,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final targetCount = selectedVisible > 0
         ? selectedVisible
         : visibleWords.length;
+    // 真正传给学习页面的数据必须保持当前列表顺序；有选择时仅保留勾选项。
+    final learningWords = List<Word>.unmodifiable(
+      selectedVisible > 0
+          ? visibleWords.where(_selectedWords.contains)
+          : visibleWords,
+    );
     // 全部可见分组是否都已折叠，决定按钮文案。
     final allCollapsed =
         shownSections.isNotEmpty &&
@@ -1403,41 +1416,65 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            // 底部两个浮动胶囊按钮。
-            Positioned(
-              left: 20,
-              right: 20,
-              bottom: 32,
-              // Center + FittedBox：窄屏大字体时整体缩小而不是溢出。
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  // Row 只占内容宽度，空白区域不拦截列表点击。
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 随身听实心主色按钮。
-                      _FloatingPill(
-                        key: const Key('open-player'),
-                        label: '随身听 · $targetCount',
-                        background: AppTokens.accent,
-                        foreground: Colors.white,
-                        onTap: () => _showComingSoon('随身听'),
-                      ),
-                      // 两个按钮之间 14 像素。
-                      const SizedBox(width: 14),
-                      // 默写描边按钮。
-                      _FloatingPill(
-                        key: const Key('open-dict'),
-                        label: '默写 · $targetCount',
-                        background: tokens.card,
-                        foreground: AppTokens.accent,
-                        border: AppTokens.accent,
-                        onTap: () => _showComingSoon('默写'),
-                      ),
-                    ],
+            // 展开学习菜单后增加轻量遮罩；点击空白处即可收起。
+            if (_learningMenuOpen)
+              Positioned.fill(
+                child: GestureDetector(
+                  key: const Key('learning-menu-backdrop'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _learningMenuOpen = false),
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.08),
                   ),
                 ),
+              ),
+            // 新版原型仅常驻一个“学习”按钮，展开后向上显示两个具体入口。
+            Positioned(
+              right: 20,
+              bottom: 32,
+              child: LearningFab(
+                isOpen: _learningMenuOpen,
+                targetCount: targetCount,
+                onToggle: () =>
+                    setState(() => _learningMenuOpen = !_learningMenuOpen),
+                onOpenPlayer: () {
+                  // 没有可学习单词时不打开空页面。
+                  if (learningWords.isEmpty) {
+                    _showComingSoon('当前列表没有可学习单词');
+                    return;
+                  }
+                  setState(() => _learningMenuOpen = false);
+                  unawaited(
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ListeningPage(
+                          words: learningWords,
+                          audioPlayer: _audioPlayer,
+                          accent: _settings.accent,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                onOpenDictation: () {
+                  // 默写同样遵循“已选择优先，否则当前可见”的范围规则。
+                  if (learningWords.isEmpty) {
+                    _showComingSoon('当前列表没有可学习单词');
+                    return;
+                  }
+                  setState(() => _learningMenuOpen = false);
+                  unawaited(
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DictationPage(
+                          words: learningWords,
+                          audioPlayer: _audioPlayer,
+                          accent: _settings.accent,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -1555,70 +1592,6 @@ class _SectionHeader extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 底部悬浮胶囊按钮。
-class _FloatingPill extends StatelessWidget {
-  /// 接收文案、配色与动作。
-  const _FloatingPill({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onTap,
-    this.border,
-    super.key,
-  });
-
-  /// 按钮文字。
-  final String label;
-
-  /// 背景色。
-  final Color background;
-
-  /// 文字颜色。
-  final Color foreground;
-
-  /// 可选描边颜色。
-  final Color? border;
-
-  /// 点击动作。
-  final VoidCallback onTap;
-
-  /// 输出 44 高带投影的胶囊按钮。
-  @override
-  Widget build(BuildContext context) {
-    // InkWell 提供点击反馈。
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 26),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: background,
-          border: border == null ? null : Border.all(color: border!),
-          borderRadius: BorderRadius.circular(22),
-          // 轻投影让按钮浮在列表上。
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x330A1018),
-              blurRadius: 14,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14.5,
-            fontWeight: FontWeight.w600,
-          ),
         ),
       ),
     );

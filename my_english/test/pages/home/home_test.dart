@@ -626,14 +626,30 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证底部"随身听/默写"按钮存在并显示目标数量。
-  testWidgets('floating pills show the target word count', (tester) async {
+  // 验证新版“学习”主按钮可以展开两个入口并显示目标数量。
+  testWidgets('learning fab expands actions with target word count', (
+    tester,
+  ) async {
     // 打开首页（两个单词）。
     await _pumpHome(tester);
 
-    // 两个按钮都显示全部可见数量。
+    // 默认只显示一个“学习”主按钮，具体入口尚未占用列表空间。
+    expect(find.text('学习'), findsOneWidget);
+    expect(find.text('随身听 · 2'), findsNothing);
+    expect(find.text('默写 · 2'), findsNothing);
+
+    // 点击主按钮后向上展开两个新版入口。
+    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('收起'), findsOneWidget);
     expect(find.text('随身听 · 2'), findsOneWidget);
     expect(find.text('默写 · 2'), findsOneWidget);
+
+    // 点击遮罩应收起菜单。
+    await tester.tap(find.byKey(const Key('learning-menu-backdrop')));
+    await tester.pumpAndSettle();
+    expect(find.text('学习'), findsOneWidget);
+    expect(find.text('随身听 · 2'), findsNothing);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
