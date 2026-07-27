@@ -1,3 +1,5 @@
+// foundation.dart 提供 debugPrint 回调，供用例临时静音预期内的诊断日志。
+import 'package:flutter/foundation.dart';
 // services.dart 提供 MethodChannel 与测试消息编码。
 import 'package:flutter/services.dart';
 // flutter_test 提供测试绑定、mock 通道和断言。
@@ -94,6 +96,13 @@ void main() {
 
   // Hot Restart 使用旧原生 APK 时没有新通道，App 仍应使用内存默认值正常启动。
   test('missing native channel falls back to in-memory settings', () async {
+    // 本用例故意触发 MissingPluginException 验证回退逻辑；临时静音 debugPrint，
+    // 避免这段"预期内"的诊断日志污染测试输出。
+    final originalDebugPrint = debugPrint;
+    // 空实现丢弃日志。
+    debugPrint = (String? message, {int? wrapWidth}) {};
+    // 用例结束后恢复原始日志通道。
+    addTearDown(() => debugPrint = originalDebugPrint);
     // 不注册 mock handler 等价于原生端没有实现 getSettings。
     final settings = await SettingsStore.load(channel: channel);
     // 启动继续使用产品默认值。

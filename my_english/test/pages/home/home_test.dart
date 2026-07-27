@@ -637,6 +637,13 @@ void main() {
 
   // 验证加载失败不仅显示标题，也输出真实异常内容。
   testWidgets('load error details are visible and selectable', (tester) async {
+    // 本用例故意注入抛错 Store；首页的 debugPrint/debugPrintStack 属于预期内
+    // 诊断日志，这里临时静音避免污染测试输出，用例结束自动恢复。
+    final originalDebugPrint = debugPrint;
+    // 空实现丢弃日志。
+    debugPrint = (String? message, {int? wrapWidth}) {};
+    // 用例结束后恢复原始日志通道。
+    addTearDown(() => debugPrint = originalDebugPrint);
     // 使用固定抛错 Store 模拟 JSON 解析失败。
     await tester.pumpWidget(
       MaterialApp(
