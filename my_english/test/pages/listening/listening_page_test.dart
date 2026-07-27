@@ -25,6 +25,7 @@ void main() {
           words: _words,
           audioPlayer: audio,
           accent: PronunciationAccent.american,
+          definitionSeparator: '，',
         ),
       ),
     );
@@ -40,7 +41,33 @@ void main() {
     await tester.tap(find.byKey(const Key('toggle-listening-answer')));
     await tester.pump();
     expect(find.text('ability'), findsWidgets);
+    // 同一词性的中文定义使用设置符号连接在一个 Text 中。
+    expect(find.text('能力，才能'), findsOneWidget);
+    expect(find.text('能力'), findsNothing);
+    expect(find.text('才能'), findsNothing);
     expect(find.byIcon(TablerIcons.eye), findsOneWidget);
+
+    // 顶栏图标的可见画布分别贴齐左右 20 像素边距。
+    expect(
+      // getTopLeft 相当于读取小程序节点的 boundingClientRect().left。
+      tester.getTopLeft(find.byIcon(TablerIcons.chevronLeft)).dx,
+      closeTo(20, 0.01),
+    );
+    expect(
+      // getBottomRight(...).dx 就是可见设置图标最右侧的横坐标。
+      tester.getBottomRight(find.byIcon(TablerIcons.settings)).dx,
+      closeTo(780, 0.01),
+    );
+
+    // 上一个图标在文字左侧，下一个图标在文字右侧。
+    expect(
+      tester.getCenter(find.byIcon(TablerIcons.playerTrackPrev)).dx,
+      lessThan(tester.getCenter(find.text('上一个')).dx),
+    );
+    expect(
+      tester.getCenter(find.byIcon(TablerIcons.playerTrackNext)).dx,
+      greaterThan(tester.getCenter(find.text('下一个')).dx),
+    );
 
     // 暂停后主按钮切换成 Tabler 播放图标。
     await tester.tap(find.byKey(const Key('toggle-listening-playback')));

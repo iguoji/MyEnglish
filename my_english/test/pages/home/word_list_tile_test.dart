@@ -77,10 +77,10 @@ void main() {
     // 同年日期按 MM.dd 显示。
     expect(find.text('01.05'), findsOneWidget);
     // 收起时不显示释义。
-    expect(find.text('能力；才能'), findsNothing);
+    expect(find.text('能力、才能'), findsNothing);
   });
 
-  // 展开状态：按 index 降序显示两条 Meaning，释义用中文分号连接。
+  // 展开状态：按 index 降序显示两条 Meaning，释义默认用中文顿号连接。
   testWidgets('expanded row lists meanings with pos column', (tester) async {
     // 渲染展开行。
     await pumpTile(tester, item: sample, isExpanded: true);
@@ -89,7 +89,7 @@ void main() {
 
     // 两条 Meaning 全部可见。
     expect(find.text('n.'), findsOneWidget);
-    expect(find.text('能力；才能'), findsOneWidget);
+    expect(find.text('能力、才能'), findsOneWidget);
     expect(find.text('adj.'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整体高度超过标题行。
@@ -97,6 +97,32 @@ void main() {
       tester.getSize(find.byType(WordListTile)).height,
       greaterThan(WordListTile.headerHeight),
     );
+  });
+
+  // 自定义分隔符会替换默认顿号，验证组件没有写死任何一种标点。
+  testWidgets('expanded row uses the configured definition separator', (
+    tester,
+  ) async {
+    // 直接传入中文全角逗号模拟首页设置切换后的值。
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WordListTile(
+            item: sample,
+            dateReference: reference,
+            isExpanded: true,
+            definitionSeparator: '，',
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+    // 等待展开动画完成。
+    await tester.pumpAndSettle();
+    // 同一词性下两条定义使用全角逗号连成一个 Text。
+    expect(find.text('能力，才能'), findsOneWidget);
+    // 默认顿号文本不应同时存在。
+    expect(find.text('能力、才能'), findsNothing);
   });
 
   // 选择模式：显示勾选框，点击触发回调；选中时出现对勾。

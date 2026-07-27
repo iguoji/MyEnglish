@@ -111,6 +111,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 搜索防抖定时器；上万条数据时避免每按一个键立即重复过滤。
   Timer? _searchDebounce;
 
+  /// 单词加载超时定时器；页面提前关闭时必须主动取消，避免留下仍在等待的任务。
+  Timer? _loadTimeout;
+
   /// 页面最终使用的单词 Store，在 initState 中完成一次赋值。
   late final WordStore _store;
 
@@ -413,18 +416,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final sections = <_WordSection>[];
     // 自定义分组视角。
     if (_mode == GroupMode.custom) {
-      // 已存在的自定义分组按顺序展示（允许 0 词）。
-      for (final group in _groups.groups) {
-        sections.add(
-          _WordSection(
-            key: 'c${group.id}',
-            name: group.name,
-            words: _filterAndSort(
-              _allWords.where((word) => word.groupId == group.id).toList(),
-            ),
-          ),
-        );
-      }
       // 没有分组或分组已删除的单词全部归入"未分组"。
       final ungrouped = _allWords
           .where(
@@ -433,12 +424,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           )
           .toList();
       // 未分组只有在确实有单词或没有任何自定义分组时才显示。
+      // 它最先加入 sections，因此筛选行中的优先级固定为“全部”之后第一项。
       if (ungrouped.isNotEmpty || _groups.groups.isEmpty) {
         sections.add(
           _WordSection(
             key: 'c0',
             name: GroupStore.ungroupedName,
             words: _filterAndSort(ungrouped),
+          ),
+        );
+      }
+      // 已存在的自定义分组排在“未分组”之后，并保持用户自己的管理顺序（允许 0 词）。
+      for (final group in _groups.groups) {
+        sections.add(
+          _WordSection(
+            key: 'c${group.id}',
+            name: group.name,
+            words: _filterAndSort(
+              _allWords.where((word) => word.groupId == group.id).toList(),
+            ),
           ),
         );
       }
@@ -556,14 +560,43 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _loadError = null;
     });
 
+    // 保存“本次请求”的 Timer；finally 只清理它，不会误伤之后可能发起的新请求。
+    Timer? requestTimeout;
     try {
-      // await 类似等待 PHP Store 查询完成后取得结果。
-      // timeout 兜底：原生通道（Android SQLite 分支）一旦不回包会永久挂起，
-      // 这里统一在 8 秒后抛错，让下面的 catch 显示“重新加载”而不是一直转圈。
-      final words = await _store.getAll().timeout(
-        const Duration(seconds: 8),
-        onTimeout: () => throw StateError('数据源读取超时（原生通道无响应）'),
+      // Completer 类似 PHP 中由我们自行控制成功或失败结果的 Promise 容器。
+      final loadResult = Completer<List<Word>>();
+      // 先取得 Store 的异步结果；它可能来自资源 JSON，也可能来自 Android 通道。
+      final storeRequest = _store.getAll();
+      // 如果上一次加载仍残留超时计时，先取消，保证同一页面同时只有一个超时闹钟。
+      _loadTimeout?.cancel();
+      // 单独保存本次 Timer，finally 才不会误取消未来另一轮加载新建的 Timer。
+      final currentTimeout = Timer(const Duration(seconds: 8), () {
+        // Store 已经返回时不能重复完成 Completer。
+        if (loadResult.isCompleted) return;
+        // 原生通道长期不回包时转成可见错误，页面会显示“重新加载”。
+        loadResult.completeError(StateError('数据源读取超时（原生通道无响应）'));
+      });
+      // 把本次 Timer 放进局部引用，供 finally 在成功、异常两种路径统一释放。
+      requestTimeout = currentTimeout;
+      // 保存到字段后，dispose 就能像清理小程序页面定时器一样主动取消它。
+      _loadTimeout = currentTimeout;
+      // Store 成功时把单词列表转交给统一的 loadResult。
+      unawaited(
+        storeRequest.then(
+          (words) {
+            // 超时已经先发生时忽略迟到结果，避免重复完成 Future。
+            if (!loadResult.isCompleted) loadResult.complete(words);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            // Store 自身失败时保留原始异常与堆栈，方便错误界面和日志定位。
+            if (!loadResult.isCompleted) {
+              loadResult.completeError(error, stackTrace);
+            }
+          },
+        ),
       );
+      // await 类似等待 PHP Promise 完成，后续 UI 逻辑无需区分来源。
+      final words = await loadResult.future;
       // 页面可能在查询期间被关闭；mounted=false 时不能再 setState。
       if (!mounted) return;
       // 一次写入全部数据并结束加载状态。
@@ -593,6 +626,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 隐藏加载动画。
         _isLoading = false;
       });
+    } finally {
+      // 无论成功、Store 报错还是超时，本次计时器都必须停止。
+      requestTimeout?.cancel();
+      // 只有字段仍指向本次 Timer 时才清空，避免覆盖后来一轮加载的引用。
+      if (identical(_loadTimeout, requestTimeout)) _loadTimeout = null;
     }
   }
 
@@ -1013,6 +1051,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     // 取消尚未执行的搜索防抖。
     _searchDebounce?.cancel();
+    // 页面关闭后不再需要加载超时提醒，主动取消可避免测试或真实页面残留计时任务。
+    _loadTimeout?.cancel();
     // 移除设置与分组监听。
     _settings.removeListener(_handleExternalChange);
     _groups.removeListener(_handleGroupsChanged);
@@ -1172,6 +1212,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             dateReference: _dateReference,
             // 根据页面 Set 判断当前行是否展开。
             isExpanded: _expandedWords.contains(word),
+            // 全部中文释义统一使用首页设置中选择的全角分隔符。
+            definitionSeparator: _settings.definitionSeparator.symbol,
             // 只有当前具体对象显示播放动画。
             isPlaying: identical(_playingWord, word),
             // 选择模式与勾选状态。
@@ -1407,9 +1449,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     // 使用当前主题 surface 和原型顶部分隔线色（border = cBd）。
                     decoration: BoxDecoration(
                       color: tokens.card,
-                      border: Border(
-                        top: BorderSide(color: tokens.border),
-                      ),
+                      border: Border(top: BorderSide(color: tokens.border)),
                     ),
                     // 根据加载状态返回对应内容。
                     child: _buildListContent(entries, visibleWords.isNotEmpty),
@@ -1452,6 +1492,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           words: learningWords,
                           audioPlayer: _audioPlayer,
                           accent: _settings.accent,
+                          definitionSeparator:
+                              _settings.definitionSeparator.symbol,
                         ),
                       ),
                     ),
@@ -1471,6 +1513,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           words: learningWords,
                           audioPlayer: _audioPlayer,
                           accent: _settings.accent,
+                          definitionSeparator:
+                              _settings.definitionSeparator.symbol,
                         ),
                       ),
                     ),

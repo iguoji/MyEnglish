@@ -130,6 +130,17 @@ class MainActivity : FlutterActivity() {
                             result.success(null)
                         }
 
+                        // 保存新的中文释义分隔符。
+                        "setDefinitionSeparator" -> {
+                            // 参数必须是 Dart 枚举转换后的稳定字符串。
+                            val value = call.arguments as? String
+                                ?: error("setDefinitionSeparator 缺少字符串参数")
+                            // Store 继续校验值是否属于顿号、逗号或分号三者之一。
+                            appSettingsStore.setDefinitionSeparator(value)
+                            // 通知 Dart 持久化完成，可以刷新全部中文释义。
+                            result.success(null)
+                        }
+
                         // 未登记方法按 Flutter 规范返回 notImplemented。
                         else -> result.notImplemented()
                     }

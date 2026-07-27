@@ -5,8 +5,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 // flutter_test 提供 Widget 测试驱动，作用类似 PHPUnit 加小程序自动化工具。
 import 'package:flutter_test/flutter_test.dart';
-// 测试直接识别 Tabler 图标，确保界面不会回退到 Flutter 内置图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
@@ -68,8 +66,8 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证抽屉"设置"打开新设计的设置面板，且三项设置全部可用。
-  testWidgets('settings sheet updates accent, dark mode and daily goal', (
+  // 验证抽屉"设置"打开新设计的设置面板，且四项设置全部可用。
+  testWidgets('settings sheet updates accent, separator, theme and goal', (
     tester,
   ) async {
     // 首页持有这份可观察内存设置。
@@ -82,12 +80,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('drawer-settings')));
     await tester.pumpAndSettle();
-    // 三项设置标题都存在。
+    // 四项设置标题都存在。
     expect(find.text('发音'), findsOneWidget);
+    expect(find.text('单词分隔'), findsOneWidget);
     expect(find.text('黑暗模式'), findsOneWidget);
     expect(find.text('每日复习'), findsOneWidget);
-    // 默认值：美式、Light、100。
+    // 默认值：美式、顿号、Light、100。
     expect(settings.accent, PronunciationAccent.american);
+    expect(settings.definitionSeparator, DefinitionSeparator.ideographicComma);
     expect(settings.theme, AppThemePreference.light);
     expect(settings.dailyGoal, 100);
 
@@ -95,6 +95,12 @@ void main() {
     await tester.tap(find.byKey(const Key('accent-british')));
     await tester.pump();
     expect(settings.accent, PronunciationAccent.british);
+    // 切换为中文全角逗号。
+    await tester.tap(
+      find.byKey(const Key('definition-separator-full_width_comma')),
+    );
+    await tester.pump();
+    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
     // 打开黑暗模式开关。
     await tester.tap(find.byKey(const Key('dark-mode-switch')));
     await tester.pump();
@@ -258,10 +264,10 @@ void main() {
     expect(audioPlayer.lastSpelling, 'ability');
     // 参数使用设置中的英式口音。
     expect(audioPlayer.lastAccent, PronunciationAccent.british);
-    // 播放期间左侧出现动画喇叭。
-    expect(find.byIcon(TablerIcons.volume2), findsOneWidget);
+    // 播放期间左侧出现“实心喇叭 + 三道弧线”的自绘动画。
+    expect(find.byKey(const Key('playing-speaker-icon')), findsOneWidget);
     // 释义同步展开：两个 Meaning 各自显示为一行。
-    expect(find.text('能力；才能'), findsOneWidget);
+    expect(find.text('能力、才能'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整项高度大于标题行。
     expect(
@@ -275,13 +281,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(audioPlayer.playCount, 1);
     // 释义已被收起。
-    expect(find.text('能力；才能'), findsNothing);
+    expect(find.text('能力、才能'), findsNothing);
 
     // 手动模拟原生播放自然结束。
     audioPlayer.complete();
     await tester.pump();
     // Future 完成后喇叭消失。
-    expect(find.byIcon(TablerIcons.volume2), findsNothing);
+    expect(find.byKey(const Key('playing-speaker-icon')), findsNothing);
 
     // 释放 SettingsStore 和页面资源。
     settings.dispose();
@@ -350,6 +356,16 @@ void main() {
     ];
     // 使用稳定测试数据打开首页。
     await _pumpHome(tester, words: words);
+
+    // 排序项本身使用纯 GestureDetector，不允许被 InkWell 包裹后产生点击背景色。
+    final alphabetSort = find.byKey(const Key('word-sort-alphabet'));
+    // key 直接落在 GestureDetector 上，点击区域仍然完整可用。
+    expect(tester.widget(alphabetSort), isA<GestureDetector>());
+    // 向父级查找不到 InkWell，代表按下时不会出现 Material 水波纹或背景块。
+    expect(
+      find.ancestor(of: alphabetSort, matching: find.byType(InkWell)),
+      findsNothing,
+    );
 
     // 默认顺序严格保持 Store 返回顺序。
     _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);

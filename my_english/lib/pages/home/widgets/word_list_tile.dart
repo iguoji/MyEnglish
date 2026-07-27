@@ -1,3 +1,6 @@
+// dart:math 提供圆周率，用于绘制喇叭右侧的三道音量弧线。
+import 'dart:math' as math;
+
 // material.dart 提供手势、动画、布局、文字与图标组件。
 import 'package:flutter/material.dart';
 // tabler_icons_plus 统一提供勾选框与发音状态图标。
@@ -19,6 +22,7 @@ class WordListTile extends StatelessWidget {
     required this.dateReference,
     required this.isExpanded,
     required this.onTap,
+    this.definitionSeparator = '、',
     this.isPlaying = false,
     this.selectMode = false,
     this.isSelected = false,
@@ -44,6 +48,9 @@ class WordListTile extends StatelessWidget {
 
   /// 是否显示 Meaning 区域。
   final bool isExpanded;
+
+  /// 同一词性下多条中文释义之间使用的全角分隔符。
+  final String definitionSeparator;
 
   /// 当前行是否正在下载或播放音频。
   final bool isPlaying;
@@ -175,8 +182,8 @@ class WordListTile extends StatelessWidget {
                                           item.id ?? item.spelling,
                                         ),
                                       ),
-                                      // 喇叭与单词间距。
-                                      const SizedBox(width: 10),
+                                      // 自绘画布已去掉字体图标留白，因此只需保留 6 像素视觉间距。
+                                      const SizedBox(width: 6),
                                     ],
                                     // Flexible 允许极长拼写省略。
                                     Flexible(
@@ -250,7 +257,10 @@ class WordListTile extends StatelessWidget {
             duration: const Duration(milliseconds: 160),
             // 收起时创建零高度盒子，展开时创建释义列表。
             child: isExpanded && hasMeanings
-                ? _MeaningList(meanings: item.meanings)
+                ? _MeaningList(
+                    meanings: item.meanings,
+                    definitionSeparator: definitionSeparator,
+                  )
                 : const SizedBox.shrink(),
           ),
         ],
@@ -360,7 +370,7 @@ class _CheckBox extends StatelessWidget {
   }
 }
 
-/// 播放期间循环轻微缩放的小喇叭。
+/// 播放期间显示与 HTML 原型一致的喇叭和三道淡入淡出音量弧线。
 class _PlayingSpeakerIcon extends StatefulWidget {
   /// key 在列表重排时保持动画与具体 Word 绑定。
   const _PlayingSpeakerIcon({super.key});
@@ -370,34 +380,24 @@ class _PlayingSpeakerIcon extends StatefulWidget {
   State<_PlayingSpeakerIcon> createState() => _PlayingSpeakerIconState();
 }
 
-/// 管理喇叭的循环 AnimationController。
+/// 管理三道音量弧线的循环 AnimationController。
 class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
     with SingleTickerProviderStateMixin {
-  /// 控制一次放大缩小周期。
+  /// 控制一次“弧线依次亮起再淡出”的完整周期。
   late final AnimationController _controller;
-
-  /// 把 0—1 控制值映射到 0.84—1.0 的轻微缩放。
-  late final Animation<double> _scale;
 
   /// 组件加入树时创建并启动动画。
   @override
   void initState() {
     // 保留 State 父类初始化。
     super.initState();
-    // 650ms 足够表达正在发声，同时不会闪烁。
+    // 1000ms 与 HTML 原型 @keyframes wave 的一秒周期一致。
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 650),
+      duration: const Duration(milliseconds: 1000),
     );
-    // CurvedAnimation 让缩放起止更平滑。
-    final curved = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    );
-    // Tween 定义最小与最大尺寸。
-    _scale = Tween<double>(begin: 0.84, end: 1).animate(curved);
-    // reverse=true 在放大后自动缩回并持续循环。
-    _controller.repeat(reverse: true);
+    // 0 到 1 循环由 Painter 转换成三条错峰透明度动画。
+    _controller.repeat();
   }
 
   /// 播放结束、图标移出列表时释放 Ticker。
@@ -409,31 +409,100 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
     super.dispose();
   }
 
-  /// 输出缩放中的小喇叭。
+  /// 输出固定 18×16 画布，避免字体图标自带留白把单词推得过远。
   @override
   Widget build(BuildContext context) {
-    // ScaleTransition 只重绘图标，不触发行布局变化。
-    return ScaleTransition(
-      scale: _scale,
-      // volume2 是 Tabler 中用户熟悉的播放中扬声器图标。
-      child: const Icon(
-        TablerIcons.volume2,
-        // 16 像素与设计稿喇叭一致。
-        size: 16,
-        // 使用品牌主色表达活动状态。
+    // CustomPaint 精确复刻“实心喇叭 + 三道右侧弧线”，不受图标字体画布影响。
+    return CustomPaint(
+      // 稳定 key 供测试确认播放状态已切换为自绘原型图标。
+      key: const Key('playing-speaker-icon'),
+      size: const Size(18, 16),
+      painter: _SpeakerWavePainter(
         color: AppTokens.accent,
+        progress: _controller,
       ),
     );
+  }
+}
+
+/// 直接在 Canvas 上绘制播放图标；相当于把原型 SVG 路径翻译成 Flutter 画布命令。
+class _SpeakerWavePainter extends CustomPainter {
+  /// `color` 是主题主色，`progress` 提供每帧 0—1 的动画进度。
+  _SpeakerWavePainter({required this.color, required this.progress})
+    : super(repaint: progress);
+
+  /// 喇叭主体与弧线共同使用的主色。
+  final Color color;
+
+  /// `AnimationController` 本身实现 `Animation<double>`，Painter 可直接读取当前值。
+  final Animation<double> progress;
+
+  /// 绘制一帧图标。
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 实心画笔负责喇叭梯形主体。
+    final bodyPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    // 主体路径对应原型 SVG 喇叭，按 16 高画布压缩并去掉无用空白。
+    final body = Path()
+      ..moveTo(7.2, 3)
+      ..lineTo(3.7, 6)
+      ..lineTo(1.2, 6)
+      ..lineTo(1.2, 10)
+      ..lineTo(3.7, 10)
+      ..lineTo(7.2, 13)
+      ..close();
+    // 先画不闪烁的喇叭主体。
+    canvas.drawPath(body, bodyPaint);
+
+    // 三道弧线从内到外逐渐增大半径，和音量传播方向一致。
+    const radii = <double>[3.2, 5.4, 7.6];
+    // 逐道绘制并错开透明度相位，形成由内向外的淡入淡出。
+    for (var index = 0; index < radii.length; index += 1) {
+      // 每条弧线延后约五分之一个周期亮起。
+      final phase = (progress.value - index * 0.18) % 1;
+      // 正弦波把透明度平滑限制在 0.15—1.0，不完全消失以避免跳闪。
+      final opacity =
+          0.15 + 0.85 * ((math.sin(phase * math.pi * 2 - math.pi / 2) + 1) / 2);
+      // 描边使用圆头，外观对应 SVG 的 stroke-linecap="round"。
+      final wavePaint = Paint()
+        ..color = color.withValues(alpha: opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.45
+        ..strokeCap = StrokeCap.round;
+      // 所有弧线以喇叭出口为圆心，只显示右侧约 103 度圆弧。
+      final radius = radii[index];
+      final rect = Rect.fromCircle(
+        center: const Offset(6.6, 8),
+        radius: radius,
+      );
+      // -0.9 到 +0.9 弧度形成朝右张开的音量线。
+      canvas.drawArc(rect, -0.9, 1.8, false, wavePaint);
+    }
+  }
+
+  /// color 或动画对象更换时需要重绘；动画帧本身由 repaint Listenable 驱动。
+  @override
+  bool shouldRepaint(covariant _SpeakerWavePainter oldDelegate) {
+    // 普通列表重建只要配置不变，就不额外创建静态重绘工作。
+    return oldDelegate.color != color || oldDelegate.progress != progress;
   }
 }
 
 /// 展开后的全部 Meaning；使用设计稿的浅色释义底。
 class _MeaningList extends StatelessWidget {
   /// 接收当前 Word 已经按 index 降序排列的 Meaning。
-  const _MeaningList({required this.meanings});
+  const _MeaningList({
+    required this.meanings,
+    required this.definitionSeparator,
+  });
 
   /// 当前单词的 Meaning 集合。
   final List<Meaning> meanings;
+
+  /// 当前设置中选择的中文释义全角分隔符。
+  final String definitionSeparator;
 
   /// 输出对齐后的 Meaning 行。
   @override
@@ -458,7 +527,10 @@ class _MeaningList extends StatelessWidget {
                 // 行与行之间 6 像素间距。
                 if (index > 0) const SizedBox(height: 6),
                 // 单条 Meaning 行。
-                _MeaningRow(meaning: meanings[index]),
+                _MeaningRow(
+                  meaning: meanings[index],
+                  definitionSeparator: definitionSeparator,
+                ),
               ],
             ],
           ),
@@ -471,10 +543,13 @@ class _MeaningList extends StatelessWidget {
 /// 单条 Meaning：36 宽右对齐斜体词性 + 释义。
 class _MeaningRow extends StatelessWidget {
   /// 创建一条对齐行。
-  const _MeaningRow({required this.meaning});
+  const _MeaningRow({required this.meaning, required this.definitionSeparator});
 
   /// 当前 Meaning 数据。
   final Meaning meaning;
+
+  /// 同一词性下多条释义之间使用的符号。
+  final String definitionSeparator;
 
   /// 输出词性列和释义列。
   @override
@@ -508,8 +583,8 @@ class _MeaningRow extends StatelessWidget {
         // Expanded 让释义使用剩余宽度并自然换行。
         Expanded(
           child: Text(
-            // 一个 Meaning 的 definitions 用中文分号连接，仍占一个业务行。
-            meaning.definitions.join('；'),
+            // 一个 Meaning 的 definitions 使用首页设置中的全角标点连接。
+            meaning.definitions.join(definitionSeparator),
             style: TextStyle(
               color: tokens.text,
               fontSize: 13.5,

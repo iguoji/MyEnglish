@@ -63,6 +63,24 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     }
   }
 
+  /// 保存中文释义分隔符，并沿用口音设置相同的失败提示流程。
+  Future<void> _setDefinitionSeparator(DefinitionSeparator value) async {
+    // 已有设置正在写入时忽略并发点击，避免磁盘值与界面选择交错。
+    if (_isSaving) return;
+    // 进入保存状态后其他持久化选项会暂时拒绝重复操作。
+    setState(() => _isSaving = true);
+    try {
+      // 等待 Android SharedPreferences 明确返回写入成功。
+      await widget.settings.setDefinitionSeparator(value);
+    } catch (error) {
+      // 页面仍存在时把原生错误展示给用户。
+      if (mounted) _showSaveError(error);
+    } finally {
+      // 面板可能已关闭，因此先检查 mounted 再恢复状态。
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   /// 切换黑暗模式开关；开=Dark、关=Light。
   Future<void> _toggleDark() async {
     // 阻止重复磁盘写入。
@@ -95,7 +113,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     ).showSnackBar(SnackBar(content: Text('设置保存失败：$error')));
   }
 
-  /// 输出标题与三行设置。
+  /// 输出标题与四行设置。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -200,7 +218,62 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                   ),
                 ),
               ),
-              // 第二行：黑暗模式开关。
+              // 第二行：中文释义分隔符分段选择。
+              _SettingRow(
+                label: '单词分隔',
+                showDivider: true,
+                control: Container(
+                  // 轨道与发音选择器使用同一套浅底圆角样式。
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: tokens.sub,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 三个选项只显示全角中文标点，避免误用英文半角符号。
+                      for (final separator in DefinitionSeparator.values)
+                        InkWell(
+                          // key 供 Widget 测试和自动化准确选择标点。
+                          key: Key(
+                            'definition-separator-${separator.storageValue}',
+                          ),
+                          onTap: () =>
+                              unawaited(_setDefinitionSeparator(separator)),
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            width: 34,
+                            height: 26,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              // 当前符号使用卡片底浮起，其他符号保持透明。
+                              color:
+                                  widget.settings.definitionSeparator ==
+                                      separator
+                                  ? tokens.card
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              separator.symbol,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    widget.settings.definitionSeparator ==
+                                        separator
+                                    ? AppTokens.accent
+                                    : tokens.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // 第三行：黑暗模式开关。
               _SettingRow(
                 label: '黑暗模式',
                 showDivider: true,
@@ -244,7 +317,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                   ),
                 ),
               ),
-              // 第三行：每日复习目标步进器。
+              // 第四行：每日复习目标步进器。
               _SettingRow(
                 label: '每日复习',
                 showDivider: false,

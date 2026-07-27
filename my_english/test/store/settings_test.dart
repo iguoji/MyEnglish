@@ -32,7 +32,11 @@ void main() {
           calls.add(call);
           // 启动读取返回英式和 Dark。
           if (call.method == 'getSettings') {
-            return <String, Object?>{'accent': 'british', 'theme': 'dark'};
+            return <String, Object?>{
+              'accent': 'british',
+              'theme': 'dark',
+              'definitionSeparator': 'full_width_semicolon',
+            };
           }
           // setter 使用 null 表示保存成功。
           return null;
@@ -43,15 +47,25 @@ void main() {
     // 启动值正确应用。
     expect(settings.accent, PronunciationAccent.british);
     expect(settings.theme, AppThemePreference.dark);
-    // 修改回美式和 Light。
+    expect(
+      settings.definitionSeparator,
+      DefinitionSeparator.fullWidthSemicolon,
+    );
+    // 修改回美式、Light 和全角逗号。
     await settings.setAccent(PronunciationAccent.american);
     await settings.setTheme(AppThemePreference.light);
+    await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
     // MethodCall 未实现相等运算符，必须使用 flutter_test 的 isMethodCall 匹配器。
     expect(calls[1], isMethodCall('setAccent', arguments: 'american'));
     expect(calls[2], isMethodCall('setTheme', arguments: 'light'));
+    expect(
+      calls[3],
+      isMethodCall('setDefinitionSeparator', arguments: 'full_width_comma'),
+    );
     // Store 内存同步更新。
     expect(settings.accent, PronunciationAccent.american);
     expect(settings.theme, AppThemePreference.light);
+    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
     // 释放 ChangeNotifier。
     settings.dispose();
   });
@@ -65,6 +79,7 @@ void main() {
           (call) async => <String, Object?>{
             'accent': 'unknown',
             'theme': 'system',
+            'definitionSeparator': 'half_width_comma',
           },
         );
 
@@ -74,8 +89,20 @@ void main() {
     expect(settings.accent, PronunciationAccent.american);
     // 产品默认主题是 Light，不跟随系统。
     expect(settings.theme, AppThemePreference.light);
+    // 未知或旧版本缺失值默认使用中文顿号。
+    expect(settings.definitionSeparator, DefinitionSeparator.ideographicComma);
     // 释放资源。
     settings.dispose();
+  });
+
+  // 分隔符枚举必须始终输出三种全角中文标点。
+  test('definition separators expose full-width Chinese symbols', () {
+    // 顿号是默认值。
+    expect(DefinitionSeparator.ideographicComma.symbol, '、');
+    // 逗号必须是中文全角版本。
+    expect(DefinitionSeparator.fullWidthComma.symbol, '，');
+    // 分号必须是中文全角版本。
+    expect(DefinitionSeparator.fullWidthSemicolon.symbol, '；');
   });
 
   // 每日复习目标当前为内存设置：默认 100，负数钳制为 0。

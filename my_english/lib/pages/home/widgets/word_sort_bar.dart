@@ -172,14 +172,14 @@ class _SortChip extends StatelessWidget {
     // 图标颜色：选中用主色，未选中用弱化色。
     final iconColor = isSelected ? AppTokens.accent : tokens.muted;
 
-    // InkWell 提供点击反馈；纯文字按钮保持工具行紧凑。
-    return InkWell(
+    // GestureDetector 只响应点击，不绘制 Material 水波纹或选中背景色。
+    return GestureDetector(
       // key 便于测试和未来自动化准确点击字段。
       key: Key('word-sort-${field.name}'),
       // 点击触发首页逻辑；再次点击当前非默认项会翻转方向。
       onTap: () => onPressed(field),
-      // 轻微圆角反馈。
-      borderRadius: BorderRadius.circular(6),
+      // opaque 让文字周围的纵向内边距同样可以点击。
+      behavior: HitTestBehavior.opaque,
       // 上下 4 像素让触控区域略大于文字。
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

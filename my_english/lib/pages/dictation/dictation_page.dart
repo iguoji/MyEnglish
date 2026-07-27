@@ -36,6 +36,7 @@ class DictationPage extends StatefulWidget {
     required this.words,
     required this.audioPlayer,
     required this.accent,
+    this.definitionSeparator = '、',
     super.key,
   });
 
@@ -47,6 +48,9 @@ class DictationPage extends StatefulWidget {
 
   /// 当前发音口音。
   final PronunciationAccent accent;
+
+  /// 已答出的同词性中文释义之间使用的全角分隔符。
+  final String definitionSeparator;
 
   @override
   State<DictationPage> createState() => _DictationPageState();
@@ -311,13 +315,18 @@ class _DictationPageState extends State<DictationPage> {
     final rows = <({String pos, String definition})>[];
     for (var meaningIndex = 0; meaningIndex < _meaningIndex; meaningIndex++) {
       final meaning = _availableMeanings[meaningIndex];
-      rows.add((pos: meaning.pos, definition: meaning.definitions.join('；')));
+      rows.add((
+        pos: meaning.pos,
+        definition: meaning.definitions.join(widget.definitionSeparator),
+      ));
     }
     if (_definitionIndex > 0) {
       final meaning = _availableMeanings[_meaningIndex];
       rows.add((
         pos: meaning.pos,
-        definition: meaning.definitions.take(_definitionIndex).join('；'),
+        definition: meaning.definitions
+            .take(_definitionIndex)
+            .join(widget.definitionSeparator),
       ));
     }
     return rows;

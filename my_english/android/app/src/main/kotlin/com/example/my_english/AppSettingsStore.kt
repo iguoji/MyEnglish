@@ -5,9 +5,9 @@ package com.example.my_english
 import android.content.Context
 
 /**
- * 口音和主题的原生持久化 Store。
+ * 口音、主题和中文释义分隔符的原生持久化 Store。
  *
- * Dart 只接触 american/british 与 light/dark 四个稳定值，具体文件位置由 Android 管理，
+ * Dart 只接触经过校验的稳定字符串，具体文件位置由 Android 管理，
  * 不申请外部存储权限，卸载 App 时系统会自动清理。
  */
 class AppSettingsStore(context: Context) {
@@ -27,6 +27,11 @@ class AppSettingsStore(context: Context) {
             ACCENT_KEY to preferences.getString(ACCENT_KEY, AMERICAN)!!,
             // 首次安装没有值时默认 Light。
             THEME_KEY to preferences.getString(THEME_KEY, LIGHT)!!,
+            // 旧版本没有保存该字段时默认使用中文顿号。
+            DEFINITION_SEPARATOR_KEY to preferences.getString(
+                DEFINITION_SEPARATOR_KEY,
+                IDEOGRAPHIC_COMMA,
+            )!!,
         )
     }
 
@@ -52,6 +57,21 @@ class AppSettingsStore(context: Context) {
         }
     }
 
+    /** 校验并持久化中文释义分隔符。 */
+    fun setDefinitionSeparator(value: String) {
+        // 只接受设置面板提供的三种全角中文标点映射值。
+        require(
+            value == IDEOGRAPHIC_COMMA ||
+                value == FULL_WIDTH_COMMA ||
+                value == FULL_WIDTH_SEMICOLON,
+        ) { "不支持的中文释义分隔符：$value" }
+        // 同步确认写入，Dart 收到成功以后才会刷新全部释义文本。
+        check(preferences.edit().putString(DEFINITION_SEPARATOR_KEY, value).commit()) {
+            // false 表示 Android 没能把新符号保存到设置文件。
+            "中文释义分隔符写入失败"
+        }
+    }
+
     /** 所有稳定键值集中在 companion object，类似 PHP 类常量。 */
     private companion object {
         // SharedPreferences 口音键。
@@ -59,6 +79,9 @@ class AppSettingsStore(context: Context) {
 
         // SharedPreferences 主题键。
         const val THEME_KEY = "theme"
+
+        // SharedPreferences 中文释义分隔符键。
+        const val DEFINITION_SEPARATOR_KEY = "definitionSeparator"
 
         // 美式口音值。
         const val AMERICAN = "american"
@@ -71,5 +94,14 @@ class AppSettingsStore(context: Context) {
 
         // 深色主题值。
         const val DARK = "dark"
+
+        // 中文顿号对应的稳定存储值。
+        const val IDEOGRAPHIC_COMMA = "ideographic_comma"
+
+        // 中文全角逗号对应的稳定存储值。
+        const val FULL_WIDTH_COMMA = "full_width_comma"
+
+        // 中文全角分号对应的稳定存储值。
+        const val FULL_WIDTH_SEMICOLON = "full_width_semicolon"
     }
 }

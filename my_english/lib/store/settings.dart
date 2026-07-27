@@ -27,6 +27,35 @@ extension PronunciationAccentDetails on PronunciationAccent {
   };
 }
 
+/// 中文释义之间使用的全角分隔符。
+enum DefinitionSeparator {
+  /// 中文顿号，也是首次安装和旧版本升级后的默认值。
+  ideographicComma,
+
+  /// 中文全角逗号。
+  fullWidthComma,
+
+  /// 中文全角分号。
+  fullWidthSemicolon,
+}
+
+/// 为释义分隔符补充持久化值与真正显示的全角符号。
+extension DefinitionSeparatorDetails on DefinitionSeparator {
+  /// Android SharedPreferences 保存英文稳定值，避免标点编码差异影响迁移。
+  String get storageValue => switch (this) {
+    DefinitionSeparator.ideographicComma => 'ideographic_comma',
+    DefinitionSeparator.fullWidthComma => 'full_width_comma',
+    DefinitionSeparator.fullWidthSemicolon => 'full_width_semicolon',
+  };
+
+  /// App 拼接中文释义时真正使用的全角标点。
+  String get symbol => switch (this) {
+    DefinitionSeparator.ideographicComma => '、',
+    DefinitionSeparator.fullWidthComma => '，',
+    DefinitionSeparator.fullWidthSemicolon => '；',
+  };
+}
+
 /// 用户选择的主题；当前只允许需求中明确给出的 Light 与 Dark。
 enum AppThemePreference {
   /// 浅色主题，也是第一次安装时的默认值。
@@ -64,6 +93,7 @@ class SettingsStore extends ChangeNotifier {
     required this._channel,
     required this._accent,
     required this._theme,
+    required this._definitionSeparator,
   });
 
   /// 原生通道名必须与 MainActivity 注册值保持一致。
@@ -80,6 +110,9 @@ class SettingsStore extends ChangeNotifier {
   /// 当前主题设置；下划线字段只允许通过 setTheme 修改。
   AppThemePreference _theme;
 
+  /// 当前中文释义分隔符；下划线字段只允许通过 setDefinitionSeparator 修改。
+  DefinitionSeparator _definitionSeparator;
+
   /// App 启动时调用：先读取 SharedPreferences，再创建可供页面监听的 Store。
   static Future<SettingsStore> load({
     MethodChannel channel = _defaultChannel,
@@ -93,8 +126,17 @@ class SettingsStore extends ChangeNotifier {
       final accent = _accentFromStorage(values?['accent']);
       // 未保存或未知主题一律回退 Light。
       final theme = _themeFromStorage(values?['theme']);
+      // 旧版本没有该字段时默认使用顿号。
+      final definitionSeparator = _definitionSeparatorFromStorage(
+        values?['definitionSeparator'],
+      );
       // 把已读取值和生产通道一起保存。
-      return SettingsStore._(channel: channel, accent: accent, theme: theme);
+      return SettingsStore._(
+        channel: channel,
+        accent: accent,
+        theme: theme,
+        definitionSeparator: definitionSeparator,
+      );
     } on MissingPluginException catch (error, stackTrace) {
       // Hot Restart 只更新 Dart；旧 APK 没有重新编译 Kotlin 时会暂时找不到新通道。
       debugPrint('原生设置通道尚未注册，将临时使用内存默认值：$error');
@@ -105,6 +147,7 @@ class SettingsStore extends ChangeNotifier {
         channel: null,
         accent: PronunciationAccent.american,
         theme: AppThemePreference.light,
+        definitionSeparator: DefinitionSeparator.ideographicComma,
       );
     } on PlatformException catch (error, stackTrace) {
       // 设置读取失败不应让 App 白屏；控制台保留原因并使用明确默认值启动。
@@ -116,6 +159,7 @@ class SettingsStore extends ChangeNotifier {
         channel: channel,
         accent: PronunciationAccent.american,
         theme: AppThemePreference.light,
+        definitionSeparator: DefinitionSeparator.ideographicComma,
       );
     }
   }
@@ -124,9 +168,16 @@ class SettingsStore extends ChangeNotifier {
   factory SettingsStore.inMemory({
     PronunciationAccent accent = PronunciationAccent.american,
     AppThemePreference theme = AppThemePreference.light,
+    DefinitionSeparator definitionSeparator =
+        DefinitionSeparator.ideographicComma,
   }) {
     // channel=null 时 setter 只更新内存并通知页面。
-    return SettingsStore._(channel: null, accent: accent, theme: theme);
+    return SettingsStore._(
+      channel: null,
+      accent: accent,
+      theme: theme,
+      definitionSeparator: definitionSeparator,
+    );
   }
 
   /// 页面只读访问当前口音。
@@ -134,6 +185,9 @@ class SettingsStore extends ChangeNotifier {
 
   /// 页面只读访问当前主题偏好。
   AppThemePreference get theme => _theme;
+
+  /// 页面只读访问当前中文释义分隔符。
+  DefinitionSeparator get definitionSeparator => _definitionSeparator;
 
   /// 每日复习目标；本轮先保存在内存，原生持久化随分组一起在下一轮落地。
   int _dailyGoal = 100;
@@ -180,6 +234,21 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 修改并持久化中文释义分隔符；成功后所有正在监听的释义区域立即刷新。
+  Future<void> setDefinitionSeparator(DefinitionSeparator value) async {
+    // 重复选择当前符号时不写磁盘。
+    if (_definitionSeparator == value) return;
+    // 把枚举转换为原生端约定的稳定字符串。
+    await _channel?.invokeMethod<void>(
+      'setDefinitionSeparator',
+      value.storageValue,
+    );
+    // 原生确认成功后再更新内存，保证页面显示与磁盘值一致。
+    _definitionSeparator = value;
+    // 通知首页、设置面板和后续学习页面读取新符号。
+    notifyListeners();
+  }
+
   /// 把原生字符串转换成强类型口音。
   static PronunciationAccent _accentFromStorage(Object? value) {
     // 只有明确保存 british 才使用英式，其余值都采用默认美式。
@@ -194,5 +263,15 @@ class SettingsStore extends ChangeNotifier {
     return value == AppThemePreference.dark.storageValue
         ? AppThemePreference.dark
         : AppThemePreference.light;
+  }
+
+  /// 把原生字符串转换成强类型中文释义分隔符。
+  static DefinitionSeparator _definitionSeparatorFromStorage(Object? value) {
+    // switch 明确列出两个非默认值；未知值与缺失值都安全回退顿号。
+    return switch (value) {
+      'full_width_comma' => DefinitionSeparator.fullWidthComma,
+      'full_width_semicolon' => DefinitionSeparator.fullWidthSemicolon,
+      _ => DefinitionSeparator.ideographicComma,
+    };
   }
 }

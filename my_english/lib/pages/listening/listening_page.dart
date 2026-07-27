@@ -24,6 +24,7 @@ class ListeningPage extends StatefulWidget {
     required this.words,
     required this.audioPlayer,
     required this.accent,
+    this.definitionSeparator = '、',
     super.key,
   });
 
@@ -35,6 +36,9 @@ class ListeningPage extends StatefulWidget {
 
   /// 当前设置中的美式或英式口音。
   final PronunciationAccent accent;
+
+  /// 同一词性下多条中文释义之间使用的全角分隔符。
+  final String definitionSeparator;
 
   @override
   State<ListeningPage> createState() => _ListeningPageState();
@@ -388,6 +392,8 @@ class _ListeningPageState extends State<ListeningPage> {
                   _IconTap(
                     key: const Key('close-listening'),
                     icon: TablerIcons.chevronLeft,
+                    // 图标画布左贴 20 像素页面边距，而不是在 34 像素按钮中居中后再次内缩。
+                    alignment: Alignment.centerLeft,
                     onTap: () => Navigator.pop(context),
                   ),
                   Expanded(
@@ -405,6 +411,8 @@ class _ListeningPageState extends State<ListeningPage> {
                   _IconTap(
                     key: const Key('open-listening-settings'),
                     icon: TablerIcons.settings,
+                    // 设置图标右贴 20 像素页面边距，与左侧返回图标形成镜像对齐。
+                    alignment: Alignment.centerRight,
                     onTap: _openSettings,
                   ),
                 ],
@@ -594,8 +602,16 @@ class _ListeningPageState extends State<ListeningPage> {
                     children: [
                       SingleChildScrollView(
                         child: showAnswer
-                            ? _AnswerContent(word: _currentWord, tokens: tokens)
-                            : _HiddenAnswer(word: _currentWord, tokens: tokens),
+                            ? _AnswerContent(
+                                word: _currentWord,
+                                tokens: tokens,
+                                definitionSeparator: widget.definitionSeparator,
+                              )
+                            : _HiddenAnswer(
+                                word: _currentWord,
+                                tokens: tokens,
+                                definitionSeparator: widget.definitionSeparator,
+                              ),
                       ),
                       Positioned(
                         right: -8,
@@ -650,6 +666,8 @@ class _ListeningPageState extends State<ListeningPage> {
                   _PlayerMoveButton(
                     icon: TablerIcons.playerTrackNext,
                     label: '下一个',
+                    // 与原型“下一个 ›”一致，把方向图标放在文字右侧。
+                    iconAfterLabel: true,
                     onTap: () => _jumpTo(_index + 1),
                   ),
                 ],
@@ -669,10 +687,17 @@ class _ListeningPageState extends State<ListeningPage> {
 }
 
 class _AnswerContent extends StatelessWidget {
-  const _AnswerContent({required this.word, required this.tokens});
+  const _AnswerContent({
+    required this.word,
+    required this.tokens,
+    required this.definitionSeparator,
+  });
 
   final Word word;
   final AppTokens tokens;
+
+  /// 同一词性下多条释义之间使用的全角分隔符。
+  final String definitionSeparator;
 
   @override
   Widget build(BuildContext context) {
@@ -698,18 +723,14 @@ class _AnswerContent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 7),
-          for (final definition in meaning.definitions)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Text(
-                definition,
-                style: TextStyle(
-                  color: tokens.text,
-                  fontSize: 13.5,
-                  height: 1.5,
-                ),
-              ),
+          // 一个词性的全部中文释义拼成一个 Text，避免每条释义强制另起一行。
+          Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: Text(
+              meaning.definitions.join(definitionSeparator),
+              style: TextStyle(color: tokens.text, fontSize: 13.5, height: 1.5),
             ),
+          ),
         ],
       ],
     );
@@ -717,10 +738,17 @@ class _AnswerContent extends StatelessWidget {
 }
 
 class _HiddenAnswer extends StatelessWidget {
-  const _HiddenAnswer({required this.word, required this.tokens});
+  const _HiddenAnswer({
+    required this.word,
+    required this.tokens,
+    required this.definitionSeparator,
+  });
 
   final Word word;
   final AppTokens tokens;
+
+  /// 骨架宽度也按真正拼接后的释义计算，隐藏与显示布局保持一致。
+  final String definitionSeparator;
 
   @override
   Widget build(BuildContext context) {
@@ -748,18 +776,26 @@ class _HiddenAnswer extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 7),
-          for (final definition in meaning.definitions) ...[
-            Container(
-              // 原型按“20 + 字符数 × 14”计算释义骨架，最长限制为 300。
-              width: (20 + definition.length * 14).clamp(0, 300).toDouble(),
-              height: 15,
-              decoration: BoxDecoration(
-                color: tokens.sub,
-                borderRadius: BorderRadius.circular(5),
-              ),
-            ),
-            const SizedBox(height: 7),
-          ],
+          Builder(
+            builder: (context) {
+              // 先按全局设置连接定义，再只绘制一条对应长度的骨架。
+              final joinedDefinitions = meaning.definitions.join(
+                definitionSeparator,
+              );
+              // Container 宽度沿用原型“20 + 字符数 × 14”，最长限制为 300。
+              return Container(
+                width: (20 + joinedDefinitions.length * 14)
+                    .clamp(0, 300)
+                    .toDouble(),
+                height: 15,
+                decoration: BoxDecoration(
+                  color: tokens.sub,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 7),
           const SizedBox(height: 5),
         ],
         Text(
@@ -856,11 +892,15 @@ class _IconTap extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.color,
+    this.alignment = Alignment.center,
     super.key,
   });
   final IconData icon;
   final VoidCallback onTap;
   final Color? color;
+
+  /// 顶栏可传 centerLeft/centerRight 让图标视觉边缘真正贴齐页面边距。
+  final AlignmentGeometry alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -871,7 +911,11 @@ class _IconTap extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(17),
-        child: Icon(icon, size: 21, color: color ?? tokens.textMedium),
+        // Align 只移动可见图标，不缩小 34×34 的触控区域。
+        child: Align(
+          alignment: alignment,
+          child: Icon(icon, size: 21, color: color ?? tokens.textMedium),
+        ),
       ),
     );
   }
@@ -908,21 +952,41 @@ class _PlayerMoveButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.iconAfterLabel = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
+  /// false 对应“‹ 上一个”，true 对应“下一个 ›”。
+  final bool iconAfterLabel;
+
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
-    return TextButton.icon(
+    return TextButton(
       onPressed: onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
       style: TextButton.styleFrom(
         foregroundColor: tokens.textMedium,
         textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+      ),
+      // 手工排列后，下一个按钮的图标可以放到文字右侧。
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 上一个按钮先显示方向图标。
+          if (!iconAfterLabel) ...[
+            Icon(icon, size: 16),
+            const SizedBox(width: 6),
+          ],
+          // 两个按钮共用相同文字样式。
+          Text(label),
+          // 下一个按钮在文字后显示方向图标。
+          if (iconAfterLabel) ...[
+            const SizedBox(width: 6),
+            Icon(icon, size: 16),
+          ],
+        ],
       ),
     );
   }
