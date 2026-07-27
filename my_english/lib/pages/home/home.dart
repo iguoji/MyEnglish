@@ -1446,10 +1446,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   child: DecoratedBox(
                     // key 供 Widget 测试准确定位。
                     key: const Key('word-list'),
+                    // 前景装饰会在列表内容之后绘制，避免 ListView 的白色背景把顶部线盖住。
+                    position: DecorationPosition.foreground,
                     // 使用当前主题 surface 和原型顶部分隔线色（border = cBd）。
                     decoration: BoxDecoration(
                       color: tokens.card,
-                      border: Border(top: BorderSide(color: tokens.border)),
+                      border: Border(
+                        // 明确使用 1 个逻辑像素，让高分辨率真机也能稳定绘制清晰横线。
+                        top: BorderSide(color: tokens.border, width: 1),
+                      ),
                     ),
                     // 根据加载状态返回对应内容。
                     child: _buildListContent(entries, visibleWords.isNotEmpty),

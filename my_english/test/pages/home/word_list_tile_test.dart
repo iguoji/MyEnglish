@@ -80,6 +80,34 @@ void main() {
     expect(find.text('能力、才能'), findsNothing);
   });
 
+  // 行分隔线必须在内容上层绘制，避免真机渲染时被白色标题行或释义区盖住。
+  testWidgets('row divider is painted in foreground with one logical pixel', (
+    tester,
+  ) async {
+    // 渲染一条普通的收起单词行。
+    await pumpTile(tester, item: sample);
+
+    // WordListTile 根节点就是负责绘制分隔线的 DecoratedBox。
+    final tileBox = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(WordListTile),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    // 前景绘制确保横线不会被内部白色组件覆盖。
+    expect(tileBox.position, DecorationPosition.foreground);
+    // 读取根节点的边框配置。
+    final decoration = tileBox.decoration as BoxDecoration;
+    final border = decoration.border! as Border;
+    // 只检查本需求关心的底部实线及其宽度。
+    expect(border.bottom.style, BorderStyle.solid);
+    expect(border.bottom.width, 1);
+    // 浅色主题继续使用原型对应的 Tabler 表格边框色。
+    expect(border.bottom.color, const Color(0xFFE6E7E9));
+  });
+
   // 展开状态：按 index 降序显示两条 Meaning，释义默认用中文顿号连接。
   testWidgets('expanded row lists meanings with pos column', (tester) async {
     // 渲染展开行。

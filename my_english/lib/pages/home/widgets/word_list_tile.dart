@@ -91,10 +91,15 @@ class WordListTile extends StatelessWidget {
 
     // DecoratedBox 给整个列表项绘制一条行分隔线。
     return DecoratedBox(
+      // 把边框放在子组件之后绘制，防止标题行和展开释义区的白色背景覆盖分隔线。
+      position: DecorationPosition.foreground,
       decoration: BoxDecoration(
         // 用 cBd（与分组头下边框同色）而非 cRb：cRb(#eef0f3) 在白底上几乎不可见，
         // 整列分隔线统一为 cBd 后，每个单词行的下边框才清晰可辨（对齐 HTML 原型观感）。
-        border: Border(bottom: BorderSide(color: tokens.border)),
+        border: Border(
+          // 固定 1 个逻辑像素；真机会按设备像素比换算，因此线条既清楚又不会过粗。
+          bottom: BorderSide(color: tokens.border, width: 1),
+        ),
       ),
       // Column 先放标题行（含滑动层），再放可变高度释义区。
       child: Column(

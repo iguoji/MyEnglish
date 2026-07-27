@@ -130,12 +130,16 @@ void main() {
     expect(listFinder, findsOneWidget);
     // 读取 DecoratedBox 配置。
     final listBox = tester.widget<DecoratedBox>(listFinder);
+    // 顶部线必须最后绘制，否则列表白色背景可能在真机上把它盖住。
+    expect(listBox.position, DecorationPosition.foreground);
     // 生产代码明确使用 BoxDecoration。
     final decoration = listBox.decoration as BoxDecoration;
     // 生产代码明确使用 Border。
     final border = decoration.border! as Border;
     // 顶部是实线。
     expect(border.top.style, BorderStyle.solid);
+    // 使用完整的 1 个逻辑像素，保证高分辨率真机仍清晰可见。
+    expect(border.top.width, 1);
     // 列表顶部统一使用 Tabler 表格边框色 #E6E7E9。
     expect(border.top.color, const Color(0xFFE6E7E9));
     // 左右和底部不属于列表外框。
