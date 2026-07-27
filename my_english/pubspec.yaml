@@ -9,7 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  tabler_icons_plus: ^3.44.0
+  # Tabler 图标包直接随项目保存，避免 VPN 或 pub.dev 网络异常导致项目无法启动。
+  tabler_icons_plus:
+    # path 类似 PHP Composer 的本地仓库引用，不需要联网下载。
+    path: third_party/tabler_icons_plus
 
 dev_dependencies:
   flutter_test:

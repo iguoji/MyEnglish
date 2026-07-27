@@ -171,10 +171,9 @@ packages:
   tabler_icons_plus:
     dependency: "direct main"
     description:
-      name: tabler_icons_plus
-      sha256: "6c3a1e987d87a063597b20810b080fe8202c5d48f2eb0a5c793fcd4c72566f29"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/tabler_icons_plus"
+      relative: true
+    source: path
     version: "3.44.0"
   term_glyph:
     dependency: transitive
