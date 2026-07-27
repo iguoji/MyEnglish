@@ -558,7 +558,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     try {
       // await 类似等待 PHP Store 查询完成后取得结果。
-      final words = await _store.getAll();
+      // timeout 兜底：原生通道（Android SQLite 分支）一旦不回包会永久挂起，
+      // 这里统一在 8 秒后抛错，让下面的 catch 显示“重新加载”而不是一直转圈。
+      final words = await _store.getAll().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => throw StateError('数据源读取超时（原生通道无响应）'),
+      );
       // 页面可能在查询期间被关闭；mounted=false 时不能再 setState。
       if (!mounted) return;
       // 一次写入全部数据并结束加载状态。
