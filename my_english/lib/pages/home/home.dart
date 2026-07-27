@@ -1400,19 +1400,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
                 // 列表占满剩余高度并贴屏左右边缘。
                 Expanded(
-                  // 整个列表容器只有顶部一条外边框。
+                  // 整个列表容器只有顶部一条外边框，颜色对齐 HTML 原型(--cBd/#e6e7e9)。
                   child: DecoratedBox(
                     // key 供 Widget 测试准确定位。
                     key: const Key('word-list'),
-                    // 使用当前主题 surface 和 Tabler 顶部分隔线。
+                    // 使用当前主题 surface 和原型顶部分隔线色（border = cBd）。
                     decoration: BoxDecoration(
                       color: tokens.card,
                       border: Border(
-                        top: BorderSide(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? AppTheme.darkTableBorderColor
-                              : AppTheme.tableBorderColor,
-                        ),
+                        top: BorderSide(color: tokens.border),
                       ),
                     ),
                     // 根据加载状态返回对应内容。
