@@ -104,8 +104,9 @@ void main() {
     // 只检查本需求关心的底部实线及其宽度。
     expect(border.bottom.style, BorderStyle.solid);
     expect(border.bottom.width, 1);
-    // 浅色主题继续使用原型对应的 Tabler 表格边框色。
-    expect(border.bottom.color, const Color(0xFFE6E7E9));
+    // 浅色主题单词行延续第四轮决定：用更淡的 rowBorder（#EEF0F3），
+    // 而非分组头/列表顶使用的 border（#E6E7E9）。
+    expect(border.bottom.color, const Color(0xFFEEF0F3));
   });
 
   // 展开状态：按 index 降序显示两条 Meaning，释义默认用中文顿号连接。
@@ -166,10 +167,8 @@ void main() {
     );
     // 未选中时没有对勾。
     expect(find.byIcon(TablerIcons.check), findsNothing);
-    // 点击勾选框（单词左侧 18×18 区域）。
-    await tester.tapAt(
-      tester.getTopLeft(find.text('ability')) + const Offset(-18, 8),
-    );
+    // 点击勾选框（用稳定 key 精确命中，避免依赖脆弱坐标偏移）。
+    await tester.tap(find.byKey(const Key('select-checkbox')));
     // 回调被触发一次。
     expect(toggled, 1);
 

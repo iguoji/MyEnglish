@@ -177,6 +177,8 @@ class WordListTile extends StatelessWidget {
                                     // 选择模式下显示 18×18 勾选框。
                                     if (selectMode) ...[
                                       _CheckBox(
+                                        // 稳定 key，供测试精确点击勾选框而不依赖脆弱坐标。
+                                        key: const Key('select-checkbox'),
                                         isSelected: isSelected,
                                         onTap: onToggleSelect,
                                       ),
@@ -352,7 +354,7 @@ class _SwipeAction extends StatelessWidget {
 /// 选择模式下的 18×18 勾选框。
 class _CheckBox extends StatelessWidget {
   /// 接收选中状态与点击动作。
-  const _CheckBox({required this.isSelected, required this.onTap});
+  const _CheckBox({super.key, required this.isSelected, required this.onTap});
 
   /// 是否被选中。
   final bool isSelected;
