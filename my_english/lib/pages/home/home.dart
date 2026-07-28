@@ -1155,6 +1155,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         key: const Key('word-list-scroll-view'),
         // 使用同一个 ScrollController。
         controller: _scrollController,
+        // 默认只预构建视口外 250 逻辑像素的行；快速滑动到底部时，
+        // 行还没建好就滚到了，会出现“空白后补建”的顿挫。这里把预构建范围
+        // 放大到 1000 像素（约多缓存 25 行），让手指快速甩动时提前建好，滑动更跟手。
+        // 注：新版 scrollCacheExtent 所需的 ScrollCacheExtent 类型当前 SDK 未对外导出，
+        // 暂时保留 cacheExtent（仅 info 级弃用提示，不影响运行）。
+        // ignore: deprecated_member_use
+        cacheExtent: 1000,
         // slivers 类似小程序中按顺序拼接多个“吸顶标题 + 长列表”区块。
         slivers: [
           // 每个分组都由一个固定高度吸顶头和一个惰性单词列表组成。
@@ -1178,6 +1185,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) => _buildWordRow(section.words[index]),
                       childCount: section.words.length,
+                      // 默认即为 true：被滚出屏幕的行保留 Element，滚回时无需重建，
+                      // 直接复用已缓存的 Widget 树，滚动更顺滑。
+                      addAutomaticKeepAlives: true,
+                      // 默认即为 true：每行独立一层，行内文字/图标变化不触发整列重绘。
+                      addRepaintBoundaries: true,
                     ),
                   ),
               ],
