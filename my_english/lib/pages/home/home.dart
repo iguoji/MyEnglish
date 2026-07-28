@@ -101,12 +101,29 @@ class _WordSection {
 }
 
 /// 下划线表示状态类仅当前文件可见；Observer 接收 App Show/Hide 等状态。
-class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+class _HomePageState extends State<HomePage>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   /// Scaffold key 用于以编程方式打开右侧抽屉。
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   /// Scrollbar 和 CustomScrollView 必须共享同一个控制器，滑块才可以被直接拖动。
   final ScrollController _scrollController = ScrollController();
+
+  /// 下拉刷新（reLaunch 风格）相关状态。
+  /// 触发刷新的下拉距离阈值（逻辑像素）。
+  static const double _kRefreshThreshold = 70;
+  /// 下拉指示的最大可视位移；超过阈值后继续下拉会有阻尼，不会无限拉长。
+  static const double _kPullMax = _kRefreshThreshold * 1.5;
+  /// 下拉刷新动画控制器：驱动指示区随手势/回弹平滑收放。
+  late final AnimationController _pullController;
+  /// 顶部起拽时记录的指尖 Y 坐标；null 表示当前未在顶部下拉。
+  double? _dragStartY;
+  /// 是否正在执行 reLaunch 重载，避免重复触发。
+  bool _isRefreshing = false;
+  /// 当前下拉位移（逻辑像素），由动画控制器的归一化值换算。
+  double get _pullDistance => _pullController.value * _kPullMax;
+  /// 下拉进度 0~1，用于指示区透明度与旋转角度。
+  double get _pullProgress => _pullController.value;
 
   /// 搜索防抖定时器；上万条数据时避免每按一个键立即重复过滤。
   Timer? _searchDebounce;
@@ -211,6 +228,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _dateReference = initialTime;
     // 注册 App 前后台观察者。
     WidgetsBinding.instance.addObserver(this);
+    // 下拉刷新动画控制器：负责下拉指示的平滑收放（本类已混入 SingleTickerProviderStateMixin）。
+    _pullController = AnimationController(
+      // this 作为 Ticker 提供方。
+      vsync: this,
+      // 回弹/锁定动画时长，手感顺滑即可。
+      duration: const Duration(milliseconds: 220),
+    )..addListener(() {
+        // 动画每帧刷新下拉位移，让指示随手指/回弹平滑变化。
+        if (mounted) setState(() {});
+      });
     // 监听设置变化，让副标题的复习目标即时刷新。
     _settings.addListener(_handleExternalChange);
     // 监听分组变化：分组被删除时把其中单词移回"未分组"。
@@ -687,6 +714,146 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 通道异常时回退为 0，副标题仍可正常显示。
       setState(() => _reviewCount = 0);
     }
+  }
+
+  /// 首页下拉刷新：效果等同小程序 reLaunch，把首页恢复到刚进入的初始状态并重新拉取数据。
+  ///
+  /// 与网页刷新不同，这里不显示整页加载圈，而是静默重载：重置搜索/排序/分组视图与筛选，
+  /// 重新读取全部单词（含最新难度与复习时间）与今日复习数，并把滚动位置回到顶部。
+  Future<void> _relaunch() async {
+    // 页面可能在重载期间被关闭。
+    if (!mounted) return;
+    // 重置全部瞬时视图状态，回到初始样子。
+    setState(() {
+      // 清空搜索词。
+      _query = '';
+      // 回到默认排序。
+      _sortField = WordSortField.original;
+      // 重置分组视角与筛选。
+      _mode = GroupMode.custom;
+      _filterKey = null;
+      // 清空展开、选中与滑动等临时状态。
+      _expandedWords.clear();
+      _selectedWords.clear();
+      _swipedWord = null;
+      // 退出选择模式。
+      _selectMode = false;
+    });
+    // 重新从本地 SQLite 拉取全部单词，不翻动整页加载圈。
+    await _refreshWords();
+    // 重新读取今日复习计数。
+    await _loadReviewCount();
+    // 滚动位置回到顶部，与重新进入页面一致。
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
+  /// 捕获顶部下拉手势，把下拉距离喂给动画控制器，决定是否触发 reLaunch。
+  bool _handlePullNotification(ScrollNotification notification) {
+    // 刷新进行中不再响应任何下拉手势。
+    if (_isRefreshing) return false;
+    // 列表滚到顶部且有真实拖拽时，记录起拽位置。
+    if (notification is ScrollStartNotification) {
+      if (notification.dragDetails != null &&
+          _scrollController.hasClients &&
+          _scrollController.position.pixels <= 0) {
+        _dragStartY = notification.dragDetails!.globalPosition.dy;
+      }
+      return false;
+    }
+    // 拖拽过程中累计下拉距离，0.5 阻尼让手感更自然。
+    if (notification is ScrollUpdateNotification) {
+      if (_dragStartY != null && notification.dragDetails != null) {
+        final delta =
+            notification.dragDetails!.globalPosition.dy - _dragStartY!;
+        if (delta > 0) {
+          // 收敛到最大可视位移，避免一下拉就到底。
+          final target = (delta * 0.5).clamp(0.0, _kPullMax);
+          _pullController.value = target / _kPullMax;
+        } else {
+          // 向上拖（滚回内容）则结束本次下拉。
+          _dragStartY = null;
+          _pullController.value = 0;
+        }
+      }
+      return false;
+    }
+    // 松手：达到阈值触发 reLaunch，否则平滑回弹。
+    if (notification is ScrollEndNotification) {
+      _finalizePull();
+      _dragStartY = null;
+    }
+    return false;
+  }
+
+  /// 松手后判定：达阈值触发刷新，否则回弹到初始位置。
+  void _finalizePull() {
+    // 当前位移换算成像素后与阈值比较。
+    if (_pullDistance >= _kRefreshThreshold) {
+      // 触发异步刷新，不阻塞手势回调。
+      unawaited(_triggerRefresh());
+    } else {
+      // 未达阈值，平滑动画收回到 0。
+      _pullController.animateTo(0, curve: Curves.easeOut);
+    }
+  }
+
+  /// 锁定指示区在阈值高度并静默重载首页，完成后收起。
+  Future<void> _triggerRefresh() async {
+    // 已经在刷新则不重复触发。
+    if (_isRefreshing) return;
+    // 先把指示区锁定在阈值高度，给出"正在刷新"的轻微视觉。
+    await _pullController.animateTo(
+      _kRefreshThreshold / _kPullMax,
+      curve: Curves.easeOut,
+    );
+    // 页面可能在动画期间被关闭。
+    if (!mounted) return;
+    // 标记刷新中，指示区切换为加载态。
+    setState(() => _isRefreshing = true);
+    try {
+      // 执行 reLaunch 风格的静默重载。
+      await _relaunch();
+    } finally {
+      // 无论成功或异常都收起指示区。
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+        await _pullController.animateTo(0, curve: Curves.easeOut);
+      }
+    }
+  }
+
+  /// 顶部下拉指示区：平时隐藏，下拉时随进度淡入并轻微旋转（iOS 风格，非网页刷新）。
+  Widget _buildPullIndicator() {
+    // 未下拉且未在刷新时不占任何空间。
+    if (!_isRefreshing && _pullProgress <= 0.001) {
+      return const SizedBox.shrink();
+    }
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+    // 刷新中显示极小的原生风加载环（避免"网页刷新"那种大圈与页面闪动）；
+    // 下拉中显示 Tabler 刷新图标，随进度旋转，透明度随进度提升。
+    return Opacity(
+      opacity: _isRefreshing ? 1.0 : _pullProgress.clamp(0.0, 1.0),
+      child: _isRefreshing
+          ? SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: tokens.textSecondary,
+              ),
+            )
+          : Transform.rotate(
+              angle: _pullProgress * 3.14159,
+              child: Icon(
+                TablerIcons.refresh,
+                size: 18,
+                color: tokens.textSecondary,
+              ),
+            ),
+    );
   }
 
   /// 默写返回后只回刷本次复习涉及的单词，避免重新加载整库。
@@ -1423,6 +1590,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }),
       );
     }
+    // 释放下拉刷新动画控制器。
+    _pullController.dispose();
     // 释放可拖动滚动条和列表共用的控制器。
     _scrollController.dispose();
     // 仅释放首页自行创建的测试内存设置；MainApp 注入的全局 Store 继续存在。
@@ -1511,63 +1680,87 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    // Scrollbar 提供始终可见且可直接拖动到任意位置的滑块。
-    return Scrollbar(
-      // 与 CustomScrollView 共用控制器，否则拖动滑块无法控制列表。
-      controller: _scrollController,
-      // 真机上无需先滚动一次就能看到滑块。
-      thumbVisibility: true,
-      // interactive=true 允许手指或鼠标按住滑块快速拖到底部。
-      interactive: true,
-      // CustomScrollView 允许分组头使用原生 Sliver 吸顶，同时仍然惰性创建单词行。
-      child: CustomScrollView(
-        // key 供测试准确识别首页真正的纵向业务列表。
-        key: const Key('word-list-scroll-view'),
-        // 使用同一个 ScrollController。
-        controller: _scrollController,
-        // 默认只预构建视口外 250 逻辑像素的行；快速滑动到底部时，
-        // 行还没建好就滚到了，会出现“空白后补建”的顿挫。这里把预构建范围
-        // 放大到 1000 像素（约多缓存 25 行），让手指快速甩动时提前建好，滑动更跟手。
-        // 注：新版 scrollCacheExtent 所需的 ScrollCacheExtent 类型当前 SDK 未对外导出，
-        // 暂时保留 cacheExtent（仅 info 级弃用提示，不影响运行）。
-        // ignore: deprecated_member_use
-        cacheExtent: 1000,
-        // slivers 类似小程序中按顺序拼接多个“吸顶标题 + 长列表”区块。
-        slivers: [
-          // 每个分组都由一个固定高度吸顶头和一个惰性单词列表组成。
-          for (final section in shownSections)
-            // SliverMainAxisGroup 把标题和本组单词限制在同一滚动区段；
-            // 当前组结束时，下一组标题会把旧标题顶走，而不是让多个标题叠在顶部。
-            SliverMainAxisGroup(
-              slivers: [
-                // pinned=true 让当前分组行停在列表顶部，直到下一分组将它顶走。
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SectionHeaderDelegate(
-                    // 头部内容仍复用原来的折叠、整组选中交互。
-                    child: _buildSectionHeader(section),
-                  ),
-                ),
-                // 分组折叠后只保留吸顶标题，不再生成其中的单词行。
-                if (!_collapsedKeys.contains(section.key))
-                  SliverList(
-                    // SliverChildBuilderDelegate 只创建屏幕附近的行，适合上万单词。
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildWordRow(section.words[index]),
-                      childCount: section.words.length,
-                      // 默认即为 true：被滚出屏幕的行保留 Element，滚回时无需重建，
-                      // 直接复用已缓存的 Widget 树，滚动更顺滑。
-                      addAutomaticKeepAlives: true,
-                      // 默认即为 true：每行独立一层，行内文字/图标变化不触发整列重绘。
-                      addRepaintBoundaries: true,
+    // 下拉刷新（reLaunch 风格）容器：顶部指示区 + 随下拉平移的列表。
+    // 用 Stack 让指示区藏在列表之后，列表被下拉时从顶部自然露出，避免网页刷新的生硬感。
+    return Stack(
+      // 不裁剪平移，下拉过程中列表可暂时下移露出顶部指示。
+      clipBehavior: Clip.none,
+      children: [
+        // 顶部居中指示区：下拉时淡入、刷新时显示小加载环。
+        Positioned(
+          top: 10,
+          left: 0,
+          right: 0,
+          child: Center(child: _buildPullIndicator()),
+        ),
+        // 列表整体随下拉位移向下平移，露出顶部指示区（iOS 风格，而非网页刷新）。
+        Transform.translate(
+          offset: Offset(0, _pullDistance),
+          // NotificationListener 捕获顶部下拉手势，把下拉距离喂给动画控制器。
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _handlePullNotification,
+            // Scrollbar 提供始终可见且可直接拖动到任意位置的滑块。
+            child: Scrollbar(
+              // 与 CustomScrollView 共用控制器，否则拖动滑块无法控制列表。
+              controller: _scrollController,
+              // 真机上无需先滚动一次就能看到滑块。
+              thumbVisibility: true,
+              // interactive=true 允许手指或鼠标按住滑块快速拖到底部。
+              interactive: true,
+              // CustomScrollView 允许分组头使用原生 Sliver 吸顶，同时仍然惰性创建单词行。
+              child: CustomScrollView(
+                // key 供测试准确识别首页真正的纵向业务列表。
+                key: const Key('word-list-scroll-view'),
+                // 使用同一个 ScrollController。
+                controller: _scrollController,
+                // 默认只预构建视口外 250 逻辑像素的行；快速滑动到底部时，
+                // 行还没建好就滚到了，会出现“空白后补建”的顿挫。这里把预构建范围
+                // 放大到 1000 像素（约多缓存 25 行），让手指快速甩动时提前建好，滑动更跟手。
+                // 注：新版 scrollCacheExtent 所需的 ScrollCacheExtent 类型当前 SDK 未对外导出，
+                // 暂时保留 cacheExtent（仅 info 级弃用提示，不影响运行）。
+                // ignore: deprecated_member_use
+                cacheExtent: 1000,
+                // slivers 类似小程序中按顺序拼接多个“吸顶标题 + 长列表”区块。
+                slivers: [
+                  // 每个分组都由一个固定高度吸顶头和一个惰性单词列表组成。
+                  for (final section in shownSections)
+                    // SliverMainAxisGroup 把标题和本组单词限制在同一滚动区段；
+                    // 当前组结束时，下一组标题会把旧标题顶走，而不是让多个标题叠在顶部。
+                    SliverMainAxisGroup(
+                      slivers: [
+                        // pinned=true 让当前分组行停在列表顶部，直到下一分组将它顶走。
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _SectionHeaderDelegate(
+                            // 头部内容仍复用原来的折叠、整组选中交互。
+                            child: _buildSectionHeader(section),
+                          ),
+                        ),
+                        // 分组折叠后只保留吸顶标题，不再生成其中的单词行。
+                        if (!_collapsedKeys.contains(section.key))
+                          SliverList(
+                            // SliverChildBuilderDelegate 只创建屏幕附近的行，适合上万单词。
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) =>
+                                  _buildWordRow(section.words[index]),
+                              childCount: section.words.length,
+                              // 默认即为 true：被滚出屏幕的行保留 Element，滚回时无需重建，
+                              // 直接复用已缓存的 Widget 树，滚动更顺滑。
+                              addAutomaticKeepAlives: true,
+                              // 默认即为 true：每行独立一层，行内文字/图标变化不触发整列重绘。
+                              addRepaintBoundaries: true,
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-              ],
+                  // 底部留白避免最后几行被“学习”悬浮按钮遮住。
+                  const SliverPadding(padding: EdgeInsets.only(bottom: 116)),
+                ],
+              ),
             ),
-          // 底部留白避免最后几行被“学习”悬浮按钮遮住。
-          const SliverPadding(padding: EdgeInsets.only(bottom: 116)),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 

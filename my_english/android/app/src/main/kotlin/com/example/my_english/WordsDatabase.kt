@@ -35,7 +35,9 @@ class WordsDatabase(context: Context) :
         private const val databaseName = "my_english.db"
         // 版本 3 新增 group 与 groupMember 两张表，让单词-分组关系持久化。
         // 版本 4 新增 record 表，记录单词默写结果并驱动难度变化。
-        private const val databaseVersion = 4
+        // 版本 5 不再新建表，仅补强 record 表的创建时机（onOpen 兜底建表），
+        // 解决「库已升到某版本，但 record 表因历史升级路径缺失」导致写入静默失败的问题。
+        private const val databaseVersion = 5
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -79,6 +81,25 @@ class WordsDatabase(context: Context) :
         if (oldVersion < 4 && newVersion >= 4) {
             createRecordTable(db)
         }
+        // 从版本 4 升到 5：record 表已在版本 4 创建，这里再次确保存在（幂等），
+        // 覆盖「老版本直接跳到 5」或任何历史升级遗漏 record 表的情况。
+        if (oldVersion < 5 && newVersion >= 5) {
+            createRecordTable(db)
+        }
+    }
+
+    /**
+     * 每次打开数据库连接时兜底：只要 record 表缺失就补建。
+     *
+     * 这是防止「库版本已升级，但 record 表因历史原因没建出来」的最后一道保险，
+     * 避免 addDictationRecord 因 no such table 静默失败、默写数据无法持久化。
+     * onCreate / onUpgrade 之后必然走到这里，配合 CREATE TABLE IF NOT EXISTS 重复调用也安全。
+     */
+    override fun onOpen(db: SQLiteDatabase) {
+        // 先执行 SQLiteOpenHelper 标准打开流程。
+        super.onOpen(db)
+        // 兜底补建 record 表（建表语句已用 IF NOT EXISTS，存在则无操作）。
+        createRecordTable(db)
     }
 
     /** 创建 words 表；spelling 只要求非空，不再带 UNIQUE。 */
@@ -748,16 +769,16 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 创建单词默写记录表。
+     * 创建单词默写记录表（幂等：用 IF NOT EXISTS，可重复调用）。
      *
      * 每个单词每天只留一条记录（首条为准）。`created_date` 用本机时区算好的
      * 'YYYY-MM-DD' 字符串存储，查询时直接比字符串即可，无需在 SQL 里再算时区。
      */
     private fun createRecordTable(db: SQLiteDatabase) {
-        // execSQL 执行固定结构 SQL，不拼接任何用户输入。
+        // execSQL 执行固定结构 SQL，不拼接任何用户输入；IF NOT EXISTS 保证重复建表不报错。
         db.execSQL(
             """
-            CREATE TABLE record (
+            CREATE TABLE IF NOT EXISTS record (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 module TEXT NOT NULL,
                 word_id INTEGER NOT NULL,
@@ -772,8 +793,8 @@ class WordsDatabase(context: Context) :
             )
             """.trimIndent(),
         )
-        // 按日期查询"今日复习"时用得到，建索引加速。
-        db.execSQL("CREATE INDEX record_created_date ON record(created_date)")
+        // 按日期查询"今日复习"时用得到，建索引加速；IF NOT EXISTS 保证幂等。
+        db.execSQL("CREATE INDEX IF NOT EXISTS record_created_date ON record(created_date)")
     }
 
     /** 取设备本机时区下的 'yyyy-MM-dd' 日期字符串，作为 created_date 与"今日"判定基准。 */
