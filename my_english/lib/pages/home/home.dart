@@ -28,6 +28,8 @@ import '../../store/group.dart';
 import '../../store/settings.dart';
 // 单词 Store 同样放在页面目录之外，其他页面可以直接复用。
 import '../../store/word.dart';
+// 默写记录 Store：今日复习数量从真实 record 读取，而非写死 0。
+import '../../store/record.dart';
 // 分组行：模式切换、筛选 chips 与分组管理入口。
 import 'widgets/group_filter_bar.dart';
 // 右侧抽屉菜单。
@@ -133,6 +135,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Store 一次加载全部未删除单词；每组 SliverList 仍然只惰性构建可见行。
   List<Word> _allWords = const <Word>[];
+  /// 今日复习已完成的单词数（去重），来自真实 record，用于副标题展示。
+  int _reviewCount = 0;
 
   /// 保存已展开的 Word 对象；spelling 可重复，所以不能把拼写当作行身份。
   final Set<Word> _expandedWords = <Word>{};
@@ -215,6 +219,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_groups.load());
     // 异步加载全部 Word/Meaning；方法内部完成 setState。
     unawaited(_loadWords());
+    // 读取今日复习数量，让副标题的「今日复习 X/目标」显示真实数据而非写死的 0。
+    unawaited(_loadReviewCount());
   }
 
   /// 设置或分组内容变化时触发整页重建。
@@ -659,6 +665,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  /// 读取今日复习的单词数（按词去重），用于副标题「今日复习 X/目标」刷新。
+  ///
+  /// 数据来自原生 record 表；通道不可用（如单元测试）时静默回退为 0，
+  /// 不影响首页其余功能。方法末尾统一做 mounted 守卫，避免已卸载时 setState。
+  Future<void> _loadReviewCount() async {
+    // try/catch 兜底原生通道异常，保证首页在测试或异常环境下不崩溃。
+    try {
+      // 取今天已产生记录的单词 id（去重），其长度即「今日复习」完成数。
+      final ids = await RecordStore.instance.getTodayReviewWordIds();
+      // 页面可能在异步期间被关闭。
+      if (!mounted) return;
+      // 更新副标题展示的复习进度。
+      setState(() => _reviewCount = ids.length);
+    } catch (error, stackTrace) {
+      // 调试输出保留完整错误与堆栈，方便真机日志定位。
+      debugPrint('读取今日复习数失败：$error');
+      debugPrintStack(stackTrace: stackTrace);
+      // 页面已销毁则不处理 UI。
+      if (!mounted) return;
+      // 通道异常时回退为 0，副标题仍可正常显示。
+      setState(() => _reviewCount = 0);
+    }
+  }
+
   /// App 生命周期变化，对应小程序 App Show/App Hide。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -668,6 +698,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final resumedAt = DateTime.now();
       // 跨年后重新构建静态列表日期；问候语也顺带刷新。
       setState(() => _dateReference = resumedAt);
+      // 回到前台时重新拉取今日复习数（跨天或后台产生过记录时保持准确）。
+      unawaited(_loadReviewCount());
       // 防止继续执行下面停止逻辑。
       return;
     }
@@ -1681,6 +1713,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         now: DateTime.now(),
                         wordCount: _allWords.length,
                         dailyGoal: _settings.dailyGoal,
+                        // 传入真实今日复习数，替换此前写死的 0。
+                        reviewCount: _reviewCount,
                         // 打开右侧抽屉。
                         onMenuPressed: () =>
                             _scaffoldKey.currentState?.openEndDrawer(),
@@ -1846,17 +1880,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   }
                   setState(() => _learningMenuOpen = false);
                   unawaited(
-                    Navigator.of(context).push<void>(
-                      MaterialPageRoute<void>(
-                        builder: (_) => DictationPage(
-                          words: learningWords,
-                          audioPlayer: _audioPlayer,
-                          accent: _settings.accent,
-                          definitionSeparator:
-                              _settings.definitionSeparator.symbol,
-                        ),
-                      ),
-                    ),
+                    Navigator.of(context)
+                        .push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => DictationPage(
+                              words: learningWords,
+                              audioPlayer: _audioPlayer,
+                              accent: _settings.accent,
+                              definitionSeparator:
+                                  _settings.definitionSeparator.symbol,
+                            ),
+                          ),
+                        )
+                        // 默写返回后立即刷新词库难度与今日复习数，界面即时反映刚产生的记录。
+                        .then((_) {
+                      unawaited(_refreshWords());
+                      unawaited(_loadReviewCount());
+                    }),
                   );
                 },
               ),

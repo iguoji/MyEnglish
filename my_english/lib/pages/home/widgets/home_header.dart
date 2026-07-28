@@ -16,6 +16,7 @@ class HomeHeader extends StatelessWidget {
     required this.now,
     required this.wordCount,
     required this.dailyGoal,
+    required this.reviewCount,
     required this.onMenuPressed,
     super.key,
   });
@@ -28,6 +29,9 @@ class HomeHeader extends StatelessWidget {
 
   /// 每日复习目标，显示在副标题里。
   final int dailyGoal;
+
+  /// 今日复习已完成的单词数（去重），来自真实 record，显示在副标题里。
+  final int reviewCount;
 
   /// 点击右上角汉堡按钮时由首页打开右侧抽屉菜单。
   final VoidCallback onMenuPressed;
@@ -67,8 +71,8 @@ class HomeHeader extends StatelessWidget {
               const SizedBox(height: 4),
               // 第二行按设计稿显示收录统计与今日复习进度。
               Text(
-                // 复习进度暂无真实记录，按设计稿先固定显示 0。
-                '已收录 $wordCount 个单词 · 今日复习 0/$dailyGoal',
+                // 今日复习数来自真实记录：今天已默写（按词去重）的单词数 / 每日目标。
+                '已收录 $wordCount 个单词 · 今日复习 $reviewCount/$dailyGoal',
                 // 13 号次要文字。
                 style: TextStyle(
                   color: tokens.textSecondary,
