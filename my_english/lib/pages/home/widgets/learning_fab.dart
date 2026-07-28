@@ -10,7 +10,10 @@ import '../../../common/theme.dart';
 ///
 /// 它对应小程序里一个由 `fabOpen` 控制的自定义组件：关闭时只显示主按钮，
 /// 打开时向上展开“随身听”和“默写”两个入口，同时显示轻量遮罩。
-class LearningFab extends StatelessWidget {
+///
+/// 用 StatefulWidget + 显式 AnimationController 驱动所有展开/收起动画，
+/// 避免 StatelessWidget 重建时 AnimatedSwitcher 偶发“瞬间切换不播放”的问题。
+class LearningFab extends StatefulWidget {
   /// 所有状态由首页统一管理，组件本身只负责显示与转发点击。
   const LearningFab({
     required this.isOpen,
@@ -37,6 +40,63 @@ class LearningFab extends StatelessWidget {
   final VoidCallback onOpenDictation;
 
   @override
+  State<LearningFab> createState() => _LearningFabState();
+}
+
+/// 主按钮文字样式（学习 / 收起 共用，保证切换时宽度一致）。
+const TextStyle _labelStyle = TextStyle(
+  color: Colors.white,
+  fontSize: 14.5,
+  fontWeight: FontWeight.w600,
+  letterSpacing: 0.5,
+);
+
+class _LearningFabState extends State<LearningFab>
+    with SingleTickerProviderStateMixin {
+  // 统一驱动所有展开/收起动画的计时器；isOpen 翻转时在 didUpdateWidget 中正/反向播放。
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
+  // 缓出曲线，让位移/淡入在尾段更柔和、过渡更自然。
+  late final Animation<double> _expand =
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+  // 叉叉图标进入时从 -90° 旋转归位到 0°，实现“叉叉旋转出现”。
+  late final Animation<double> _rotation =
+      Tween<double>(begin: -0.25, end: 0).animate(_expand);
+  // 入口从自身高度 40% 的下方滑入，对应原型“从下面位移并淡入”。
+  late final Animation<Offset> _slideUp =
+      Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero)
+          .animate(_expand);
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始若已展开（一般不会），直接把动画定位到终点，避免首帧跳变。
+    if (widget.isOpen) _controller.value = 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant LearningFab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // isOpen 翻转即播放/倒放，保证动画一定触发，不依赖 StatelessWidget 的重建细节。
+    if (widget.isOpen != oldWidget.isOpen) {
+      if (widget.isOpen) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    // 计时器必须释放，否则会泄漏并持续占用帧回调。
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // 读取当前主题下的卡片、边框与文字颜色。
     final tokens = AppTokens.of(context);
@@ -45,43 +105,27 @@ class LearningFab extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // AnimatedSwitcher 对应原型 fabIn 动画，展开时两个按钮轻微上浮淡入。
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.2),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
+        // 入口区：随展开进度淡入 + 从下方滑入；SizeTransition 让收起时高度归零、不占空间。
+        // Offstage 仅在“完全收起”时隐藏，既保证收起动画完整播放，又让测试在关闭态找不到入口文字。
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) => Offstage(
+            offstage: _controller.isDismissed,
+            child: child,
+          ),
+          child: SizeTransition(
+            sizeFactor: _expand,
+            // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
+            // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
+            alignment: Alignment.bottomCenter,
+            child: FadeTransition(
+              opacity: _expand,
+              child: SlideTransition(
+                position: _slideUp,
+                child: _buildActions(tokens),
+              ),
             ),
           ),
-          child: isOpen
-              ? Column(
-                  key: const Key('learning-actions-open'),
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _LearningAction(
-                      key: const Key('open-player'),
-                      icon: TablerIcons.headphones,
-                      label: '随身听 · $targetCount',
-                      onTap: onOpenPlayer,
-                      tokens: tokens,
-                    ),
-                    const SizedBox(height: 10),
-                    _LearningAction(
-                      key: const Key('open-dict'),
-                      icon: TablerIcons.pencil,
-                      label: '默写 · $targetCount',
-                      onTap: onOpenDictation,
-                      tokens: tokens,
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                )
-              : const SizedBox.shrink(key: Key('learning-actions-closed')),
         ),
         // 主按钮严格复刻 46 高、23 圆角和右侧 20/左侧 16 的内边距。
         Material(
@@ -91,7 +135,7 @@ class LearningFab extends StatelessWidget {
           shadowColor: AppTokens.accent.withValues(alpha: 0.42),
           child: InkWell(
             key: const Key('toggle-learning-menu'),
-            onTap: onToggle,
+            onTap: widget.onToggle,
             borderRadius: BorderRadius.circular(23),
             child: SizedBox(
               height: 46,
@@ -100,26 +144,39 @@ class LearningFab extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 原型中的书本 SVG 和文字叉号都换成 Tabler 图标。
-                    AnimatedRotation(
-                      turns: isOpen ? 0.25 : 0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        // book 是 Tabler 的展开书本图标，比 book2 更贴近原型中的学习入口。
-                        isOpen ? TablerIcons.x : TablerIcons.book,
-                        size: isOpen ? 17 : 19,
-                        color: Colors.white,
-                      ),
+                    // 图标层：书本淡出 / 叉叉旋转淡入，二者共用计时器，必动。
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // 学习（书本）图标：展开时淡出，不旋转。
+                        FadeTransition(
+                          opacity: ReverseAnimation(_expand),
+                          child: const Icon(
+                            TablerIcons.book,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                        // 收起（叉叉）图标：展开时旋转 -90°→0° 并淡入。
+                        RotationTransition(
+                          turns: _rotation,
+                          child: FadeTransition(
+                            opacity: _expand,
+                            child: const Icon(
+                              TablerIcons.x,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(width: 9),
+                    // 文字随状态切换；原型动画焦点在“图标淡出/叉叉旋转/入口上滑”，
+                    // 文字不做交叉淡入以免关闭态仍残留“收起”节点（影响测试与可访问性）。
                     Text(
-                      isOpen ? '收起' : '学习',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
+                      widget.isOpen ? '收起' : '学习',
+                      style: _labelStyle,
                     ),
                   ],
                 ),
@@ -130,6 +187,29 @@ class LearningFab extends StatelessWidget {
       ],
     );
   }
+
+  /// 展开菜单中的两个白色胶囊入口（随身听 / 默写）。
+  Widget _buildActions(AppTokens tokens) => Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _LearningAction(
+            key: const Key('open-player'),
+            icon: TablerIcons.headphones,
+            label: '随身听 · ${widget.targetCount}',
+            onTap: widget.onOpenPlayer,
+            tokens: tokens,
+          ),
+          const SizedBox(height: 10),
+          _LearningAction(
+            key: const Key('open-dict'),
+            icon: TablerIcons.pencil,
+            label: '默写 · ${widget.targetCount}',
+            onTap: widget.onOpenDictation,
+            tokens: tokens,
+          ),
+          const SizedBox(height: 10),
+        ],
+      );
 }
 
 /// 展开菜单中的单个白色胶囊入口。

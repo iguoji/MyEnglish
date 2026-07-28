@@ -71,6 +71,52 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // 验证点击作者邮箱会自动复制并弹出提示。
+  testWidgets('tapping author email copies it and shows a snackbar', (
+    tester,
+  ) async {
+    // 测试环境无真实系统剪贴板，这里注入一个内存实现，既能验证复制内容，
+    // 也避免 Clipboard.setData 因缺少平台 handler 而抛异常。
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    String? stored;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        stored = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        return null;
+      }
+      if (call.method == 'Clipboard.getData') {
+        return <String, dynamic>{'text': stored};
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    // 打开首页。
+    await _pumpHome(tester);
+    // 打开右侧抽屉。
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+
+    // 点击页脚作者邮箱（已改为新地址）。
+    await tester.tap(find.text('asgeg@qq.com'));
+    await tester.pumpAndSettle();
+
+    // 应弹出复制成功提示。
+    expect(
+      find.text('已复制作者邮箱：asgeg@qq.com'),
+      findsOneWidget,
+    );
+    // 剪贴板中应已写入该邮箱。
+    final clipboard = await Clipboard.getData('text/plain');
+    expect(clipboard?.text, 'asgeg@qq.com');
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 验证抽屉"设置"打开新设计的设置面板，且四项设置全部可用。
   testWidgets('settings sheet updates accent, separator, theme and goal', (
     tester,

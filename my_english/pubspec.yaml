@@ -13,6 +13,7 @@ dependencies:
   tabler_icons_plus:
     # path 类似 PHP Composer 的本地仓库引用，不需要联网下载。
     path: third_party/tabler_icons_plus
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

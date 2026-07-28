@@ -16,6 +16,8 @@ class HomeDrawer extends StatelessWidget {
     required this.onExport,
     required this.onClearData,
     required this.onAbout,
+    required this.onOpenGithub,
+    required this.onCopyEmail,
     super.key,
   });
 
@@ -36,6 +38,12 @@ class HomeDrawer extends StatelessWidget {
 
   /// 点击"关于"后的动作；本轮为占位提示。
   final VoidCallback onAbout;
+
+  /// 点击页脚仓库地址后的动作：用默认浏览器打开 GitHub。
+  final VoidCallback onOpenGithub;
+
+  /// 点击页脚作者邮箱后的动作：复制邮箱并提示。
+  final VoidCallback onCopyEmail;
 
   /// 输出与设计稿一致的 252 宽抽屉内容。
   @override
@@ -167,12 +175,35 @@ class HomeDrawer extends StatelessWidget {
                     'GitHub',
                     style: TextStyle(color: tokens.muted, fontSize: 11),
                   ),
-                  // 仓库地址使用主色，视觉上表示可点击链接。
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2),
-                    child: Text(
-                      'github.com/iguoji/MyEnglish',
-                      style: TextStyle(color: AppTokens.accent, fontSize: 12.5),
+                  // 仓库地址整行可点：点击后用系统默认浏览器打开。
+                  // InkWell 提供点击水波纹反馈；brandGithub 是 Tabler 的品牌图标。
+                  InkWell(
+                    onTap: onOpenGithub,
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            TablerIcons.brandGithub,
+                            size: 14,
+                            color: AppTokens.accent,
+                          ),
+                          SizedBox(width: 6),
+                          // Expanded 让长链接在抽屉内换行，避免横向溢出。
+                          Expanded(
+                            child: Text(
+                              'github.com/iguoji/MyEnglish',
+                              style: TextStyle(
+                                color: AppTokens.accent,
+                                fontSize: 12.5,
+                              ),
+                              softWrap: true,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   // 两条信息之间的间距。
@@ -182,12 +213,34 @@ class HomeDrawer extends StatelessWidget {
                     '作者邮箱',
                     style: TextStyle(color: tokens.muted, fontSize: 11),
                   ),
-                  // 邮箱同样使用主色。
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2),
-                    child: Text(
-                      'liushanzai@gmail.com',
-                      style: TextStyle(color: AppTokens.accent, fontSize: 12.5),
+                  // 邮箱整行可点：点击后自动复制并提示。
+                  InkWell(
+                    onTap: onCopyEmail,
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            TablerIcons.mail,
+                            size: 14,
+                            color: AppTokens.accent,
+                          ),
+                          SizedBox(width: 6),
+                          // Expanded 让邮箱在抽屉内换行，避免横向溢出。
+                          Expanded(
+                            child: Text(
+                              'asgeg@qq.com',
+                              style: TextStyle(
+                                color: AppTokens.accent,
+                                fontSize: 12.5,
+                              ),
+                              softWrap: true,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
