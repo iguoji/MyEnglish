@@ -3,8 +3,6 @@ import 'dart:math' as math;
 
 // material.dart 提供手势、动画、布局、文字与图标组件。
 import 'package:flutter/material.dart';
-// foundation 提供 kDebugMode，用于在调试包中显示仅供真机截图核对的参考线。
-import 'package:flutter/foundation.dart';
 // tabler_icons_plus 统一提供勾选框与发音状态图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
@@ -163,13 +161,10 @@ class WordListTile extends StatelessWidget {
                       // SizedBox 固定 36 高标题行。
                       child: SizedBox(
                         height: headerHeight,
-                        // Stack 让调试参考线覆盖在内容之上，且不干扰 Row 自身布局。
-                        child: Stack(
-                          children: [
-                            // 真内容层：与设计稿一致的 20 像素左右边距。
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: Row(
+                        // 与设计稿一致的 20 像素左右边距。
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
                             // 整条标题行在 36 高内垂直居中，单词与右侧日期不会上下错位。
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -272,18 +267,6 @@ class WordListTile extends StatelessWidget {
                             ],
                           ),
                         ),
-                          // 仅调试模式（kDebugMode）：在 36 行正中（y = 18）画一条贯穿粉线，
-                          // 真机截图即可肉眼核对单词/日期是否压在中线上；release 包自动移除，不影响布局。
-                          if (kDebugMode)
-                            const Positioned(
-                              left: 0,
-                              right: 0,
-                              top: headerHeight / 2 - 0.5,
-                              height: 1,
-                              child: ColoredBox(color: Colors.pink),
-                            ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
