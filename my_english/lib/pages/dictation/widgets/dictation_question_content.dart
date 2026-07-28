@@ -44,6 +44,7 @@ class DictationStep {
     required this.status,
     this.pos,
     this.definitions,
+    this.word,
   });
 
   /// 步骤类型，决定左侧节点的图标。
@@ -60,6 +61,9 @@ class DictationStep {
 
   /// 已经公开给用户的释义列表；未开始或尚未答出时为空。
   final List<String>? definitions;
+
+  /// 听音步骤完成后展示的正确单词；仅听音步骤使用，其余步骤为 null。
+  final String? word;
 }
 
 /// 默写页中部内容：上方单词卡，中间独立提示横幅，下方全量纵向步骤。
@@ -602,13 +606,17 @@ class _VerticalStepItem extends StatelessWidget {
         : status == DictationStepStatus.active
             ? Colors.white
             : tokens.card;
-    // 未开始使用更淡的 check 灰，其余状态都用品牌蓝描边。
+    // 未开始使用更淡的 check 灰描边，其余状态都用品牌蓝描边。
     final nodeBorder = status == DictationStepStatus.pending
         ? tokens.check
         : AppTokens.accent;
-    // 未开始图标用弱化灰，其余都用品牌蓝，保证在白底/蓝底上都清晰。
-    final iconColor =
-        status == DictationStepStatus.pending ? tokens.muted : AppTokens.accent;
+    // 关键：蓝底节点（已完成）内必须用白色图标，否则蓝图标在蓝底上不可见；
+    // 白底节点（进行中）用品牌蓝图标，卡片底节点（未开始）用弱化灰图标。
+    final iconColor = status == DictationStepStatus.done
+        ? Colors.white
+        : status == DictationStepStatus.pending
+            ? tokens.muted
+            : AppTokens.accent;
     return IntrinsicHeight(
       child: Row(
         key: stepKey,
@@ -718,8 +726,28 @@ class _StepContent extends StatelessWidget {
             _StatusTag(status: step.status, tokens: tokens),
           ],
         ),
-        // 已经公开释义时展示释义 chips；否则未开始步骤提示“待完成”。
-        if (step.definitions != null && step.definitions!.isNotEmpty) ...[
+        // 听音步骤完成后直接回显正确单词；释义步骤展示已答释义 chips。
+        if (step.kind == DictationStepKind.word &&
+            step.status == DictationStepStatus.done) ...[
+          const SizedBox(height: 6),
+          // 复用释义 chip 的同款浅色标签，展示用户刚刚选对的单词。
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: tokens.sub,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              // 与单词卡瓷砖保持一致，统一大写展示。
+              step.word != null ? step.word!.toUpperCase() : '',
+              style: TextStyle(
+                color: tokens.textMedium,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ] else if (step.definitions != null && step.definitions!.isNotEmpty) ...[
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -761,17 +789,21 @@ class _StepContent extends StatelessWidget {
         ],
       ],
     );
-    // 只有释义步骤且已有公开释义时，才为读屏合并成一句完整语义。
-    if (step.kind == DictationStepKind.meaning && step.definitions != null) {
+    // 听音步骤完成后回显正确单词，释义步骤合并词性与已答释义，均给读屏一句语义。
+    if ((step.kind == DictationStepKind.meaning && step.definitions != null) ||
+        (step.kind == DictationStepKind.word &&
+            step.status == DictationStepStatus.done)) {
+      final label = step.kind == DictationStepKind.word
+          ? '正确单词 ${step.word ?? ''}'
+          : '词性 ${step.pos ?? '释义'}，含义 ${step.definitions!.join(definitionSeparator)}';
       return Semantics(
-        label:
-            '词性 ${step.pos ?? '释义'}，含义 ${step.definitions!.join(definitionSeparator)}',
+        label: label,
         container: true,
         // ExcludeSemantics 避免子 chips 再次被逐条朗读。
         child: ExcludeSemantics(child: body),
       );
     }
-    // 听音步骤或未公开释义的步骤不需要额外语义合并。
+    // 听音步骤未答完、或未公开释义的步骤不需要额外语义合并。
     return body;
   }
 }
@@ -787,22 +819,24 @@ class _PosBadge extends StatelessWidget {
   /// 当前主题令牌。
   final AppTokens tokens;
 
-  /// 用 1px 边框的小圆角容器承载词性文字。
+  /// 用无边框的极淡品牌色胶囊承载词性文字，去掉生硬的 1px 方框。
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 40, minHeight: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      constraints: const BoxConstraints(minHeight: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        border: Border.all(color: tokens.inputBorder),
+        // 极淡品牌色底，轻量不抢眼，呼应 Tabler 的 badge 视觉。
+        color: AppTokens.accent.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         pos,
         style: TextStyle(
-          color: tokens.textMedium,
-          fontSize: 12.5,
+          // 文字直接用眼色，不再套边框。
+          color: AppTokens.accent,
+          fontSize: 12,
           fontStyle: FontStyle.italic,
           fontWeight: FontWeight.w600,
         ),

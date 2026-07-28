@@ -313,6 +313,8 @@ class _DictationPageState extends State<DictationPage> {
       DictationStep(
         kind: DictationStepKind.word,
         title: '听音选词',
+        // 完成后把正确单词带进步骤，便于在步骤下方直接回显。
+        word: _currentWord.spelling,
         // 拼写阶段结束后，单词步骤即视为完成；否则当前就是进行中的那一步。
         status: _stage == DictationStage.definition || _isCurrentWordComplete
             ? DictationStepStatus.done
