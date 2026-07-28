@@ -137,6 +137,31 @@ class Word {
     };
   }
 
+  /// 转成导出 JSON 用的普通 Map，字段与 words.json 一致（id/spelling/meanings/difficulty/时间）。
+  ///
+  /// 与 [toMap] 的区别：导出不写入原生事务需要的内部字段（如空 id 交给 SQLite 自增），
+  /// 只保留业务可见数据；其中日期统一格式化为 yyyy-MM-dd 文本，便于人读与二次编辑。
+  Map<String, Object?> toExportMap() {
+    // 基础字段直接映射；结构相当于 PHP 中 json_encode 一个单词关联数组。
+    final map = <String, Object?>{
+      // SQLite 自增主键，导出仅供备份参考。
+      'id': id,
+      // 英文拼写。
+      'spelling': spelling,
+      // 每条 Meaning 都用 toExportMap 生成干净的释义对象。
+      'meanings': meanings.map((meaning) => meaning.toExportMap()).toList(),
+      // 可空难度。
+      'difficulty': difficulty,
+      // 日期统一输出 yyyy-MM-dd；原生 _readDate 在导入时兼容该格式。
+      'created_at': _exportDate(createdAt),
+      'updated_at': _exportDate(updatedAt),
+    };
+    // 最近复习时间非空时才写出，保持与 words.json 一致的精简结构。
+    if (reviewedAt != null) map['reviewed_at'] = _exportDate(reviewedAt);
+    // 返回完整导出对象。
+    return map;
+  }
+
   /// 返回移动到指定分组后的新 Word；null 表示移回"未分组"。
   Word withGroup(int? newGroupId) {
     // 仅替换分组字段并刷新更新时间，其余字段原样保留。
@@ -207,4 +232,15 @@ DateTime? _readDate(Object? value, String fieldName) {
   }
   // 错误值交给首页实际展示，便于修正 JSON。
   throw FormatException('$fieldName 不是有效日期，实际值为：$value');
+}
+
+/// 把日期格式化为导出文件使用的 yyyy-MM-dd 文本；null 直接返回 null。
+///
+/// 不引入 intl 依赖，用 ISO 字符串前 10 位即可得到稳定的年月日，
+/// 与 [Word.fromMap] 中 [_readDate] 支持的 yyyy-MM-dd 解析格式完全对称。
+String? _exportDate(DateTime? value) {
+  // 空日期保持为 null，导出时整字段省略或写为 null。
+  if (value == null) return null;
+  // toIso8601String 形如 2026-03-18T00:00:00.000，截前 10 位即 yyyy-MM-dd。
+  return value.toIso8601String().substring(0, 10);
 }

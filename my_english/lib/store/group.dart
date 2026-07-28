@@ -100,4 +100,18 @@ class GroupStore extends ChangeNotifier {
     // 确实删除时才通知，避免无意义重建。
     if (_groups.length != before) notifyListeners();
   }
+
+  /// 清空全部自定义分组并重置自增主键，对应首页「清空数据」入口。
+  ///
+  /// 分组当前为纯内存实现（App 重启本就会重置），这里只保证本次会话立刻回到初始状态。
+  void clear() {
+    // 列表为空则无需任何动作。
+    if (_groups.isEmpty) return;
+    // 移除所有自定义分组。
+    _groups.clear();
+    // 自增主键回到 1，下一次 add 仍是「新分组 1」。
+    _nextId = 1;
+    // 通知分组管理面板与首页刷新。
+    notifyListeners();
+  }
 }

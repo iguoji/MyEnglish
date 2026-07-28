@@ -307,6 +307,60 @@ class WordsDatabase(context: Context) :
         if (changed == 0) error("找不到要删除的单词 id=$id")
     }
 
+    /** 清空全部单词与释义，用于「清空数据」与「导入前整库替换」。 */
+    fun clearAllWords() {
+        // 获取可写连接。
+        val db = writableDatabase
+        // 事务保证两张表要么都被清空，要么都不动。
+        db.beginTransaction()
+        try {
+            // 先清空子表，避免外键约束报错。
+            db.delete("meanings", null, null)
+            // 再清空父表。
+            db.delete("words", null, null)
+            // 标记事务成功。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常时自动回滚。
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * 批量导入单词：先清空旧数据，再按提交列表整库替换写入。
+     *
+     * 这样无论是「导入 words.json 原始词表」还是「导入本 App 导出的备份」，
+     * 结果都一致且可重复，不会出现重复累加。
+     */
+    fun importWords(rawWords: List<*>) {
+        // 获取可写连接并开启事务，保证整批原子写入。
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 先清空历史数据，导入即整库替换。
+            db.delete("meanings", null, null)
+            db.delete("words", null, null)
+            // 逐条写入，跳过类型不正确的元素，避免原生崩溃。
+            for (rawWord in rawWords) {
+                // 类型不正确时跳过并进入下一项，避免 ClassCastException。
+                val payload = rawWord as? Map<*, *> ?: continue
+                // 当前时间供缺失 created_at/updated_at 使用。
+                val now = System.currentTimeMillis()
+                // 复用单条写入逻辑构造 words 字段。
+                val values = wordValuesFromPayload(payload, now, touchUpdatedAt = false)
+                // 插入并返回新主键。
+                val wordId = db.insertOrThrow("words", null, values)
+                // 写入嵌套 Meaning。
+                replaceMeanings(db, wordId, payload["meanings"])
+            }
+            // 全部成功才提交。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常时回滚，保持数据库一致。
+            db.endTransaction()
+        }
+    }
+
     /** 把 Dart Word.toMap 的字段转换成 SQLite ContentValues。 */
     private fun wordValuesFromPayload(
         payload: Map<*, *>,

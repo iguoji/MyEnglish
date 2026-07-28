@@ -72,6 +72,16 @@ class AppSettingsStore(context: Context) {
         }
     }
 
+    /** 清空全部设置，恢复到首次安装的默认值（对应 App 内「清空数据」）。 */
+    fun clearAll() {
+        // edit().clear() 删除本 SharedPreferences 文件中的全部键值对。
+        // commit() 同步落盘，确保清空结果立刻对磁盘可见。
+        check(preferences.edit().clear().commit()) {
+            // false 表示 Android 没能完成清空。
+            "设置清空失败"
+        }
+    }
+
     /** 所有稳定键值集中在 companion object，类似 PHP 类常量。 */
     private companion object {
         // SharedPreferences 口音键。

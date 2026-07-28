@@ -22,6 +22,3 @@ dev_dependencies:
 flutter:
   # 页面图标全部来自 tabler_icons_plus，因此不再打包 Flutter 内置 Material Icons 字体。
   uses-material-design: false
-  # 目录声明类似小程序把静态资源放进项目；其中的 words.json 会进入真机安装包。
-  assets:
-    - assets/data/

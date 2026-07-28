@@ -1,5 +1,7 @@
 // dart:async 提供 Timer 和 unawaited，分别用于搜索防抖和触发异步任务。
 import 'dart:async';
+// convert 提供 jsonDecode / JsonEncoder，用于解析导入 JSON 与生成导出 JSON。
+import 'dart:convert';
 
 // material.dart 提供页面、布局、加载指示器和按钮等 Flutter UI 组件。
 import 'package:flutter/material.dart';
@@ -14,6 +16,8 @@ import '../../common/date.dart';
 import '../../models/word.dart';
 // 音频服务由首页、随身听和默写共同复用。
 import '../../services/word_audio.dart';
+// 原生 SAF 文件读写服务：导入选 JSON、导出写文件，不依赖第三方 file_picker。
+import '../../services/file_io.dart';
 // 新版原型中的全屏默写页。
 import '../dictation/dictation_page.dart';
 // 新版原型中的全屏随身听页。
@@ -50,7 +54,13 @@ import 'widgets/word_sort_bar.dart';
 /// 首页组件，结构类似小程序一个 page 目录下的 Page 实例。
 class HomePage extends StatefulWidget {
   /// store 允许测试注入假实现；真实 App 不传时使用"JSON 优先、SQLite 回退"Store。
-  const HomePage({super.key, this.store, this.settings, this.audioPlayer});
+  const HomePage({
+    super.key,
+    this.store,
+    this.settings,
+    this.audioPlayer,
+    this.fileIo,
+  });
 
   /// 接口类型类似 PHP 构造器依赖注入，页面不关心数据具体来自 SQLite 还是测试内存。
   final WordStore? store;
@@ -60,6 +70,9 @@ class HomePage extends StatefulWidget {
 
   /// 音频接口允许测试注入，不依赖真实网络和 Android MediaPlayer。
   final WordAudioPlayer? audioPlayer;
+
+  /// 文件读写接口允许测试注入，不依赖真实系统选择器与 Android SAF。
+  final NativeFileIo? fileIo;
 
   /// 为页面创建保存 data 和生命周期的 State。
   @override
@@ -110,6 +123,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 真正执行缓存和播放的音频接口。
   late final WordAudioPlayer _audioPlayer;
+
+  /// 原生 SAF 文件读写服务：导入选 JSON、导出写文件。
+  /// 默认走 Android 原生通道；测试可注入假通道避免真正弹出系统选择器。
+  late final NativeFileIo _fileIo;
 
   /// 自定义分组 Store；本轮为内存实现，重启后重置。
   final GroupStore _groups = GroupStore();
@@ -184,6 +201,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _settings = widget.settings ?? SettingsStore.inMemory();
     // 生产环境默认走 Android 原生服务，测试可以注入立即完成的假播放器。
     _audioPlayer = widget.audioPlayer ?? const NativeWordAudioPlayer();
+    // 生产环境默认走 Android 原生 SAF 通道，测试可以注入假文件服务。
+    _fileIo = widget.fileIo ?? const NativeFileIo();
     // 初始化列表年份参考。
     _dateReference = initialTime;
     // 注册 App 前后台观察者。
@@ -1021,6 +1040,222 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ).showSnackBar(SnackBar(content: Text('「$feature」功能正在整理中')));
   }
 
+  /// 统一的轻提示，避免每个分支重复写 ScaffoldMessenger。
+  void _showSnackBar(String message) {
+    // 先收起上一条，避免提示堆叠。
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    // 弹出新的提示条。
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 数据导入：打开系统文件选择器读取 JSON，解析后整库替换写入本地。
+  Future<void> _importData() async {
+    // 先关闭抽屉，避免遮挡系统选择器。
+    Navigator.of(context).pop();
+    try {
+      // 打开系统文件选择器，只列出 JSON；用户取消时返回 null，不做任何改动。
+      final jsonText = await _fileIo.pickJsonText();
+      // 取消选择或读到空文本都直接返回。
+      if (jsonText == null || jsonText.isEmpty) return;
+      // 调用公共解析器：兼容「words.json 原始词表」与「本 App 导出备份」两种形态，
+      // 不存在的字段或多余字段由 Word.fromMap 自然忽略。
+      final words = parseWordsFromJsonText(jsonText);
+      // 没有解析出任何单词也提示，避免静默无反应。
+      if (words.isEmpty) {
+        _showSnackBar('文件中没有可导入的单词');
+        return;
+      }
+      // 整库替换写入原生 SQLite（原生先清空旧数据再批量插入）。
+      await _store.importWords(words);
+      // 重新加载首页列表，让新数据立即显示。
+      unawaited(_loadWords());
+      // 提示成功导入的数量。
+      _showSnackBar('已导入 ${words.length} 个单词');
+    } on FormatException catch (error) {
+      // JSON 结构或字段错误，显示具体原因便于修正文件。
+      _showSnackBar('导入失败：${error.message}');
+    } catch (error) {
+      // 文件读取或原生写入异常，显示可读详情。
+      _showSnackBar('导入失败：${_describeLoadError(error)}');
+    }
+  }
+
+  /// 数据导出：把本地全部单词与设置聚合为 JSON，通过系统保存框写出到文件。
+  Future<void> _exportData() async {
+    // 先关闭抽屉，避免遮挡系统保存框。
+    Navigator.of(context).pop();
+    try {
+      // 重新拉取最新全部未删除单词。
+      final words = await _store.getAll();
+      // 构造导出对象：app/version/时间 + words + settings，
+      // 结构类似 words.json 且可被「数据导入」识别（顶层含 words 数组）。
+      final payload = <String, Object?>{
+        // 标识来源 App。
+        'app': 'MyEnglish',
+        // 与 pubspec 版本保持一致。
+        'version': '0.1.0',
+        // 导出时间，便于区分多份备份。
+        'exportedAt': DateTime.now().toIso8601String(),
+        // 单词列表，每条使用 Word.toExportMap 生成干净字段。
+        'words': words.map((word) => word.toExportMap()).toList(),
+        // 设置快照，导入时可选恢复。
+        'settings': <String, Object?>{
+          'accent': _settings.accent.storageValue,
+          'theme': _settings.theme.storageValue,
+          'definitionSeparator': _settings.definitionSeparator.storageValue,
+        },
+      };
+      // 缩进格式，便于人读与二次编辑。
+      final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
+      // 文件名：App 名 + 当前日期，例如 MyEnglish-2026-07-28.json。
+      final fileName =
+          'MyEnglish-${DateTime.now().toIso8601String().substring(0, 10)}.json';
+      // 通过系统保存框写出；由原生 SAF 把文本落盘到用户选择的位置。
+      final savedUri = await _fileIo.writeExportJson(
+        fileName: fileName,
+        jsonText: jsonText,
+      );
+      // 用户取消保存不提示。
+      if (savedUri == null) return;
+      // 提示导出数量（系统已落盘到用户指定的位置）。
+      _showSnackBar('已导出 ${words.length} 个单词');
+    } catch (error) {
+      // 读取或保存异常，显示可读详情。
+      _showSnackBar('导出失败：${_describeLoadError(error)}');
+    }
+  }
+
+  /// 清空数据：二次确认后清空单词、释义与全部设置。
+  Future<void> _clearData() async {
+    // 先关闭抽屉，避免遮挡确认弹窗。
+    Navigator.of(context).pop();
+    // 危险操作必须二次确认，避免误触。
+    final confirmed = await _showClearConfirmDialog();
+    // 用户取消则什么都不做。
+    if (!confirmed) return;
+    try {
+      // 清空本地单词与释义（原生 SQLite 两张表）。
+      await _store.clearAll();
+      // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
+      await _settings.clearAll();
+      // 清空内存分组（分组当前非持久化，仅清当前会话）。
+      _groups.clear();
+      // 重新加载空列表。
+      unawaited(_loadWords());
+      // 提示已清空。
+      _showSnackBar('已清空全部本地数据');
+    } catch (error) {
+      // 清空异常，显示可读详情。
+      _showSnackBar('清空失败：${_describeLoadError(error)}');
+    }
+  }
+
+  /// 清空数据的二次确认弹窗，返回 true 表示用户确认清空。
+  Future<bool> _showClearConfirmDialog() async {
+    // showDialog 返回 bool?，确认按钮 pop(true)。
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        // 读取当前明暗对应的设计令牌。
+        final tokens = AppTokens.of(dialogContext);
+        // Dialog 自绘圆角卡片。
+        return Dialog(
+          backgroundColor: tokens.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              // 高度只包住内容。
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 对话框标题。
+                Text(
+                  '清空数据',
+                  style: TextStyle(
+                    color: tokens.text,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                // 标题与正文间距。
+                const SizedBox(height: 8),
+                // 明确告知后果，不可恢复。
+                Text(
+                  '将删除全部单词（含释义）与所有设置，此操作不可恢复。',
+                  style: TextStyle(
+                    color: tokens.textSecondary,
+                    fontSize: 13.5,
+                    height: 1.5,
+                  ),
+                ),
+                // 正文与按钮间距。
+                const SizedBox(height: 18),
+                // 取消与确认按钮。
+                Row(
+                  children: [
+                    // 取消按钮：描边样式。
+                    Expanded(
+                      child: InkWell(
+                        key: const Key('clear-cancel'),
+                        onTap: () => Navigator.of(dialogContext).pop(false),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          height: 38,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: tokens.inputBorder),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '取消',
+                            style: TextStyle(color: tokens.text, fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 按钮之间留白。
+                    const SizedBox(width: 12),
+                    // 确认清空按钮：主色填充。
+                    Expanded(
+                      child: InkWell(
+                        key: const Key('clear-confirm'),
+                        onTap: () => Navigator.of(dialogContext).pop(true),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          height: 38,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppTokens.accent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            '确认清空',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    // null（点遮罩关闭）视为取消。
+    return result == true;
+  }
+
   /// 将任意异常转换成用户可见的详情，不再只显示笼统失败文案。
   String _describeLoadError(Object error) {
     // toString 会保留 PlatformException code、JSON offset 和 StateError 信息。
@@ -1339,11 +1574,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Navigator.of(context).pop();
           _openSettings();
         },
-        // 数据导出：占位提示。
-        onExport: () {
-          Navigator.of(context).pop();
-          _showComingSoon('数据导出');
-        },
+        // 数据导入：方法内部会先关抽屉再弹出系统文件选择器。
+        onImport: () => unawaited(_importData()),
+        // 数据导出：方法内部会先关抽屉再弹出系统保存框。
+        onExport: () => unawaited(_exportData()),
+        // 清空数据：方法内部会先关抽屉再弹二次确认。
+        onClearData: () => unawaited(_clearData()),
         // 关于：占位提示。
         onAbout: () {
           Navigator.of(context).pop();

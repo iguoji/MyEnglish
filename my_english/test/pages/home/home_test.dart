@@ -1099,6 +1099,22 @@ class _MemoryWordStore implements WordStore {
     // 直接过滤目标。
     _words.removeWhere((item) => item.id == id);
   }
+
+  /// 整库替换写入：先清空旧数据再装入导入列表。
+  @override
+  Future<void> importWords(List<Word> words) async {
+    // 清空后追加导入副本。
+    _words
+      ..clear()
+      ..addAll(words);
+  }
+
+  /// 清空全部内存单词。
+  @override
+  Future<void> clearAll() async {
+    // 清空内部列表。
+    _words.clear();
+  }
 }
 
 /// 固定抛错 Store 用于检查首页错误输出区域。
@@ -1126,6 +1142,15 @@ class _ThrowingWordStore implements WordStore {
   /// 其余接口不属于本测试流程。
   @override
   Future<void> delete(int id) async => throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<void> importWords(List<Word> words) async =>
+      throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<void> clearAll() async => throw UnimplementedError();
 }
 
 /// 立即完成的静音播放器；默认注入避免测试访问原生通道。

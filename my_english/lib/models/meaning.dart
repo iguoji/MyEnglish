@@ -102,6 +102,22 @@ class Meaning {
       'deleted_at': deletedAt?.millisecondsSinceEpoch,
     };
   }
+
+  /// 转成导出 JSON 用的普通 Map，字段与 words.json 完全一致（index/pos/definitions）。
+  ///
+  /// 与 [toMap] 的区别：导出只保留业务可见字段，不写入数据库内部的 word_id 与时间戳，
+  /// 这样导出的文件既干净又能直接被「导入」流程的 [Meaning.fromMap] 重新解析。
+  Map<String, Object?> toExportMap() {
+    // 结构等价于 PHP 中 json_encode 一个只含公开字段的关联数组。
+    return <String, Object?>{
+      // 同一条释义在当前 Word 中的排序值，index 越大越靠前。
+      'index': index,
+      // 词性，例如 n.、vt.、adj.。
+      'pos': pos,
+      // 当前词性下的中文释义数组。
+      'definitions': List<String>.from(definitions),
+    };
+  }
 }
 
 /// 读取可空整数，并在字段类型错误时输出明确字段名。

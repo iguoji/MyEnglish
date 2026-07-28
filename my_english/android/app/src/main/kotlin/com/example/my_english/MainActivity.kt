@@ -10,6 +10,19 @@ import io.flutter.plugin.common.MethodChannel
 // Executors 提供单独数据库线程，避免 SQLite 和 JSON 导入阻塞 Flutter UI。
 import java.util.concurrent.Executors
 
+// Activity 提供 RESULT_OK 等标准返回码，用于判断 SAF 选择结果。
+import android.app.Activity
+// Intent 用来启动系统文件选择器（打开/保存文档）。
+import android.content.Intent
+// Uri 是 SAF 返回的文件定位符，类似小程序临时文件路径但由系统托管。
+import android.net.Uri
+// IO 与字符集工具：把 Uri 读成文本、把文本写进 Uri。
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.nio.charset.StandardCharsets
+
 /**
  * Android 原生入口，相当于 Flutter 页面背后的原生 Controller。
  *
@@ -26,6 +39,9 @@ class MainActivity : FlutterActivity() {
     // 音频通道负责缓存、双来源下载和 MediaPlayer 播放。
     private val audioChannelName = "my_english/word_audio"
 
+    // 文件通道负责 SAF 选 JSON 与导出写文件，与 word_store 同风格的原生桥接。
+    private val fileIoChannelName = "my_english/file_io"
+
     // 单线程执行器保证导入、读取、写入不会并发破坏事务顺序。
     private val databaseExecutor = Executors.newSingleThreadExecutor()
 
@@ -37,6 +53,23 @@ class MainActivity : FlutterActivity() {
 
     // 原生音频服务可以跨 Flutter Widget 重建持续工作。
     private lateinit var wordAudioPlayer: WordAudioPlayer
+
+    // SAF 请求码：导入选文件与导出写文件共用，结果里再用 pendingFileAction 区分。
+    private companion object {
+        const val REQUEST_CODE_FILE_IO = 1001
+    }
+
+    // 当前正在等待系统选择器结果的 Dart 调用；同一时刻只允许一个文件操作。
+    private var pendingFileResult: MethodChannel.Result? = null
+
+    // 区分本次 SAF 是「选文件」还是「写文件」。
+    private var pendingFileAction: String? = null
+
+    // 写文件时暂存要落盘的 JSON 文本。
+    private var pendingExportText: String? = null
+
+    // 写文件时暂存预填文件名（结果回调里不再需要，仅用于防御性校验）。
+    private var pendingExportName: String? = null
 
     // FlutterEngine 准备完成后会调用本方法，对应在小程序插件中注册可调用的方法。
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -93,6 +126,23 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 批量导入：先清空旧数据再整库替换写入。
+                    "importWords" -> runDatabaseCall(result) {
+                        // 参数必须是 Dart 传来的单词 Map 列表。
+                        val payload = call.arguments as? List<*>
+                            ?: error("importWords 缺少单词列表")
+                        // 在事务内批量写入，返回 null 对应 Dart Future<void>。
+                        wordsDatabase.importWords(payload)
+                        null
+                    }
+
+                    // 清空全部单词与释义，对应「清空数据」入口。
+                    "clearAllWords" -> runDatabaseCall(result) {
+                        // 删除两张表全部记录。
+                        wordsDatabase.clearAllWords()
+                        null
+                    }
+
                     // 未登记的方法返回 Flutter 标准 notImplemented 错误。
                     else -> result.notImplemented()
                 }
@@ -137,12 +187,20 @@ class MainActivity : FlutterActivity() {
                                 ?: error("setDefinitionSeparator 缺少字符串参数")
                             // Store 继续校验值是否属于顿号、逗号或分号三者之一。
                             appSettingsStore.setDefinitionSeparator(value)
-                            // 通知 Dart 持久化完成，可以刷新全部中文释义。
-                            result.success(null)
-                        }
+                        // 通知 Dart 持久化完成，可以刷新全部中文释义。
+                        result.success(null)
+                    }
 
-                        // 未登记方法按 Flutter 规范返回 notImplemented。
-                        else -> result.notImplemented()
+                    // 清空全部设置，恢复到首次安装默认值。
+                    "clearAllSettings" -> {
+                        // 删除 SharedPreferences 中的全部键值。
+                        appSettingsStore.clearAll()
+                        // 通知 Dart 清空完成，可以刷新主题与口音。
+                        result.success(null)
+                    }
+
+                    // 未登记方法按 Flutter 规范返回 notImplemented。
+                    else -> result.notImplemented()
                     }
                 } catch (exception: Throwable) {
                     // 参数或磁盘错误返回 Dart，设置面板会显示 SnackBar。
@@ -178,6 +236,69 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        // 注册文件通道：导入时选 JSON、导出时写文件，全部走系统 SAF 选择器。
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, fileIoChannelName)
+            // 根据方法名路由到「打开」或「保存」系统选择器。
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // 导入：打开系统文件选择器，只显示 JSON。
+                    "pickJsonText" -> {
+                        // 同一时刻只允许一个文件操作，避免覆盖上一次未完成的结果。
+                        if (pendingFileResult != null) {
+                            result.error("FILE_BUSY", "上一次文件操作尚未完成", null)
+                            return@setMethodCallHandler
+                        }
+                        // 构造 ACTION_OPEN_DOCUMENT：只列出可打开的 JSON 文件。
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            // CATEGORY_OPENABLE 表示必须是可读的持久化文档。
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            // MIME 类型限定 JSON，系统选择器会自动按扩展名过滤。
+                            type = "application/json"
+                        }
+                        // 记录等待中的 Dart 调用与本次动作类型。
+                        pendingFileResult = result
+                        pendingFileAction = "pick"
+                        // 真正调起系统选择器；结果会在 onActivityResult 回调。
+                        startActivityForResult(intent, REQUEST_CODE_FILE_IO)
+                    }
+
+                    // 导出：打开系统保存框，由用户选择位置并确认文件名。
+                    "writeExportJson" -> {
+                        // 参数必须是带 fileName 与 jsonText 的 Map。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("writeExportJson 缺少参数")
+                        // 预填文件名，例如 MyEnglish-2026-07-28.json。
+                        val fileName = payload["fileName"] as? String
+                            ?: error("writeExportJson 缺少 fileName")
+                        // 要落盘的 JSON 文本。
+                        val jsonText = payload["jsonText"] as? String
+                            ?: error("writeExportJson 缺少 jsonText")
+                        // 同样保证同一时刻只有一个文件操作。
+                        if (pendingFileResult != null) {
+                            result.error("FILE_BUSY", "上一次文件操作尚未完成", null)
+                            return@setMethodCallHandler
+                        }
+                        // 构造 ACTION_CREATE_DOCUMENT：让用户选位置并保存。
+                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "application/json"
+                            // EXTRA_TITLE 作为系统保存框默认文件名。
+                            putExtra(Intent.EXTRA_TITLE, fileName)
+                        }
+                        // 记录等待中的 Dart 调用、动作类型与待写内容。
+                        pendingFileResult = result
+                        pendingFileAction = "write"
+                        pendingExportText = jsonText
+                        pendingExportName = fileName
+                        // 调起系统保存框，结果在 onActivityResult 回调。
+                        startActivityForResult(intent, REQUEST_CODE_FILE_IO)
+                    }
+
+                    // 未登记方法按 Flutter 规范返回 notImplemented。
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     /** 把数据库动作放入单线程队列，并把结果安全送回 Android 主线程。 */
@@ -203,6 +324,98 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    /** 系统选择器关闭后的统一回调：根据本次动作读取或写入 Uri。 */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        // 先走父类标准流程，避免影响 Flutter 自身的结果分发。
+        super.onActivityResult(requestCode, resultCode, data)
+        // 只处理我们自己的文件请求；其它请求码交给父类。
+        if (requestCode != REQUEST_CODE_FILE_IO) return
+        // 委托给统一处理器。
+        handleFileIoResult(resultCode, data)
+    }
+
+    /** 系统选择器关闭后的统一处理：根据本次动作读取或写入 Uri。 */
+    private fun handleFileIoResult(resultCode: Int, data: Intent?) {
+        // 先取出并清空 pending，避免重复回调或后续结果串场。
+        val pending = pendingFileResult ?: return
+        val action = pendingFileAction
+        pendingFileResult = null
+        pendingFileAction = null
+        val exportText = pendingExportText
+        pendingExportText = null
+        pendingExportName = null
+
+        // 读取选择器返回的数据与 Uri。
+        val uri: Uri? = data?.data
+
+        try {
+            when (action) {
+                // 选文件：用户确认且有 Uri 才读取文本。
+                "pick" -> {
+                    if (resultCode != Activity.RESULT_OK || uri == null) {
+                        // 取消或异常都返回 null，Dart 据此不做任何改动。
+                        pending.success(null)
+                        return
+                    }
+                    // 把 Uri 内容读成 UTF-8 文本回传 Dart。
+                    pending.success(readUriText(uri))
+                }
+                // 写文件：用户确认且有 Uri 才落盘。
+                "write" -> {
+                    if (resultCode != Activity.RESULT_OK || uri == null) {
+                        // 取消保存返回 null，Dart 据此不提示。
+                        pending.success(null)
+                        return
+                    }
+                    // 把暂存的 JSON 文本写入 Uri。
+                    writeUriText(uri, exportText ?: "")
+                    // 返回真实保存位置（Uri 字符串）供 Dart 提示。
+                    pending.success(uri.toString())
+                }
+                // 未知动作直接返回 null，不抛异常。
+                else -> pending.success(null)
+            }
+        } catch (exception: Throwable) {
+            // 读取或写入失败，转换成 Dart 可捕获的 PlatformException。
+            pending.error(
+                "FILE_IO_ERROR",
+                exception.message ?: exception.javaClass.simpleName,
+                null,
+            )
+        }
+    }
+
+    /** 读取 SAF 返回的 Uri 文本，统一按 UTF-8 解码，类似 PHP file_get_contents。 */
+    private fun readUriText(uri: Uri): String {
+        // contentResolver 类似系统文件管理器，负责按 Uri 打开输入流。
+        val resolver = applicationContext.contentResolver
+        // use 类似 PHP 的 try/finally，离开作用域自动关闭流。
+        resolver.openInputStream(uri)?.use { stream ->
+            BufferedReader(InputStreamReader(stream, StandardCharsets.UTF_8)).use { reader ->
+                // 非局部返回：直接把整段文本作为 readUriText 的返回值。
+                return reader.readText()
+            }
+        }
+        // 拿不到输入流说明 Uri 不可用。
+        throw IOException("无法打开文件输入流：$uri")
+    }
+
+    /** 把文本写入 SAF 返回的 Uri，类似 PHP file_put_contents。 */
+    private fun writeUriText(uri: Uri, text: String) {
+        // contentResolver 负责按 Uri 打开输出流落盘。
+        val resolver = applicationContext.contentResolver
+        resolver.openOutputStream(uri)?.use { stream ->
+            OutputStreamWriter(stream, StandardCharsets.UTF_8).use { writer ->
+                // 写入全部 JSON 文本。
+                writer.write(text)
+            }
+            // 写成功后直接结束方法。
+            return
+        }
+        // 拿不到输出流说明 Uri 不可写。
+        throw IOException("无法打开文件输出流：$uri")
     }
 
     // Activity 销毁时释放数据库和线程资源，对应小程序 onUnload 的清理阶段。

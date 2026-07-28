@@ -249,6 +249,22 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 清空全部设置，恢复到首次安装的默认值。
+  ///
+  /// 对应首页「清空数据」入口：先请原生删除 SharedPreferences 中所有键值，
+  /// 再把内存模型重置回美式 / Light / 顿号 / 100，并通知界面刷新（主题随之切回 Light）。
+  Future<void> clearAll() async {
+    // 原生清空偏好文件；channel 为 null 时（纯测试）只重置内存。
+    await _channel?.invokeMethod<void>('clearAllSettings');
+    // 重置内存默认值。
+    _accent = PronunciationAccent.american;
+    _theme = AppThemePreference.light;
+    _definitionSeparator = DefinitionSeparator.ideographicComma;
+    _dailyGoal = 100;
+    // 通知设置面板、首页副标题与 MaterialApp 同步刷新。
+    notifyListeners();
+  }
+
   /// 把原生字符串转换成强类型口音。
   static PronunciationAccent _accentFromStorage(Object? value) {
     // 只有明确保存 british 才使用英式，其余值都采用默认美式。

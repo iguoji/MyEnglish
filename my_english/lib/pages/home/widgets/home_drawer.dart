@@ -6,13 +6,15 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
 
-/// 右侧抽屉菜单：App 信息、四个功能入口与页脚联系方式。
+/// 右侧抽屉菜单：App 信息、数据与设置入口与页脚联系方式。
 class HomeDrawer extends StatelessWidget {
-  /// 四个入口的动作全部由首页注入，抽屉自身不包含业务逻辑。
+  /// 各入口的动作全部由首页注入，抽屉自身不包含业务逻辑。
   const HomeDrawer({
     required this.onAddWord,
     required this.onOpenSettings,
+    required this.onImport,
     required this.onExport,
+    required this.onClearData,
     required this.onAbout,
     super.key,
   });
@@ -23,8 +25,14 @@ class HomeDrawer extends StatelessWidget {
   /// 点击"设置"后由首页打开设置面板。
   final VoidCallback onOpenSettings;
 
-  /// 点击"数据导出"后的动作；本轮为占位提示。
+  /// 点击"数据导入"后由首页弹出文件选择器读取 JSON。
+  final VoidCallback onImport;
+
+  /// 点击"数据导出"后由首页把本地数据写出为 JSON 文件。
   final VoidCallback onExport;
+
+  /// 点击"清空数据"后由首页弹出二次确认，确认后清空全部本地数据。
+  final VoidCallback onClearData;
 
   /// 点击"关于"后的动作；本轮为占位提示。
   final VoidCallback onAbout;
@@ -102,7 +110,7 @@ class HomeDrawer extends StatelessWidget {
             Divider(height: 1, color: tokens.rowBorder),
             // 菜单项区域上下留 8 像素。
             const SizedBox(height: 8),
-            // 四个功能入口，图标与文案对应设计稿。
+            // 基础入口：添加单词与设置。
             _DrawerItem(
               key: const Key('drawer-add-word'),
               icon: TablerIcons.circlePlus,
@@ -115,12 +123,29 @@ class HomeDrawer extends StatelessWidget {
               label: '设置',
               onTap: onOpenSettings,
             ),
+            // 数据与设置之间的细分隔线。
+            Divider(height: 1, color: tokens.rowBorder),
+            // 数据类入口：导入、导出、清空。
+            _DrawerItem(
+              key: const Key('drawer-import'),
+              icon: TablerIcons.fileImport,
+              label: '数据导入',
+              onTap: onImport,
+            ),
             _DrawerItem(
               key: const Key('drawer-export'),
               icon: TablerIcons.fileExport,
               label: '数据导出',
               onTap: onExport,
             ),
+            _DrawerItem(
+              key: const Key('drawer-clear'),
+              icon: TablerIcons.trash,
+              label: '清空数据',
+              onTap: onClearData,
+            ),
+            // 数据入口与关于之间的细分隔线。
+            Divider(height: 1, color: tokens.rowBorder),
             _DrawerItem(
               key: const Key('drawer-about'),
               icon: TablerIcons.infoCircle,
