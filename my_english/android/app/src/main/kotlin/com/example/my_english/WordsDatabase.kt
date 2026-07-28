@@ -11,6 +11,14 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 // JSONArray 负责还原 SQLite 中保存的 definitions_json。
 import org.json.JSONArray
+// DatabaseUtils 提供按条件统计行数，用来判定"今天是否已有记录"。
+import android.database.DatabaseUtils
+// SimpleDateFormat 与 Date 负责把当前时刻格式化成 'yyyy-MM-dd' 本地日期。
+import java.text.SimpleDateFormat
+// Date 表示当前时刻，配合 SimpleDateFormat 取本地日期。
+import java.util.Date
+// Locale 决定日期格式化的区域（数字与顺序），不影响 yyyy-MM-dd 结构。
+import java.util.Locale
 
 /**
  * word/meaning 本地 SQLite 数据库。
@@ -26,7 +34,8 @@ class WordsDatabase(context: Context) :
         // 数据库文件保存在 Android App 私有目录，卸载应用时由系统删除。
         private const val databaseName = "my_english.db"
         // 版本 3 新增 group 与 groupMember 两张表，让单词-分组关系持久化。
-        private const val databaseVersion = 3
+        // 版本 4 新增 record 表，记录单词默写结果并驱动难度变化。
+        private const val databaseVersion = 4
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -47,6 +56,8 @@ class WordsDatabase(context: Context) :
         createGroupsTable(db)
         // 创建单词-分组关联表（多对多）。
         createGroupMembersTable(db)
+        // 创建单词默写记录表（每天每条单词一条，驱动难度变化）。
+        createRecordTable(db)
         // 最后建立查询索引。
         createIndexes(db)
     }
@@ -63,6 +74,10 @@ class WordsDatabase(context: Context) :
         if (oldVersion < 3 && newVersion >= 3) {
             createGroupsTable(db)
             createGroupMembersTable(db)
+        }
+        // 从版本 3 升到 4：已有用户只缺 record 一张表，直接补齐，不迁旧数据。
+        if (oldVersion < 4 && newVersion >= 4) {
+            createRecordTable(db)
         }
     }
 
@@ -703,6 +718,224 @@ class WordsDatabase(context: Context) :
             // 异常时回滚，保持数据库一致。
             db.endTransaction()
         }
+    }
+
+    /**
+     * 创建单词默写记录表。
+     *
+     * 每个单词每天只留一条记录（首条为准）。`created_date` 用本机时区算好的
+     * 'YYYY-MM-DD' 字符串存储，查询时直接比字符串即可，无需在 SQL 里再算时区。
+     */
+    private fun createRecordTable(db: SQLiteDatabase) {
+        // execSQL 执行固定结构 SQL，不拼接任何用户输入。
+        db.execSQL(
+            """
+            CREATE TABLE record (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module TEXT NOT NULL,
+                word_id INTEGER NOT NULL,
+                is_correct INTEGER NOT NULL,
+                wrong_count INTEGER NOT NULL DEFAULT 0,
+                hint_count INTEGER NOT NULL DEFAULT 0,
+                difficulty_before INTEGER NOT NULL,
+                difficulty_after INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                created_date TEXT NOT NULL,
+                FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        // 按日期查询"今日复习"时用得到，建索引加速。
+        db.execSQL("CREATE INDEX record_created_date ON record(created_date)")
+    }
+
+    /** 取设备本机时区下的 'yyyy-MM-dd' 日期字符串，作为 created_date 与"今日"判定基准。 */
+    private fun localDateString(): String {
+        // Locale.getDefault() 拿到设备区域；SimpleDateFormat 默认用设备时区，即本地日期。
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        // Date() 为当前时刻，format 后即为本地年月日。
+        return format.format(Date())
+    }
+
+    /**
+     * 记录一次单词默写结果，并在同一事务内更新单词难度。
+     *
+     * 规则（每天首条记录为准）：
+     * - 今日已有该词记录 → 直接忽略（后续完成不再插记录、不改难度，满足"每天一条"）。
+     * - 本次不完美（有错或用了提示）→ 难度 +1（每天最多 +1）。
+     * - 本次完美 → 检查最近 5 个练习日是否"每天首条都完美"，是则难度 -1。
+     */
+    fun addDictationRecord(
+        wordId: Long,
+        isCorrect: Boolean,
+        wrongCount: Int,
+        hintCount: Int,
+    ) {
+        // 写连接与事务保证"插记录 + 改难度"原子，要么都成要么都回滚。
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 本机时区下的"今天"。
+            val today = localDateString()
+            // 今日是否已有该词记录（每天一条）。
+            val existing = DatabaseUtils.queryNumEntries(
+                db,
+                "record",
+                "word_id = ? AND created_date = ?",
+                arrayOf(wordId.toString(), today),
+            )
+            // 已有则跳过，既不插记录也不改难度。
+            if (existing > 0) {
+                db.setTransactionSuccessful()
+                return
+            }
+            // 读取当前难度（null 视为 0）。
+            val curDiff = getWordDifficulty(db, wordId)
+            // 完美 = 最终全对、且中途零错误零提示。
+            val perfect = isCorrect && wrongCount == 0 && hintCount == 0
+            // 先以当前难度作基准，下面再决定增减。
+            var newDiff = curDiff
+            if (!perfect) {
+                // 不完美：每天最多 +1。
+                newDiff = curDiff + 1
+            } else {
+                // 完美：往前数最近 4 个练习日（不含今天），全部完美才 -1。
+                // 加上今天这条完美记录，正好凑满"最近 5 个练习日全完美"。
+                val priorPerfectDays = countConsecutivePerfectDays(db, wordId, today, 4)
+                if (priorPerfectDays >= 4) newDiff = curDiff - 1
+            }
+            // 插入今日唯一记录。
+            val now = System.currentTimeMillis()
+            val values = ContentValues().apply {
+                put("module", "dictation")
+                put("word_id", wordId)
+                put("is_correct", if (isCorrect) 1 else 0)
+                put("wrong_count", wrongCount)
+                put("hint_count", hintCount)
+                put("difficulty_before", curDiff)
+                put("difficulty_after", newDiff)
+                put("created_at", now)
+                put("created_date", today)
+            }
+            // 插入失败（如并发）直接抛错，由调用方转成 PlatformException。
+            db.insertOrThrow("record", null, values)
+            // 更新单词难度与最近复习时间。
+            val wordValues = ContentValues().apply {
+                put("difficulty", newDiff)
+                put("reviewed_at", now)
+            }
+            db.update("words", wordValues, "id = ?", arrayOf(wordId.toString()))
+            // 标记事务成功。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常自动回滚，保证记录与难度一致。
+            db.endTransaction()
+        }
+    }
+
+    /** 读取单词当前难度，null 视为 0。 */
+    private fun getWordDifficulty(db: SQLiteDatabase, wordId: Long): Int {
+        // 只查 difficulty 一列。
+        db.query(
+            "words",
+            arrayOf("difficulty"),
+            "id = ?",
+            arrayOf(wordId.toString()),
+            null, null, null,
+        ).use { cursor ->
+            // 找不到或字段为 null 都返回 0。
+            if (cursor.moveToNext()) {
+                val index = cursor.getColumnIndexOrThrow("difficulty")
+                if (cursor.isNull(index)) return 0
+                return cursor.getInt(index)
+            }
+        }
+        // 单词不存在也保护为 0。
+        return 0
+    }
+
+    /**
+     * 从今天往前数，连续完美（全对且无错无提示）的练习天数，最多数 [limit] 天。
+     *
+     * 按 created_date 倒序取最近 [limit] 天，遇到第一个不完美的就停止——
+     * 因为"最近 5 天全完美"要求连续，中间任何一天不完美都打断链条。
+     */
+    private fun countConsecutivePerfectDays(
+        db: SQLiteDatabase,
+        wordId: Long,
+        today: String,
+        limit: Int,
+    ): Int {
+        // 统计连续完美天数。
+        var count = 0
+        // 查今天之前最近的 limit 天记录（每天一条）。
+        db.query(
+            "record",
+            arrayOf("is_correct", "wrong_count", "hint_count"),
+            "word_id = ? AND created_date < ?",
+            arrayOf(wordId.toString(), today),
+            null, null,
+            "created_date DESC",
+            limit.toString(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                // 取出这一天的三项判定字段。
+                val correct = cursor.getInt(cursor.getColumnIndexOrThrow("is_correct")) == 1
+                val wrong = cursor.getInt(cursor.getColumnIndexOrThrow("wrong_count"))
+                val hint = cursor.getInt(cursor.getColumnIndexOrThrow("hint_count"))
+                // 完美才累加，否则打断并停止计数。
+                if (correct && wrong == 0 && hint == 0) {
+                    count += 1
+                } else {
+                    break
+                }
+            }
+        }
+        // 返回连续完美天数（封顶 limit）。
+        return count
+    }
+
+    /**
+     * 读取今日全部默写记录，供"今日复习"展示。
+     *
+     * 返回完整记录 Map 列表（每条含 word_id 等），Dart 端再去重出单词列表。
+     */
+    fun getTodayReviewWords(): List<Map<String, Any?>> {
+        // 只读连接即可。
+        val db = readableDatabase
+        // 本机时区下的"今天"。
+        val today = localDateString()
+        // 结果列表。
+        val result = ArrayList<Map<String, Any?>>()
+        // 查询今天的全部记录，按时间升序。
+        db.query(
+            "record",
+            null,
+            "created_date = ?",
+            arrayOf(today),
+            null, null,
+            "created_at ASC",
+        ).use { cursor ->
+            // 逐行拼成 Dart 需要的 Map。
+            while (cursor.moveToNext()) {
+                result.add(
+                    linkedMapOf(
+                        "id" to cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                        "module" to cursor.getString(cursor.getColumnIndexOrThrow("module")),
+                        "word_id" to cursor.getLong(cursor.getColumnIndexOrThrow("word_id")),
+                        "is_correct" to (cursor.getInt(cursor.getColumnIndexOrThrow("is_correct")) == 1),
+                        "wrong_count" to cursor.getInt(cursor.getColumnIndexOrThrow("wrong_count")),
+                        "hint_count" to cursor.getInt(cursor.getColumnIndexOrThrow("hint_count")),
+                        "difficulty_before" to cursor.getInt(cursor.getColumnIndexOrThrow("difficulty_before")),
+                        "difficulty_after" to cursor.getInt(cursor.getColumnIndexOrThrow("difficulty_after")),
+                        "created_at" to cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
+                        "created_date" to cursor.getString(cursor.getColumnIndexOrThrow("created_date")),
+                    ),
+                )
+            }
+        }
+        // 返回今日记录列表。
+        return result
     }
 
     /** 把 Dart Word.toMap 的字段转换成 SQLite ContentValues。 */

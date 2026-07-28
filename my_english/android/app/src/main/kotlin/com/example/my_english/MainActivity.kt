@@ -263,6 +263,31 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 记录一次单词默写结果并在事务内更新难度（每天首条为准）。
+                    "addDictationRecord" -> runDatabaseCall(result) {
+                        // 读取 Dart 传来的本次默写结果。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("addDictationRecord 缺少参数")
+                        // 单词主键必须为数字。
+                        val wordId = (payload["wordId"] as? Number)?.toLong()
+                            ?: error("addDictationRecord 缺少有效 wordId")
+                        // 是否最终全对（布尔）。
+                        val isCorrect = payload["isCorrect"] as? Boolean
+                            ?: error("addDictationRecord 缺少 isCorrect")
+                        // 错误次数与提示次数缺省为 0。
+                        val wrongCount = (payload["wrongCount"] as? Number)?.toInt() ?: 0
+                        val hintCount = (payload["hintCount"] as? Number)?.toInt() ?: 0
+                        // 写入记录并刷新难度，返回 null 对应 Dart Future<void>。
+                        wordsDatabase.addDictationRecord(wordId, isCorrect, wrongCount, hintCount)
+                        null
+                    }
+
+                    // 读取今日全部默写记录，供"今日复习"展示。
+                    "getTodayReviewWords" -> runDatabaseCall(result) {
+                        // 直接返回今日记录列表，Dart RecordStore 负责解析。
+                        wordsDatabase.getTodayReviewWords()
+                    }
+
                     // 未登记的方法返回 Flutter 标准 notImplemented 错误。
                     else -> result.notImplemented()
                 }

@@ -61,9 +61,10 @@ A new Flutter project.
 |is_correct|boolean|全对则true|
 |wrong_count|number|本次具体错误次数|
 |hint_count|number|本次使用提示次数|
-|difficulty_before|number|之前错误次数|
-|difficulty_after|number|之后错误次数|
+|difficulty_before|number|之前难度|
+|difficulty_after|number|之后难度|
 |created_at|number|
+|created_date|string|插入日期YYYY-MM-DD|
 
 ## 网络音频
 

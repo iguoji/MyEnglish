@@ -19,6 +19,8 @@ import '../../services/word_audio.dart';
 import '../../store/settings.dart';
 // 引入独立候选项生成服务，页面只负责当前答题状态。
 import 'services/dictation_option_generator.dart';
+// 引入默写记录 Store：单词完成时写入结果并驱动难度变化。
+import '../../store/record.dart';
 // 引入默写页面集中管理的布局尺寸。
 import 'widgets/dictation_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
@@ -76,6 +78,10 @@ class _DictationPageState extends State<DictationPage> {
   int _hintLevel = 0;
   // 整轮累计答错次数。
   int _errors = 0;
+  // 当前单词本次默写累计选错候选词的次数（每个新词重置）。
+  int _currentWrong = 0;
+  // 当前单词本次默写累计点击提示的次数（每个新词重置）。
+  int _currentHints = 0;
   // 是否已完成全部单词。
   bool _isDone = false;
   // 当前单词的拼写和全部含义是否均已答对，完成后等待用户点击下一题。
@@ -107,6 +113,9 @@ class _DictationPageState extends State<DictationPage> {
   void initState() {
     super.initState();
     _options = _buildOptions();
+    // 每个新词的错误/提示计数从 0 开始。
+    _currentWrong = 0;
+    _currentHints = 0;
     // 与原型一致，进入每个新词后自动播放一次。
     WidgetsBinding.instance.addPostFrameCallback((_) => _playAudio());
   }
@@ -171,6 +180,8 @@ class _DictationPageState extends State<DictationPage> {
           max(1, _currentWordLetterCount - 1),
           _hintLevel + 1,
         );
+        // 每点一次提示都计入当前单词的提示次数。
+        _currentHints++;
         _feedback = '已显示开头字母';
         _feedbackColor = null;
       });
@@ -179,6 +190,8 @@ class _DictationPageState extends State<DictationPage> {
     final definition =
         _availableMeanings[_meaningIndex].definitions[_definitionIndex];
     setState(() {
+      // 释义阶段的提示同样计入次数。
+      _currentHints++;
       _feedback = definition.isEmpty ? '当前释义为空' : '提示：以「${definition[0]}」开头';
       _feedbackColor = null;
     });
@@ -192,10 +205,12 @@ class _DictationPageState extends State<DictationPage> {
         _wrongOptions.contains(option.text)) {
       return;
     }
-    if (!option.isCorrect) {
+      if (!option.isCorrect) {
       setState(() {
         _wrongOptions.add(option.text);
         _errors++;
+        // 当前单词的选错次数同步累加，用于落 record。
+        _currentWrong++;
         _feedback = '不对，再试试';
         _feedbackColor = AppTokens.danger;
       });
@@ -256,6 +271,35 @@ class _DictationPageState extends State<DictationPage> {
       // 绿色只用于正确完成反馈。
       _feedbackColor = const Color(0xFF2FB344);
     });
+    // 当前单词已完成，把本次默写结果写入记录（每天首条为准，异步、不阻塞）。
+    _recordCompletion();
+  }
+
+  /// 把当前单词的本次默写结果写入记录 Store。
+  ///
+  /// 这一步发生在「单词完成」那一刻，此时 [_currentWrong]/[_currentHints]
+  /// 仍保存着本词累计的选错与提示次数；即便用户随后返回首页也不影响已经落库。
+  /// 若单词没有主键（极端情况）则直接跳过。
+  void _recordCompletion() {
+    // 取出当前单词主键。
+    final wordId = _currentWord.id;
+    // 没有主键无法落库，直接放弃记录。
+    if (wordId == null) return;
+    // 用 unawaited 异步发送，不等待结果，也不阻断默写流程。
+    unawaited(
+      RecordStore.instance
+          .addCompletion(
+            // 能走到完成必然是最终全对，故 isCorrect 为 true。
+            wordId: wordId,
+            isCorrect: true,
+            wrongCount: _currentWrong,
+            hintCount: _currentHints,
+          )
+          // 记录失败只打印，不影响界面与后续答题。
+          .catchError((Object error) {
+        debugPrint('记录默写结果失败：$error');
+      }),
+    );
   }
 
   /// 用户点击底部长条按钮后进入下一词；最后一词则显示统计页。
@@ -290,6 +334,9 @@ class _DictationPageState extends State<DictationPage> {
       _hintLevel = 0;
       // 清除上一题的错误禁用项。
       _wrongOptions.clear();
+      // 新单词的错误/提示计数归零，重新开始统计。
+      _currentWrong = 0;
+      _currentHints = 0;
       // 新单词尚未完成。
       _isCurrentWordComplete = false;
       // 清除上一题的完成反馈。
