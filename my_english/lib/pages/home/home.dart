@@ -1023,17 +1023,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _store.update(word.withGroup(targetGroupId));
         }
       }
-      // 操作完成后清空选择并刷新。
-      _selectedWords.clear();
-      await _refreshWords();
     } catch (error) {
-      // 批量操作失败时提示原因。
+      // 批量操作中途失败：仅把错误原因提示给用户，
+      // 收尾（清选择+刷新）交给下方 finally 统一执行。
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('操作失败：$error')));
+    } finally {
+      // 抽成独立 async 函数，避免 finally 里用 return 提前退出引发 lint；
+      // 同时集中处理「组件已卸载」的情况，让 finally 只做纯粹的收尾。
+      await _finishGroupApply();
     }
+  }
+
+  /// 移动/复制收尾：清空选择并刷新界面。
+  ///
+  /// 无论操作成功还是中途异常都调用，避免「原生已部分落库但 UI 仍是旧状态」
+  /// 的不一致窗口。组件卸载后不再触碰状态。
+  Future<void> _finishGroupApply() async {
+    // 组件已销毁则不操作，避免触发已卸载的 setState。
+    if (!mounted) return;
+    // 清空勾选，退出选择模式。
+    _selectedWords.clear();
+    // 从原生重新聚合最新分组关系并重建列表。
+    await _refreshWords();
   }
 
   /// 尚未在本轮原型中定义具体页面的菜单项使用统一提示。
