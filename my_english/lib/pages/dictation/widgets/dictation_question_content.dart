@@ -834,10 +834,9 @@ class _PosBadge extends StatelessWidget {
       child: Text(
         pos,
         style: TextStyle(
-          // 文字直接用眼色，不再套边框。
+          // 文字直接用眼色，不再套边框；保持正体，不斜体。
           color: AppTokens.accent,
           fontSize: 12,
-          fontStyle: FontStyle.italic,
           fontWeight: FontWeight.w600,
         ),
       ),
