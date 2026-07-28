@@ -48,10 +48,13 @@ void main() {
               'created_at': DateTime(2026, 7, 26).millisecondsSinceEpoch,
             },
           ];
-        // update/delete/import/clear 的 Future<void> 对应 null。
+        // 增删成员/同步分组/导入/清空等均返回 Future<void>，对应 null。
+        case 'addGroupMember':
+        case 'setWordGroups':
         case 'updateWord':
         case 'deleteWord':
         case 'importWords':
+        case 'importData':
         case 'clearAllWords':
           return null;
       }
@@ -62,13 +65,13 @@ void main() {
     // 创建只使用原生通道的 Store。
     final store = LocalWordStore(channel: channel);
 
-    // 创建进入原生事务并返回主键。
+    // 创建进入原生事务并返回主键（另会补写 groupMember）。
     final createdId = await store.create(const Word(spelling: 'persisted'));
     expect(createdId, 7);
     // 查询从原生获取模型。
     final words = await store.getAll();
     expect(words.single.spelling, 'persisted');
-    // 更新进入原生事务。
+    // 更新进入原生事务（另会同步分组关系）。
     await store.update(const Word(id: 7, spelling: 'persisted'));
     // 删除进入原生软删除。
     await store.delete(7);
@@ -76,11 +79,13 @@ void main() {
     await store.importWords(const [Word(spelling: 'a'), Word(spelling: 'b')]);
     // 清空两张表。
     await store.clearAll();
-    // 方法顺序证明六个操作都经过 SQLite。
+    // 方法顺序证明六个核心操作都经过 SQLite；未带分组的单词不会调用
+    // addGroupMember，update 仍会同步分组关系（setWordGroups）。
     expect(nativeCalls, <String>[
       'createWord',
       'getAllWords',
       'updateWord',
+      'setWordGroups',
       'deleteWord',
       'importWords',
       'clearAllWords',

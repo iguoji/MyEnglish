@@ -106,6 +106,27 @@ abstract final class AppTheme {
         splashFactory: NoSplash.splashFactory,
       ),
     ),
+    // 轻提示 SnackBar：浅色界面下用深底浅字。
+    // 注意 Material 3 默认 inverseSurface 在深色色板下偏白，这里显式覆盖，
+    // 否则任何 SnackBar 在暗色模式都会变成刺眼的白条。
+    snackBarTheme: SnackBarThemeData(
+      // 复用浅色主文字色作为深色底，保证对比度。
+      backgroundColor: AppTheme.textColor,
+      // 提示文字白色，字号与设计稿吐司一致。
+      contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+      // 操作按钮（若有）使用品牌蓝。
+      actionTextColor: AppTheme.primaryColor,
+    ),
+    // Tooltip 同样指定深色底浅字，规避 Material 3 默认在深色 scheme 下的浅白底。
+    tooltipTheme: const TooltipThemeData(
+      // 圆角气泡，深色底。
+      decoration: BoxDecoration(
+        color: AppTheme.textColor,
+        borderRadius: BorderRadius.all(Radius.circular(6)),
+      ),
+      // 气泡内文字白色。
+      textStyle: TextStyle(color: Colors.white, fontSize: 12),
+    ),
     // 不指定 fontFamily，让 Android 根据中英文自动选择系统字体。
     scrollbarTheme: const ScrollbarThemeData(
       // 桌面和移动端始终使用清晰但不过黑的灰蓝滑块。
@@ -135,6 +156,24 @@ abstract final class AppTheme {
         // 禁用 Material 默认水波纹。
         splashFactory: NoSplash.splashFactory,
       ),
+    ),
+    // 轻提示 SnackBar：深色界面下用深色底浅字。
+    // 与浅色主题同理，必须显式覆盖 Material 3 默认 inverseSurface 浅白底。
+    snackBarTheme: SnackBarThemeData(
+      // 比深色 surface 略亮的深色底，仍保持黑底形态。
+      backgroundColor: AppTheme.darkTableBorderColor,
+      // 提示文字重用深色主文字色。
+      contentTextStyle: const TextStyle(color: AppTheme.darkTextColor, fontSize: 13.5),
+      // 操作按钮使用深色 scheme 提亮后的品牌蓝。
+      actionTextColor: const Color(0xFF6EA8E5),
+    ),
+    // Tooltip 同样指定深色底浅字。
+    tooltipTheme: const TooltipThemeData(
+      decoration: BoxDecoration(
+        color: AppTheme.darkTableBorderColor,
+        borderRadius: BorderRadius.all(Radius.circular(6)),
+      ),
+      textStyle: TextStyle(color: AppTheme.darkTextColor, fontSize: 12),
     ),
     // 深色滚动条稍亮，保证真机上容易找到并拖动。
     scrollbarTheme: const ScrollbarThemeData(

@@ -211,6 +211,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _settings.addListener(_handleExternalChange);
     // 监听分组变化：分组被删除时把其中单词移回"未分组"。
     _groups.addListener(_handleGroupsChanged);
+    // 先加载分组（决定分组列表与顺序），再加载单词及其分组关系。
+    unawaited(_groups.load());
     // 异步加载全部 Word/Meaning；方法内部完成 setState。
     unawaited(_loadWords());
   }
@@ -229,17 +231,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_reassignOrphanWords());
   }
 
-  /// 把 groupId 指向已删除分组的单词批量移回"未分组"。
+  /// 把指向已删除分组的单词批量移回"未分组"（防御性清理）。
   Future<void> _reassignOrphanWords() async {
-    // 收集所有指向不存在分组的单词。
+    // 收集所有仍然指向不存在分组的单词（理论上 deleteGroup 已清成员关系）。
     final orphans = _allWords
         .where(
-          (word) => word.groupId != null && _groups.byId(word.groupId) == null,
+          (word) => word.groupIds.any(
+            (groupId) => _groups.byId(groupId) == null,
+          ),
         )
         .toList(growable: false);
     // 没有孤儿时直接结束。
     if (orphans.isEmpty) return;
-    // 逐个更新回"未分组"。
+    // 逐个更新回"未分组"（groupIds 清空）。
     for (final word in orphans) {
       await _store.update(word.withGroup(null));
     }
@@ -420,12 +424,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final sections = <_WordSection>[];
     // 自定义分组视角。
     if (_mode == GroupMode.custom) {
-      // 没有分组或分组已删除的单词全部归入"未分组"。
+      // 没有任何分组的单词全部归入"未分组"（groupIds 为空即未分组）。
       final ungrouped = _allWords
-          .where(
-            (word) =>
-                word.groupId == null || _groups.byId(word.groupId) == null,
-          )
+          .where((word) => word.groupIds.isEmpty)
           .toList();
       // 未分组只有在确实有单词或没有任何自定义分组时才显示。
       // 它最先加入 sections，因此筛选行中的优先级固定为“全部”之后第一项。
@@ -439,13 +440,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
       }
       // 已存在的自定义分组排在“未分组”之后，并保持用户自己的管理顺序（允许 0 词）。
+      // 一个单词若被复制进多个分组，会同时出现在这些分组的 section 中。
       for (final group in _groups.groups) {
         sections.add(
           _WordSection(
             key: 'c${group.id}',
             name: group.name,
             words: _filterAndSort(
-              _allWords.where((word) => word.groupId == group.id).toList(),
+              _allWords
+                  .where((word) => word.groupIds.contains(group.id))
+                  .toList(),
             ),
           ),
         );
@@ -801,6 +805,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 执行表单提交：新增走 create，编辑走 update。
   Future<void> _submitWordForm(WordFormResult result, {Word? editing}) async {
     try {
+      // 表单每次只选一个分组，这里把单值转成单元素列表（null 表示未分组）。
+      // 方案 A 的 groupMember 多对多允许跨组，但表单提交语义是"整体归属到某一组"。
+      final groupIds = result.groupId == null
+          ? const <int>[]
+          : <int>[result.groupId!];
       // 编辑模式：在原对象基础上替换拼写、释义与分组。
       if (editing != null) {
         await _store.update(
@@ -816,7 +825,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Word(
             spelling: result.spelling,
             meanings: result.meanings,
-            groupId: result.groupId,
+            // 直接把单分组写进 groupIds，原生建完单词后逐条补 groupMember。
+            groupIds: groupIds,
           ),
         );
       }
@@ -968,25 +978,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _pickGroupAndApply({required bool isCopy}) async {
     // 没有选中任何单词时忽略（按钮颜色已提示不可用）。
     if (_selectedWords.isEmpty) return;
-    // 组装目标列表：全部自定义分组 + 未分组。
+    // 组装目标列表：全部自定义分组（复制模式下不含「未分组」）。
     final targets = <GroupPickerTarget>[
       for (final group in _groups.groups)
         GroupPickerTarget(
           groupId: group.id,
           name: group.name,
-          wordCount: _allWords.where((word) => word.groupId == group.id).length,
+          wordCount: _allWords
+              .where((word) => word.groupIds.contains(group.id))
+              .length,
         ),
-      GroupPickerTarget(
-        groupId: null,
-        name: GroupStore.ungroupedName,
-        wordCount: _allWords
-            .where(
-              (word) =>
-                  word.groupId == null || _groups.byId(word.groupId) == null,
-            )
-            .length,
-      ),
     ];
+    // 移动模式额外允许「未分组」（把单词移出所有分组）；
+    // 复制是加入目标组，目标不能是「未分组」，因此排除。
+    if (!isCopy) {
+      targets.add(
+        GroupPickerTarget(
+          groupId: null,
+          name: GroupStore.ungroupedName,
+          wordCount: _allWords.where((word) => word.groupIds.isEmpty).length,
+        ),
+      );
+    }
     // 弹出选择面板等待用户挑选。
     final picked = await showGroupPickerSheet(
       context,
@@ -998,23 +1011,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // record 第一个位置就是目标分组 id。
     final targetGroupId = picked.$1;
     try {
-      // 复制：为每个选中单词创建一份新记录。
       if (isCopy) {
+        // 复制：保留原组并加入目标分组（同一单词可存在于多个分组）。
+        // 复制模式 targets 不含「未分组」，targetGroupId 必为非空。
         for (final word in _selectedWords) {
-          await _store.create(
-            Word(
-              spelling: word.spelling,
-              meanings: word.meanings,
-              difficulty: word.difficulty,
-              groupId: targetGroupId,
-              reviewedAt: word.reviewedAt,
-              createdAt: word.createdAt,
-              updatedAt: word.updatedAt,
-            ),
-          );
+          await _store.update(word.withAddedGroup(targetGroupId!));
         }
       } else {
-        // 移动：仅更新分组字段。
+        // 移动：把所属分组整体替换为目标（空列表即移回未分组）。
         for (final word in _selectedWords) {
           await _store.update(word.withGroup(targetGroupId));
         }
@@ -1059,20 +1063,42 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final jsonText = await _fileIo.pickJsonText();
       // 取消选择或读到空文本都直接返回。
       if (jsonText == null || jsonText.isEmpty) return;
-      // 调用公共解析器：兼容「words.json 原始词表」与「本 App 导出备份」两种形态，
-      // 不存在的字段或多余字段由 Word.fromMap 自然忽略。
-      final words = parseWordsFromJsonText(jsonText);
-      // 没有解析出任何单词也提示，避免静默无反应。
-      if (words.isEmpty) {
-        _showSnackBar('文件中没有可导入的单词');
-        return;
+      // 先整体解析一次，便于判断是「完整备份」还是「原始 words.json」。
+      final decoded = jsonDecode(jsonText);
+      // 完整备份特征：顶层对象且同时带 groups/members 与 words 数组。
+      // 这种形态需要连同分组与多对多关系整库替换，必须用 importData。
+      final isFullBackup =
+          decoded is Map &&
+          decoded['words'] is List &&
+          (decoded['groups'] is List || decoded['members'] is List);
+      // 记录导入单词数量，用于成功提示。
+      final int importedCount;
+      if (isFullBackup) {
+        // 直接把解码后的完整备份交给原生：原生 importData 在事务内清空
+        // 四张表并按 groupId/wordId 映射重建外键，分组关系不丢失。
+        await _store.importData(decoded as Map<String, Object?>);
+        // 数量取自备份里的 words 数组长度。
+        importedCount = (decoded['words'] as List).length;
+        // 分组表已被原生重建，必须重新加载内存分组，否则界面仍显示旧分组。
+        await _groups.load();
+      } else {
+        // 原始 words.json 或仅含 words 的对象：只整库替换单词，保留已有分组。
+        // parseWordsFromJsonText 兼容顶层数组与含 words 数组的对象两种形态。
+        final words = parseWordsFromJsonText(jsonText);
+        // 没有解析出任何单词也提示，避免静默无反应。
+        if (words.isEmpty) {
+          _showSnackBar('文件中没有可导入的单词');
+          return;
+        }
+        // 整库替换写入原生 SQLite（原生先清空单词再批量插入，分组保留）。
+        await _store.importWords(words);
+        // 数量取自解析出的单词数。
+        importedCount = words.length;
       }
-      // 整库替换写入原生 SQLite（原生先清空旧数据再批量插入）。
-      await _store.importWords(words);
       // 重新加载首页列表，让新数据立即显示。
       unawaited(_loadWords());
       // 提示成功导入的数量。
-      _showSnackBar('已导入 ${words.length} 个单词');
+      _showSnackBar('已导入 $importedCount 个单词');
     } on FormatException catch (error) {
       // JSON 结构或字段错误，显示具体原因便于修正文件。
       _showSnackBar('导入失败：${error.message}');
@@ -1082,15 +1108,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// 数据导出：把本地全部单词与设置聚合为 JSON，通过系统保存框写出到文件。
+  /// 数据导出：把本地全部单词、分组与成员关系聚合为 JSON，通过系统保存框写出。
+  ///
+  /// 导出结构在 words.json 基础上新增 groups 与 members 两段，原生 importData
+  /// 导入时连同分组与多对多关系整库还原，避免备份丢失归类信息。
   Future<void> _exportData() async {
     // 先关闭抽屉，避免遮挡系统保存框。
     Navigator.of(context).pop();
     try {
-      // 重新拉取最新全部未删除单词。
+      // 重新拉取最新全部未删除单词（Word 已带 groupIds 快照）。
       final words = await _store.getAll();
-      // 构造导出对象：app/version/时间 + words + settings，
-      // 结构类似 words.json 且可被「数据导入」识别（顶层含 words 数组）。
+      // 单词列表：每条使用 Word.toExportMap 生成干净字段，groups 字段即其归属分组。
+      final wordMaps = words.map((word) => word.toExportMap()).toList();
+      // 由单词的 groupIds 反向聚合出 members 关联：每个 (wordId, groupId)
+      // 对应 README 的 groupMember 一行，保证导入时能重建多对多关系。
+      final members = <Map<String, int>>[];
+      for (final word in words) {
+        // 单词尚未落库（无 id）时无法建立外键，跳过。
+        final wordId = word.id;
+        if (wordId == null) continue;
+        for (final groupId in word.groupIds) {
+          members.add(<String, int>{
+            'group_id': groupId,
+            'word_id': wordId,
+          });
+        }
+      }
+      // 分组列表：导出原生 group 表所需的 id/name/sort_order，
+      // created_at/updated_at 由原生 importData 在重建时回退为当前时间。
+      final groupMaps = _groups.groups
+          .map(
+            (group) => <String, Object?>{
+              'id': group.id,
+              'name': group.name,
+              'sort_order': group.sortOrder,
+            },
+          )
+          .toList();
+      // 构造导出对象：app/version/时间 + groups + words + members + settings。
       final payload = <String, Object?>{
         // 标识来源 App。
         'app': 'MyEnglish',
@@ -1098,8 +1153,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'version': '0.1.0',
         // 导出时间，便于区分多份备份。
         'exportedAt': DateTime.now().toIso8601String(),
+        // 分组列表，导入时整库重建。
+        'groups': groupMaps,
         // 单词列表，每条使用 Word.toExportMap 生成干净字段。
-        'words': words.map((word) => word.toExportMap()).toList(),
+        'words': wordMaps,
+        // 单词-分组多对多关联，导入时按 id 映射还原外键。
+        'members': members,
         // 设置快照，导入时可选恢复。
         'settings': <String, Object?>{
           'accent': _settings.accent.storageValue,
@@ -1140,7 +1199,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _store.clearAll();
       // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
       await _settings.clearAll();
-      // 清空内存分组（分组当前非持久化，仅清当前会话）。
+      // 清空内存分组；原生 group 表已由 WordStore.clearAll 在 SQLite 侧一并清空。
       _groups.clear();
       // 重新加载空列表。
       unawaited(_loadWords());

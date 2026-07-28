@@ -116,8 +116,9 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     final editing = widget.editing;
     // 拼写回填。
     _spelling = TextEditingController(text: editing?.spelling ?? '');
-    // 分组回填；新增默认"未分组"。
-    _groupId = editing?.groupId;
+    // 分组回填；方案 A 下单词可能跨多组，但表单只展示首个分组（编辑时取其第一个）。
+    // 新增默认"未分组"（_groupId 为 null）。
+    _groupId = editing?.groupIds.firstOrNull;
     // Meaning 回填：把模型转换为可编辑草稿。
     _meanings = editing != null && editing.meanings.isNotEmpty
         ? editing.meanings
@@ -188,7 +189,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           definitions: drafts[index].defs,
         ),
     ];
-    // 汇总提交结果。
+    // 汇总提交结果；表单只选一个分组，这里把单值转成单元素列表（null 表示未分组）。
+    // 方案 A 的 groupMember 多对多允许跨组，但表单提交语义是"整体归属到某一组"。
     return WordFormResult(
       spelling: spelling,
       meanings: meanings,
@@ -388,9 +390,19 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                               controller: _spelling,
                               // 输入变化刷新提交按钮透明度。
                               onChanged: (value) => setState(() {}),
+                              // expands 让输入框撑满父容器（Row 纵向拉伸出的 40 高），
+                              // 否则输入框只会取自身内容高度，文字被压在顶部且边框错位。
+                              expands: true,
+                              // expands 为 true 时 maxLines/minLines 必须为 null，
+                              // 输入框改为撑满父高度（仍为单行输入）。
+                              maxLines: null,
+                              // 文字在撑满的高度内垂直居中。
+                              textAlignVertical: TextAlignVertical.center,
                               style: TextStyle(
                                 color: tokens.text,
                                 fontSize: 15,
+                                // 1.2 行高让字形在输入框内视觉居中。
+                                height: 1.2,
                               ),
                               decoration: InputDecoration(
                                 isDense: true,
@@ -398,11 +410,13 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                                 hintStyle: TextStyle(
                                   color: tokens.muted,
                                   fontSize: 15,
+                                  height: 1.2,
                                 ),
                                 border: InputBorder.none,
+                                // 清空默认垂直内边距，居中完全交给固定高度
+                                // 与 textAlignVertical，避免文字被压到偏上。
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 12,
-                                  vertical: 10,
                                 ),
                               ),
                             ),
@@ -554,14 +568,28 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                 child: TextFormField(
                   initialValue: meaning.pos,
                   onChanged: (value) => meaning.pos = value,
-                  style: TextStyle(color: tokens.text, fontSize: 13.5),
+                  // expands 撑满 34 高 SizedBox，否则描边框只裹住矮内容区而错位。
+                  expands: true,
+                  // expands 为 true 时 maxLines 必须为 null。
+                  maxLines: null,
+                  // 文字在撑满的高度内垂直居中。
+                  textAlignVertical: TextAlignVertical.center,
+                  style: TextStyle(
+                    color: tokens.text,
+                    fontSize: 13.5,
+                    height: 1.2,
+                  ),
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: '词性，如 n.',
-                    hintStyle: TextStyle(color: tokens.muted, fontSize: 13.5),
+                    hintStyle: TextStyle(
+                      color: tokens.muted,
+                      fontSize: 13.5,
+                      height: 1.2,
+                    ),
+                    // 清空垂直内边距，由 34 高容器 + 居中控制。
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 8,
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -659,15 +687,29 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                     onChanged: (value) => meaning.draft = value,
                     // 回车等同点击"添加"。
                     onSubmitted: (value) => _commitDraft(index),
-                    style: TextStyle(color: tokens.text, fontSize: 13.5),
+                    // expands 撑满 36 高容器，否则文字偏上、边框错位。
+                    expands: true,
+                    // expands 为 true 时 maxLines 必须为 null。
+                    maxLines: null,
+                    // 文字在撑满的高度内垂直居中。
+                    textAlignVertical: TextAlignVertical.center,
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontSize: 13.5,
+                      height: 1.2,
+                    ),
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: '输入含义，回车或点添加',
-                      hintStyle: TextStyle(color: tokens.muted, fontSize: 13.5),
+                      hintStyle: TextStyle(
+                        color: tokens.muted,
+                        fontSize: 13.5,
+                        height: 1.2,
+                      ),
                       border: InputBorder.none,
+                      // 清空垂直内边距，由 36 高容器 + 居中控制。
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 9,
                       ),
                     ),
                   ),

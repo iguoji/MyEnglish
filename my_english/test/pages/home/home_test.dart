@@ -3,6 +3,8 @@ import 'dart:async';
 
 // material.dart 提供测试需要识别的页面、边框和输入框类型。
 import 'package:flutter/material.dart';
+// services.dart 提供 MethodChannel，用于为分组 Store 注册测试桩。
+import 'package:flutter/services.dart';
 // flutter_test 提供 Widget 测试驱动，作用类似 PHPUnit 加小程序自动化工具。
 import 'package:flutter_test/flutter_test.dart';
 // 引入被测试的首页。
@@ -610,10 +612,33 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证选择模式：勾选、全选、反选与复制到分组。
+  // 验证选择模式：勾选、全选、反选与复制到自定义分组。
   testWidgets('select mode supports selecting and copying words', (
     tester,
   ) async {
+    // 首页的 _groups 是真实 GroupStore，会走 MethodChannel；测试环境没有
+    // 原生实现，这里注册最小桩只处理分组相关方法（单词仍走注入的 Memory Store）。
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('my_english/word_store'),
+      (call) async {
+        // 加载分组返回空列表。
+        if (call.method == 'getAllGroups') return <Object?>[];
+        // 新建分组固定返回 id=1，便于断言分组区块 key 为 c1。
+        if (call.method == 'createGroup') return 1;
+        // 其余分组操作返回 Future<void>。
+        return null;
+      },
+    );
+    // 测试结束后注销桩，避免影响其他用例。
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel('my_english/word_store'),
+        null,
+      ),
+    );
+
     // 打开首页。
     await _pumpHome(tester);
 
@@ -661,16 +686,29 @@ void main() {
     await tester.pump();
     expect(find.text('已选 0'), findsOneWidget);
 
-    // 重新勾选一条并执行复制。
+    // 复制目标只能是自定义分组，先通过管理面板建一个（桩返回 id=1）。
+    await tester.tap(find.byKey(const Key('open-manage')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-group')));
+    await tester.pumpAndSettle();
+    // 关闭管理面板。
+    await tester.tap(find.byKey(const Key('manage-done')));
+    await tester.pumpAndSettle();
+    // 新建分组区块已出现。
+    expect(find.byKey(const Key('section-c1')), findsOneWidget);
+
+    // 勾选 abandon 并执行复制。
     await tester.tap(find.text('abandon'));
     await tester.pump();
     await tester.tap(find.byKey(const Key('copy-selected')));
     await tester.pumpAndSettle();
-    // 选择目标"未分组"。
-    await tester.tap(find.byKey(const Key('pick-group-0')));
+    // 复制面板只列出自定义分组（不含「未分组」），选择「新分组 1」(id=1)。
+    await tester.tap(find.byKey(const Key('pick-group-1')));
     await tester.pumpAndSettle();
-    // 复制成功后列表出现两条 abandon。
-    expect(find.text('abandon'), findsNWidgets(2));
+    // abandon 被加入分组 1，因此只在 c1 区块出现一次（不再是未分组成员）。
+    expect(find.text('abandon'), findsOneWidget);
+    // 复制后该单词确实归属分组 1 的区块。
+    expect(find.byKey(const Key('section-c1')), findsOneWidget);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1065,14 +1103,14 @@ class _MemoryWordStore implements WordStore {
     }
     // 新主键。
     final newId = maxId + 1;
-    // 带主键落入内存。
+    // 带主键落入内存；分组直接沿用传入的 groupIds 列表。
     _words.add(
       Word(
         id: newId,
         spelling: word.spelling,
         meanings: word.meanings,
         difficulty: word.difficulty,
-        groupId: word.groupId,
+        groupIds: word.groupIds,
         reviewedAt: word.reviewedAt,
         createdAt: word.createdAt ?? DateTime.now(),
         updatedAt: word.updatedAt ?? DateTime.now(),
@@ -1107,6 +1145,27 @@ class _MemoryWordStore implements WordStore {
     _words
       ..clear()
       ..addAll(words);
+  }
+
+  /// 整库替换（含分组/成员）写入：内存 Store 只重建单词，分组由 UI 层负责。
+  @override
+  Future<void> importData(Map<String, Object?> data) async {
+    // 顶层 words 才是单词数组；groups/members 在 UI 测试中不参与。
+    final rawWords = data['words'];
+    // 结构不符时保持现状，避免测试误清空。
+    if (rawWords is! List) return;
+    // 逐条解析为模型。
+    final parsed = <Word>[];
+    for (final raw in rawWords) {
+      // 非对象项直接跳过。
+      if (raw is! Map) continue;
+      // Map.from 收窄动态键值后交给模型构造器。
+      parsed.add(Word.fromMap(Map<Object?, Object?>.from(raw)));
+    }
+    // 清空后装入导入副本。
+    _words
+      ..clear()
+      ..addAll(parsed);
   }
 
   /// 清空全部内存单词。
@@ -1146,6 +1205,11 @@ class _ThrowingWordStore implements WordStore {
   /// 其余接口不属于本测试流程。
   @override
   Future<void> importWords(List<Word> words) async =>
+      throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<void> importData(Map<String, Object?> data) async =>
       throw UnimplementedError();
 
   /// 其余接口不属于本测试流程。

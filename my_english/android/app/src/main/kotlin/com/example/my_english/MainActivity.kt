@@ -138,8 +138,128 @@ class MainActivity : FlutterActivity() {
 
                     // 清空全部单词与释义，对应「清空数据」入口。
                     "clearAllWords" -> runDatabaseCall(result) {
-                        // 删除两张表全部记录。
+                        // 删除四张表全部记录（含分组与成员）。
                         wordsDatabase.clearAllWords()
+                        null
+                    }
+
+                    // 读取全部未删除分组，供首页与分组管理面板使用。
+                    "getAllGroups" -> runDatabaseCall(result) {
+                        // 直接返回分组列表，Dart GroupStore 负责加载。
+                        wordsDatabase.getAllGroups()
+                    }
+
+                    // 新建分组并返回自增主键。
+                    "createGroup" -> runDatabaseCall(result) {
+                        // 读取 Dart 传来的名称与排序值。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("createGroup 缺少参数")
+                        // 名称必填。
+                        val name = payload["name"]?.toString()
+                            ?: error("createGroup 缺少 name")
+                        // 排序值缺省为 0。
+                        val sortOrder = (payload["sortOrder"] as? Number)?.toInt() ?: 0
+                        // 插入并返回新主键。
+                        wordsDatabase.createGroup(name, sortOrder)
+                    }
+
+                    // 重命名分组。
+                    "renameGroup" -> runDatabaseCall(result) {
+                        // 读取分组 id 与名称。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("renameGroup 缺少参数")
+                        // id 必须为数字。
+                        val id = (payload["id"] as? Number)?.toLong()
+                            ?: error("renameGroup 缺少有效 id")
+                        // 名称必填。
+                        val name = payload["name"]?.toString()
+                            ?: error("renameGroup 缺少 name")
+                        // 更新并返回 null 对应 Dart Future<void>。
+                        wordsDatabase.renameGroup(id, name)
+                        null
+                    }
+
+                    // 调整分组排序。
+                    "setGroupOrder" -> runDatabaseCall(result) {
+                        // 读取分组 id 与排序值。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("setGroupOrder 缺少参数")
+                        // id 必须为数字。
+                        val id = (payload["id"] as? Number)?.toLong()
+                            ?: error("setGroupOrder 缺少有效 id")
+                        // 排序值必填。
+                        val sortOrder = (payload["sortOrder"] as? Number)?.toInt()
+                            ?: error("setGroupOrder 缺少 sortOrder")
+                        // 更新并返回 null。
+                        wordsDatabase.setGroupOrder(id, sortOrder)
+                        null
+                    }
+
+                    // 软删除分组并清理其成员。
+                    "deleteGroup" -> runDatabaseCall(result) {
+                        // 读取分组 id。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("deleteGroup 缺少参数")
+                        // id 必须为数字。
+                        val id = (payload["id"] as? Number)?.toLong()
+                            ?: error("deleteGroup 缺少有效 id")
+                        // 删除并返回 null。
+                        wordsDatabase.deleteGroup(id)
+                        null
+                    }
+
+                    // 把单词加入某分组（复制语义）。
+                    "addGroupMember" -> runDatabaseCall(result) {
+                        // 读取分组与单词主键。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("addGroupMember 缺少参数")
+                        // 两个外键都必须为数字。
+                        val groupId = (payload["groupId"] as? Number)?.toLong()
+                            ?: error("addGroupMember 缺少有效 groupId")
+                        val wordId = (payload["wordId"] as? Number)?.toLong()
+                            ?: error("addGroupMember 缺少有效 wordId")
+                        // 加入并返回 null。
+                        wordsDatabase.addGroupMember(groupId, wordId)
+                        null
+                    }
+
+                    // 把单词从某分组移除。
+                    "removeGroupMember" -> runDatabaseCall(result) {
+                        // 读取分组与单词主键。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("removeGroupMember 缺少参数")
+                        // 两个外键都必须为数字。
+                        val groupId = (payload["groupId"] as? Number)?.toLong()
+                            ?: error("removeGroupMember 缺少有效 groupId")
+                        val wordId = (payload["wordId"] as? Number)?.toLong()
+                            ?: error("removeGroupMember 缺少有效 wordId")
+                        // 移除并返回 null。
+                        wordsDatabase.removeGroupMember(groupId, wordId)
+                        null
+                    }
+
+                    // 设置单词的全部所属分组（移动语义）。
+                    "setWordGroups" -> runDatabaseCall(result) {
+                        // 读取单词主键与分组 id 列表。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("setWordGroups 缺少参数")
+                        // 单词 id 必须为数字。
+                        val wordId = (payload["wordId"] as? Number)?.toLong()
+                            ?: error("setWordGroups 缺少有效 wordId")
+                        // 分组 id 列表可为空（移回未分组）。
+                        val groupIds = payload["groupIds"] as? List<*> ?: emptyList<Any?>()
+                        // 替换关系并返回 null。
+                        wordsDatabase.setWordGroups(wordId, groupIds)
+                        null
+                    }
+
+                    // 导入完整备份（含 groups/words/members）。
+                    "importData" -> runDatabaseCall(result) {
+                        // 参数必须是 Dart 传来的完整备份 Map。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("importData 缺少备份数据")
+                        // 在事务内重建四张表，返回 null 对应 Dart Future<void>。
+                        wordsDatabase.importData(payload)
                         null
                     }
 

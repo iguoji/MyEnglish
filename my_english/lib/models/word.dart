@@ -13,8 +13,11 @@ class Word {
     this.meanings = const <Meaning>[],
     // null 表示没有难度，任何非空非负数都是有效难度。
     this.difficulty,
-    // null 表示未加入任何分组，首页会把它归入内置"未分组"。
-    this.groupId,
+    // 所属分组主键列表；空列表表示"未分组"。
+    // 方案 A 用 groupMember 多对多存储，这里只是该单词当前归属的快照。
+    // 给默认空列表，既保证非 null，又让 const Word(spelling: 'x') 这类
+    // 不传分组的调用仍可编译（测试 fixture 大量使用 const 构造）。
+    this.groupIds = const <int>[],
     // 最近复习时间供未来复习模块使用。
     this.reviewedAt,
     // 创建、更新和软删除时间。
@@ -35,8 +38,11 @@ class Word {
   /// 可空难度，最小值为 0 且没有最大值。
   final int? difficulty;
 
-  /// 所属分组主键；null 表示"未分组"，本轮由内存 GroupStore 提供分组列表。
-  final int? groupId;
+  /// 所属分组主键列表；空表示"未分组"。
+  ///
+  /// 对应 README 的 groupMember 关联表：一个单词可同时属于多个分组
+  /// （例如复制后跨组出现），因此用列表而非单一值。
+  final List<int> groupIds;
 
   /// 最近复习时间。
   final DateTime? reviewedAt;
@@ -105,8 +111,9 @@ class Word {
       meanings: List<Meaning>.unmodifiable(parsedMeanings),
       // difficulty 类型错误时主动报错。
       difficulty: _readInt(map['difficulty'], 'Word.difficulty'),
-      // 分组外键；现有 words.json 没有该字段时保持 null 即"未分组"。
-      groupId: _readInt(map['group_id'], 'Word.group_id'),
+      // 分组外键列表；原生 getAllWords 已按 group_members 聚合成 group_ids。
+      // 原始 words.json 没有该字段时保持空列表即"未分组"。
+      groupIds: _readIntList(map['group_ids'], 'Word.group_ids'),
       // 日期同时支持 SQLite 毫秒数和 JSON 字符串。
       reviewedAt: _readDate(map['reviewed_at'], 'Word.reviewed_at'),
       createdAt: _readDate(map['created_at'], 'Word.created_at'),
@@ -127,8 +134,6 @@ class Word {
       'meanings': meanings.map((meaning) => meaning.toMap()).toList(),
       // null 会原样传给 SQLite。
       'difficulty': difficulty,
-      // 分组外键；原生端暂未使用该字段，落地 group 表后直接生效。
-      'group_id': groupId,
       // 时间统一传毫秒时间戳。
       'reviewed_at': reviewedAt?.millisecondsSinceEpoch,
       'created_at': createdAt?.millisecondsSinceEpoch,
@@ -152,6 +157,8 @@ class Word {
       'meanings': meanings.map((meaning) => meaning.toExportMap()).toList(),
       // 可空难度。
       'difficulty': difficulty,
+      // 所属分组主键列表；空列表表示未分组，导入时由 groupMembers 重建关系。
+      'groups': groupIds,
       // 日期统一输出 yyyy-MM-dd；原生 _readDate 在导入时兼容该格式。
       'created_at': _exportDate(createdAt),
       'updated_at': _exportDate(updatedAt),
@@ -163,6 +170,10 @@ class Word {
   }
 
   /// 返回移动到指定分组后的新 Word；null 表示移回"未分组"。
+  ///
+  /// 方案 A 采用 groupMember 多对多，但业务约束单归属：移动即把单词的
+  /// 所属分组整体替换为唯一目标（复制才会在多组并存），因此这里返回
+  /// [newGroupId] 包成的单元素列表（null 则为空列表）。
   Word withGroup(int? newGroupId) {
     // 仅替换分组字段并刷新更新时间，其余字段原样保留。
     return Word(
@@ -170,7 +181,27 @@ class Word {
       spelling: spelling,
       meanings: meanings,
       difficulty: difficulty,
-      groupId: newGroupId,
+      groupIds: newGroupId == null ? const <int>[] : <int>[newGroupId],
+      reviewedAt: reviewedAt,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      deletedAt: deletedAt,
+    );
+  }
+
+  /// 返回加入指定分组后的新 Word（复制语义）。
+  ///
+  /// 保留当前已有分组，再追加 [groupId]；复制后单词会同时出现在
+  /// 原组与目标组（对应 README groupMember 多对多的自然结果）。
+  Word withAddedGroup(int groupId) {
+    // 仅新增一个分组并刷新更新时间，其余字段原样保留。
+    return Word(
+      id: id,
+      spelling: spelling,
+      meanings: meanings,
+      difficulty: difficulty,
+      // 在现有分组列表基础上追加目标分组。
+      groupIds: <int>[...groupIds, groupId],
       reviewedAt: reviewedAt,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
@@ -185,12 +216,13 @@ class Word {
     required int? groupId,
   }) {
     // 编辑会刷新 updatedAt；创建时间与主键保持不变。
+    // 表单只选单个分组，转成单元素列表；null 表示未分组。
     return Word(
       id: id,
       spelling: spelling,
       meanings: meanings,
       difficulty: difficulty,
-      groupId: groupId,
+      groupIds: groupId == null ? const <int>[] : <int>[groupId],
       reviewedAt: reviewedAt,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
@@ -207,6 +239,25 @@ int? _readInt(Object? value, String fieldName) {
   if (value is num) return value.toInt();
   // 不接受难以发现的隐式字符串转数字。
   throw FormatException('$fieldName 必须是数字，实际值为：$value');
+}
+
+/// 读取整数列表，兼容原生 group_members 聚合返回的 `List<number>` 与 JSON 数组。
+List<int> _readIntList(Object? value, String fieldName) {
+  // null 或缺失都视为空列表，对应"未分组"。
+  if (value == null) return const <int>[];
+  // 必须是列表结构，否则给出清晰错误。
+  if (value is! List) throw FormatException('$fieldName 必须是数组');
+  // 逐元素转成整数；类型不正确时显式报错，便于修正导入文件。
+  final result = <int>[];
+  for (final item in value) {
+    if (item is num) {
+      result.add(item.toInt());
+    } else {
+      throw FormatException('$fieldName 的元素必须是数字，实际为：$item');
+    }
+  }
+  // 返回分组 id 列表。
+  return result;
 }
 
 /// 日期兼容 SQLite 毫秒数、纯数字文本和 ISO 日期文本。

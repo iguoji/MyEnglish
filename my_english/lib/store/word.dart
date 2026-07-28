@@ -25,9 +25,16 @@ abstract interface class WordStore {
   Future<void> delete(int id);
 
   /// 批量导入：先清空本地全部单词，再写入给定列表，保证导入即整库替换。
+  ///
+  /// 适用于导入原始 words.json（无分组信息，导入后单词回到未分组）。
   Future<void> importWords(List<Word> words);
 
-  /// 清空本地全部单词数据（单词与释义）。
+  /// 导入完整备份（含 groups/words/members），由原生在事务内整库替换。
+  ///
+  /// 适用于导入本 App 导出的备份，分组与成员关系一并恢复。
+  Future<void> importData(Map<String, Object?> data);
+
+  /// 清空本地全部单词数据（单词、释义、分组与成员）。
   Future<void> clearAll();
 }
 
@@ -66,6 +73,13 @@ class LocalWordStore implements WordStore {
     final id = await _channel.invokeMethod<int>('createWord', word.toMap());
     // 原生必须返回自增主键，null 代表接口约定被破坏。
     if (id == null) throw StateError('SQLite 创建单词后没有返回主键');
+    // 新建单词若指定了分组，逐条写入 groupMember 关联表。
+    for (final groupId in word.groupIds) {
+      await _channel.invokeMethod<void>(
+        'addGroupMember',
+        <String, Object?>{'groupId': groupId, 'wordId': id},
+      );
+    }
     // 返回持久化主键。
     return id;
   }
@@ -79,8 +93,13 @@ class LocalWordStore implements WordStore {
     if (id == null) {
       throw ArgumentError.value(id, 'word.id', '更新单词必须提供 id');
     }
-    // 调用原生更新，参数由 Word.toMap 构造。
+    // 更新单词主体与释义。
     await _channel.invokeMethod<void>('updateWord', word.toMap());
+    // 同步该单词的全部所属分组（移动/编辑替换语义）。
+    await _channel.invokeMethod<void>(
+      'setWordGroups',
+      <String, Object?>{'wordId': id, 'groupIds': word.groupIds},
+    );
   }
 
   /// 删除 Word；通过 deleted_at 软删除。
@@ -102,8 +121,15 @@ class LocalWordStore implements WordStore {
   /// 清空本地全部单词与释义。
   @override
   Future<void> clearAll() async {
-    // 原生删除 words 与 meanings 两张表的全部记录。
+    // 原生删除四张表的全部记录（含分组与成员）。
     await _channel.invokeMethod<void>('clearAllWords');
+  }
+
+  /// 导入完整备份（含 groups/words/members），由原生在事务内整库替换。
+  @override
+  Future<void> importData(Map<String, Object?> data) async {
+    // 原生 importData 负责重建四张表并映射外键，保证分组关系不丢失。
+    await _channel.invokeMethod<void>('importData', data);
   }
 
   /// 从 Android SQLite 一次读取全部 Word/Meaning。

@@ -25,8 +25,8 @@ class WordsDatabase(context: Context) :
     companion object {
         // 数据库文件保存在 Android App 私有目录，卸载应用时由系统删除。
         private const val databaseName = "my_english.db"
-        // 版本 2 删除 words.spelling 的 UNIQUE 约束，允许不同 Word 使用相同拼写。
-        private const val databaseVersion = 2
+        // 版本 3 新增 group 与 groupMember 两张表，让单词-分组关系持久化。
+        private const val databaseVersion = 3
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -43,6 +43,10 @@ class WordsDatabase(context: Context) :
         createWordsTable(db)
         // 创建关联 meanings 表。
         createMeaningsTable(db)
+        // 创建分组表（名称与排序）。
+        createGroupsTable(db)
+        // 创建单词-分组关联表（多对多）。
+        createGroupMembersTable(db)
         // 最后建立查询索引。
         createIndexes(db)
     }
@@ -53,6 +57,12 @@ class WordsDatabase(context: Context) :
         if (oldVersion < 2 && newVersion >= 2) {
             // SQLite 无法直接 DROP UNIQUE，所以用新表复制数据完成迁移。
             migrateToVersion2(db)
+        }
+        // 从版本 2 升到 3：已有用户只缺 group/groupMember 两张表，直接补齐，
+        // 不动 words/meanings，避免无谓的数据搬迁。
+        if (oldVersion < 3 && newVersion >= 3) {
+            createGroupsTable(db)
+            createGroupMembersTable(db)
         }
     }
 
@@ -88,6 +98,50 @@ class WordsDatabase(context: Context) :
                 created_at INTEGER NULL,
                 updated_at INTEGER NULL,
                 deleted_at INTEGER NULL,
+                FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /**
+     * 创建分组表。
+     *
+     * README 的 group 表只列 id/name/时间；这里额外加 sort_order 用于持久化
+     * 用户在「分组管理」里调整的顺序（README 未约束排序方式，此为必要补充）。
+     */
+    private fun createGroupsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER NULL
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /**
+     * 创建单词-分组关联表，实现 README 的 groupMember（多对多）。
+     *
+     * 在 README 的 group_id/word_id 联合唯一之外，补一个自增 id 与主键，
+     * 便于后续软删除与行级更新；UNIQUE 约束保证同一单词在同一分组不会重复。
+     */
+    private fun createGroupMembersTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE group_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id INTEGER NOT NULL,
+                word_id INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                deleted_at INTEGER NULL,
+                UNIQUE(group_id, word_id),
+                FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
             )
             """.trimIndent(),
@@ -196,6 +250,30 @@ class WordsDatabase(context: Context) :
             }
         }
 
+        // 聚合每个单词所属的所有分组：group_members 是多对多关联表。
+        // 例如 word 1 同时被复制进分组 2 和 3，这里得到 [2, 3]。
+        val memberGroupsByWord = mutableMapOf<Long, MutableList<Long>>()
+        db.query(
+            // 只读关联表的两个外键。
+            "group_members",
+            arrayOf("group_id", "word_id"),
+            // 全部有效成员都在表里（删除即物理删除或随外键级联）。
+            null,
+            null,
+            null,
+            null,
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                // 当前关联指向的单词。
+                val wordId = cursor.getLong(cursor.getColumnIndexOrThrow("word_id"))
+                // 当前关联指向的分组。
+                val groupId = cursor.getLong(cursor.getColumnIndexOrThrow("group_id"))
+                // 按单词归集分组 id 列表，类似 PHP 的 $map[$wordId][] = $groupId。
+                memberGroupsByWord.getOrPut(wordId) { mutableListOf() }.add(groupId)
+            }
+        }
+
         // 创建最终结果列表；ArrayList 适合已知会连续追加大量元素的场景。
         val words = ArrayList<Map<String, Any?>>()
         // 再读取全部 Word；这与上一条查询构成固定两次 SQL，不会每个 Word 查询一次。
@@ -220,6 +298,8 @@ class WordsDatabase(context: Context) :
                             cursor.getColumnIndexOrThrow("spelling"),
                         ),
                         "meanings" to (meaningsByWord[id] ?: emptyList<Map<String, Any?>>()),
+                        // 聚合后的分组 id 列表；Dart Word.groupIds 接收它。
+                        "group_ids" to (memberGroupsByWord[id] ?: emptyList<Long>()),
                         "difficulty" to cursor.nullableLong("difficulty"),
                         "reviewed_at" to cursor.nullableLong("reviewed_at"),
                         "created_at" to cursor.nullableLong("created_at"),
@@ -305,18 +385,21 @@ class WordsDatabase(context: Context) :
         )
         // 删除不存在 id 时给调用方明确错误。
         if (changed == 0) error("找不到要删除的单词 id=$id")
+        // 单词软删除后不再属于任何分组，直接清理其全部关联行。
+        writableDatabase.delete("group_members", "word_id = ?", arrayOf(id.toString()))
     }
 
-    /** 清空全部单词与释义，用于「清空数据」与「导入前整库替换」。 */
+    /** 清空全部本地数据，用于「清空数据」与「导入前整库替换」。 */
     fun clearAllWords() {
         // 获取可写连接。
         val db = writableDatabase
-        // 事务保证两张表要么都被清空，要么都不动。
+        // 事务保证四张表要么都被清空，要么都不动。
         db.beginTransaction()
         try {
-            // 先清空子表，避免外键约束报错。
+            // 先清空子表，再清空父表，避免外键约束报错。
+            db.delete("group_members", null, null)
+            db.delete("groups", null, null)
             db.delete("meanings", null, null)
-            // 再清空父表。
             db.delete("words", null, null)
             // 标记事务成功。
             db.setTransactionSuccessful()
@@ -338,6 +421,9 @@ class WordsDatabase(context: Context) :
         db.beginTransaction()
         try {
             // 先清空历史数据，导入即整库替换。
+            // 原始 words.json 没有分组信息，导入后单词都应回到「未分组」，
+            // 因此一并清空 group_members；分组列表本身保留，方便用户重新归类。
+            db.delete("group_members", null, null)
             db.delete("meanings", null, null)
             db.delete("words", null, null)
             // 逐条写入，跳过类型不正确的元素，避免原生崩溃。
@@ -353,6 +439,264 @@ class WordsDatabase(context: Context) :
                 // 写入嵌套 Meaning。
                 replaceMeanings(db, wordId, payload["meanings"])
             }
+            // 全部成功才提交。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常时回滚，保持数据库一致。
+            db.endTransaction()
+        }
+    }
+
+    // ---------- 分组与分组成员 ----------
+
+    /** 读取全部未软删除的分组，按排序值升序、主键升序稳定排列。 */
+    fun getAllGroups(): List<Map<String, Any?>> {
+        // 只读连接即可。
+        val db = readableDatabase
+        // 结果列表。
+        val groups = ArrayList<Map<String, Any?>>()
+        // 查询未删除分组。
+        db.query(
+            "groups",
+            null,
+            "deleted_at IS NULL",
+            null,
+            null,
+            null,
+            "sort_order ASC, id ASC",
+        ).use { cursor ->
+            // 逐行构造 Dart 需要的 Map。
+            while (cursor.moveToNext()) {
+                groups.add(
+                    linkedMapOf(
+                        "id" to cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                        "name" to cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                        "sort_order" to cursor.getInt(cursor.getColumnIndexOrThrow("sort_order")),
+                        "created_at" to cursor.nullableLong("created_at"),
+                        "updated_at" to cursor.nullableLong("updated_at"),
+                        "deleted_at" to cursor.nullableLong("deleted_at"),
+                    ),
+                )
+            }
+        }
+        // 返回分组列表。
+        return groups
+    }
+
+    /** 新建分组并返回自增主键；sortOrder 决定初始显示顺序。 */
+    fun createGroup(name: String, sortOrder: Int): Long {
+        // 当前时间供创建与更新字段使用。
+        val now = System.currentTimeMillis()
+        // 组装字段；空名称回退为「未命名」。
+        val values = ContentValues().apply {
+            put("name", name.trim().ifEmpty { "未命名" })
+            put("sort_order", sortOrder)
+            put("created_at", now)
+            put("updated_at", now)
+        }
+        // 插入并返回自增主键。
+        return writableDatabase.insertOrThrow("groups", null, values)
+    }
+
+    /** 重命名指定分组。 */
+    fun renameGroup(id: Long, name: String) {
+        // 仅更新名称与更新时间。
+        val values = ContentValues().apply {
+            put("name", name.trim().ifEmpty { "未命名" })
+            put("updated_at", System.currentTimeMillis())
+        }
+        // 更新不存在时主动报错。
+        val changed = writableDatabase.update("groups", values, "id = ?", arrayOf(id.toString()))
+        if (changed == 0) error("找不到要重命名的分组 id=$id")
+    }
+
+    /** 调整分组排序值；移动分组位置后由 Dart 端计算并写入。 */
+    fun setGroupOrder(id: Long, sortOrder: Int) {
+        // 排序与更新时间同步。
+        val values = ContentValues().apply {
+            put("sort_order", sortOrder)
+            put("updated_at", System.currentTimeMillis())
+        }
+        // 静默更新，分组一定存在。
+        writableDatabase.update("groups", values, "id = ?", arrayOf(id.toString()))
+    }
+
+    /** 软删除分组，并清理其全部成员关联。 */
+    fun deleteGroup(id: Long) {
+        // 写连接与事务。
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 先删关联行，避免外键约束或遗留脏数据。
+            db.delete("group_members", "group_id = ?", arrayOf(id.toString()))
+            // 再软删除分组主体。
+            val values = ContentValues().apply {
+                put("deleted_at", System.currentTimeMillis())
+                put("updated_at", System.currentTimeMillis())
+            }
+            db.update("groups", values, "id = ?", arrayOf(id.toString()))
+            // 标记成功。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常回滚。
+            db.endTransaction()
+        }
+    }
+
+    /** 把单词加入某分组；联合唯一约束保证重复加入不报错（幂等）。 */
+    fun addGroupMember(groupId: Long, wordId: Long) {
+        // 组装关联行。
+        val values = ContentValues().apply {
+            put("group_id", groupId)
+            put("word_id", wordId)
+            put("created_at", System.currentTimeMillis())
+        }
+        // 唯一约束冲突时忽略，等价于已经在该分组。
+        writableDatabase.insertWithOnConflict(
+            "group_members",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_IGNORE,
+        )
+    }
+
+    /** 把单词从某分组移除。 */
+    fun removeGroupMember(groupId: Long, wordId: Long) {
+        // 按两个外键精确删除一行。
+        writableDatabase.delete(
+            "group_members",
+            "group_id = ? AND word_id = ?",
+            arrayOf(groupId.toString(), wordId.toString()),
+        )
+    }
+
+    /**
+     * 设置单词的全部所属分组（移动语义）：先删该单词旧的全部关联，
+     * 再按给定列表重新建立。空列表表示移回「未分组」。
+     */
+    fun setWordGroups(wordId: Long, groupIds: List<*>) {
+        // 写连接与事务保证原子。
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 清掉旧关系。
+            db.delete("group_members", "word_id = ?", arrayOf(wordId.toString()))
+            // 按新列表重建；跳过非法元素避免崩溃。
+            for (rawGroupId in groupIds) {
+                // 类型不正确时跳过该元素。
+                val groupId = (rawGroupId as? Number)?.toLong() ?: continue
+                // 组装新建关联行。
+                val values = ContentValues().apply {
+                    put("group_id", groupId)
+                    put("word_id", wordId)
+                    put("created_at", System.currentTimeMillis())
+                }
+                // 冲突忽略，保证幂等。
+                db.insertWithOnConflict(
+                    "group_members",
+                    null,
+                    values,
+                    SQLiteDatabase.CONFLICT_IGNORE,
+                )
+            }
+            // 标记成功。
+            db.setTransactionSuccessful()
+        } finally {
+            // 异常回滚。
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * 导入完整备份（含 groups/words/members）。
+     *
+     * 与 importWords 不同，这里连分组也整库替换，因此要重建 group 表；
+     * 由于 words/group 自增主键会变，先收集旧 id→新 id 映射，再把
+     * members 里的 group_id/word_id 一并换成新值，保证关系不丢失。
+     */
+    fun importData(payload: Map<*, *>) {
+        // 写连接与整体事务。
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // 整库清空四张表。
+            db.delete("group_members", null, null)
+            db.delete("groups", null, null)
+            db.delete("meanings", null, null)
+            db.delete("words", null, null)
+
+            // 重建分组，记录旧 id → 新 id 映射。
+            val groupIdMap = mutableMapOf<Long, Long>()
+            // 容错：groups 缺失时按空列表处理。
+            val rawGroups = payload["groups"] as? List<*> ?: emptyList<Any?>()
+            for (rawGroup in rawGroups) {
+                // 类型不正确时跳过。
+                val group = rawGroup as? Map<*, *> ?: continue
+                // 必须有旧主键才能建立映射。
+                val oldId = (group["id"] as? Number)?.toLong() ?: continue
+                // 当前时间回退值。
+                val now = System.currentTimeMillis()
+                // 组装分组字段。
+                val values = ContentValues().apply {
+                    put("name", group["name"]?.toString()?.trim()?.ifEmpty { "未命名" } ?: "未命名")
+                    put("sort_order", (group["sort_order"] as? Number)?.toInt() ?: 0)
+                    put("created_at", (group["created_at"] as? Number)?.toLong() ?: now)
+                    put("updated_at", (group["updated_at"] as? Number)?.toLong() ?: now)
+                }
+                // 插入并取新主键。
+                val newId = db.insertOrThrow("groups", null, values)
+                // 记录映射。
+                groupIdMap[oldId] = newId
+            }
+
+            // 重建单词与释义，记录旧 id → 新 id 映射。
+            val wordIdMap = mutableMapOf<Long, Long>()
+            // 容错：words 缺失时按空列表处理。
+            val rawWords = payload["words"] as? List<*> ?: emptyList<Any?>()
+            for (rawWord in rawWords) {
+                // 类型不正确时跳过。
+                val word = rawWord as? Map<*, *> ?: continue
+                // 旧主键可选（原始 words.json 可能没有）。
+                val oldId = (word["id"] as? Number)?.toLong()
+                // 当前时间回退值。
+                val now = System.currentTimeMillis()
+                // 复用单词字段转换。
+                val values = wordValuesFromPayload(word, now, touchUpdatedAt = false)
+                // 插入并取新主键。
+                val newId = db.insertOrThrow("words", null, values)
+                // 记录映射（仅当存在旧主键）。
+                if (oldId != null) wordIdMap[oldId] = newId
+                // 重建释义。
+                replaceMeanings(db, newId, word["meanings"])
+            }
+
+            // 重建成员关联，用映射把旧外键换成新外键。
+            // 容错：members 缺失时按空列表处理。
+            val rawMembers = payload["members"] as? List<*> ?: emptyList<Any?>()
+            for (rawMember in rawMembers) {
+                // 类型不正确时跳过。
+                val member = rawMember as? Map<*, *> ?: continue
+                // 读取旧外键。
+                val oldGroup = (member["group_id"] as? Number)?.toLong() ?: continue
+                val oldWord = (member["word_id"] as? Number)?.toLong() ?: continue
+                // 通过映射换成新外键；任一映射缺失则跳过该行。
+                val newGroup = groupIdMap[oldGroup] ?: continue
+                val newWord = wordIdMap[oldWord] ?: continue
+                // 组装关联行。
+                val values = ContentValues().apply {
+                    put("group_id", newGroup)
+                    put("word_id", newWord)
+                    put("created_at", System.currentTimeMillis())
+                }
+                // 冲突忽略，保证幂等。
+                db.insertWithOnConflict(
+                    "group_members",
+                    null,
+                    values,
+                    SQLiteDatabase.CONFLICT_IGNORE,
+                )
+            }
+
             // 全部成功才提交。
             db.setTransactionSuccessful()
         } finally {

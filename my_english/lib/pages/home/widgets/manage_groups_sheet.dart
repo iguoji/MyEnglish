@@ -51,7 +51,15 @@ class _ManageGroupsSheet extends StatelessWidget {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
           ),
           // 上 16、下 30 与设计稿一致。
-          padding: const EdgeInsets.fromLTRB(0, 16, 0, 30),
+          // viewInsets.bottom 是系统键盘当前高度；isScrollControlled 的底部弹层不会
+          // 被键盘自动顶起，必须在这里把键盘高度补进底部内边距，否则键盘会盖住
+          // 可滚动列表里靠下的分组名输入框。
+          padding: EdgeInsets.fromLTRB(
+            0,
+            16,
+            0,
+            30 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             // 高度只包住内容。
             mainAxisSize: MainAxisSize.min,
