@@ -1092,6 +1092,16 @@ class _MemoryWordStore implements WordStore {
   @override
   Future<List<Word>> getAll() async => List<Word>.unmodifiable(_words);
 
+  /// 只回刷测试中用到的指定 id 单词。
+  @override
+  Future<List<Word>> getByIds(List<int> ids) async {
+    // 按 id 过滤内存单词，保持与原生一致的语义。
+    final idSet = ids.toSet();
+    return List<Word>.unmodifiable(
+      _words.where((word) => word.id != null && idSet.contains(word.id)).toList(),
+    );
+  }
+
   /// 生成新的自增主键并追加。
   @override
   Future<int> create(Word word) async {
@@ -1189,6 +1199,10 @@ class _ThrowingWordStore implements WordStore {
       const FormatException('broken-json-at-word-3'),
     );
   }
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<List<Word>> getByIds(List<int> ids) async => throw UnimplementedError();
 
   /// 其余接口不属于本测试流程。
   @override

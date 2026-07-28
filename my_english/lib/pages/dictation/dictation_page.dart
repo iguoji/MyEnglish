@@ -82,6 +82,8 @@ class _DictationPageState extends State<DictationPage> {
   int _currentWrong = 0;
   // 当前单词本次默写累计点击提示的次数（每个新词重置）。
   int _currentHints = 0;
+  // 本轮复习完成过的单词主键集合，退出时带回首页用于定向回刷。
+  final Set<int> _reviewedWordIds = <int>{};
   // 是否已完成全部单词。
   bool _isDone = false;
   // 当前单词的拼写和全部含义是否均已答对，完成后等待用户点击下一题。
@@ -285,6 +287,8 @@ class _DictationPageState extends State<DictationPage> {
     final wordId = _currentWord.id;
     // 没有主键无法落库，直接放弃记录。
     if (wordId == null) return;
+    // 记录本次复习涉及的单词，退出首页时只回刷这些单词。
+    _reviewedWordIds.add(wordId);
     // 用 unawaited 异步发送，不等待结果，也不阻断默写流程。
     unawaited(
       RecordStore.instance
@@ -300,6 +304,14 @@ class _DictationPageState extends State<DictationPage> {
         debugPrint('记录默写结果失败：$error');
       }),
     );
+  }
+
+  /// 退出默写页，并把本次复习过的单词 id 集合带回首页，供其定向回刷。
+  ///
+  /// 通过 [Navigator.pop] 的结果参数传出，避免首页重新加载整库。
+  void _exitDictation() {
+    // 把收集到的 id 列表作为路由结果返回给上一页。
+    Navigator.pop(context, _reviewedWordIds.toList());
   }
 
   /// 用户点击底部长条按钮后进入下一词；最后一词则显示统计页。
@@ -475,7 +487,7 @@ class _DictationPageState extends State<DictationPage> {
                 key: const Key('close-dictation'),
                 icon: TablerIcons.chevronLeft,
                 alignment: Alignment.centerLeft,
-                onTap: () => Navigator.pop(context),
+                onTap: _exitDictation,
               ),
               // Expanded 占用左右等宽画布之间的全部空间。
               Expanded(
@@ -822,7 +834,7 @@ class _DictationPageState extends State<DictationPage> {
             const SizedBox(height: 20),
             FilledButton(
               key: const Key('finish-dictation'),
-              onPressed: () => Navigator.pop(context),
+              onPressed: _exitDictation,
               style: FilledButton.styleFrom(
                 backgroundColor: AppTokens.accent,
                 foregroundColor: Colors.white,

@@ -579,7 +579,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       // Completer 类似 PHP 中由我们自行控制成功或失败结果的 Promise 容器。
       final loadResult = Completer<List<Word>>();
-      // 先取得 Store 的异步结果；它可能来自资源 JSON，也可能来自 Android 通道。
+      // 先取得 Store 的异步结果；数据来自 Android 原生通道（本地 SQLite 持久化）。
       final storeRequest = _store.getAll();
       // 如果上一次加载仍残留超时计时，先取消，保证同一页面同时只有一个超时闹钟。
       _loadTimeout?.cancel();
@@ -615,7 +615,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       // 一次写入全部数据并结束加载状态。
       setState(() {
-        // 保存 JSON 内存模式或 SQLite 模式返回的 Word/Meaning。
+        // 保存本地 SQLite 持久化返回的 Word/Meaning（App 仅此一种数据来源）。
         _allWords = words;
         // 数据重载后清除已经不存在的展开、选中与滑动状态。
         _expandedWords.removeWhere((word) => !words.contains(word));
@@ -686,6 +686,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       // 通道异常时回退为 0，副标题仍可正常显示。
       setState(() => _reviewCount = 0);
+    }
+  }
+
+  /// 默写返回后只回刷本次复习涉及的单词，避免重新加载整库。
+  ///
+  /// [ids] 是本次默写完成过的单词主键集合；只向原生请求这些单词的最新数据
+  /// （含更新后的 difficulty / reviewedAt），再用新对象原地替换 [_allWords] 中
+  /// 同 id 的项，其余单词保持原位与顺序。原生或通道异常时静默忽略，界面不崩。
+  Future<void> _mergeReviewedWords(List<int> ids) async {
+    // 没有 id 时直接结束，界面保持不动。
+    if (ids.isEmpty) return;
+    try {
+      // 只拉取相关单词，而非全部。
+      final fresh = await _store.getByIds(ids);
+      // 页面可能已销毁。
+      if (!mounted) return;
+      // 用新数据原地替换，不重建整个列表。
+      setState(() {
+        final byId = <int, Word>{for (final word in fresh) word.id!: word};
+        _allWords = _allWords.map((word) {
+          final id = word.id;
+          if (id != null && byId.containsKey(id)) return byId[id]!;
+          return word;
+        }).toList();
+      });
+    } catch (error, stackTrace) {
+      // 调试输出保留完整错误，方便真机日志定位；回刷失败不影响已完成的复习记录。
+      debugPrint('回刷复习单词失败：$error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -1881,8 +1910,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   setState(() => _learningMenuOpen = false);
                   unawaited(
                     Navigator.of(context)
-                        .push<void>(
-                          MaterialPageRoute<void>(
+                        .push<dynamic>(
+                          MaterialPageRoute<dynamic>(
                             builder: (_) => DictationPage(
                               words: learningWords,
                               audioPlayer: _audioPlayer,
@@ -1892,9 +1921,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ),
                           ),
                         )
-                        // 默写返回后立即刷新词库难度与今日复习数，界面即时反映刚产生的记录。
-                        .then((_) {
-                      unawaited(_refreshWords());
+                        // 默写返回后立即刷新；若带回本次复习的单词 id 则只回刷这些单词，
+                        // 否则（如系统返回键）退回整库刷新。
+                        .then((result) {
+                      if (result is List<int>) {
+                        unawaited(_mergeReviewedWords(result));
+                      } else {
+                        unawaited(_refreshWords());
+                      }
                       unawaited(_loadReviewCount());
                     }),
                   );

@@ -218,22 +218,48 @@ class WordsDatabase(context: Context) :
         createIndexes(db)
     }
 
+    /** 按 id 列表读取单词（含 Meaning 与分组聚合），供「只回刷本次复习涉及的单词」使用。 */
+    fun getWordsByIds(ids: List<Long>): List<Map<String, Any?>> {
+        // 空列表直接返回，避免拼出无意义的 IN () 占位。
+        if (ids.isEmpty()) return emptyList()
+        // readableDatabase 会复用现有连接；占位符与参数一一对应。
+        val db = readableDatabase
+        val placeholders = ids.joinToString(separator = ",") { "?" }
+        val args = ids.map { it.toString() }.toTypedArray()
+        // 三张表都用同一组占位符与参数做 IN 过滤。
+        return queryWordsInternal(db, placeholders, args)
+    }
+
     /** 一次性读取全部未软删除 Word，并用第二次查询组装 Meaning，避免 N+1 查询。 */
     fun getAllWords(): List<Map<String, Any?>> {
-        // readableDatabase 会复用现有连接。
-        val db = readableDatabase
-        // 先按 word_id 分组读取全部 Meaning。
+        // 全部读取等价于不附加任何 id 过滤。
+        return queryWordsInternal(readableDatabase, null, null)
+    }
+
+    /**
+     * 内部共用：先按 word_id 聚合 Meaning 与分组，再读取 words 组装成 Dart
+     * Word.fromMap 需要的 Map。[placeholders]/[args] 同时裁剪 words、meanings、
+     * group_members 三张表；为空表示读取全部，非空时三表都按相同 id 列表 IN 过滤。
+     */
+    private fun queryWordsInternal(
+        db: SQLiteDatabase,
+        placeholders: String?,
+        args: Array<String>?,
+    ): List<Map<String, Any?>> {
+        // 只指定 id 时三张表都追加 IN 占位符；否则不加任何 id 过滤。
+        val idFilter = if (placeholders != null) " AND word_id IN ($placeholders)" else ""
+        val wordIdFilter = if (placeholders != null) " AND id IN ($placeholders)" else ""
+
+        // 先按 word_id 分组读取 Meaning（按需裁剪到指定单词）。
         val meaningsByWord = mutableMapOf<Long, MutableList<Map<String, Any?>>>()
-        // query 返回 Cursor，use 会在完成后自动关闭。
         db.query(
             // 查询 meanings 表。
             "meanings",
             // null 表示读取全部列。
             null,
-            // 只读取未软删除 Meaning。
-            "deleted_at IS NULL",
-            // 本查询没有占位参数。
-            null,
+            // 只读取未软删除 Meaning，并按需裁剪到指定单词。
+            "deleted_at IS NULL$idFilter",
+            args,
             // 不分组。
             null,
             // 不使用 HAVING。
@@ -272,9 +298,9 @@ class WordsDatabase(context: Context) :
             // 只读关联表的两个外键。
             "group_members",
             arrayOf("group_id", "word_id"),
-            // 全部有效成员都在表里（删除即物理删除或随外键级联）。
-            null,
-            null,
+            // 按需裁剪到指定单词；不指定时读取全部有效成员。
+            if (placeholders != null) "word_id IN ($placeholders)" else null,
+            args,
             null,
             null,
             null,
@@ -291,12 +317,13 @@ class WordsDatabase(context: Context) :
 
         // 创建最终结果列表；ArrayList 适合已知会连续追加大量元素的场景。
         val words = ArrayList<Map<String, Any?>>()
-        // 再读取全部 Word；这与上一条查询构成固定两次 SQL，不会每个 Word 查询一次。
+        // 再读取符合条件的 Word；与 meanings 查询构成固定两次 SQL，不会每个 Word 查询一次。
         db.query(
             "words",
             null,
-            "deleted_at IS NULL",
-            null,
+            // 只读取未软删除 Word，并按需裁剪到指定 id。
+            "deleted_at IS NULL$wordIdFilter",
+            args,
             null,
             null,
             "id ASC",
@@ -324,7 +351,7 @@ class WordsDatabase(context: Context) :
                 )
             }
         }
-        // 返回一次性加载的完整列表，Flutter ListView.builder 只会构建可见行。
+        // 返回完整列表，Flutter ListView.builder 只会构建可见行。
         return words
     }
 

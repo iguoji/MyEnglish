@@ -15,6 +15,9 @@ abstract interface class WordStore {
   /// 一次读取全部未删除单词。
   Future<List<Word>> getAll();
 
+  /// 按 id 读取指定单词（含 Meaning 与分组），用于复习后只回刷相关单词。
+  Future<List<Word>> getByIds(List<int> ids);
+
   /// 创建一个 Word，并返回主键。
   Future<int> create(Word word);
 
@@ -40,8 +43,8 @@ abstract interface class WordStore {
 
 /// 本地单词 Store：全部 CRUD 都通过 MethodChannel 交给 Android 原生 SQLite 持久化。
 ///
-/// 早期版本支持「打包 words.json 在内存中读写」的模式已被移除，
-/// 现在 App 只依赖本地持久化数据，首次启动即为空库，由用户导入或手动添加。
+/// App 只依赖本地持久化数据，首次启动即为空库，单词由用户导入或手动添加；
+/// 单词的 JSON 仅在用户主动执行「导入 / 导出」时出现，不参与默认加载。
 class LocalWordStore implements WordStore {
   /// 允许测试注入原生通道；正式 App 使用默认值。
   LocalWordStore({MethodChannel? channel})
@@ -64,6 +67,22 @@ class LocalWordStore implements WordStore {
   Future<List<Word>> getAll() async {
     // 直接走原生查询，不再有「JSON 内存」分支。
     return _loadSqliteWords();
+  }
+
+  /// 只回刷本次复习涉及的单词，避免重新加载整库。
+  @override
+  Future<List<Word>> getByIds(List<int> ids) async {
+    // 空列表直接返回，避免原生拼出无意义的 IN ()。
+    if (ids.isEmpty) return const <Word>[];
+    // 把 id 列表交给原生做 IN 查询，复用与 getAll 相同的解析。
+    final rawWords = await _channel.invokeListMethod<Object?>(
+      'getWordsByIds',
+      ids,
+    );
+    // 原生没有返回任何单词。
+    if (rawWords == null) return const <Word>[];
+    // 复用与 getAll 一致的逐条解析，转成强类型 Word。
+    return _parseWordMaps(rawWords, sourceLabel: 'SQLite');
   }
 
   /// 新增 Word；完整 Map 交给原生事务，返回自增主键。

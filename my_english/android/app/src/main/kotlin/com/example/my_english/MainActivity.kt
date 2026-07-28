@@ -288,6 +288,16 @@ class MainActivity : FlutterActivity() {
                         wordsDatabase.getTodayReviewWords()
                     }
 
+                    // 按 id 读取指定单词，供复习后只回刷相关单词。
+                    "getWordsByIds" -> runDatabaseCall(result) {
+                        // 读取 Dart 传来的 id 列表。
+                        val payload = call.arguments as? List<*>
+                            ?: error("getWordsByIds 缺少参数")
+                        // 只保留数字类型 id，过滤任何异常元素。
+                        val ids = payload.mapNotNull { (it as? Number)?.toLong() }
+                        wordsDatabase.getWordsByIds(ids)
+                    }
+
                     // 未登记的方法返回 Flutter 标准 notImplemented 错误。
                     else -> result.notImplemented()
                 }
