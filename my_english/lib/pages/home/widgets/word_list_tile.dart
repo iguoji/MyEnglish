@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 // material.dart 提供手势、动画、布局、文字与图标组件。
 import 'package:flutter/material.dart';
+// foundation 提供 kDebugMode，用于在调试包中显示仅供真机截图核对的参考线。
+import 'package:flutter/foundation.dart';
 // tabler_icons_plus 统一提供勾选框与发音状态图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
@@ -161,10 +163,13 @@ class WordListTile extends StatelessWidget {
                       // SizedBox 固定 36 高标题行。
                       child: SizedBox(
                         height: headerHeight,
-                        child: Padding(
-                          // 与设计稿一致的 20 像素左右边距。
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Row(
+                        // Stack 让调试参考线覆盖在内容之上，且不干扰 Row 自身布局。
+                        child: Stack(
+                          children: [
+                            // 真内容层：与设计稿一致的 20 像素左右边距。
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
                             // 整条标题行在 36 高内垂直居中，单词与右侧日期不会上下错位。
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -205,9 +210,13 @@ class WordListTile extends StatelessWidget {
                                           color: tokens.text,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
-                                          // 1.1 行高 + even 分布：让字母在 Text 行盒内几何居中，
-                                          // 抵消字体默认 descent 把字形顶偏下的观感（布局层面居中，非偏移 hack）。
-                                          height: 1.1,
+                                          // 关键居中方案：把 Text 的 line box 高度直接锁成 36（= 标题行高），
+                                          // height = 36 / 16 = 2.25。外层 Row(center) 把 36 高的 line box 在
+                                          // 36 高的行内完美居中（完全重合），单词的几何中心必然落在 36 像素
+                                          // 行的中线上。该做法只依赖 height 锁定的行高，与字体自身的
+                                          // ascent/descent 绝对值无关——换任何系统字体都不会再上下漂移。
+                                          // even 再把字体的 ascent+descent 盒在 line box 内均分上下，进一步吸收字体偏差。
+                                          height: headerHeight / 16,
                                           leadingDistribution:
                                               TextLeadingDistribution.even,
                                           letterSpacing: 0,
@@ -249,8 +258,9 @@ class WordListTile extends StatelessWidget {
                                         fontFeatures: const [
                                           FontFeature.tabularFigures(),
                                         ],
-                                        // 与单词保持同一行高分配，保证两者在行内视觉对齐。
-                                        height: 1.1,
+                                        // 与单词一致：把 line box 锁成 36 高（height = 36 / 13），
+                                        // 保证日期与单词在同一个 36 像素行的垂直中线上对齐。
+                                        height: headerHeight / 13,
                                         leadingDistribution:
                                             TextLeadingDistribution.even,
                                         letterSpacing: 0,
@@ -262,10 +272,22 @@ class WordListTile extends StatelessWidget {
                             ],
                           ),
                         ),
+                          // 仅调试模式（kDebugMode）：在 36 行正中（y = 18）画一条贯穿粉线，
+                          // 真机截图即可肉眼核对单词/日期是否压在中线上；release 包自动移除，不影响布局。
+                          if (kDebugMode)
+                            const Positioned(
+                              left: 0,
+                              right: 0,
+                              top: headerHeight / 2 - 0.5,
+                              height: 1,
+                              child: ColoredBox(color: Colors.pink),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+              ),
               ],
             ),
           ),
