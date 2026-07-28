@@ -165,10 +165,14 @@ class WordListTile extends StatelessWidget {
                           // 与设计稿一致的 20 像素左右边距。
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Row(
+                            // 整条标题行在 36 高内垂直居中，单词与右侧日期不会上下错位。
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               // 左半部分：勾选框、播放喇叭与单词。
                               Expanded(
                                 child: Row(
+                                  // 单词、勾选框、播放图标在同行内垂直居中。
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     // 选择模式下显示 18×18 勾选框。
                                     if (selectMode) ...[
@@ -201,6 +205,11 @@ class WordListTile extends StatelessWidget {
                                           color: tokens.text,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
+                                          // 1.1 行高 + even 分布：让字母在 Text 行盒内几何居中，
+                                          // 抵消字体默认 descent 把字形顶偏下的观感（布局层面居中，非偏移 hack）。
+                                          height: 1.1,
+                                          leadingDistribution:
+                                              TextLeadingDistribution.even,
                                           letterSpacing: 0,
                                         ),
                                       ),
@@ -240,6 +249,10 @@ class WordListTile extends StatelessWidget {
                                         fontFeatures: const [
                                           FontFeature.tabularFigures(),
                                         ],
+                                        // 与单词保持同一行高分配，保证两者在行内视觉对齐。
+                                        height: 1.1,
+                                        leadingDistribution:
+                                            TextLeadingDistribution.even,
                                         letterSpacing: 0,
                                       ),
                                     ),
