@@ -32,23 +32,35 @@ abstract final class DictationLayout {
   /// 单词占位卡内部的左右留白。
   static const double wordCardHorizontalInset = 18;
 
-  /// 每一个英文字母占位槽的设计宽度。
-  static const double letterSlotWidth = 40;
-
-  /// 每一个英文字母占位槽的固定高度。
-  static const double letterSlotHeight = 60;
-
-  /// 相邻字母占位槽之间的距离。
-  static const double letterSlotGap = 5;
-
   /// 单词中真实空格在占位卡里的可见距离。
   static const double wordSpaceWidth = 12;
 
-  /// 字母槽中真实单词的字号；原 22 像素按本轮需求准确放大一倍。
-  static const double wordLetterFontSize = 44;
+  /// 字母瓷砖（新单词卡）的固定宽度。
+  static const double wordTileWidth = 44;
+
+  /// 字母瓷砖的固定高度。
+  static const double wordTileHeight = 56;
+
+  /// 字母瓷砖的圆角，比卡片更小以突出“格子”质感。
+  static const double wordTileRadius = 10;
+
+  /// 相邻字母瓷砖之间的距离。
+  static const double wordTileGap = 6;
+
+  /// 字母瓷砖中真实单词的字号；新卡片改用更克制的 30 像素。
+  static const double wordLetterFontSize = 30;
+
+  /// 单词卡左上角听音按钮的边长。
+  static const double wordCardSpeakerSize = 40;
+
+  /// 听音按钮与右侧字母瓷砖之间的水平间距。
+  static const double wordCardInnerGap = 12;
 
   /// 纵向 Steps 左侧圆形节点的固定直径。
   static const double stepMarkerSize = 20;
+
+  /// 纵向 Steps 节点内 Tabler 图标的固定尺寸。
+  static const double stepIconSize = 12;
 
   /// 纵向 Steps 节点与右侧内容之间的距离。
   static const double stepContentGap = 12;

@@ -36,7 +36,7 @@ void main() {
     expect(find.text('听音，选出正确的单词'), findsOneWidget);
     expect(find.text('ability'), findsOneWidget);
     // 中部单词卡按 ability 的七个字母建立七个独立占位槽，初始均为空。
-    _expectWordSlots(tester, spelling: 'ability', revealedLetterCount: 0);
+    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 0);
     // 每个拼写或释义小题都必须精确显示四个候选项。
     _expectFourOptions(tester);
     // 播放是右侧主操作，使用蓝色背景和白色前景。
@@ -78,12 +78,12 @@ void main() {
 
     // 当前单词全部答对后仍留在 ability，不能自动跳到第二题。
     expect(find.text('当前单词已完成'), findsOneWidget);
-    // 完成拼写后仍使用原来的七个槽位，只把全部真实字母填入，不改变卡片尺寸。
-    _expectWordSlots(tester, spelling: 'ability', revealedLetterCount: 7);
-    // Meaning 参考首页表单拆成词性和独立释义标签，不再拼成一整行文本。
+    // 完成拼写后仍使用原来的七个瓷砖，只把全部真实字母填入，不改变卡片尺寸。
+    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 7);
+    // 步骤一次性列出：第一步“听音选词”已完成，第二条是该词性的释义。
+    expect(find.byKey(const Key('dictation-step-word')), findsOneWidget);
     expect(find.byKey(const Key('dictation-step-meaning-0')), findsOneWidget);
-    expect(find.text('词性'), findsOneWidget);
-    expect(find.text('含义'), findsOneWidget);
+    // 释义步骤展示词性小标签与已答出的两条释义 chips。
     expect(find.text('n.'), findsOneWidget);
     expect(find.text('能力'), findsOneWidget);
     expect(find.text('才能'), findsOneWidget);
@@ -140,11 +140,11 @@ void main() {
     );
     await tester.pump();
     // 初始七个字母槽全部保留，但没有任何真实字母内容。
-    _expectWordSlots(tester, spelling: 'ability', revealedLetterCount: 0);
+    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 0);
     await tester.tap(find.byKey(const Key('dictation-hint')));
     await tester.pump();
     // 第一次提示只填入第一个 a，其余六个槽位保持为空。
-    _expectWordSlots(tester, spelling: 'ability', revealedLetterCount: 1);
+    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 1);
     expect(find.text('已显示开头字母'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -280,15 +280,15 @@ void main() {
       ),
     );
     expect(questionContentRect.bottom, lessThan(optionRects.first.top));
-    // 三个同级模块按“单词占位卡、提示信息、Meaning 列表”居上排列。
+    // 三个同级模块按“单词卡、独立提示横幅、全量步骤”居上排列。
     final wordCardRect = tester.getRect(
       find.byKey(const Key('dictation-word-card')),
     );
     final promptInformationRect = tester.getRect(
       find.byKey(const Key('dictation-prompt-information')),
     );
-    final meaningSectionRect = tester.getRect(
-      find.byKey(const Key('dictation-meaning-section')),
+    final stepsSectionRect = tester.getRect(
+      find.byKey(const Key('dictation-vertical-steps')),
     );
     final stageRect = tester.getRect(
       find.byKey(const Key('dictation-stage-label')),
@@ -298,8 +298,8 @@ void main() {
     );
     expect(wordCardRect.top, questionContentRect.top);
     expect(promptInformationRect.top, greaterThan(wordCardRect.bottom));
-    expect(meaningSectionRect.top, greaterThan(promptInformationRect.bottom));
-    // 提示到 Meaning 使用同一条 Tabler Steps vertical 轨道。
+    expect(stepsSectionRect.top, greaterThan(promptInformationRect.bottom));
+    // 提示到全部步骤使用同一条 Tabler Steps vertical 轨道。
     expect(find.byKey(const Key('dictation-vertical-steps')), findsOneWidget);
     final promptMarkerRect = tester.getRect(
       find.byKey(const Key('dictation-step-marker-0')),
@@ -316,17 +316,17 @@ void main() {
       closeTo(meaningMarkerRect.center.dx, 0.01),
     );
     expect(connectorRect.center.dx, closeTo(promptMarkerRect.center.dx, 0.01));
-    // 连接线从提示节点下缘连续延伸到 Meaning 节点上缘。
+    // 连接线从听音节点下缘连续延伸到释义节点上缘。
     expect(connectorRect.top, closeTo(promptMarkerRect.bottom, 0.01));
     expect(connectorRect.bottom, closeTo(meaningMarkerRect.top, 0.01));
-    // 提示与反馈都属于第二个模块，并按顶部阅读顺序排列。
+    // 提示与反馈都属于第二个模块（独立横幅），并按顶部阅读顺序排列。
     expect(stageRect.top, greaterThanOrEqualTo(promptInformationRect.top));
     expect(feedbackRect.top, greaterThan(stageRect.bottom));
     expect(
       feedbackRect.bottom,
       lessThanOrEqualTo(promptInformationRect.bottom),
     );
-    expect(meaningSectionRect.bottom, questionContentRect.bottom);
+    expect(stepsSectionRect.bottom, questionContentRect.bottom);
 
     // 销毁页面以触发 dispose，使自动发音相关资源在用例结束前被停止。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -351,28 +351,31 @@ void _expectNoOptions(WidgetTester tester) {
   }
 }
 
-/// 断言一个英文字母严格对应一个固定槽位，并核对当前公开的字母数量。
-void _expectWordSlots(
+/// 断言一个英文字母严格对应一个固定瓷砖，并核对当前公开的字母数量。
+void _expectTiles(
   WidgetTester tester, {
   required String spelling,
   required int revealedLetterCount,
 }) {
   // 本测试数据都是普通英文单词，因此字符串下标与页面英文字母下标一致。
   for (var index = 0; index < spelling.length; index += 1) {
-    // 每个字母必须存在独立占位槽，不能退回一整串下划线文本。
-    expect(find.byKey(Key('dictation-letter-slot-$index')), findsOneWidget);
-    // 直接读取槽内 Text 的值，避免页面其他候选词文本干扰断言。
+    // 每个字母必须存在独立字母瓷砖，不能退回一整串下划线文本。
+    expect(find.byKey(Key('dictation-tile-$index')), findsOneWidget);
+    // 直接读取瓷砖内 Text 的值，避免页面其他候选词文本干扰断言。
     final letterText = tester.widget<Text>(
-      find.byKey(Key('dictation-letter-value-$index')),
+      find.byKey(Key('dictation-tile-letter-$index')),
     );
-    // 字母样式必须保持原 22 像素的两倍，不能被后续局部样式意外覆盖。
+    // 字母字号跟随布局常量，不能被后续局部样式意外覆盖。
     expect(letterText.style?.fontSize, DictationLayout.wordLetterFontSize);
-    // 提示范围以内显示真实字母，其余槽位保持空字符串。
-    expect(letterText.data, index < revealedLetterCount ? spelling[index] : '');
+    // 提示范围以内显示大写真实字母，其余瓷砖保持空字符串。
+    expect(
+      letterText.data,
+      index < revealedLetterCount ? spelling[index].toUpperCase() : '',
+    );
   }
-  // 单词长度之外不允许多出额外字母槽。
+  // 单词长度之外不允许多出额外字母瓷砖。
   expect(
-    find.byKey(Key('dictation-letter-slot-${spelling.length}')),
+    find.byKey(Key('dictation-tile-${spelling.length}')),
     findsNothing,
   );
 }

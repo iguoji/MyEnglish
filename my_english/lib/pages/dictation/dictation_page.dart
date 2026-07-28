@@ -303,37 +303,65 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(_playAudio());
   }
 
-  /// 已答对的 Meaning，用于逐步补全第三个子模块中的只读卡片列表。
-  List<Meaning> get _solvedMeanings {
-    // 当前单词完成后必须展示完整含义，包括刚刚答对的最后一条。
-    if (_isCurrentWordComplete) {
-      // 返回原模型列表的只读视图，不在默写页中重新排序或合并释义。
-      return List<Meaning>.unmodifiable(_availableMeanings);
-    }
-    // 拼写阶段尚未开始公开释义。
-    if (_stage != DictationStage.definition) return const <Meaning>[];
-    // solvedMeanings 相当于 PHP 中根据答题下标切片后得到的新数组。
-    final solvedMeanings = <Meaning>[];
-    // 已经完整答完的词性块可以直接复用原 Meaning 对象。
-    for (var meaningIndex = 0; meaningIndex < _meaningIndex; meaningIndex++) {
-      solvedMeanings.add(_availableMeanings[meaningIndex]);
-    }
-    // 当前词性只有在至少答对一条释义时才进入 Meaning 列表。
-    if (_definitionIndex > 0) {
-      final meaning = _availableMeanings[_meaningIndex];
-      // 新建一个只含已答对释义的 Meaning，原始 Word 数据不会被页面修改。
-      solvedMeanings.add(
-        Meaning(
-          index: meaning.index,
-          pos: meaning.pos,
-          definitions: List<String>.unmodifiable(
-            meaning.definitions.take(_definitionIndex),
-          ),
+  /// 构建当前单词的完整步骤清单：先“听音选词”，再逐条词性释义。
+  ///
+  /// 每个步骤都从一开始列出，状态随答题进度在 未开始/进行中/已完成 之间变化。
+  /// 组件只负责按状态渲染，不关心答题下标。
+  List<DictationStep> _buildSteps() {
+    // 步骤集合从“听音选词”开始，拼写答对后它转为已完成。
+    final steps = <DictationStep>[
+      DictationStep(
+        kind: DictationStepKind.word,
+        title: '听音选词',
+        // 拼写阶段结束后，单词步骤即视为完成；否则当前就是进行中的那一步。
+        status: _stage == DictationStage.definition || _isCurrentWordComplete
+            ? DictationStepStatus.done
+            : (_stage == DictationStage.word
+                ? DictationStepStatus.active
+                : DictationStepStatus.pending),
+      ),
+    ];
+    // 每个词性释义都对应一个独立步骤，进入新词时一次性全部列出。
+    for (
+      var meaningIndex = 0;
+      meaningIndex < _availableMeanings.length;
+      meaningIndex += 1
+    ) {
+      final meaning = _availableMeanings[meaningIndex];
+      // 整词完成，或当前下标已跳过该词性，说明这条释义已经全部答对。
+      final isMeaningDone =
+          _isCurrentWordComplete || meaningIndex < _meaningIndex;
+      // 释义阶段且正停留在当前词性时，该步骤处于进行中。
+      final isMeaningActive = !_isCurrentWordComplete &&
+          _stage == DictationStage.definition &&
+          meaningIndex == _meaningIndex;
+      // 已答出的释义：完成步骤显示全部，进行中步骤只显示已答对的部分。
+      List<String>? definitions;
+      if (isMeaningDone) {
+        definitions = List<String>.unmodifiable(meaning.definitions);
+      } else if (isMeaningActive) {
+        definitions = List<String>.unmodifiable(
+          meaning.definitions.take(_definitionIndex),
+        );
+      }
+      // 没有词性的旧数据用“释义”兜底，避免步骤出现空标题。
+      final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.pos.trim();
+      steps.add(
+        DictationStep(
+          kind: DictationStepKind.meaning,
+          title: '释义',
+          status: isMeaningDone
+              ? DictationStepStatus.done
+              : (isMeaningActive
+                  ? DictationStepStatus.active
+                  : DictationStepStatus.pending),
+          pos: pos,
+          definitions: definitions,
         ),
       );
     }
-    // 冻结返回列表，展示组件只能读取，不能意外改变答题状态。
-    return List<Meaning>.unmodifiable(solvedMeanings);
+    // 冻结列表，展示组件只读取，不修改步骤状态。
+    return List<DictationStep>.unmodifiable(steps);
   }
 
   String get _stageLabel {
@@ -468,17 +496,19 @@ class _DictationPageState extends State<DictationPage> {
                 constraints: const BoxConstraints(
                   maxWidth: DictationLayout.questionMaxWidth,
                 ),
-                // 独立组件按“单词占位卡、提示信息、Meaning 列表”从上到下输出。
+                // 独立组件按“单词卡、提示横幅、全量步骤”从上到下输出。
                 child: DictationQuestionContent(
                   spelling: _currentWord.spelling,
                   revealedLetterCount: _hintLevel,
                   revealWholeWord:
                       _stage == DictationStage.definition ||
                       _isCurrentWordComplete,
+                  onSpeakerTap: _playAudio,
+                  isPlaying: _isPlaying,
                   prompt: _stageLabel,
                   feedback: _feedback,
                   feedbackColor: _feedbackColor,
-                  solvedMeanings: _solvedMeanings,
+                  steps: _buildSteps(),
                   definitionSeparator: widget.definitionSeparator,
                 ),
               ),
