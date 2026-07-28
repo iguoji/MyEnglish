@@ -1461,7 +1461,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       decoration: BoxDecoration(
                         border: Border(
                           // 明确使用 1 个逻辑像素，让高分辨率真机也能稳定绘制清晰横线。
-                          top: BorderSide(color: tokens.rowBorder, width: 1),
+                          top: BorderSide(color: tokens.border, width: 1),
                         ),
                       ),
                       // 根据加载状态返回对应内容。
@@ -1630,7 +1630,7 @@ class _SectionHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
           color: tokens.sub,
-          border: Border(bottom: BorderSide(color: tokens.rowBorder)),
+          border: Border(bottom: BorderSide(color: tokens.border)),
         ),
         child: Row(
           children: [
