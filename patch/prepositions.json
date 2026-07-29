@@ -269,5 +269,445 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100717,
+    "spelling": "without",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "没有，无（表伴随否定：without water）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100718,
+    "spelling": "above",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……上方（高于某平面）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100719,
+    "spelling": "across",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "横过，穿过",
+          "在对面"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100720,
+    "spelling": "against",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "反对",
+          "靠着，逆着"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100721,
+    "spelling": "along",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "沿着（along the road）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100722,
+    "spelling": "among",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……之中（三者及以上）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100723,
+    "spelling": "around",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "围绕",
+          "大约（around ten）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100724,
+    "spelling": "below",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……下方（低于某基准）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100725,
+    "spelling": "beneath",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……正下方（较正式）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100726,
+    "spelling": "beside",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……旁边（= next to）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100727,
+    "spelling": "beyond",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……那边",
+          "超出（范围）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100728,
+    "spelling": "down",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "向下",
+          "沿着……而下（down the hill）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100729,
+    "spelling": "during",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……期间（during the war）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100730,
+    "spelling": "inside",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……里面（强调内部）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100732,
+    "spelling": "off",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "离开，脱离（take off）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100733,
+    "spelling": "onto",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "到……上面（动态，climb onto）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100734,
+    "spelling": "out",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "向外，离开（out of the room）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100735,
+    "spelling": "outside",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……外面"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100737,
+    "spelling": "through",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "穿过",
+          "通过（through the door）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100738,
+    "spelling": "toward",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "朝，向（方向，无到达义）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100739,
+    "spelling": "up",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "向上",
+          "沿着……而上（up the stairs）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100740,
+    "spelling": "upon",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……上（较正式，= on）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100741,
+    "spelling": "within",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……之内",
+          "在……内部（within a week）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100742,
+    "spelling": "amid",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在…之中（被…包围）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100743,
+    "spelling": "except",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "除…之外（不包括）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100744,
+    "spelling": "throughout",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "遍及；在整个…期间"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100745,
+    "spelling": "underneath",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在…正下方（同 under，强调垂直下方）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

@@ -110,5 +110,21 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100108,
+    "spelling": "being",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "vlink.",
+        "definitions": [
+          "是（be 的现在分词，用于进行时 is being 与被动进行 being done）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

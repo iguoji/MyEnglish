@@ -271,5 +271,69 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100916,
+    "spelling": "whereas",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "然而；鉴于（引导对比状语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100917,
+    "spelling": "once",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "一旦（引导时间状语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100918,
+    "spelling": "whether",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "是否；不论（引导名词性/让步从句，常配 or）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100919,
+    "spelling": "lest",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "惟恐；以免（引导目的状语从句，谓语用原形/should）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

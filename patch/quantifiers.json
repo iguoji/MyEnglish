@@ -1,82 +1,11 @@
 [
-  {
-    "id": 101101,
-    "spelling": "many",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "adj.",
-        "definitions": [
-          "许多（修饰可数名词复数，how many 问数量）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 101102,
-    "spelling": "much",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "adj.",
-        "definitions": [
-          "许多（修饰不可数名词，how much 问量/价格）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 101103,
-    "spelling": "both",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "两者都（both...and / both of）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 101104,
-    "spelling": "either",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "两者之一（either...or / either of）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 101105,
-    "spelling": "neither",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "两者都不（neither...nor / neither of）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  }
+  { "id": 101101, "spelling": "many", "meanings": [ { "index": 1, "pos": "adj.", "definitions": ["许多（修饰可数名词复数，how many 问数量）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101102, "spelling": "much", "meanings": [ { "index": 1, "pos": "adj.", "definitions": ["许多（修饰不可数名词，how much 问量/价格）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101103, "spelling": "both", "meanings": [ { "index": 1, "pos": "pron.", "definitions": ["两者都（both...and / both of）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101104, "spelling": "either", "meanings": [ { "index": 1, "pos": "pron.", "definitions": ["两者之一（either...or / either of）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101105, "spelling": "neither", "meanings": [ { "index": 1, "pos": "pron.", "definitions": ["两者都不（neither...nor / neither of）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101106, "spelling": "few", "meanings": [ { "index": 1, "pos": "adj.", "definitions": ["很少几个（修饰可数复数，表否定倾向）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101107, "spelling": "fewest", "meanings": [ { "index": 1, "pos": "adj.", "definitions": ["最少的（few 的最高级）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101109, "spelling": "such", "meanings": [ { "index": 1, "pos": "adj.", "definitions": ["这样的（such a / such as）"] }, { "index": 2, "pos": "pron.", "definitions": ["如此的人/事"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" },
+  { "id": 101111, "spelling": "enough", "meanings": [ { "index": 1, "pos": "adj.", "definitions": ["足够的（enough money）"] }, { "index": 2, "pos": "adv.", "definitions": ["足够地（big enough）"] } ], "difficulty": null, "created_at": "2026-07-29", "updated_at": "2026-07-29" }
 ]

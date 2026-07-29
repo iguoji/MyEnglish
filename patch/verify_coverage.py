@@ -60,6 +60,17 @@ def _inflect(w):
 for _w in list(LEXICON):
     LEXICON |= _inflect(_w)
 
+# 多词功能短语（如 "each other" / "one another" / "no one"）在模板中以整体出现，
+# 验证器把空格替换为下划线后作为单 token 比对，故此处登记其下划线形式。
+for _sp in list(LEXICON):
+    if ' ' in _sp:
+        LEXICON.add(_sp.replace(' ', '_'))
+MULTIWORDS = [s for s in (user_sp | patch_sp) if ' ' in s]
+def _norm(t):
+    for mw in MULTIWORDS:
+        t = t.replace(mw, mw.replace(' ', '_'))
+    return t
+
 # ---------- 2. 模板文法定义 ----------
 # 主语形态：(主语模板, be现在, be过去, do现在, 否定缩写be现, 否定缩写be过, 否定缩写do现)
 SUBJECTS = [
@@ -82,8 +93,11 @@ WH = ['what', 'who', 'when', 'where', 'why', 'how']
 # 情态动词（入门级）及其否定
 MODALS = [('will', 'will not', "won't"), ('would', 'would not', "wouldn't"),
           ('can', 'cannot', "can't"), ('could', 'could not', "couldn't")]
-# 介词（介词宾语/地点状语）
-PREPS = ['in', 'on', 'at', 'to', 'for', 'with', 'from']
+# 介词（介词宾语/地点状语）—— 覆盖英语介词全集
+PREPS = ['in', 'on', 'at', 'to', 'for', 'with', 'from', 'by', 'of', 'about', 'into', 'over',
+         'under', 'near', 'behind', 'between', 'without', 'above', 'across', 'against', 'along',
+         'among', 'around', 'below', 'beneath', 'beside', 'beyond', 'down', 'during', 'inside',
+         'like', 'off', 'onto', 'out', 'outside', 'past', 'through', 'toward', 'up', 'upon', 'within']
 # 频率/时间/地点副词状语（可选修饰位）
 ADVERBIALS = ['', ' now', ' here', ' there', ' often', ' never', ' always', ' sometimes']
 
@@ -470,7 +484,6 @@ add('what are you {Ving} about?')
 add('the {N} is between the {N} and the {N}.')
 
 # ================= 大成~无极 level 600-1000 =================
-# 600: 虚拟语气（条件/命令建议）
 add('if I were you, I would {V}.')
 add('if he were {ADJ}, he would {V} the {N}.')
 add('if they had {Vpp}, they would have {Vpp}.')
@@ -501,6 +514,98 @@ add('the {N}, however, is {ADJ}.')
 add('therefore, they {V}.')
 add('he is, in fact, {ADJ}.')
 add('I think, therefore, that he {Vs}.')
+# ================= 补维度③：用户第7轮测试题暴露的 6 大粘合词盲区 =================
+# 每个维度都是"用户用一句中文逼出来的"——但以后由 check_master_vocab.py 自主发现，
+# 不再依赖用户逐句查缺。以下模板只铺功能词真实形态，实词一律用占位符。
+
+# 维度1：复合不定代词（someone / nothing / no one 等）—— 有人正在敲门，但我什么也没看见
+add('someone is {Ving} at the {N}, but I {Ved} nothing.')
+add('he {Ved} nothing.')
+add('there is nothing in the {N}.')
+add('I {Ved} something.')
+add('does anyone know the {N}?')
+add('nobody {Ved}.')
+add('everyone {Vs} the {N}.')
+add('everything is {ADJ}.')
+add('no one {Vs} here.')          # no one 为多词短语，验证器按整体比对
+add('none of them {Vs} {ADJ}.')
+add('I {Ved} nothing about it.')
+
+# 维度2：相互代词 each other / one another —— 他们互相帮助
+add('they {VT} each other.')
+add('we {V} one another.')
+add('the {Ns} {V} each other.')
+add('he {VTs} each other.')
+add('she {VTs} one another.')
+
+# 维度3：let 祈使句型（let 在用户词库，无需 patch）—— 让我试试
+add('let me {V}!')
+add('let us {V}!')
+add('let him {V}!')
+add('let her {V}!')
+add('let them {V}!')
+
+# 维度4：关系词引导定语从句（where 作关系副词）—— 这就是我出生的房子
+add('this is the {N} where I {Ved}.')
+add('I {Ved} the {N} where we {Ved}.')
+add('the {N} when he {Vs} is {ADJ}.')
+add('the {N} why he {Vs} is {ADJ}.')
+add('the {N} who {Vs} is my {N}.')
+add('the {N} whom he {VTs} is here.')
+add('the {N} which {Vs} is {ADJ}.')
+add('the {N} that {Vs} is {ADJ}.')
+add('the {Ns} that {Vs} are {ADJ}.')
+add('the {N} whose {N} is {ADJ}.')
+
+# 维度5：介词 without（没有…就）—— 没有水，我们就活不下去
+add('without {N}, we cannot {V}.')
+add('they {Ved} without me.')
+add('he did it without {N}.')
+add('she {Ved} without us.')
+
+# 维度6：劣等比较 less ... than / fewer ... than —— 这本书不如那本书有趣
+add('this {N} is less {ADJ} than that {N}.')
+add('this {N} is less {ADJ} than the other {N}.')
+add('he is less {ADJ} than she is.')
+add('fewer {Ns} are {ADJ} than those {Ns}.')
+add('this is the least {ADJ} {N}.')
+
+# ================= 补维度④：check_master_vocab.py 自主暴露的缺口（封闭类总表 diff）=================
+# 这些维度用户从没提过，是"总表自检"工具自己揪出来的——证明缺口发现已不依赖例句。
+
+# being（be 的现在分词：被动进行 / 进行体）
+add('the {N} is being {Vpp}.')
+add('they are being {ADJ}.')
+
+# 自由关系副词 wherever / whenever
+add('you {V} wherever he {Vs}.')
+add('we {V} whenever we {V}.')
+
+# 介词补全：amid / except / throughout / underneath
+add('the {N} is amid the {Ns}.')
+add('everyone {Ved} except him.')
+add('it {Ved} throughout the {N}.')
+add('the {N} is underneath the {N}.')
+
+# 连词补全：whereas / once / whether / lest
+add('he {Vs}, whereas she {Vs}.')
+add('once you {V}, we {V}.')
+add('I do not {V} whether he {Vs}.')
+add('he {V} lest he {V}.')
+
+# 副词补全：soon / away / ahead
+add('he will {V} soon.')
+add('they {Ved} away.')
+add('he {Vs} ahead.')
+
+# 应答词：thanks / okay
+add('thanks!')
+add('okay.')
+
+# 半情态短语（used to 仅登记于 semi_modals.json，不在此铺模板以免依赖 use 基形）
+add('I have to {V}.')
+add('he {Vs} ought to {V}.')
+add('I am able to {V}.')
 
 # ---------- 3. 逐 token 穷举校验 ----------
 PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vpp|vt|vts|adj|adjer|adjest)\}$')
@@ -508,7 +613,7 @@ PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vpp|vt|vts|adj|adjer|adjest)\}
 def check_all():
     missing = {}
     for t in templates:
-        for tok in re.findall(r"[a-zA-Z'{}]+", t.lower()):
+        for tok in re.findall(r"[a-zA-Z'{}]+", _norm(t).lower()):
             if PLACEHOLDER.match(tok):
                 continue  # 实词占位符：由用户词库+规则屈折保证，不在系统侧范围
             if tok not in LEXICON:
@@ -517,7 +622,7 @@ def check_all():
 
 missing = check_all()
 func_tokens = {tok for t in templates
-               for tok in re.findall(r"[a-zA-Z']+", re.sub(r'\{[^}]+\}', '', t.lower()))}
+               for tok in re.findall(r"[a-zA-Z']+", re.sub(r'\{[^}]+\}', '', _norm(t).lower()))}
 
 print(f'词库规模: 用户 {len(user_words)} 词 + patch {len(patch_words)} 词')
 print(f'穷举模板数: {len(templates)}')

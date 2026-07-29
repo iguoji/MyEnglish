@@ -1,13 +1,13 @@
 [
   {
-    "id": 100601,
-    "spelling": "what",
+    "id": 101501,
+    "spelling": "someone",
     "meanings": [
       {
         "index": 1,
         "pos": "pron.",
         "definitions": [
-          "什么（引导特殊疑问句）"
+          "某人（复合不定代词，肯定句用）"
         ]
       }
     ],
@@ -16,14 +16,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100602,
-    "spelling": "who",
+    "id": 101502,
+    "spelling": "somebody",
     "meanings": [
       {
         "index": 1,
         "pos": "pron.",
         "definitions": [
-          "谁（引导特殊疑问句，作主语或宾语）"
+          "某人（同 someone，较口语）"
         ]
       }
     ],
@@ -32,14 +32,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100603,
-    "spelling": "when",
+    "id": 101503,
+    "spelling": "something",
     "meanings": [
       {
         "index": 1,
-        "pos": "adv.",
+        "pos": "pron.",
         "definitions": [
-          "何时（引导特殊疑问句）"
+          "某物（复合不定代词，肯定句用）"
         ]
       }
     ],
@@ -48,189 +48,197 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100604,
-    "spelling": "where",
+    "id": 101504,
+    "spelling": "anyone",
     "meanings": [
       {
         "index": 1,
-        "pos": "adv.",
+        "pos": "pron.",
         "definitions": [
-          "何地（引导特殊疑问句）"
+          "任何人（否定句/疑问句用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101505,
+    "spelling": "anybody",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "任何人（同 anyone）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101506,
+    "spelling": "anything",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "任何事物（否定句/疑问句用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101507,
+    "spelling": "everyone",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "每个人（同 everybody）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101508,
+    "spelling": "everybody",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "每个人"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101509,
+    "spelling": "everything",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "每件事"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101510,
+    "spelling": "nobody",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "没有人"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101511,
+    "spelling": "nothing",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "没有什么（否定复合不定代词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101512,
+    "spelling": "no one",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "没有人（= nobody，两词短语，系统侧按整体处理）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101513,
+    "spelling": "none",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "一个也没有；毫无（none of them）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101515,
+    "spelling": "another",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "另一个（an + other，泛指）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101516,
+    "spelling": "other",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adj.",
+        "definitions": [
+          "其他的（the other / each other 的组成部分）"
         ]
       },
       {
         "index": 2,
-        "pos": "conj.",
-        "definitions": [
-          "（关系副词，引导定语从句：the house where I was born）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100605,
-    "spelling": "why",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "adv.",
-        "definitions": [
-          "为何（引导特殊疑问句）"
-        ]
-      },
-      {
-        "index": 2,
-        "pos": "conj.",
-        "definitions": [
-          "（关系副词，引导定语从句：the reason why he left）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100606,
-    "spelling": "how",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "adv.",
-        "definitions": [
-          "如何，怎样（引导特殊疑问句）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100607,
-    "spelling": "whom",
-    "meanings": [
-      {
-        "index": 1,
         "pos": "pron.",
         "definitions": [
-          "谁（who 的宾格，引导特殊疑问句或介词+关系词结构）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100608,
-    "spelling": "whose",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "谁的（引导特殊疑问句或定语从句）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100609,
-    "spelling": "which",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "哪一个（引导特殊疑问句）",
-          "（引导定语从句，指物）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100610,
-    "spelling": "whatever",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "无论什么（自由关系代词/连词：do whatever you want）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100611,
-    "spelling": "whoever",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "无论谁（自由关系代词：whoever comes）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100612,
-    "spelling": "whichever",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "pron.",
-        "definitions": [
-          "无论哪个（自由关系代词：whichever you like）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100613,
-    "spelling": "wherever",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "adv.",
-        "definitions": [
-          "无论何处（关系/地点副词，引导地点/让步从句：go wherever you like）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100614,
-    "spelling": "whenever",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "adv.",
-        "definitions": [
-          "无论何时（关系/时间副词，引导时间/让步从句：come whenever you can）"
+          "另一个；其他的人/物"
         ]
       }
     ],

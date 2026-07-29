@@ -1,0 +1,66 @@
+[
+  {
+    "id": 101701,
+    "spelling": "used to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "过去常常（半情态短语，后接原形：I used to live here）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101702,
+    "spelling": "ought to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "应该（半情态短语，后接原形：you ought to go）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101703,
+    "spelling": "be able to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "能够（半情态短语，可接各种时态：I am able to swim）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101704,
+    "spelling": "have to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "不得不；必须（半情态短语：I have to go）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

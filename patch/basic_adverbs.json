@@ -305,5 +305,309 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100820,
+    "spelling": "then",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "那时，然后（时间顺序状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100823,
+    "spelling": "almost",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "几乎（almost all）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100824,
+    "spelling": "hardly",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "几乎不（hardly...when 刚…就）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100825,
+    "spelling": "barely",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "仅仅，勉强（barely...when）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100826,
+    "spelling": "seldom",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "很少（频率状语，放句首需倒装）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100827,
+    "spelling": "rarely",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "罕见地（频率状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100828,
+    "spelling": "thus",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "因此，这样（连接副词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100830,
+    "spelling": "anyway",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "无论如何，反正（连接副词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100831,
+    "spelling": "besides",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "此外，而且（连接副词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100832,
+    "spelling": "moreover",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "而且，此外（连接副词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100833,
+    "spelling": "instead",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "代替，反而（instead of）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100834,
+    "spelling": "else",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "其他（what else / someone else）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100835,
+    "spelling": "maybe",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "也许（= perhaps）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100836,
+    "spelling": "perhaps",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "也许，可能"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100837,
+    "spelling": "soon",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "不久；很快"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100838,
+    "spelling": "away",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "离开；在远处"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100839,
+    "spelling": "ahead",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "在前面；向前"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100840,
+    "spelling": "thanks",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "int.",
+        "definitions": [
+          "谢谢（应答/语气词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100841,
+    "spelling": "okay",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "int.",
+        "definitions": [
+          "好的；行（应答词，亦作 OK）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]
