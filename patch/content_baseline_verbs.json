@@ -1,0 +1,3202 @@
+[
+  {
+    "id": 102001,
+    "spelling": "say",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "说；讲"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102002,
+    "spelling": "get",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "得到；变得"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102003,
+    "spelling": "make",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "做；制造"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102004,
+    "spelling": "go",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "去；走"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102005,
+    "spelling": "take",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "拿；带"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102006,
+    "spelling": "come",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "来"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102007,
+    "spelling": "see",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "看见"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102008,
+    "spelling": "know",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "知道；认识"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102009,
+    "spelling": "think",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "想；认为"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102010,
+    "spelling": "look",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "看；看起来"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102011,
+    "spelling": "want",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "想要"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102012,
+    "spelling": "give",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "给"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102013,
+    "spelling": "use",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "使用"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102014,
+    "spelling": "find",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "找到；发现"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102015,
+    "spelling": "tell",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "告诉"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102016,
+    "spelling": "ask",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "问；请求"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102017,
+    "spelling": "work",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "工作"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102018,
+    "spelling": "seem",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "似乎"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102019,
+    "spelling": "feel",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "感觉"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102020,
+    "spelling": "try",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "尝试"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102021,
+    "spelling": "leave",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "离开；留下"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102022,
+    "spelling": "call",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "叫；打电话"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102023,
+    "spelling": "put",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "放"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102024,
+    "spelling": "keep",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "保持；保留"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102025,
+    "spelling": "let",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "让"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102026,
+    "spelling": "begin",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "开始"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102027,
+    "spelling": "help",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "帮助"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102028,
+    "spelling": "talk",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "说话；交谈"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102029,
+    "spelling": "turn",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "转动；变成"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102030,
+    "spelling": "start",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "开始"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102031,
+    "spelling": "show",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "展示；给…看"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102032,
+    "spelling": "hear",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "听见"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102033,
+    "spelling": "play",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "玩；演奏"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102034,
+    "spelling": "run",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "跑；运行"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102035,
+    "spelling": "move",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "移动"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102036,
+    "spelling": "live",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "居住；生活"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102037,
+    "spelling": "believe",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "相信"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102038,
+    "spelling": "hold",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "拿住；举行"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102039,
+    "spelling": "bring",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "带来"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102040,
+    "spelling": "happen",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "发生"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102041,
+    "spelling": "write",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "写"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102042,
+    "spelling": "sit",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "坐"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102043,
+    "spelling": "stand",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "站"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102044,
+    "spelling": "lose",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "丢失"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102045,
+    "spelling": "pay",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "支付"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102046,
+    "spelling": "meet",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "遇见；见面"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102047,
+    "spelling": "include",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "包括"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102048,
+    "spelling": "continue",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "继续"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102049,
+    "spelling": "set",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "放置；设定"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102050,
+    "spelling": "learn",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "学习"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102051,
+    "spelling": "change",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "改变"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102052,
+    "spelling": "lead",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "带领；导致"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102053,
+    "spelling": "understand",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "理解"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102054,
+    "spelling": "watch",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "观看；注视"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102055,
+    "spelling": "follow",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "跟随；遵循"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102056,
+    "spelling": "stop",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "停止"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102057,
+    "spelling": "create",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "创造"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102058,
+    "spelling": "speak",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "说（语言）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102059,
+    "spelling": "read",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "读"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102060,
+    "spelling": "allow",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "允许"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102061,
+    "spelling": "add",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "添加"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102062,
+    "spelling": "spend",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "花费；度过"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102063,
+    "spelling": "grow",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "生长；变得"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102064,
+    "spelling": "open",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "打开"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102065,
+    "spelling": "walk",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "走；步行"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102066,
+    "spelling": "win",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "赢"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102067,
+    "spelling": "teach",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "教"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102068,
+    "spelling": "offer",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "提供；主动提出"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102069,
+    "spelling": "remember",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "记得"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102070,
+    "spelling": "consider",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "考虑；认为"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102071,
+    "spelling": "appear",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "出现；显得"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102072,
+    "spelling": "buy",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "买"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102073,
+    "spelling": "serve",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "服务；提供"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102074,
+    "spelling": "die",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "死"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102075,
+    "spelling": "send",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "发送"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102076,
+    "spelling": "expect",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "期待；预料"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102077,
+    "spelling": "build",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "建造"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102078,
+    "spelling": "stay",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "停留；保持"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102079,
+    "spelling": "fall",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "落下"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102080,
+    "spelling": "cut",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "切；割"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102081,
+    "spelling": "reach",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "到达；伸手"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102082,
+    "spelling": "kill",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "杀死"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102083,
+    "spelling": "remain",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "保持；留下"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102084,
+    "spelling": "suggest",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "建议"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102085,
+    "spelling": "raise",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "举起；提高"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102086,
+    "spelling": "pass",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "通过；传递"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102087,
+    "spelling": "sell",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "卖"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102088,
+    "spelling": "require",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "需要"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102089,
+    "spelling": "report",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "报告"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102090,
+    "spelling": "decide",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "决定"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102091,
+    "spelling": "pull",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "拉"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102092,
+    "spelling": "return",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "返回；归还"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102093,
+    "spelling": "explain",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "解释"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102094,
+    "spelling": "hope",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "希望"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102095,
+    "spelling": "develop",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "发展；开发"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102096,
+    "spelling": "carry",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "携带；搬运"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102097,
+    "spelling": "break",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "打破；弄坏"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102098,
+    "spelling": "receive",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "收到"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102099,
+    "spelling": "agree",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "同意"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102100,
+    "spelling": "support",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "支持"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102101,
+    "spelling": "hit",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "打；撞击"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102102,
+    "spelling": "produce",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "生产"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102103,
+    "spelling": "eat",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "吃"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102104,
+    "spelling": "cover",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "覆盖；遮盖"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102105,
+    "spelling": "catch",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "抓住；赶上"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102106,
+    "spelling": "draw",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "画；拉"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102107,
+    "spelling": "choose",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "选择"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102108,
+    "spelling": "cause",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "导致；引起"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102109,
+    "spelling": "point",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "指；指向"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102110,
+    "spelling": "listen",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "听"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102111,
+    "spelling": "drink",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "喝"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102112,
+    "spelling": "laugh",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "笑"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102113,
+    "spelling": "drive",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "驾驶"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102114,
+    "spelling": "sing",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "唱"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102115,
+    "spelling": "wear",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "穿；戴"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102116,
+    "spelling": "hurt",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "伤害；疼"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102117,
+    "spelling": "wish",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "希望；祝愿"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102118,
+    "spelling": "prefer",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "更喜欢"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102119,
+    "spelling": "notice",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "注意到"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102120,
+    "spelling": "love",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "爱"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102121,
+    "spelling": "hate",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "讨厌"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102122,
+    "spelling": "save",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "节省；救"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102123,
+    "spelling": "wait",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "等待"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102124,
+    "spelling": "count",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "数；算"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102125,
+    "spelling": "study",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "学习；研究"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102126,
+    "spelling": "travel",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "旅行"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102127,
+    "spelling": "cook",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "烹饪"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102128,
+    "spelling": "clean",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "打扫；清洁"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102129,
+    "spelling": "wash",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "洗"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102130,
+    "spelling": "borrow",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "借入"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102131,
+    "spelling": "lend",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "借出"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102132,
+    "spelling": "invite",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "邀请"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102133,
+    "spelling": "visit",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "拜访；参观"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102134,
+    "spelling": "reply",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "回复"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102135,
+    "spelling": "answer",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "回答"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102136,
+    "spelling": "cry",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "哭"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102137,
+    "spelling": "dance",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "跳舞"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102138,
+    "spelling": "jump",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "跳"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102139,
+    "spelling": "climb",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "爬"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102140,
+    "spelling": "swim",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "游泳"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102141,
+    "spelling": "fly",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "飞"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102142,
+    "spelling": "fish",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "钓鱼"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102143,
+    "spelling": "hunt",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "打猎"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102144,
+    "spelling": "plant",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "种植"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102145,
+    "spelling": "water",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "浇水"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102146,
+    "spelling": "paint",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "油漆；画"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102147,
+    "spelling": "close",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "关"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102148,
+    "spelling": "shut",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "关闭"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102149,
+    "spelling": "lock",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "锁"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102150,
+    "spelling": "fix",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "修理；固定"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102151,
+    "spelling": "repair",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "修理"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102152,
+    "spelling": "enjoy",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "享受；喜欢"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102153,
+    "spelling": "finish",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "完成"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102154,
+    "spelling": "fail",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "失败"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102155,
+    "spelling": "succeed",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "成功"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102156,
+    "spelling": "practice",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "练习"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102157,
+    "spelling": "share",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "分享"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102158,
+    "spelling": "promise",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "承诺"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102159,
+    "spelling": "refuse",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "拒绝"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102160,
+    "spelling": "accept",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "接受"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102161,
+    "spelling": "admit",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "承认"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102162,
+    "spelling": "deny",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "否认"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102163,
+    "spelling": "regret",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "后悔"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102164,
+    "spelling": "forgive",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "原谅"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102165,
+    "spelling": "thank",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "感谢"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102166,
+    "spelling": "greet",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "问候"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102167,
+    "spelling": "introduce",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "介绍"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102168,
+    "spelling": "describe",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "描述"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102169,
+    "spelling": "discuss",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "讨论"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102170,
+    "spelling": "argue",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "争论"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102171,
+    "spelling": "doubt",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "怀疑"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102172,
+    "spelling": "wonder",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "想知道"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102173,
+    "spelling": "realize",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "意识到"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102174,
+    "spelling": "recognize",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "认出"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102175,
+    "spelling": "imagine",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "想象"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102176,
+    "spelling": "suppose",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "假设；认为"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102177,
+    "spelling": "pretend",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "假装"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102178,
+    "spelling": "prove",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "证明"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102179,
+    "spelling": "trust",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "信任"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102180,
+    "spelling": "fear",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "害怕"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102181,
+    "spelling": "worry",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "担心"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102182,
+    "spelling": "surprise",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "使惊讶"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102183,
+    "spelling": "interest",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "使感兴趣"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102184,
+    "spelling": "excite",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "使兴奋"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102185,
+    "spelling": "bore",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "使厌烦"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102186,
+    "spelling": "relax",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "放松"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102187,
+    "spelling": "rest",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "休息"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102188,
+    "spelling": "sleep",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "睡觉"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102189,
+    "spelling": "wake",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "醒来"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102190,
+    "spelling": "dream",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "做梦"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102191,
+    "spelling": "breathe",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "呼吸"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102192,
+    "spelling": "cough",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "咳嗽"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102193,
+    "spelling": "heal",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "治愈"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102194,
+    "spelling": "cure",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "治愈；治疗"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102195,
+    "spelling": "treat",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "对待；治疗"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102196,
+    "spelling": "feed",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "喂养"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102197,
+    "spelling": "pour",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "倒；灌"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102198,
+    "spelling": "boil",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "煮沸"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102199,
+    "spelling": "bake",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "烘烤"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 102200,
+    "spelling": "roast",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "v.",
+        "definitions": [
+          "烤"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

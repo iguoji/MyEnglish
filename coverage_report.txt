@@ -1,0 +1,33 @@
+daily_top200 覆盖率: 完全可生成 115/200 (57.5%)
+有缺口 85 句；缺失词种类 80
+缺失词 Top30:
+  good: 7
+  english: 3
+  happy: 3
+  welcome: 2
+  coming: 2
+  tv: 2
+  room: 2
+  bed: 2
+  bus: 2
+  hello: 1
+  hi: 1
+  tom: 1
+  later: 1
+  goodbye: 1
+  bye: 1
+  lot: 1
+  sorry: 1
+  bathroom: 1
+  lost: 1
+  china: 1
+  years: 1
+  miss: 1
+  text: 1
+  reading: 1
+  watching: 1
+  cooking: 1
+  eating: 1
+  playing: 1
+  cat: 1
+  sleeping: 1

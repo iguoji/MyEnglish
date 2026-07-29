@@ -37,8 +37,12 @@ assert len(patch_ids) == len(set(patch_ids)), 'patch 内部 id 重复！'
 assert not (set(patch_ids) & user_ids), 'patch id 与 words.json 冲突！'
 user_sp = {w['spelling'].lower() for w in user_words}
 patch_sp = {w['spelling'].lower() for w in patch_words}
+# 新约定（用户 2026-07-29 拍板）：系统基线可包含高频实词，即便用户词库也有同名词——
+# 两者共存时"用户侧优先"（生成器取用户条目做释义/展示）。故拼写重叠不再报错，
+# 仅打印提示，便于核对哪些词是系统兜底、哪些被用户覆盖。
 dup = user_sp & patch_sp
-assert not dup, f'patch 与用户词库拼写重复: {dup}'
+if dup:
+    print(f'[提示] 系统基线与你词库拼写重叠 {len(dup)} 个（用户侧优先）: {sorted(dup)}')
 
 LEXICON = user_sp | patch_sp
 
