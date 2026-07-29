@@ -42,6 +42,24 @@ assert not dup, f'patch 与用户词库拼写重复: {dup}'
 
 LEXICON = user_sp | patch_sp
 
+# 规则屈折扩展：用户词/系统词的 -s/-es/-ies/-ing/-ed 变形由 app 确定性拼接产生，
+# 属合法输出（如 come→comes, have→having）；不规则屈折（go→went）仍须显式录入。
+def _inflect(w):
+    out = set()
+    if re.search(r"[^a-z']", w): return out
+    # 三单/复数
+    if re.search(r'(s|x|z|ch|sh|o)$', w): out.add(w + 'es')
+    elif re.search(r'[^aeiou]y$', w):     out.add(w[:-1] + 'ies')
+    else:                                  out.add(w + 's')
+    # 进行时/动名词
+    out.add(w[:-1] + 'ing' if w.endswith('e') and not w.endswith('ee') else w + 'ing')
+    # 规则过去式/过去分词
+    out.add(w + 'd' if w.endswith('e') else (w[:-1] + 'ied' if re.search(r'[^aeiou]y$', w) else w + 'ed'))
+    return out
+
+for _w in list(LEXICON):
+    LEXICON |= _inflect(_w)
+
 # ---------- 2. 模板文法定义 ----------
 # 主语形态：(主语模板, be现在, be过去, do现在, 否定缩写be现, 否定缩写be过, 否定缩写do现)
 SUBJECTS = [
@@ -256,6 +274,139 @@ for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
     add(f'{subj} {be_pa} {{Ving}}.')
     add(f'{subj} {be_pa} not {{Ving}} the {{N}}.')
     add(f'{be_pa} {subj} {{Ving}}?')
+
+# ================= 初成 level 300 =================
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    hv = 'has' if aux == 'does' else 'have'
+    # -- 选择疑问 (A or B) --
+    add(f'{aux} {subj} {{VT}} a {{N}} or an {{N}}?')
+    add(f'{be_p} {subj} {{ADJ}} or {{ADJ}}?')
+    # -- 宾语从句 / 主语从句 / 表语从句 --
+    add(f'{subj} {v3} that he {{Vs}}.')
+    add(f'{subj} {v3} if they {{V}}.')
+    add(f'what {subj == "I" and "I" or subj} {{V}} is {{ADJ}}.' if subj == 'I' else f'what he {{Vs}} is {{ADJ}}.')
+    add(f'that {subj} {{V}} is {{ADJ}}.' if subj in ('I', 'you', 'they') else 'that he {Vs} is {ADJ}.')
+    # -- how many / how much / how long / how often / how far --
+    add(f'how many {{Ns}} {aux} {subj} {{VT}}?')
+    add(f'how much {{N}} {aux} {subj} {{VT}}?')
+    add(f'how long {aux} {subj} {{V}}?')
+    add(f'how often {aux} {subj} {{V}}?')
+    add(f'how far {aux} {subj} {{V}}?')
+    # -- 过去完成 / 过去将来 / 将来进行 --
+    add(f'{subj} had {{Vpp}}.')
+    add(f'{subj} had not {{Vpp}} the {{N}}.')
+    add(f'had {subj} {{Vpp}}?')
+    add(f'{subj} would {{V}}.')
+    add(f'{subj} would not {{V}} the {{N}}.')
+    add(f'{subj} will be {{Ving}}.')
+    add(f'will {subj} be {{Ving}} the {{N}}?')
+    # -- might 推测 / have to / be able to --
+    add(f'{subj} might {{V}}.')
+    add(f'{subj} might not {{V}}.')
+    add(f'{subj} {hv} to {{V}} the {{N}}.')
+    add(f'{subj} {be_p} able to {{V}}.')
+    add(f'{subj} {be_p} not able to {{V}}.')
+    # -- 让步 / 结果 / 并列 --
+    add(f'although {subj} {{V}}, they {{V}}.' if subj in ('I', 'you', 'they') else f'although he {{Vs}}, they {{V}}.')
+    add(f'even though {subj} {be_p} {{ADJ}}, he {{Vs}}.')
+    add(f'{subj} {be_p} so {{ADJ}} that we {{V}}.')
+    add(f'{subj} {v3} the {{N}} and the {{N}}.')
+    add(f'{subj} {v3} a {{N}} but not an {{N}}.')
+    # -- 程度状语 very/too --
+    add(f'{subj} {be_p} very {{ADJ}}.')
+    add(f'{subj} {be_p} too {{ADJ}} to {{V}}.')
+    add(f'{subj} {be_p} also {{ADJ}}.')
+    # -- V-ing / V-ed 分词修饰 --
+    add(f'the {{Ving}} {{N}} {{Vs}}.')
+    add(f'the {{Vpp}} {{N}} is {{ADJ}}.')
+
+# ================= 小成 level 400 =================
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    hv = 'has' if aux == 'does' else 'have'
+    hvn = "hasn't" if aux == 'does' else "haven't"
+    # -- 反意疑问 --
+    add(f'{subj} {{V}}, {naux} {subj}?' if aux == 'do' else f'{subj} {{Vs}}, {naux} he?')
+    add(f'{subj} {be_p} {{ADJ}}, {nbe_p} {subj}?' if "'" in nbe_p else f'{subj} {be_p} {{ADJ}}?')
+    add(f"{subj} {naux} {{V}}, {aux} {subj}?")
+    # -- 使役感官 (do/doing/done) --
+    add(f'{subj} {v3} me {{V}}.')
+    add(f'{subj} {v3} him {{Ving}}.')
+    add(f'{subj} {v3} the {{N}} {{Vpp}}.')
+    # -- 现在完成进行 / 将来完成 / 过去完成进行 --
+    add(f'{subj} {hv} been {{Ving}}.')
+    add(f'{subj} {hvn} been {{Ving}} the {{N}}.')
+    add(f'{hv} {subj} been {{Ving}}?')
+    add(f'{subj} will have {{Vpp}}.')
+    add(f'{subj} had been {{Ving}}.')
+    # -- ought to / need / dare 情态用法 --
+    add(f'{subj} ought to {{V}}.')
+    add(f'{subj} ought not to {{V}}.')
+    add(f"{subj} needn't {{V}}.")
+    add(f"{subj} daren't {{V}}.")
+    add(f'need {subj} {{V}}?')
+    # -- 表语从句 / 同位语从句 --
+    add(f'that is why {subj} {{V}}.' if subj in ('I', 'you', 'they') else 'that is why he {Vs}.')
+    add(f'the {{N}} that {subj} {{V}} is {{ADJ}}.' if subj in ('I', 'you', 'they') else 'the {N} that he {Vs} is {ADJ}.')
+    # -- to do 不定式修饰 --
+    add(f'{subj} {v3} a {{N}} to {{VT}}.')
+
+# ================= 进阶 level 500 =================
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    # -- 关联连词 not only...but also / both...and / either...or / neither...nor --
+    add(f'{subj} {v3} not only the {{N}} but also the {{N}}.')
+    add(f'both {subj == "I" and "he" or "he"} and I {{V}}.')
+    add(f'either he or I {{V}}.')
+    add(f'neither he nor I {{V}}.')
+    add(f'both of them {{V}}.')
+    add(f'either of them {{Vs}}.')
+    # -- modal + have done 推测/遗憾 --
+    add(f'{subj} must have {{Vpp}}.')
+    add(f'{subj} should have {{Vpp}} the {{N}}.')
+    add(f'{subj} could have been {{ADJ}}.')
+    # -- 非限制性定从 / 介词+关系词 --
+    add(f'the {{N}}, which is {{ADJ}}, {{Vs}}.')
+    add(f'the {{N}}, who {{Vs}}, is {{ADJ}}.')
+    add(f'the {{N}} in which {subj} {{V}} is {{ADJ}}.' if subj in ('I', 'you', 'they') else 'the {N} in which he {Vs} is {ADJ}.')
+    add(f'the {{N}} with whom I {{V}} is {{ADJ}}.')
+    # -- 过去将来进行 / 将来完成进行 --
+    add(f'{subj} would be {{Ving}}.')
+    add(f'{subj} will have been {{Ving}}.')
+
+# ================= 大成~无极 level 600-1000 =================
+# 600: 虚拟语气（条件/命令建议）
+add('if I were you, I would {V}.')
+add('if he were {ADJ}, he would {V} the {N}.')
+add('if they had {Vpp}, they would have {Vpp}.')
+add('I {VT} that he should {V}.')
+add('I {VT} that he {V}.')  # should 省略型
+# 700: wish / as if 虚拟 + 倒装
+add('I wish I were {ADJ}.')
+add('I wish I had {Vpp} the {N}.')
+add('he {Vs} as if he were {ADJ}.')
+add('never have I {Vpp} a {N}.')
+add('never did he {V}.')
+add('here comes the {N}.')
+add('there {Vs} the {N}.')
+# 800: 强调句 + 非谓语完成/被动态
+add('it is the {N} that {Vs}.')
+add('it was he who {Ved}.')
+add('it is me that they {VT}.')
+add('having {Vpp} the {N}, he {Ved}.')
+add('having been {Vpp}, the {N} is {ADJ}.')
+# 900: 独立主格 + 省略
+add('the {N} {Ving}, they {Ved}.')
+add('the {N} {Vpp}, he {Ved} the {N}.')
+add('if {ADJ}, the {N} {Vs}.')
+add('when {Ving}, you must {V}.')
+# 1000: 插入语
+add('however, he {Vs} the {N}.')
+add('the {N}, however, is {ADJ}.')
+add('therefore, they {V}.')
+add('he is, in fact, {ADJ}.')
+add('I think, therefore, that he {Vs}.')
 
 # ---------- 3. 逐 token 穷举校验 ----------
 PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vpp|vt|vts|adj|adjer|adjest)\}$')

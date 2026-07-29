@@ -1,0 +1,82 @@
+[
+  {
+    "id": 101101,
+    "spelling": "many",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adj.",
+        "definitions": [
+          "许多（修饰可数名词复数，how many 问数量）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101102,
+    "spelling": "much",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adj.",
+        "definitions": [
+          "许多（修饰不可数名词，how much 问量/价格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101103,
+    "spelling": "both",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "两者都（both...and / both of）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101104,
+    "spelling": "either",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "两者之一（either...or / either of）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101105,
+    "spelling": "neither",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "两者都不（neither...nor / neither of）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

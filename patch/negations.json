@@ -255,5 +255,37 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100417,
+    "spelling": "needn't",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "need not 的缩写（不必，need 的情态用法）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100418,
+    "spelling": "daren't",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "dare not 的缩写（不敢，dare 的情态用法）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

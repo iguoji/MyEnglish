@@ -88,5 +88,102 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100906,
+    "spelling": "and",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "和，并且（并列连词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100907,
+    "spelling": "or",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "或者（并列连词，用于选择疑问句 A or B）",
+          "否则"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100908,
+    "spelling": "but",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "但是（转折连词，not only...but also）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100909,
+    "spelling": "although",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "虽然，尽管（引导让步状语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100910,
+    "spelling": "though",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "虽然（引导让步状语从句，even though 即使）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100911,
+    "spelling": "nor",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "也不（neither...nor 关联连词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]
