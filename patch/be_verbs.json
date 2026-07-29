@@ -1,0 +1,50 @@
+[
+  {
+    "id": 100101,
+    "spelling": "am",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "vlink.",
+        "definitions": [
+          "是（be 的第一人称单数现在式，与 I 连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100102,
+    "spelling": "is",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "vlink.",
+        "definitions": [
+          "是（be 的第三人称单数现在式，与 he/she/it 及单数名词连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100103,
+    "spelling": "are",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "vlink.",
+        "definitions": [
+          "是（be 的现在式，与 you/we/they 及复数名词连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

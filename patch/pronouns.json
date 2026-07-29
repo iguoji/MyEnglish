@@ -1,0 +1,199 @@
+[
+  {
+    "id": 100301,
+    "spelling": "I",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "我（主格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100302,
+    "spelling": "you",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "你",
+          "你们（主格/宾格同形）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100303,
+    "spelling": "he",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "他（主格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100304,
+    "spelling": "she",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "她（主格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100305,
+    "spelling": "it",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "它（主格/宾格同形）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100306,
+    "spelling": "we",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "我们（主格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100307,
+    "spelling": "they",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "他们",
+          "她们",
+          "它们（主格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100308,
+    "spelling": "me",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "我（宾格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100309,
+    "spelling": "him",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "他（宾格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100310,
+    "spelling": "her",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "她（宾格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100311,
+    "spelling": "us",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "我们（宾格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100312,
+    "spelling": "them",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "他们",
+          "她们",
+          "它们（宾格）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

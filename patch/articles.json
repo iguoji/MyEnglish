@@ -1,0 +1,54 @@
+[
+  {
+    "id": 100001,
+    "spelling": "a",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "art.",
+        "definitions": [
+          "一（个/件……）",
+          "用于辅音音素开头的单数可数名词前"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100002,
+    "spelling": "an",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "art.",
+        "definitions": [
+          "一（个/件……）",
+          "用于元音音素开头的单数可数名词前"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100003,
+    "spelling": "the",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "art.",
+        "definitions": [
+          "这（个）",
+          "那（个）",
+          "用于特指的人或事物前"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]
