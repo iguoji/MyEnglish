@@ -73,6 +73,8 @@ SUBJECTS = [
 
 # 宾语形态（SVO/SVOO/介宾通用）
 OBJECTS = ['a {N}', 'an {N}', 'the {N}', 'the {Ns}', 'me', 'you', 'him', 'her', 'it', 'us', 'them']
+# 形容词性物主代词（限定词位，与冠词互斥；由测试题暴露的模板盲区补入）
+POSS = ['my', 'your', 'his', 'her', 'its', 'our', 'their']
 # 表语形态（SVP）
 PREDICATIVES = ['{ADJ}', 'a {N}', 'an {N}', 'the {N}']
 # 特殊疑问词（入门级 6 个）
@@ -374,6 +376,23 @@ for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
     # -- 过去将来进行 / 将来完成进行 --
     add(f'{subj} would be {{Ving}}.')
     add(f'{subj} will have been {{Ving}}.')
+
+# ================= 物主代词维度（全级别通用限定词位） =================
+# 名词短语的限定词槽：冠词 the/a/an 之外还有物主代词，此前模板漏了整个维度
+for p in POSS:
+    add(f'I {{VT}} {p} {{N}}.')                 # SVO 宾语带物主
+    add(f'he {{VTs}} {p} {{Ns}}.')
+    add(f'{p} {{N}} {{Vs}}.')                    # 物主作主语限定词
+    add(f'{p} {{N}} is {{ADJ}}.')                # SVP
+    add(f'{p} {{Ns}} are {{ADJ}}.')
+    add(f'why did you not {{VT}} {p} {{N}}?')    # 测试句 5 型
+    add(f"why didn't you {{VT}} {p} {{N}}?")
+    add(f'the {{N}} {{Ving}} the {{N}} is {p} {{N}}.')  # 测试句 6 型（分词定语+物主表语）
+    add(f'this is {p} {{N}}.')
+# 名词性物主代词（作表语/宾语）
+for p in ('mine', 'yours', 'his', 'hers', 'ours', 'theirs'):
+    add(f'the {{N}} is {p}.')
+    add(f'this {{N}} is {p}, not {p}.')
 
 # ================= 大成~无极 level 600-1000 =================
 # 600: 虚拟语气（条件/命令建议）
