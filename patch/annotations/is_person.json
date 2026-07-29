@@ -1,0 +1,22 @@
+[
+  "person", "people", "man", "woman", "child", "children", "boy", "girl", "baby",
+  "student", "teacher", "doctor", "nurse", "friend", "enemy", "neighbor",
+  "colleague", "boss", "worker", "farmer", "driver", "singer", "dancer", "writer",
+  "reader", "speaker", "listener", "player", "athlete", "actor", "actress", "king",
+  "queen", "prince", "princess", "president", "minister", "governor", "mayor",
+  "judge", "lawyer", "policeman", "policewoman", "officer", "soldier", "sailor",
+  "pilot", "engineer", "scientist", "programmer", "designer", "artist", "painter",
+  "musician", "chef", "cook", "waiter", "waitress", "customer", "guest", "host",
+  "visitor", "passenger", "tourist", "traveler", "stranger", "native", "foreigner",
+  "citizen", "resident", "parent", "father", "mother", "son", "daughter", "brother",
+  "sister", "husband", "wife", "uncle", "aunt", "cousin", "nephew", "niece",
+  "grandfather", "grandmother", "grandson", "granddaughter", "boyfriend",
+  "girlfriend", "partner", "spouse", "relative", "classmate", "teammate",
+  "roommate", "member", "owner", "user", "buyer", "seller", "thief", "robber",
+  "murderer", "victim", "hero", "villain", "criminal", "witness", "suspect",
+  "prisoner", "beggar", "giant", "dwarf", "fool", "genius", "idiot", "expert",
+  "professional", "amateur", "beginner", "learner", "winner", "loser", "champion",
+  "candidate", "competitor", "opponent", "ally", "leader", "follower", "fan",
+  "supporter", "critic", "editor", "author", "poet", "reporter", "journalist",
+  "photographer", "model", "celebrity", "star"
+]

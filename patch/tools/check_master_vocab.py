@@ -20,19 +20,24 @@
       本工具只回答一个问题：英语该有的功能词，我们是不是全有了？
 
 用法：
-  python3 patch/check_master_vocab.py
+  python3 patch/tools/check_master_vocab.py
 退出码：0 = 封闭类总表已被全覆盖；1 = 仍有缺失（会逐条打印，按类别分组）。
 """
 
 import json, glob, os, sys
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ---------- 1. 加载词库（用户词 + 全部 patch）----------
 user_words = json.load(open(f'{BASE}/words.json'))
 patch_words = []
+# 防御性加载：patch/ 下只接收"词库结构"（list 且元素为 dict）的 json。
+# 非词库 json（如 formula_schema.json 是 dict、annotations/*.json 是拼写数组）
+# 一律跳过，避免 w['spelling'] 对字符串/dict-key 取值而崩溃。
 for f in sorted(glob.glob(f'{BASE}/patch/*.json')):
-    patch_words += json.load(open(f))
+    data = json.load(open(f))
+    if isinstance(data, list) and all(isinstance(w, dict) for w in data):
+        patch_words += data
 
 # 统一转小写做不区分大小写比对（功能词无所谓大小写，首字母大写只是句首）
 LEX = {w['spelling'].lower() for w in user_words} | {w['spelling'].lower() for w in patch_words}

@@ -17,19 +17,24 @@ patch 功能词库"全覆盖证明"验证器（启蒙 level 0 + 入门 level 100
   - 规则屈折（-s/-es/-ed/-ing）由 app 确定性规则拼接。
 
 用法：
-  python3 patch/verify_coverage.py
+  python3 patch/tools/verify_coverage.py
 退出码：0 = 全覆盖通过；1 = 存在缺失功能词（会逐条打印）。
 """
 
 import json, glob, re, sys, itertools, os
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ---------- 1. 加载词库并做基础一致性校验 ----------
 user_words = json.load(open(f'{BASE}/words.json'))
 patch_words = []
+# 防御性加载：patch/ 下只接收"词库结构"（list 且元素为 dict）的 json。
+# 非词库 json（如 formula_schema.json 是 dict、annotations/*.json 是拼写数组）
+# 一律跳过，避免 w['id'] 对字符串/dict-key 取值而崩溃。
 for f in sorted(glob.glob(f'{BASE}/patch/*.json')):
-    patch_words += json.load(open(f))
+    data = json.load(open(f))
+    if isinstance(data, list) and all(isinstance(w, dict) for w in data):
+        patch_words += data
 
 user_ids = {w['id'] for w in user_words}
 patch_ids = [w['id'] for w in patch_words]
