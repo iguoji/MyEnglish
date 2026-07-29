@@ -84,8 +84,8 @@ class WordListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // 日期按业务规则优先 updatedAt，没有更新日期才使用 createdAt。
-    final effectiveDate = item.effectiveDate;
+    // 日期按统一标准取值：复习时间 → 加入时间 → 更新时间，三者全空为 null。
+    final displayDate = item.displayDate;
     // 是否真的存在可展开内容。
     final hasMeanings = item.meanings.isNotEmpty;
 
@@ -236,14 +236,14 @@ class WordListTile extends StatelessWidget {
                                     // 徽章与日期之间留白。
                                     const SizedBox(width: 10),
                                   ],
-                                  // 固定 40 宽右对齐日期列，缺日期时留空占位。
+                                  // 固定 40 宽右对齐日期列，三个时间全缺时显示占位 00.00。
                                   SizedBox(
                                     width: 40,
                                     child: Text(
-                                      effectiveDate == null
-                                          ? ''
+                                      displayDate == null
+                                          ? '00.00'
                                           : formatWordDate(
-                                              effectiveDate,
+                                              displayDate,
                                               dateReference,
                                             ),
                                       // 右对齐让日期竖向成列。

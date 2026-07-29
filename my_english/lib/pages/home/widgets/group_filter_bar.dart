@@ -14,6 +14,9 @@ enum GroupMode {
   /// 按难度数值分组。
   difficulty,
 
+  /// 按复习时间分组（枚举顺序即下拉菜单顺序，插在"更新时间"前面）。
+  reviewed,
+
   /// 按更新时间分组。
   updated,
 
@@ -27,6 +30,7 @@ extension GroupModeDetails on GroupMode {
   String get label => switch (this) {
     GroupMode.custom => '分组',
     GroupMode.difficulty => '难度',
+    GroupMode.reviewed => '复习时间',
     GroupMode.updated => '更新时间',
     GroupMode.added => '加入时间',
   };

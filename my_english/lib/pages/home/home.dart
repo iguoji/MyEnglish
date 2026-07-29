@@ -263,9 +263,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 比较两个 Word；每种排序字段都执行固定的多级次序，最终由编号升序保底。
   ///
-  /// 字母：拼写(当前方向) → 难度降序 → 日期降序 → 编号升序。
-  /// 难度：难度(当前方向，null 视为 0) → 日期降序 → 拼写升序 → 编号升序。
-  /// 日期：日期(当前方向，null 固定末尾) → 难度降序 → 拼写升序 → 编号升序。
+  /// "日期"层统一为三级时间链：复习时间 → 加入时间 → 更新时间（见 _compareDate）。
+  /// 字母：拼写(当前方向) → 难度降序 → 时间链降序 → 编号升序。
+  /// 难度：难度(当前方向，null 视为 0) → 时间链降序 → 拼写升序 → 编号升序。
+  /// 日期：时间链(当前方向，空值固定末尾) → 难度降序 → 拼写升序 → 编号升序。
   int _compareWords(Word first, Word second, bool isAscending) {
     // switch 根据当前选中字段进入对应的多级比较链。
     switch (_sortField) {
@@ -358,12 +359,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return _applyDirection(firstValue.compareTo(secondValue), isAscending);
   }
 
-  /// 日期层：统一使用 updatedAt ?? createdAt，空日期在两个方向中都固定在末尾。
+  /// 日期层：按"复习时间 → 加入时间 → 更新时间"三级逐级比较。
+  ///
+  /// 每一级都是可空日期：空值在任何方向都固定排在末尾（复用 _compareNullable），
+  /// 当前级打平（都为空或时间相同）时才进入下一级。isAscending 作用于整条链，
+  /// 默认降序即用户约定的"复习降序 → 加入降序 → 更新降序"。
   int _compareDate(Word first, Word second, bool isAscending) {
-    // 复用可空比较，null 永远不会因为降序翻到列表顶部。
+    // 第一级：最近复习时间；没复习过的词整体排在复习过的词之后。
+    final byReviewed = _compareNullable<DateTime>(
+      first.reviewedAt,
+      second.reviewedAt,
+      (firstValue, secondValue) => firstValue.compareTo(secondValue),
+      isAscending,
+    );
+    // 复习时间不同就直接得出结论。
+    if (byReviewed != 0) return byReviewed;
+    // 第二级：加入时间（创建时间）。
+    final byCreated = _compareNullable<DateTime>(
+      first.createdAt,
+      second.createdAt,
+      (firstValue, secondValue) => firstValue.compareTo(secondValue),
+      isAscending,
+    );
+    // 加入时间不同立即返回。
+    if (byCreated != 0) return byCreated;
+    // 第三级：更新时间兜底。
     return _compareNullable<DateTime>(
-      first.effectiveDate,
-      second.effectiveDate,
+      first.updatedAt,
+      second.updatedAt,
       (firstValue, secondValue) => firstValue.compareTo(secondValue),
       isAscending,
     );
@@ -486,11 +509,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       return sections;
     }
-    // 时间视角：更新时间用 effectiveDate，加入时间用 createdAt。
-    final useUpdated = _mode == GroupMode.updated;
-    // 计算单词的分组日期。
-    DateTime? dateOf(Word word) =>
-        useUpdated ? word.effectiveDate : word.createdAt;
+    // 时间视角：复习时间用 reviewedAt，更新时间用 effectiveDate，加入时间用 createdAt。
+    // switch 表达式类似 PHP 8 的 match，按当前模式选出取日期的规则。
+    DateTime? dateOf(Word word) => switch (_mode) {
+      // 复习时间视角：直接取最近复习时间，没复习过即为 null。
+      GroupMode.reviewed => word.reviewedAt,
+      // 更新时间视角：沿用"更新时间优先、加入时间兜底"的业务日期。
+      GroupMode.updated => word.effectiveDate,
+      // 其余（加入时间视角）取创建时间。
+      _ => word.createdAt,
+    };
     // 收集出现过的"天"数字键（yyyyMMdd），null 单独一组。
     final dayKeys = <int>{};
     var hasNullDate = false;
@@ -505,8 +533,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     // 日期从新到旧排列。
     final sortedKeys = dayKeys.toList()..sort((a, b) => b.compareTo(a));
-    // 视角前缀让折叠状态在两个时间视角之间互不串扰。
-    final prefix = useUpdated ? 'u' : 'a';
+    // 视角前缀让折叠状态在三个时间视角之间互不串扰。
+    final prefix = switch (_mode) {
+      // 复习时间视角前缀 r。
+      GroupMode.reviewed => 'r',
+      // 更新时间视角前缀 u。
+      GroupMode.updated => 'u',
+      // 加入时间视角前缀 a。
+      _ => 'a',
+    };
     // 逐天生成区块。
     for (final dayKey in sortedKeys) {
       // 还原该天日期对象用于格式化标题。
@@ -531,12 +566,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       );
     }
-    // 没有日期的单词固定放在最后一组。
+    // 没有日期的单词固定放在最后一组；复习时间视角下"没有日期"即"从未复习"。
     if (hasNullDate) {
       sections.add(
         _WordSection(
           key: '${prefix}0',
-          name: '无日期',
+          name: _mode == GroupMode.reviewed ? '未复习' : '无日期',
           words: _filterAndSort(
             _allWords.where((word) => dateOf(word) == null).toList(),
           ),

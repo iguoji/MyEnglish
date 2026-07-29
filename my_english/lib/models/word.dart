@@ -53,7 +53,15 @@ class Word {
   final DateTime? deletedAt;
 
   /// 列表显示和日期排序共同使用的业务日期：优先更新时间，没有时使用加入时间。
+  ///
+  /// 目前仅供首页"更新时间"分组视角使用；列表右侧日期改用 [displayDate]。
   DateTime? get effectiveDate => updatedAt ?? createdAt;
+
+  /// 列表右侧日期的统一取值标准：复习时间 → 加入时间 → 更新时间。
+  ///
+  /// 类似 PHP 的 `$reviewedAt ?? $createdAt ?? $updatedAt`：
+  /// 从左到右取第一个非空日期；三者全空时返回 null，由界面显示占位 00.00。
+  DateTime? get displayDate => reviewedAt ?? createdAt ?? updatedAt;
 
   /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。
   factory Word.fromMap(Map<Object?, Object?> map) {

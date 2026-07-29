@@ -448,14 +448,15 @@ void main() {
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['middle', 'zebra', 'apple']);
 
-    // 第一次点日期默认最近到最早；zebra 使用 updatedAt 排在 apple 前。
-    await tester.tap(find.byKey(const Key('word-sort-date')));
-    await tester.pump();
-    _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
-    // 再点日期从早到晚，空日期仍然固定在末尾。
+    // 第一次点日期默认最近到最早；三级时间链为复习→加入→更新：
+    // 三个词都没复习过，落到加入时间比较，apple(6/1) 排在 zebra(1/1) 前。
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
+    // 再点日期从早到晚，空日期仍然固定在末尾。
+    await tester.tap(find.byKey(const Key('word-sort-date')));
+    await tester.pump();
+    _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
 
     // 清理页面资源。
     await tester.pumpWidget(const SizedBox.shrink());
