@@ -1,0 +1,189 @@
+{
+  "meta": {
+    "source": "ui/sentence.html",
+    "note": "公式=语法维度组合(免费代码)；单词只在槽位里，与配方数无关",
+    "gating_selector": "user_level(11级，只控制选项可见性，不乘进配方数)"
+  },
+  "radio_dimensions": {
+    "pattern": [
+      "sv",
+      "svp",
+      "svo",
+      "svoo",
+      "svoc",
+      "therebe"
+    ],
+    "subj_type": [
+      "noun",
+      "non_finite",
+      "clause",
+      "dummy_it"
+    ],
+    "obj_type": [
+      "noun",
+      "prep_obj",
+      "non_finite",
+      "clause",
+      "dummy_it",
+      "causative"
+    ],
+    "voice": [
+      "active",
+      "passive"
+    ],
+    "polarity": [
+      "affirmative",
+      "negative"
+    ],
+    "sentType": [
+      "declarative",
+      "interrogative",
+      "imperative",
+      "exclamatory"
+    ],
+    "intType": [
+      "general",
+      "special",
+      "alternative",
+      "tag"
+    ],
+    "whWord": [
+      "what",
+      "who",
+      "whom",
+      "whose",
+      "which",
+      "when",
+      "where",
+      "why",
+      "how",
+      "how_many",
+      "how_much",
+      "how_long",
+      "how_often",
+      "how_far"
+    ],
+    "exclType": [
+      "what_n",
+      "how_adj"
+    ],
+    "tense": [
+      "p_s",
+      "pa_s",
+      "f_s",
+      "p_c",
+      "p_p",
+      "pa_c",
+      "pa_p",
+      "pf_s",
+      "f_c",
+      "p_pc",
+      "f_p",
+      "pa_pc",
+      "pf_c",
+      "f_pc",
+      "pf_p",
+      "pf_pc"
+    ]
+  },
+  "checkbox_dimensions": {
+    "ext_modals": [
+      "can",
+      "will",
+      "must",
+      "shall",
+      "may",
+      "semi_modals",
+      "ought",
+      "need",
+      "modal_have_done"
+    ],
+    "ext_attr": [
+      "adj",
+      "prep",
+      "clause",
+      "doing",
+      "todo",
+      "non_restrictive",
+      "prep_rel"
+    ],
+    "ext_adv": [
+      "time",
+      "place",
+      "manner",
+      "reason",
+      "frequency",
+      "condition",
+      "purpose",
+      "comparison",
+      "degree",
+      "concession",
+      "result",
+      "comment"
+    ],
+    "ext_noun_clause": [
+      "predicative",
+      "appositive"
+    ],
+    "ext_coord": [
+      "correlative"
+    ],
+    "ext_adv_struc": [
+      "subj_cond",
+      "subj_req",
+      "subj_wish",
+      "inv_part",
+      "inv_full",
+      "emphatic",
+      "non_finite_aspect",
+      "absolute",
+      "ellipsis",
+      "parenthetical"
+    ]
+  },
+  "slot_model": {
+    "sv": [
+      "subject",
+      "verb"
+    ],
+    "svp": [
+      "subject",
+      "be",
+      "predicative"
+    ],
+    "svo": [
+      "subject",
+      "verb",
+      "object"
+    ],
+    "svoo": [
+      "subject",
+      "verb",
+      "object1",
+      "object2"
+    ],
+    "svoc": [
+      "subject",
+      "verb",
+      "object",
+      "complement"
+    ],
+    "therebe": [
+      "there",
+      "be",
+      "object",
+      "place"
+    ]
+  },
+  "modifier_slots": {
+    "ext_modals": [
+      "modal"
+    ],
+    "ext_attr": [
+      "attribute"
+    ],
+    "ext_adv": [
+      "adverbial"
+    ]
+  }
+}
