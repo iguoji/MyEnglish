@@ -1,13 +1,14 @@
 [
   {
-    "id": 100101,
-    "spelling": "am",
+    "id": 100701,
+    "spelling": "in",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "prep.",
         "definitions": [
-          "是（be 的第一人称单数现在式，与 I 连用）"
+          "在……里面",
+          "在……期间"
         ]
       }
     ],
@@ -16,14 +17,15 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100102,
-    "spelling": "is",
+    "id": 100702,
+    "spelling": "on",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "prep.",
         "definitions": [
-          "是（be 的第三人称单数现在式，与 he/she/it 及单数名词连用）"
+          "在……上面",
+          "在（某天）"
         ]
       }
     ],
@@ -32,14 +34,15 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100103,
-    "spelling": "are",
+    "id": 100703,
+    "spelling": "at",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "prep.",
         "definitions": [
-          "是（be 的现在式，与 you/we/they 及复数名词连用）"
+          "在（某地点）",
+          "在（某时刻）"
         ]
       }
     ],
@@ -48,14 +51,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100104,
-    "spelling": "was",
+    "id": 100704,
+    "spelling": "to",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "prep.",
         "definitions": [
-          "是（am/is 的过去式，与 I/he/she/it 及单数名词连用）"
+          "到，向（方向/对象，双宾改写 give ... to ...）"
         ]
       }
     ],
@@ -64,14 +67,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100105,
-    "spelling": "were",
+    "id": 100705,
+    "spelling": "for",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "prep.",
         "definitions": [
-          "是（are 的过去式，与 you/we/they 及复数名词连用）"
+          "为了，给（受益对象，双宾改写 buy ... for ...）"
         ]
       }
     ],
@@ -80,14 +83,31 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100106,
-    "spelling": "be",
+    "id": 100706,
+    "spelling": "with",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "prep.",
         "definitions": [
-          "是（原形，用于 will be / 情态动词后等场合）"
+          "和……一起",
+          "带有，用"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100707,
+    "spelling": "from",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "从，来自"
         ]
       }
     ],

@@ -1,0 +1,131 @@
+[
+  {
+    "id": 100801,
+    "spelling": "there",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "那里（地点状语）",
+          "（there be 存在句的引导词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100802,
+    "spelling": "here",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "这里（地点状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100803,
+    "spelling": "now",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "现在（时间状语，常与现在进行时连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100804,
+    "spelling": "often",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "经常（频率状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100805,
+    "spelling": "never",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "从不（频率状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100806,
+    "spelling": "always",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "总是（频率状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100807,
+    "spelling": "sometimes",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "有时（频率状语）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100808,
+    "spelling": "please",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "请（礼貌用语，用于祈使句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

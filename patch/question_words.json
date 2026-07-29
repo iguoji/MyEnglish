@@ -1,13 +1,13 @@
 [
   {
-    "id": 100101,
-    "spelling": "am",
+    "id": 100601,
+    "spelling": "what",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "pron.",
         "definitions": [
-          "是（be 的第一人称单数现在式，与 I 连用）"
+          "什么（引导特殊疑问句）"
         ]
       }
     ],
@@ -16,14 +16,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100102,
-    "spelling": "is",
+    "id": 100602,
+    "spelling": "who",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "pron.",
         "definitions": [
-          "是（be 的第三人称单数现在式，与 he/she/it 及单数名词连用）"
+          "谁（引导特殊疑问句，作主语或宾语）"
         ]
       }
     ],
@@ -32,14 +32,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100103,
-    "spelling": "are",
+    "id": 100603,
+    "spelling": "when",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "adv.",
         "definitions": [
-          "是（be 的现在式，与 you/we/they 及复数名词连用）"
+          "何时（引导特殊疑问句）"
         ]
       }
     ],
@@ -48,14 +48,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100104,
-    "spelling": "was",
+    "id": 100604,
+    "spelling": "where",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "adv.",
         "definitions": [
-          "是（am/is 的过去式，与 I/he/she/it 及单数名词连用）"
+          "何地（引导特殊疑问句）"
         ]
       }
     ],
@@ -64,14 +64,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100105,
-    "spelling": "were",
+    "id": 100605,
+    "spelling": "why",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "adv.",
         "definitions": [
-          "是（are 的过去式，与 you/we/they 及复数名词连用）"
+          "为何（引导特殊疑问句）"
         ]
       }
     ],
@@ -80,14 +80,14 @@
     "updated_at": "2026-07-29"
   },
   {
-    "id": 100106,
-    "spelling": "be",
+    "id": 100606,
+    "spelling": "how",
     "meanings": [
       {
         "index": 1,
-        "pos": "vlink.",
+        "pos": "adv.",
         "definitions": [
-          "是（原形，用于 will be / 情态动词后等场合）"
+          "如何，怎样（引导特殊疑问句）"
         ]
       }
     ],
