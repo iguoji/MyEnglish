@@ -607,6 +607,29 @@ add('I have to {V}.')
 add('he {Vs} ought to {V}.')
 add('I am able to {V}.')
 
+# ================= 补维度⑤：用户网搜清单暴露的新功能词维度（自主补齐）=================
+# 单字介词补全（despite/per/till/via/unlike/opposite/regarding/concerning/plus/minus）
+for p in ('despite', 'per', 'till', 'via', 'unlike', 'opposite',
+          'regarding', 'concerning', 'plus', 'minus'):
+    add(f'he {{Vs}} {p} the {{N}}.')
+# 单字连词补全（otherwise/nevertheless/nonetheless/furthermore/meanwhile/consequently/similarly/likewise）
+for c in ('otherwise', 'nevertheless', 'nonetheless', 'furthermore',
+          'meanwhile', 'consequently', 'similarly', 'likewise'):
+    add(f'he {{Vs}}, {c} she {{Vs}}.')
+# 半情态（has to / had to 可拆解；be going to/had better/would rather 含实词，只登记不铺模板）
+add('he {Vs} has to {V}.')
+add('he {Vs} had to {V}.')
+# done（do 的过去分词，不规则，须显式录入）
+add('the {N} is done.')
+add('he has done the {N}.')
+# 复合介词 / 复合连词：组成词全在词库的，铺模板以验证可用；
+# 含实词组成词（front/next/spite/order/case/going/rather/better 等）的只登记于 patch，
+# 由 check_master_vocab.py 总表覆盖，此处不铺模板以免验证器报缺实词。
+for cp in ('out of', 'away from', 'ahead of', 'up to', 'except for', 'because of',
+           'even though', 'even if', 'as long as', 'so that', 'now that',
+           'as if', 'as though', 'as soon as'):
+    add(f'the {{N}} is {cp} the {{N}}.')
+
 # ---------- 3. 逐 token 穷举校验 ----------
 PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vpp|vt|vts|adj|adjer|adjest)\}$')
 

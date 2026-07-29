@@ -93,11 +93,12 @@ MASTER = {
     # be 动词（含分词/进行时）
     'be动词': ['be', 'am', 'is', 'are', 'was', 'were', 'been', 'being'],
     # 基本助动词
-    '基本助动词': ['do', 'does', 'did', 'have', 'has', 'had', 'having'],
+    '基本助动词': ['do', 'does', 'did', 'have', 'has', 'had', 'having', 'done'],
     # 情态动词 / 半情态（含多词短语）
     '情态-半情态': ['will', 'would', 'shall', 'should', 'can', 'could',
                   'may', 'might', 'must', 'ought', 'need', 'dare',
-                  'used to', 'ought to', 'be able to', 'have to'],
+                  'used to', 'ought to', 'be able to', 'have to',
+                  'has to', 'had to', 'be going to', 'had better', 'would rather'],
 
     # 介词（英语介词全集——封闭且可枚举）
     '介词': ['about', 'above', 'across', 'after', 'against', 'along', 'amid',
@@ -105,14 +106,29 @@ MASTER = {
            'beside', 'between', 'beyond', 'but', 'by', 'down', 'during',
            'except', 'for', 'from', 'in', 'inside', 'into', 'like', 'near',
            'of', 'off', 'on', 'onto', 'out', 'outside', 'over', 'past',
-           'since', 'through', 'throughout', 'to', 'toward', 'under',
-           'underneath', 'until', 'up', 'upon', 'with', 'within', 'without'],
+           'since', 'through', 'throughout', 'to', 'toward', 'towards', 'under',
+           'underneath', 'until', 'up', 'upon', 'with', 'within', 'without',
+           # —— 用户网搜清单补齐的单字介词 ——
+           'despite', 'per', 'till', 'via', 'unlike', 'opposite',
+           'regarding', 'concerning', 'plus', 'minus',
+           # —— 复合介词（多词短语）——
+           'because of', 'instead of', 'in front of', 'next to', 'according to',
+           'in spite of', 'due to', 'out of', 'away from', 'ahead of',
+           'regardless of', 'apart from', 'in addition to', 'up to',
+           'prior to', 'except for'],
 
     # 连词（并列 + 从属）
     '连词': ['and', 'but', 'or', 'nor', 'for', 'yet', 'so',
            'because', 'since', 'as', 'although', 'though', 'if', 'unless',
            'while', 'whereas', 'after', 'before', 'until', 'once', 'than',
-           'that', 'whether', 'lest'],
+           'that', 'whether', 'lest',
+           # —— 用户网搜清单补齐的单字连词 ——
+           'otherwise', 'nevertheless', 'nonetheless', 'furthermore',
+           'meanwhile', 'consequently', 'similarly', 'likewise',
+           # —— 复合连词（多词短语）——
+           'even though', 'as soon as', 'as well as', 'in order to', 'even if',
+           'as long as', 'so that', 'in case', 'provided that', 'as if',
+           'as though', 'now that'],
 
     # 基础副词 / 否定 / 连接副词（封闭倾向强的一组）
     '副词-否定-连接': ['not', 'never', 'always', 'often', 'sometimes',

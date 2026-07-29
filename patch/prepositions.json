@@ -709,5 +709,421 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100746,
+    "spelling": "despite",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "尽管；不顾（= in spite of）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100747,
+    "spelling": "per",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "每；按照（per day / per the rules）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100748,
+    "spelling": "till",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "直到（= until，口语更常用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100749,
+    "spelling": "via",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "经由；通过（via the internet）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100750,
+    "spelling": "unlike",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "不像；与…不同"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100751,
+    "spelling": "opposite",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在…对面（opposite the park）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100752,
+    "spelling": "regarding",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "关于（= about，较正式）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100753,
+    "spelling": "concerning",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "关于（= about）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100754,
+    "spelling": "plus",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "加；另有（two plus three）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100755,
+    "spelling": "minus",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "减；除去（five minus two）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100756,
+    "spelling": "because of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "因为（后接名词，because of the rain）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100757,
+    "spelling": "instead of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "代替；而不是"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100758,
+    "spelling": "in front of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在…前面"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100759,
+    "spelling": "next to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "紧挨着；在…旁边"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100760,
+    "spelling": "according to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "根据；按照"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100761,
+    "spelling": "in spite of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "尽管；不顾"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100762,
+    "spelling": "due to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "由于；因为"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100763,
+    "spelling": "out of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "从…出来；出于"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100764,
+    "spelling": "away from",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "远离；离开"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100765,
+    "spelling": "ahead of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在…前面（时间/位置）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100766,
+    "spelling": "regardless of",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "不管；不顾"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100767,
+    "spelling": "apart from",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "除…之外（还/不）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100768,
+    "spelling": "in addition to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "除…之外（还）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100769,
+    "spelling": "up to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "多达；直到（up to you）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100770,
+    "spelling": "prior to",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在…之前（= before，正式）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100771,
+    "spelling": "except for",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "除了…之外（对整体修正）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]
