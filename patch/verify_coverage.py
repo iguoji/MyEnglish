@@ -394,6 +394,81 @@ for p in ('mine', 'yours', 'his', 'hers', 'ours', 'theirs'):
     add(f'the {{N}} is {p}.')
     add(f'this {{N}} is {p}, not {p}.')
 
+# ================= 补维度：反身代词 / some·any 限定词 / 时间连词 / 不定式宾语 / 介词全集 =================
+# （由用户第二轮测试题暴露的模板盲区，按语法槽位系统性补铺）
+# -- 反身代词槽：作宾语（hurt oneself）/ 强调 --
+REFLEX = {'I': 'myself', 'you': 'yourself', 'he': 'himself', 'they': 'themselves',
+          'the {N}': 'itself', 'the {Ns}': 'themselves'}
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    r = REFLEX[subj]
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    add(f'{subj} {v3} {r}.')
+    add(f'{subj} {{Ved}} {r} yesterday.')       # 他昨天伤到了自己（yesterday 在用户词库）
+    add(f'{subj} {naux} {{VT}} {r}.')
+    add(f'{aux} {subj} {{VT}} {r}?')
+    add(f'{subj} can {{VT}} {r}.')
+# she/we 补一组（SUBJECTS 里没有的人称）
+add('she {VTs} herself.')
+add('we {VT} ourselves.')
+add('you {VT} yourselves.')
+
+# -- some/any/no/every/each/all 限定词槽（肯定用 some，否定/疑问用 any）--
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    hv = 'has' if aux == 'does' else 'have'
+    add(f'{subj} {v3} some {{Ns}}.')
+    add(f'{subj} {v3} some {{N}}.')              # 不可数
+    add(f'{subj} {naux} {{VT}} any {{Ns}}.')
+    add(f'{aux} {subj} {{VT}} any {{Ns}}?')
+    add(f'{subj} {v3} no {{Ns}}.')
+    add(f'{subj} {hv} some {{Ns}} but {naux} {{VT}} any {{Ns}}.')  # 测试句 2 型
+    add(f'every {{N}} {{Vs}}.')
+    add(f'each {{N}} is {{ADJ}}.')
+    add(f'all the {{Ns}} are {{ADJ}}.')
+    add(f'all of them {{V}}.')
+# there be + some/any/no
+add('there are some {Ns}.')
+add("there aren't any {Ns}.")
+add('are there any {Ns}?')
+add('there is no {N}.')
+# yes/no 简答
+add('yes, I do.')
+add('no, he does not.')
+add("no, they don't.")
+add('yes, it is.')
+add("no, it isn't.")
+
+# -- 时间连词 before/after/while/until（引导时间状语从句/介词用法）--
+for tc in ('before', 'after', 'while', 'until', 'when'):
+    add(f'{tc} I {{Ved}}, I {{Ved}} the {{N}}.')     # 在我睡觉之前，我关上了窗户
+    add(f'I {{Ved}} the {{N}} {tc} I {{Ved}}.')
+    add(f'he {{Vs}} {tc} they {{V}}.')
+add('before {Ving}, I {Ved} the {N}.')               # 介词接动名词
+add('after the {N}, they {Ved}.')
+add('I did not {V} until he {Ved}.')
+
+# -- 不定式符号 to：决定/想要/计划 + to do --
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    add(f'{subj} {v3} to {{V}}.')
+    add(f'{subj} {{Ved}} to {{VT}} the {{N}}.')      # 我决定买那本书
+    add(f'{subj} {naux} {{VT}} to {{V}}.')
+    add(f'{subj} {v3} to {{VT}} a {{N}} {{ADJ}}.')
+# have to 过去式（我昨天不得不步行去学校）
+add('I had to {V} to the {N} yesterday.')
+add('he had to {V} yesterday.')
+add("they didn't have to {V}.")
+add('did you have to {V}?')
+
+# -- 介词全集补铺（talk about / 方位介词）--
+for p in ('about', 'into', 'over', 'under', 'near', 'behind', 'between'):
+    add(f'the {{N}} is {p} the {{N}}.')
+    add(f'he {{Vs}} {p} the {{N}}.')
+add('the {N} is {Ving} about a {N}.')                # 女孩正在谈论一本书
+add('they are {Ving} about the {Ns}.')
+add('what are you {Ving} about?')
+add('the {N} is between the {N} and the {N}.')
+
 # ================= 大成~无极 level 600-1000 =================
 # 600: 虚拟语气（条件/命令建议）
 add('if I were you, I would {V}.')

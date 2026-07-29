@@ -185,5 +185,91 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100912,
+    "spelling": "before",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "在……之前（引导时间状语从句）"
+        ]
+      },
+      {
+        "index": 2,
+        "pos": "prep.",
+        "definitions": [
+          "在……之前"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100913,
+    "spelling": "after",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "在……之后（引导时间状语从句）"
+        ]
+      },
+      {
+        "index": 2,
+        "pos": "prep.",
+        "definitions": [
+          "在……之后"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100914,
+    "spelling": "while",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "当……的时候（引导时间状语从句，常配进行时）",
+          "然而（对比）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100915,
+    "spelling": "until",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "直到……（引导时间状语从句，not...until 直到才）"
+        ]
+      },
+      {
+        "index": 2,
+        "pos": "prep.",
+        "definitions": [
+          "直到"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

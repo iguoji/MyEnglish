@@ -60,6 +60,13 @@
         "definitions": [
           "到，向（方向/对象，双宾改写 give ... to ...）"
         ]
+      },
+      {
+        "index": 2,
+        "pos": "aux.",
+        "definitions": [
+          "（不定式符号 to do，无实义，接动词原形）"
+        ]
       }
     ],
     "difficulty": null,
@@ -142,6 +149,120 @@
         "definitions": [
           "……的（所属关系）",
           "……之中的（both of them）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100710,
+    "spelling": "about",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "关于（talk about / think about）",
+          "大约"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100711,
+    "spelling": "into",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "进入……里面（动态方向）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100712,
+    "spelling": "over",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……上方",
+          "越过"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100713,
+    "spelling": "under",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……下面"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100714,
+    "spelling": "near",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……附近"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100715,
+    "spelling": "behind",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……后面"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100716,
+    "spelling": "between",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "prep.",
+        "definitions": [
+          "在……之间（两者，between A and B）"
         ]
       }
     ],
