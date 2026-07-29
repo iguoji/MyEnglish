@@ -82,5 +82,54 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100506,
+    "spelling": "must",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "必须（表义务）",
+          "一定（表肯定推测）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100507,
+    "spelling": "shall",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "将要（用于第一人称征求意见或表将来）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100508,
+    "spelling": "should",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "应该（表建议或义务，shall 的过去式）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

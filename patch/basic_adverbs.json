@@ -127,5 +127,70 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100809,
+    "spelling": "already",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "已经（常用于完成时肯定句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100810,
+    "spelling": "yet",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "还，尚未（常用于完成时否定句和疑问句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100811,
+    "spelling": "just",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "刚刚（常用于完成时）",
+          "只是"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100812,
+    "spelling": "ever",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "曾经（常用于完成时疑问句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

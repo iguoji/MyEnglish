@@ -94,5 +94,54 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100607,
+    "spelling": "whom",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "谁（who 的宾格，引导特殊疑问句或介词+关系词结构）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100608,
+    "spelling": "whose",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "谁的（引导特殊疑问句或定语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100609,
+    "spelling": "which",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "哪一个（引导特殊疑问句）",
+          "（引导定语从句，指物）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

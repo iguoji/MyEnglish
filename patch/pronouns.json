@@ -195,5 +195,77 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100313,
+    "spelling": "that",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "那，那个（指示代词）",
+          "（引导定语从句的关系代词）"
+        ]
+      },
+      {
+        "index": 2,
+        "pos": "conj.",
+        "definitions": [
+          "（引导宾语从句、主语从句、同位语从句等名词性从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100314,
+    "spelling": "this",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "这，这个（指示代词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100315,
+    "spelling": "these",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "这些（this 的复数）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100316,
+    "spelling": "those",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "那些（that 的复数）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

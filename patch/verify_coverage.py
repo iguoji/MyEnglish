@@ -178,8 +178,87 @@ for conj in ('because', 'since'):
     add(f"the {{N}} {{Vs}} {conj} they {{V}}.")
     add(f"why {{V}}? {conj} I {{V}}.")  # why 问答对
 
+# ================= 筑基 level 200 =================
+# 占位符扩展：{Vpp}=过去分词(规则-ed app拼接/不规则用户侧)、{ADJer}/{ADJest}=规则比较级最高级
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    hv = 'has' if aux == 'does' else 'have'
+    hvn = "hasn't" if aux == 'does' else "haven't"
+    # -- 现在完成时：肯定/否定(全拼+缩写)/疑问 + already/yet/just/ever --
+    add(f'{subj} {hv} {{Vpp}}.')
+    add(f'{subj} {hv} already {{Vpp}}.')
+    add(f'{subj} {hv} just {{Vpp}} the {{N}}.')
+    add(f'{subj} {hv} not {{Vpp}} the {{N}} yet.')
+    add(f'{subj} {hvn} {{Vpp}} yet.')
+    add(f'{hv} {subj} {{Vpp}} the {{N}}?')
+    add(f'{hv} {subj} ever {{Vpp}} a {{N}}?')
+    # -- 被动语态：现在/过去/将来/情态 × 肯定/否定/疑问 + by 短语 --
+    for be, nbe in ((be_p, nbe_p), (be_pa, nbe_pa)):
+        add(f'{subj} {be} {{Vpp}}.')
+        add(f'{subj} {be} {{Vpp}} by the {{N}}.')
+        add(f'{subj} {be} not {{Vpp}}.')
+        if "'" in nbe: add(f'{subj} {nbe} {{Vpp}} by them.')
+        add(f'{be} {subj} {{Vpp}} by the {{N}}?')
+    add(f'{subj} will be {{Vpp}}.')
+    add(f'{subj} must be {{Vpp}} by the {{N}}.')
+    # -- 情态 must/shall/should：肯定/否定(全拼+缩写)/疑问 --
+    for m, mn in (('must', "mustn't"), ('should', "shouldn't")):
+        add(f'{subj} {m} {{V}}.')
+        add(f'{subj} {m} not {{V}} the {{N}}.')
+        add(f'{subj} {mn} {{V}}.')
+        add(f'{m} {subj} {{V}}?')
+    add(f'shall I {{V}}?')
+    add(f'shall we {{V}} the {{N}}?')
+    # -- SVOC 宾补 --
+    v3 = '{VTs}' if aux == 'does' else '{VT}'
+    add(f'{subj} {v3} me {{ADJ}}.')
+    add(f'{subj} {v3} him a {{N}}.')
+    add(f'{subj} {naux} {{VT}} it {{ADJ}}.')
+    add(f'{aux} {subj} {{VT}} them {{ADJ}}?')
+    # -- 定语从句（限制性 who/which/that） --
+    add(f'{subj} {v3} the {{N}} that {{Vs}}.')
+    add(f'{subj} {v3} the {{N}} which he {{Vs}}.')
+    add(f'the {{N}} who {{Vs}} is {{ADJ}}.')
+    add(f'the {{N}} whose {{N}} is {{ADJ}} {{Vs}}.')
+    # -- 条件 if/unless + 目的 so that --
+    add(f'if {subj} {v3} the {{N}}, I will {{V}}.')
+    add(f'unless {subj} {v3}, they will not {{V}}.')
+    add(f'{subj} {v3} so that he can {{V}}.')
+    # -- 比较：-er than / more...than / as...as / 最高级 --
+    add(f'{subj} {be_p} {{ADJer}} than him.')
+    add(f'{subj} {be_p} more {{ADJ}} than the {{N}}.')
+    add(f'{subj} {be_p} as {{ADJ}} as them.')
+    add(f'{subj} {be_p} the {{ADJest}} {{N}}.')
+    add(f'{subj} {be_p} the most {{ADJ}} {{N}}.')
+    add(f'so {{ADJ}} that I {{V}}.' if subj == 'I' else f'{subj} {be_p} so {{ADJ}} that they {{V}}.')
+
+# -- 感叹句 --
+add('what a {ADJ} {N}!')
+add('what an {ADJ} {N}!')
+add('what {ADJ} {Ns}!')
+add('how {ADJ}!')
+add('how {ADJ} the {N} is!')
+add('how {ADJ} they are!')
+# -- 非谓语主语 / 形式主语 / 形式宾语 / 指示代词 --
+add('{Ving} is {ADJ}.')
+add('to {V} is {ADJ}.')
+add('it is {ADJ} to {V}.')
+add('it is {ADJ} to {VT} the {N}.')
+add('I find it {ADJ} to {V}.')
+add('this is a {N}.')
+add('that is the {N}.')
+add('these are {Ns}.')
+add('those {Ns} are {ADJ}.')
+add('whose {N} is this?')
+add('which {N} does he {VT}?')
+add('whom does she {VT}?')
+# -- 过去进行时（was/were 已入库，补模板） --
+for subj, be_p, be_pa, aux, nbe_p, nbe_pa, naux in SUBJECTS:
+    add(f'{subj} {be_pa} {{Ving}}.')
+    add(f'{subj} {be_pa} not {{Ving}} the {{N}}.')
+    add(f'{be_pa} {subj} {{Ving}}?')
+
 # ---------- 3. 逐 token 穷举校验 ----------
-PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vt|vts|adj)\}$')
+PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vpp|vt|vts|adj|adjer|adjest)\}$')
 
 def check_all():
     missing = {}

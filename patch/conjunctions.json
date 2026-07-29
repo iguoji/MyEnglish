@@ -31,5 +31,62 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100903,
+    "spelling": "if",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "如果（引导条件状语从句）",
+          "是否（引导宾语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100904,
+    "spelling": "unless",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "除非（引导条件状语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100905,
+    "spelling": "so",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "所以",
+          "以便（so that 引导目的状语从句）"
+        ]
+      },
+      {
+        "index": 2,
+        "pos": "adv.",
+        "definitions": [
+          "如此，这么（so...that 引导结果状语从句）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

@@ -1,0 +1,75 @@
+[
+  {
+    "id": 101001,
+    "spelling": "than",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "比（用于比较级结构）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101002,
+    "spelling": "as",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "conj.",
+        "definitions": [
+          "像……一样（as...as 同级比较）",
+          "当……时",
+          "好像（as if 虚拟语气）"
+        ]
+      },
+      {
+        "index": 2,
+        "pos": "prep.",
+        "definitions": [
+          "作为"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101003,
+    "spelling": "more",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "更（构成多音节形容词/副词的比较级）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101004,
+    "spelling": "most",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "最（构成多音节形容词/副词的最高级）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  }
+]

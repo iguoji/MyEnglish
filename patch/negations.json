@@ -191,5 +191,69 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100413,
+    "spelling": "mustn't",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "must not 的缩写（禁止，不准）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100414,
+    "spelling": "shouldn't",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "should not 的缩写（不应该）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100415,
+    "spelling": "haven't",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "have not 的缩写（现在完成时否定，与 I/you/we/they 及复数名词连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100416,
+    "spelling": "hasn't",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "has not 的缩写（现在完成时否定，与 he/she/it 及单数名词连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]

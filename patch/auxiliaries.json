@@ -46,5 +46,37 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100204,
+    "spelling": "has",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "助动词（have 的第三人称单数现在式，构成现在完成时，与 he/she/it 及单数名词连用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100205,
+    "spelling": "had",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "aux.",
+        "definitions": [
+          "助动词（have/has 的过去式，构成过去完成时，各人称通用）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-29",
+    "updated_at": "2026-07-29"
   }
 ]
