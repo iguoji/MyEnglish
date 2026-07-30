@@ -359,18 +359,26 @@ class WordAudioPlayer(context: Context) {
         // 原子计数器统计已完成（成功 + 失败跳过）的任务数，用于实时比例。
         val completed = AtomicInteger(0)
         for ((accent, spelling) in tasks) {
-            precacheExecutor.execute {
-                // 已有新一轮预缓存或用户重复点击时，旧任务直接退出。
-                if (myGeneration != precacheGeneration) return@execute
-                // 单个单词失败（音源缺失 / 网络错误）只跳过，不影响整体进度。
-                try {
-                    precacheResolve(spelling, accent)
-                } catch (_: Throwable) {
-                    // 离线预缓存以"尽量填满"为目标，单个失败无需中断整体。
+            // 线程池若已随 Activity 销毁被关闭，提交会被拒绝；此处静默吞掉，
+            // 避免 RejectedExecutionException 冒泡到调用方导致无任何进度回调。
+            try {
+                precacheExecutor.execute {
+                    // 已有新一轮预缓存或用户重复点击时，旧任务直接退出。
+                    if (myGeneration != precacheGeneration) return@execute
+                    // 单个单词失败（音源缺失 / 网络错误）只跳过，不影响整体进度。
+                    try {
+                        precacheResolve(spelling, accent)
+                    } catch (_: Throwable) {
+                        // 离线预缓存以"尽量填满"为目标，单个失败无需中断整体。
+                    }
+                    // 无论成功或失败都推进计数并上报进度。
+                    val done = completed.incrementAndGet()
+                    onProgress(done, total, done >= total)
                 }
-                // 无论成功或失败都推进计数并上报进度。
-                val done = completed.incrementAndGet()
-                onProgress(done, total, done >= total)
+            } catch (_: java.util.concurrent.RejectedExecutionException) {
+                // 线程池已关闭：本批次剩余任务不再执行，直接按"已完成"收尾。
+                onProgress(total, total, true)
+                return
             }
         }
     }
@@ -388,6 +396,27 @@ class WordAudioPlayer(context: Context) {
             if (isLikelyMp3(expectedCacheFile(spelling, BRITISH))) cached += 1
         }
         return cached to total
+    }
+
+    /**
+     * 清空全部离线语音缓存：删除 word_audio 目录（含美式/英式子目录与所有 mp3）。
+     *
+     * 先让进行中的预缓存批次退出，避免删目录时并发写文件产生半截文件。删除只在
+     * word_audio 目录内进行，绝不会向上误删 applicationContext.cacheDir 的其它内容。
+     * 删除失败（如文件正被系统占用）不会抛异常，保证"清空数据"流程始终能走完。
+     */
+    fun clearAudioCache() {
+        // 让尚未执行的预缓存任务直接退出，不再往目录里写新文件。
+        precacheGeneration += 1
+        // 仅清空本服务负责的 word_audio 目录；其余缓存（如图片）不受影响。
+        val root = File(appContext.cacheDir, "word_audio")
+        // 防御：路径必须位于 cacheDir 之内，防止任何意外越界删除。
+        val cacheRoot = appContext.cacheDir
+        if (!root.absolutePath.startsWith(cacheRoot.absolutePath + File.separator)) {
+            return
+        }
+        // deleteRecursively 会递归删除目录及其内容；失败返回 false，此处忽略。
+        runCatching { root.deleteRecursively() }
     }
 
     /** 读取文件开头，快速排除 HTML、JSON、空文件和残缺缓存。 */

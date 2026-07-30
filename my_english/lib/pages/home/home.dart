@@ -1337,6 +1337,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _store.clearAll();
       // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
       await _settings.clearAll();
+      // 一并清空离线语音缓存文件（word_audio 目录下全部 mp3），并重置进度。
+      await WordAudioCache.instance.clearCacheFiles();
       // 清空内存分组；原生 group 表已由 WordStore.clearAll 在 SQLite 侧一并清空。
       _groups.clear();
       // 重新加载空列表。
@@ -1383,7 +1385,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 const SizedBox(height: 8),
                 // 明确告知后果，不可恢复。
                 Text(
-                  '将删除全部单词（含释义）与所有设置，此操作不可恢复。',
+                  '将删除全部单词（含释义）、所有设置与已下载的离线语音音频，此操作不可恢复。',
                   style: TextStyle(
                     color: tokens.textSecondary,
                     fontSize: 13.5,

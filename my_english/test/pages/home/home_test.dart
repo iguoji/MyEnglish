@@ -19,6 +19,8 @@ import 'package:my_english/pages/listening/listening_page.dart';
 import 'package:my_english/pages/home/widgets/word_list_tile.dart';
 // 引入音频接口，测试使用不会访问真实网络的受控实现。
 import 'package:my_english/services/word_audio.dart';
+// 引入离线语音缓存服务，验证清空与 100% 提示逻辑。
+import 'package:my_english/services/word_audio_cache.dart';
 // 引入口音与设置 Store，验证播放参数和设置面板。
 import 'package:my_english/store/settings.dart';
 // 引入 Store 接口，测试会提供不依赖 Android 的内存实现。
@@ -233,6 +235,100 @@ void main() {
     // 抽屉应显示真实缓存比例 75%，而不是旧 bug 的 0%。
     expect(find.text('离线语音'), findsOneWidget);
     expect(find.text('75%'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证已 100% 缓存时点击"离线语音"只提示、不重复触发预缓存。
+  testWidgets('offline speech at 100% only prompts instead of re-caching', (
+    tester,
+  ) async {
+    // 拦截音频通道：让 getCacheProgress 返回已缓存=总数，使入口显示 100%。
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    // 记录是否真的触发了 precache（预期不应触发）。
+    var precacheCalled = false;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('my_english/word_audio'),
+      (call) async {
+        if (call.method == 'getCacheProgress') {
+          if (call.arguments is! Map || !call.arguments.containsKey('spellings')) {
+            return <String, Object?>{'cached': 0, 'total': 0};
+          }
+          // 已缓存 4 = 总数 4 → 100%。
+          return <String, Object?>{'cached': 4, 'total': 4};
+        }
+        if (call.method == 'precache') {
+          precacheCalled = true;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel('my_english/word_audio'),
+        null,
+      ),
+    );
+
+    // 打开首页并展开抽屉。
+    await _pumpHome(tester);
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+
+    // 入口显示 100%。
+    expect(find.text('离线语音'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+
+    // 点击入口：应给提示且不再发起预缓存。
+    await tester.tap(find.byKey(const Key('offline-speech')));
+    await tester.pumpAndSettle();
+    expect(precacheCalled, isFalse);
+    // 提示文案出现。
+    expect(find.text('离线语音已缓存完整'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证 clearCacheFiles 调用原生 clearAudioCache 并把进度重置为 0。
+  testWidgets('clear data also clears offline audio cache', (tester) async {
+    // 拦截音频通道，记录 clearAudioCache 是否被调用与参数是否合法。
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var clearCalled = false;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('my_english/word_audio'),
+      (call) async {
+        if (call.method == 'clearAudioCache') {
+          clearCalled = true;
+          return null;
+        }
+        if (call.method == 'getCacheProgress') {
+          return <String, Object?>{'cached': 0, 'total': 0};
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel('my_english/word_audio'),
+        null,
+      ),
+    );
+
+    // 注入两个单词，让缓存服务记录一份词表（getCacheProgress 在桩里回退 0）。
+    await WordAudioCache.instance.setWordList(<String>['apple', 'banana']);
+    // 触发清空缓存文件（同时应重置本地进度为 0）。
+    await WordAudioCache.instance.clearCacheFiles();
+
+    // 原生 clearAudioCache 被调用。
+    expect(clearCalled, isTrue);
+    // 本地进度被重置为 0/0。
+    expect(WordAudioCache.instance.percent, 0);
+    expect(WordAudioCache.instance.total, 0);
+    expect(WordAudioCache.instance.isCaching, isFalse);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());

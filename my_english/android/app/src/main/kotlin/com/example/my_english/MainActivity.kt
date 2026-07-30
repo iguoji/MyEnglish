@@ -413,14 +413,19 @@ class MainActivity : FlutterActivity() {
                         wordAudioPlayer.precacheAll(spellings) { cached, total, done ->
                             // EventSink 必须在主线程调用；后台线程池的回调切到 UI 线程。
                             runOnUiThread {
-                                // 没有订阅者（页面未打开抽屉）时静默丢弃，不报错。
-                                audioCacheSink?.success(
-                                    mapOf(
-                                        "cached" to cached,
-                                        "total" to total,
-                                        "done" to done,
-                                    ),
-                                )
+                                try {
+                                    // 没有订阅者（页面未打开抽屉）或引擎正在销毁时静默丢弃。
+                                    // try 防止引擎已解绑后仍调用 success 抛 IllegalStateException。
+                                    audioCacheSink?.success(
+                                        mapOf(
+                                            "cached" to cached,
+                                            "total" to total,
+                                            "done" to done,
+                                        ),
+                                    )
+                                } catch (_: Throwable) {
+                                    // 引擎已销毁等极端情况忽略，不阻塞后台缓存任务。
+                                }
                             }
                         }
                         // 方法调用立即结束，缓存在后台继续。
@@ -441,6 +446,17 @@ class MainActivity : FlutterActivity() {
                                 "total" to progress.second,
                             ),
                         )
+                    }
+
+                    // 清空全部离线语音缓存文件：删除 word_audio 目录（美式/英式子目录与 mp3）。
+                    // 由"清空数据"入口调用，确保删除本地单词时一并移除已下载的音频。
+                    "clearAudioCache" -> {
+                        // 删除失败（如个别文件被占用）不影响主流程，Dart 侧也自行重置进度。
+                        wordAudioPlayer.clearAudioCache()
+                        // 同步清空进度接收器引用，避免残留回传指向已删除文件结构。
+                        audioCacheSink = null
+                        // 方法本身无返回值。
+                        result.success(null)
                     }
 
                     // 未登记方法按 Flutter 规范返回 notImplemented。
@@ -522,10 +538,18 @@ class MainActivity : FlutterActivity() {
                         startActivityForResult(intent, REQUEST_CODE_FILE_IO)
                     }
 
-                    // 未登记方法按 Flutter 规范返回 notImplemented。
-                    else -> result.notImplemented()
+                        // 未登记方法按 Flutter 规范返回 notImplemented。
+                        else -> result.notImplemented()
                 }
             }
+    }
+
+    /** 引擎与 Activity 解绑时清空进度接收器，避免向已销毁的引擎投递事件。 */
+    override fun cleanUpFlutterEngine(engine: FlutterEngine) {
+        // 置空接收器，后续任何后台回调都不会再向它 success，杜绝悬空引用崩溃。
+        audioCacheSink = null
+        // 走父类标准清理流程。
+        super.cleanUpFlutterEngine(engine)
     }
 
     /** 把数据库动作放入单线程队列，并把结果安全送回 Android 主线程。 */

@@ -99,13 +99,15 @@ class WordAudioCache extends ChangeNotifier {
   }
 
   /// 启动后台批量预缓存；已在进行中或词库为空时忽略重复点击。
+  ///
+  /// 已 100% 缓存完毕时也会直接返回，由调用方（抽屉入口）判断并提示用户，
+  /// 避免进度条一闪而过造成"点了没反应"的错觉。
   void start() {
     // 已经在缓存则不再重复触发，避免重复创建任务。
     if (_isCaching) return;
     // 没有单词无需缓存。
     if (_spellings.isEmpty) return;
-    // 已经全部缓存完毕（已缓存数达到总数）则无需再下载，直接跳过，
-    // 避免点击后进度条一闪而过造成"点了没反应"的错觉。
+    // 已经全部缓存完毕（已缓存数达到总数）则无需再下载，直接跳过。
     if (_total > 0 && _cached >= _total) return;
     // 订阅原生进度流（全局只订阅一次）。
     _ensureSubscribed();
@@ -124,6 +126,28 @@ class WordAudioCache extends ChangeNotifier {
         notifyListeners();
       }),
     );
+  }
+
+  /// 清空全部离线语音缓存文件，并重置本地进度为 0。
+  ///
+  /// 由"清空数据"流程调用，确保删除本地单词时一并移除已下载的音频；
+  /// 调用成功后抽屉入口百分比会回到 0%。通道不可用（测试/异常）时只重置本地状态。
+  Future<void> clearCacheFiles() async {
+    try {
+      // 通知原生删除 word_audio 目录下的全部 mp3。
+      await _channel.invokeMethod<void>('clearAudioCache');
+    } on PlatformException {
+      // 文件可能本来就不存在，忽略。
+    } on MissingPluginException {
+      // 单元测试无原生实现时忽略。
+    }
+    // 重置本地进度显示，避免抽屉仍显示旧的百分比。
+    _cached = 0;
+    _total = 0;
+    _isCaching = false;
+    _spellings = const <String>[];
+    // 通知界面刷新。
+    notifyListeners();
   }
 
   /// 确保只订阅一次原生进度流。

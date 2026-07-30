@@ -311,8 +311,21 @@ class _DrawerOfflineSpeech extends StatelessWidget {
             InkWell(
               // 供测试点击触发离线预缓存。
               key: const Key('offline-speech'),
-              // 点击即启动后台批量缓存（进行中时内部自动忽略重复点击）。
-              onTap: () => cache.start(),
+              // 点击逻辑：已 100% 缓存则提示用户，否则启动后台批量缓存。
+              onTap: () {
+                // 已经全部缓存完毕时不再重复下载，直接给一句提示即可。
+                if (cache.percent >= 100) {
+                  // 先移除上一条提示，避免快速重复点击时堆叠。
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  // 轻提示"已完整"，不打断用户。
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('离线语音已缓存完整')),
+                  );
+                  return;
+                }
+                // 否则进入缓存（进行中时内部自动忽略重复点击）。
+                cache.start();
+              },
               // 与 _DrawerItem 一致的整行内边距。
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
