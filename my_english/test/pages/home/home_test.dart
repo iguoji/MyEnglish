@@ -61,16 +61,15 @@ void main() {
     // 点击汉堡按钮。
     await tester.tap(find.byKey(const Key('open-menu')));
     await tester.pumpAndSettle();
-    // 入口与内嵌设置全部出现：原"设置"项已被可直接操作的四项设置取代。
+    // 入口与内嵌设置全部出现：原"设置"项已被可直接操作的内嵌设置取代。
     expect(find.text('添加单词'), findsOneWidget);
-    expect(find.text('发音'), findsOneWidget);
+    expect(find.text('口语发音'), findsOneWidget);
     expect(find.text('单词分隔'), findsOneWidget);
-    expect(find.text('黑暗模式'), findsOneWidget);
     expect(find.text('每日复习'), findsOneWidget);
     expect(find.text('数据导出'), findsOneWidget);
-    expect(find.text('关于'), findsOneWidget);
-    // 页脚显示真实仓库地址。
-    expect(find.text('github.com/iguoji/MyEnglish'), findsOneWidget);
+    // 页脚显示 Github 与邮箱两项。
+    expect(find.text('Github'), findsOneWidget);
+    expect(find.text('asgeg@qq.com'), findsOneWidget);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -134,10 +133,9 @@ void main() {
     // 打开抽屉，设置项已直接内嵌在抽屉内，无需再开独立窗口。
     await tester.tap(find.byKey(const Key('open-menu')));
     await tester.pumpAndSettle();
-    // 四项设置标题都存在。
-    expect(find.text('发音'), findsOneWidget);
+    // 三项设置标题都存在（黑暗模式开关已移至顶部图标按钮）。
+    expect(find.text('口语发音'), findsOneWidget);
     expect(find.text('单词分隔'), findsOneWidget);
-    expect(find.text('黑暗模式'), findsOneWidget);
     expect(find.text('每日复习'), findsOneWidget);
     // 默认值：美式、顿号、Light、100。
     expect(settings.accent, PronunciationAccent.american);
@@ -155,8 +153,8 @@ void main() {
     );
     await tester.pump();
     expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
-    // 打开黑暗模式开关。
-    await tester.tap(find.byKey(const Key('dark-mode-switch')));
+    // 点击顶部主题切换图标，从 Light 切到 Dark。
+    await tester.tap(find.byKey(const Key('theme-toggle')));
     await tester.pump();
     expect(settings.theme, AppThemePreference.dark);
     // 每日复习 +5。
