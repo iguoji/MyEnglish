@@ -200,8 +200,6 @@ class _GroupEditRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // 是否允许删除：至少保留一个分组时才禁用最后一项?设计稿允许删到只剩 1 个。
-    final canDelete = groups.groups.length > 1;
 
     // Row 横向排列输入框与按钮。
     return Row(
@@ -249,14 +247,121 @@ class _GroupEditRow extends StatelessWidget {
           onTap: () => groups.moveDown(groupId),
         ),
         const SizedBox(width: 8),
-        // 删除按钮；分组里的单词由首页监听后移回"未分组"。
+        // 删除按钮：点击后弹确认对话框，确认后才真正删除。
+        // 分组里的单词由首页监听后移回"未分组"，因此允许删除任意分组（含最后一个）。
         _SquareButton(
           icon: TablerIcons.trash,
-          enabled: canDelete,
-          onTap: () => groups.remove(groupId),
+          enabled: true,
+          onTap: () => _confirmDelete(context),
         ),
       ],
     );
+  }
+
+  /// 弹出删除确认对话框；用户确认后才执行 groups.remove。
+  Future<void> _confirmDelete(BuildContext context) async {
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+    // showDialog 返回 Future<bool?>：true=确认，false/null=取消。
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        // 自绘圆角卡片，与删除单词对话框风格一致。
+        backgroundColor: tokens.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            // 高度只包住内容。
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 对话框标题。
+              Text(
+                '删除分组',
+                style: TextStyle(
+                  color: tokens.text,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              // 标题与正文间距。
+              const SizedBox(height: 8),
+              // 确认文案带分组名称。
+              Text(
+                '确定要删除分组「$name」吗？组内单词将自动移回未分组。',
+                style: TextStyle(
+                  color: tokens.textSecondary,
+                  fontSize: 13.5,
+                  height: 1.5,
+                ),
+              ),
+              // 正文与按钮间距。
+              const SizedBox(height: 18),
+              // 取消与删除按钮。
+              Row(
+                children: [
+                  // 取消按钮：描边样式。
+                  Expanded(
+                    child: InkWell(
+                      key: const Key('group-delete-cancel'),
+                      onTap: () => Navigator.of(dialogContext).pop(false),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: tokens.inputBorder),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '取消',
+                          style: TextStyle(
+                            color: tokens.textMedium,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // 删除按钮：危险色实底。
+                  Expanded(
+                    child: InkWell(
+                      key: const Key('group-delete-confirm'),
+                      onTap: () => Navigator.of(dialogContext).pop(true),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppTokens.danger,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          '删除',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    // 用户点击删除才执行；点击取消或点遮罩关闭都返回 false/null。
+    if (confirmed == true) {
+      groups.remove(groupId);
+    }
   }
 }
 

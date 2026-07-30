@@ -4,6 +4,8 @@ import 'dart:async';
 import 'dart:math';
 // material.dart 提供全屏页面、进度条、卡片与按钮。
 import 'package:flutter/material.dart';
+// services.dart 提供 HapticFeedback，为每次选择添加触觉反馈。
+import 'package:flutter/services.dart';
 // 所有可见图标继续统一使用 Tabler。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
@@ -200,14 +202,20 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   /// 选择答案：错项变红并禁用；正确时推进到下一小题。
+  ///
+  /// 触觉反馈策略：
+  /// - 选错：heavyImpact（重震），配合选项抖动动画，错误感强烈。
+  /// - 选对：lightImpact（轻触），页面立即切换为新题，视觉变化即反馈。
   void _pickOption(DictationOption option) {
-    // 当前单词完成后已经只能点击“下一题”，旧选项不再响应。
+    // 当前单词完成后已经只能点击"下一题"，旧选项不再响应。
     if (_isDone ||
         _isCurrentWordComplete ||
         _wrongOptions.contains(option.text)) {
       return;
     }
       if (!option.isCorrect) {
+      // 重震动传达错误感，无需音效也能感知。
+      HapticFeedback.heavyImpact();
       setState(() {
         _wrongOptions.add(option.text);
         _errors++;
@@ -218,6 +226,9 @@ class _DictationPageState extends State<DictationPage> {
       });
       return;
     }
+
+    // 轻触震动确认选对，不拖延答题节奏。
+    HapticFeedback.lightImpact();
 
     if (_stage == DictationStage.word) {
       if (_availableMeanings.isEmpty) {
@@ -260,6 +271,8 @@ class _DictationPageState extends State<DictationPage> {
 
   /// 标记当前单词的拼写和全部释义均已答对。
   void _completeCurrentWord() {
+    // 单词完成给予中等震动，作为里程碑反馈。
+    HapticFeedback.mediumImpact();
     // 只更新当前题状态，不在正确答案点击中立即跳走。
     setState(() {
       // 底部会根据这个字段从候选区切换为长条按钮。
@@ -273,6 +286,8 @@ class _DictationPageState extends State<DictationPage> {
       // 绿色只用于正确完成反馈。
       _feedbackColor = const Color(0xFF2FB344);
     });
+    // 自动重播一次发音作为答对奖励：既有听觉反馈，又强化单词记忆。
+    unawaited(_playAudio());
     // 当前单词已完成，把本次默写结果写入记录（每天首条为准，异步、不阻塞）。
     _recordCompletion();
   }
@@ -320,6 +335,8 @@ class _DictationPageState extends State<DictationPage> {
     if (!_isCurrentWordComplete || _isDone) return;
     // 已经处于最后一个单词时，下一步是整轮完成页。
     if (_wordIndex + 1 >= widget.words.length) {
+      // 整轮完成给予中等震动，与单词完成同级但更持久。
+      HapticFeedback.mediumImpact();
       setState(() {
         // 切换到整轮完成状态。
         _isDone = true;
@@ -612,8 +629,14 @@ class _DictationPageState extends State<DictationPage> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   for (var index = 0; index < _options.length; index++) ...[
-                    // 每个选项保留原有正确、错误和禁用逻辑。
-                    _buildOption(tokens, _options[index], index),
+                    // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
+                    _OptionCard(
+                      key: ValueKey('dictation-option-$index-${_options[index].text}'),
+                      option: _options[index],
+                      index: index,
+                      wrong: _wrongOptions.contains(_options[index].text),
+                      onTap: () => _pickOption(_options[index]),
+                    ),
                     // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
                     if (index < _options.length - 1)
                       const SizedBox(height: DictationLayout.optionGap),
@@ -706,91 +729,6 @@ class _DictationPageState extends State<DictationPage> {
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建一个候选词按钮，错误选项会变红并停止接收点击。
-  Widget _buildOption(AppTokens tokens, DictationOption option, int index) {
-    // 先从错误集合判断当前选项是否已经答错。
-    final wrong = _wrongOptions.contains(option.text);
-    // Material 提供按压水波纹需要的材质层和错误态背景。
-    return Material(
-      key: Key('dictation-option-$index'),
-      color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
-      borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
-      // InkWell 负责点击；错误选项传入 null 后会自动禁用。
-      child: InkWell(
-        onTap: wrong ? null : () => _pickOption(option),
-        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
-        // Container 固定每行高度并绘制对应状态的边框。
-        child: Container(
-          height: DictationLayout.optionHeight,
-          padding: const EdgeInsets.symmetric(
-            horizontal: DictationLayout.optionHorizontalInset,
-            vertical: 6,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
-            border: Border.all(
-              color: wrong ? AppTokens.danger : tokens.inputBorder,
-            ),
-          ),
-          // Stack 让左侧 badge 和中央候选文字分别依据按钮自身定位，互不挤压。
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // A/B/C/D 使用固定灰色正方形 badge，并始终贴齐按钮内容区左侧。
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  key: Key('dictation-option-badge-$index'),
-                  width: DictationLayout.optionBadgeSize,
-                  height: DictationLayout.optionBadgeSize,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: wrong
-                        ? AppTokens.danger.withValues(alpha: 0.10)
-                        : tokens.sub,
-                    border: Border.all(
-                      color: wrong ? AppTokens.danger : tokens.rowBorder,
-                    ),
-                    // 轻微圆角仍保持清晰的正方形轮廓，不使用胶囊形状。
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(
-                    String.fromCharCode('A'.codeUnitAt(0) + index),
-                    style: TextStyle(
-                      color: wrong ? AppTokens.danger : tokens.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              // 左右使用相同预留宽度，候选文本的中心仍等于整个按钮的中心。
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal:
-                      DictationLayout.optionBadgeSize +
-                      DictationLayout.optionHorizontalInset,
-                ),
-                // 最多显示两行文字，过长候选词使用省略号保护固定行高。
-                child: Text(
-                  option.text,
-                  key: Key('dictation-option-label-$index'),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                  style: TextStyle(
-                    color: wrong ? AppTokens.danger : tokens.text,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -962,6 +900,174 @@ class _OutlineAction extends StatelessWidget {
               label: Text(label),
               style: buttonStyle,
             ),
+    );
+  }
+}
+
+/// 候选词卡片：错选时触发左右抖动动画，配合触觉反馈传达错误感。
+///
+/// 动画时长 300ms，振幅从 ±8px 衰减到 0，类似微信摇一摇的阻尼抖动。
+/// 正确选项不做动画——页面立即切换为新题，视觉变化本身就是反馈。
+class _OptionCard extends StatefulWidget {
+  const _OptionCard({
+    required this.option,
+    required this.index,
+    required this.wrong,
+    required this.onTap,
+    super.key,
+  });
+
+  /// 当前选项数据（文本 + 是否正确）。
+  final DictationOption option;
+
+  /// 选项在四选一列表中的位置（0-3），用于 A/B/C/D badge。
+  final int index;
+
+  /// 是否已被选错；从 false 变 true 时触发抖动。
+  final bool wrong;
+
+  /// 点击回调；错选后由调用方传入 null 禁用。
+  final VoidCallback onTap;
+
+  @override
+  State<_OptionCard> createState() => _OptionCardState();
+}
+
+class _OptionCardState extends State<_OptionCard>
+    with SingleTickerProviderStateMixin {
+  // 抖动动画控制器，300ms 一次完整衰减。
+  late final AnimationController _shakeController;
+  // 抖动位移曲线：从 0 出发，经过 ±8px 衰减振荡，最终回到 0。
+  late final Animation<double> _shakeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // 300ms 衰减抖动，类似物理阻尼效果。
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    // Tween 序列模拟阻尼振荡：8 → -6 → 4 → -2 → 0。
+    _shakeAnimation = TweenSequence<double>(
+      <TweenSequenceItem<double>>[
+        // 第一帧向左偏移 8px。
+        TweenSequenceItem(tween: Tween(begin: 0, end: -8), weight: 20),
+        // 反弹向右 6px。
+        TweenSequenceItem(tween: Tween(begin: -8, end: 6), weight: 25),
+        // 再向左 4px。
+        TweenSequenceItem(tween: Tween(begin: 6, end: -4), weight: 25),
+        // 向右 2px。
+        TweenSequenceItem(tween: Tween(begin: -4, end: 2), weight: 15),
+        // 回到原位。
+        TweenSequenceItem(tween: Tween(begin: 2, end: 0), weight: 15),
+      ],
+    ).animate(
+      CurvedAnimation(parent: _shakeController, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _OptionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 从"未错"变为"已错"时触发抖动。
+    if (!oldWidget.wrong && widget.wrong) {
+      _shakeController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _shakeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final wrong = widget.wrong;
+    // AnimatedBuilder 只在抖动期间重建，不影响正常状态下的性能。
+    return AnimatedBuilder(
+      animation: _shakeAnimation,
+      builder: (context, child) {
+        // Transform.translate 按 animation 值做水平位移。
+        return Transform.translate(
+          offset: Offset(_shakeAnimation.value, 0),
+          child: child,
+        );
+      },
+      // 以下与原 _buildOption 的 UI 完全一致，仅改为从 widget 读取参数。
+      child: Material(
+        key: Key('dictation-option-${widget.index}'),
+        color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
+        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+        child: InkWell(
+          onTap: wrong ? null : widget.onTap,
+          borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+          child: Container(
+            height: DictationLayout.optionHeight,
+            padding: const EdgeInsets.symmetric(
+              horizontal: DictationLayout.optionHorizontalInset,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+              border: Border.all(
+                color: wrong ? AppTokens.danger : tokens.inputBorder,
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    key: Key('dictation-option-badge-${widget.index}'),
+                    width: DictationLayout.optionBadgeSize,
+                    height: DictationLayout.optionBadgeSize,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: wrong
+                          ? AppTokens.danger.withValues(alpha: 0.10)
+                          : tokens.sub,
+                      border: Border.all(
+                        color: wrong ? AppTokens.danger : tokens.rowBorder,
+                      ),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      String.fromCharCode('A'.codeUnitAt(0) + widget.index),
+                      style: TextStyle(
+                        color: wrong ? AppTokens.danger : tokens.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal:
+                        DictationLayout.optionBadgeSize +
+                        DictationLayout.optionHorizontalInset,
+                  ),
+                  child: Text(
+                    widget.option.text,
+                    key: Key('dictation-option-label-${widget.index}'),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    style: TextStyle(
+                      color: wrong ? AppTokens.danger : tokens.text,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
