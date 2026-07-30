@@ -11,8 +11,9 @@
 
   破解办法：功能词是"封闭类"（finite / closed class）——
     英语里冠词、代词、介词、连词、助动词、情态动词……数量是有限且可枚举的。
-    只要维护一份"英语功能词总表"，拿它和 words.json ∪ patch 做差集，
-    差集里的词就是系统还缺的粘合词。这完全不依赖任何例句。
+    只要维护一份"英语功能词总表"，拿它和【系统 patch 词库】做差集，
+    差集里的词就是系统还缺的粘合词。这完全不依赖任何例句，
+    也不依赖任何用户个人词库（words.json）——系统必须独立覆盖。
 
   两份工具分工：
     - verify_coverage.py ：证明"已铺的模板"全覆盖（穷举校验，防回归）。
@@ -28,19 +29,29 @@ import json, glob, os, sys
 
 BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# ---------- 1. 加载词库（用户词 + 全部 patch）----------
-user_words = json.load(open(f'{BASE}/words.json'))
+# ---------- 1. 加载系统词库（只有 patch，不加载任何个人词库 words.json）----------
+# 系统独立性约定（2026-07-30）：封闭类功能词必须全部由系统 patch 提供，
+# 新用户数据库为空时也要完整可用，不允许依赖任何个人词库兜底。
 patch_words = []
 # 防御性加载：patch/ 下只接收"词库结构"（list 且元素为 dict）的 json。
-# 非词库 json（如 formula_schema.json 是 dict、annotations/*.json 是拼写数组）
-# 一律跳过，避免 w['spelling'] 对字符串/dict-key 取值而崩溃。
+# 非词库 json（annotations/*.json 是拼写数组）一律跳过，
+# 避免 w['spelling'] 对字符串/dict-key 取值而崩溃。
 for f in sorted(glob.glob(f'{BASE}/patch/*.json')):
     data = json.load(open(f))
     if isinstance(data, list) and all(isinstance(w, dict) for w in data):
         patch_words += data
 
 # 统一转小写做不区分大小写比对（功能词无所谓大小写，首字母大写只是句首）
-LEX = {w['spelling'].lower() for w in user_words} | {w['spelling'].lower() for w in patch_words}
+LEX = {w['spelling'].lower() for w in patch_words}
+
+# 系统不规则变形直接读基线变形字段（如 do→done、be→been/being），
+# 保证"总表里的分词形"由系统数据自己覆盖，而不是靠规则拼接碰运气。
+for _w in patch_words:
+    for _fld in ('plural', 'third_person_singular', 'gerund', 'past_tense',
+                 'past_participle', 'comparative', 'superlative'):
+        for _form in (_w.get(_fld) or []):
+            if isinstance(_form, str):
+                LEX.add(_form.lower())
 
 # 与 verify_coverage.py 保持一致：规则屈折（-s/-ing/-ed 等）由 app 确定性拼接产生，
 # 属"已有词的合法变形"，不应算作缺失。这里复用同一套 _inflect 把基础词展开，
@@ -169,20 +180,20 @@ for cat, words in MASTER.items():
     covered += len(words) - len(miss)
 
 # ---------- 4. 报告 ----------
-print(f'词库规模: 用户 {len(user_words)} 词 + patch {len(patch_words)} 词 = 合计 {len(LEX)} 个拼写')
+print(f'系统词库规模: patch {len(patch_words)} 词（不加载任何个人词库 words.json），含变形共 {len(LEX)} 个拼写')
 print(f'封闭类总表条目: {total_master} 个，已覆盖 {covered} 个，缺失 {total_master - covered} 个')
 print(f'覆盖比例: {covered / total_master * 100:.1f}%')
 
 if not missing_by_cat:
-    print('\n[PASS] 英语封闭类功能词总表已被 words.json ∪ patch 全覆盖——无待补维度。')
+    print('\n[PASS] 系统词库独立覆盖：英语封闭类功能词总表已被系统 patch 全覆盖——无待补维度（未使用 words.json）。')
     sys.exit(0)
 
-print(f'\n[MISSING] 以下封闭类功能词在词库中缺失（按类别）：共 {sum(len(v) for v in missing_by_cat.values())} 个')
+print(f'\n[MISSING] 以下封闭类功能词在系统词库中缺失（按类别）：共 {sum(len(v) for v in missing_by_cat.values())} 个')
 for cat, miss in missing_by_cat.items():
     print(f'\n  ▸ {cat}（缺 {len(miss)}）：')
     for w in miss:
         tag = '（多词短语）' if ' ' in w else ''
         print(f'      - {w}{tag}')
-print('\n建议：把上述词按类别补进对应 patch/*.json（或确认已在用户词库），')
+print('\n建议：把上述词按类别补进对应 patch/*.json（系统必须独立覆盖，不得依赖个人词库），')
 print('      然后重跑本工具与 verify_coverage.py 做双向确认。')
 sys.exit(1)

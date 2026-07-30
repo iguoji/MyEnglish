@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 # 名词数据（第1批，最高频常见名词 ~200 条）
 # 格式：("拼写", "中文释义")
-# is_person / plural_only 由 build_builtin_vocab.py 按 annotations/ 词表自动标记，此处不用标。
+# 语法/语义标记（可数性、人物性等）不在 Word/Meaning 模型中（README 已删除相关字段），
+# 由 patch/sentence/ 造句知识库独立承载，此处只提供拼写和中文释义。
 VERBS = None  # 占位，避免误用
 NOUNS = [
     ("apple", "苹果"),

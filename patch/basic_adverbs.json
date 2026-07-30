@@ -577,5 +577,181 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 100840,
+    "spelling": "usually",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "通常"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100841,
+    "spelling": "today",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "今天"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100842,
+    "spelling": "tomorrow",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "明天"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100843,
+    "spelling": "yesterday",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "昨天"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100844,
+    "spelling": "still",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "仍然"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100845,
+    "spelling": "again",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "再；又"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100846,
+    "spelling": "quite",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "相当"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100847,
+    "spelling": "rather",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "相当；宁可"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100848,
+    "spelling": "hence",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "因此"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100849,
+    "spelling": "together",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "一起"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
+  },
+  {
+    "id": 100850,
+    "spelling": "alone",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "adv.",
+        "definitions": [
+          "独自"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
   }
 ]

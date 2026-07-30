@@ -8,51 +8,56 @@ patch 功能词库"全覆盖证明"验证器（启蒙 level 0 + 入门 level 100
   因此把所有维度组合的全部模板做笛卡尔积展开——
   实词槽位用占位符 {N}/{V}/{VT}/{ADJ} 表示（校验时跳过），
   功能词槽位全部铺开成真实单词——
-  再逐 token 核对 words.json ∪ patch/*.json，
+  再逐 token 核对【系统 patch/*.json 词库】（含变形字段），
   通过即是"穷举证明"，不是概率抽样。
 
-实词侧约定（用户侧责任，不在本验证范围）：
-  - 动词不规则过去式（come→came）、名词不规则复数（child→children）
-    属于用户词库的屈折形录入义务（同"run 也录入了复数形式"的约定）；
-  - 规则屈折（-s/-es/-ed/-ing）由 app 确定性规则拼接。
+系统独立性约定（2026-07-30 起生效）：
+  - 本验证器【只加载系统 patch 词库】，不加载任何用户个人词库（words.json）。
+    系统必须在用户数据库为空的情况下独立通过验证——新用户零词库也能用生成器。
+  - 不规则屈折形（come→came、child→children）由系统基线的变形字段
+    （past_tense / past_participle / plural / third_person_singular / gerund）保证，
+    这些字段会被读入 LEXICON。
+  - 规则屈折（-s/-es/-ed/-ing）由 app 确定性规则拼接，验证器同样展开覆盖。
 
 用法：
   python3 patch/tools/verify_coverage.py
-退出码：0 = 全覆盖通过；1 = 存在缺失功能词（会逐条打印）。
+退出码：0 = 系统词库独立全覆盖通过；1 = 存在缺失功能词（会逐条打印）。
 """
 
 import json, glob, re, sys, itertools, os
 
 BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# ---------- 1. 加载词库并做基础一致性校验 ----------
-user_words = json.load(open(f'{BASE}/words.json'))
+# ---------- 1. 加载系统词库（只有 patch，不含任何个人词库）----------
 patch_words = []
 # 防御性加载：patch/ 下只接收"词库结构"（list 且元素为 dict）的 json。
-# 非词库 json（如 formula_schema.json 是 dict、annotations/*.json 是拼写数组）
+# 非词库 json（annotations/*.json 是拼写数组、sentence/ 子目录不在此 glob 范围）
 # 一律跳过，避免 w['id'] 对字符串/dict-key 取值而崩溃。
 for f in sorted(glob.glob(f'{BASE}/patch/*.json')):
     data = json.load(open(f))
     if isinstance(data, list) and all(isinstance(w, dict) for w in data):
         patch_words += data
 
-user_ids = {w['id'] for w in user_words}
 patch_ids = [w['id'] for w in patch_words]
 assert len(patch_ids) == len(set(patch_ids)), 'patch 内部 id 重复！'
-assert not (set(patch_ids) & user_ids), 'patch id 与 words.json 冲突！'
-user_sp = {w['spelling'].lower() for w in user_words}
+# 注意：不再断言"patch id 与用户词库不冲突"——数字 id 不是跨来源的全局身份，
+# 其他用户的个人数据完全可能占用相同数字段；跨来源身份用 source + spelling + pos 区分。
 patch_sp = {w['spelling'].lower() for w in patch_words}
-# 新约定（用户 2026-07-29 拍板）：系统基线可包含高频实词，即便用户词库也有同名词——
-# 两者共存时"用户侧优先"（生成器取用户条目做释义/展示）。故拼写重叠不再报错，
-# 仅打印提示，便于核对哪些词是系统兜底、哪些被用户覆盖。
-dup = user_sp & patch_sp
-if dup:
-    print(f'[提示] 系统基线与你词库拼写重叠 {len(dup)} 个（用户侧优先）: {sorted(dup)}')
 
-LEXICON = user_sp | patch_sp
+LEXICON = set(patch_sp)
 
-# 规则屈折扩展：用户词/系统词的 -s/-es/-ies/-ing/-ed 变形由 app 确定性拼接产生，
-# 属合法输出（如 come→comes, have→having）；不规则屈折（go→went）仍须显式录入。
+# 系统不规则变形：直接读取基线词条的变形字段（string[]，可含多合法形），
+# 如 eat→ate/eaten、child→children。这是"系统数据自己保证不规则形"的落点。
+_FORM_FIELDS = ('plural', 'third_person_singular', 'gerund', 'past_tense', 'past_participle',
+                'comparative', 'superlative')
+for w in patch_words:
+    for fld in _FORM_FIELDS:
+        for form in (w.get(fld) or []):
+            if isinstance(form, str):
+                LEXICON.add(form.lower())
+
+# 规则屈折扩展：系统词的 -s/-es/-ies/-ing/-ed 变形由 app 确定性拼接产生，
+# 属合法输出（如 come→comes, have→having）。
 def _inflect(w):
     out = set()
     if re.search(r"[^a-z']", w): return out
@@ -74,7 +79,7 @@ for _w in list(LEXICON):
 for _sp in list(LEXICON):
     if ' ' in _sp:
         LEXICON.add(_sp.replace(' ', '_'))
-MULTIWORDS = [s for s in (user_sp | patch_sp) if ' ' in s]
+MULTIWORDS = [s for s in patch_sp if ' ' in s]
 def _norm(t):
     for mw in MULTIWORDS:
         t = t.replace(mw, mw.replace(' ', '_'))
@@ -645,26 +650,28 @@ PLACEHOLDER = re.compile(r'^\{(n|ns|v|vs|ved|ving|vpp|vt|vts|adj|adjer|adjest)\}
 def check_all():
     missing = {}
     for t in templates:
-        for tok in re.findall(r"[a-zA-Z'{}]+", _norm(t).lower()):
+        # token 正则必须包含下划线：多词短语（one another → one_another）在 _norm 中
+        # 已合并为带下划线的单 token，若正则不含 _ 会被错误拆回单词（曾误报缺 one）。
+        for tok in re.findall(r"[a-zA-Z'{}_]+", _norm(t).lower()):
             if PLACEHOLDER.match(tok):
-                continue  # 实词占位符：由用户词库+规则屈折保证，不在系统侧范围
+                continue  # 实词占位符：由系统基线实词 + 变形字段 + 规则屈折填充，此处只验功能词
             if tok not in LEXICON:
                 missing.setdefault(tok, t)
     return missing
 
 missing = check_all()
 func_tokens = {tok for t in templates
-               for tok in re.findall(r"[a-zA-Z']+", re.sub(r'\{[^}]+\}', '', _norm(t).lower()))}
+               for tok in re.findall(r"[a-zA-Z'_]+", re.sub(r'\{[^}]+\}', '', _norm(t).lower()))}
 
-print(f'词库规模: 用户 {len(user_words)} 词 + patch {len(patch_words)} 词')
+print(f'系统词库规模: patch {len(patch_words)} 词（不加载任何个人词库 words.json）')
 print(f'穷举模板数: {len(templates)}')
 print(f'涉及功能词种类: {len(func_tokens)} -> {sorted(func_tokens)}')
 
 if missing:
-    print(f'\n[FAIL] 缺失 {len(missing)} 个功能词:')
+    print(f'\n[FAIL] 系统词库缺失 {len(missing)} 个功能词:')
     for tok, t in sorted(missing.items()):
         print(f'  {tok!r:12s} 出现于模板: {t}')
     sys.exit(1)
 else:
-    print('\n[PASS] 全部模板的功能词均被 words.json ∪ patch 覆盖——穷举证明成立。')
+    print('\n[PASS] 系统词库独立覆盖：全部模板的功能词均被 patch 覆盖——穷举证明成立（未使用 words.json）。')
     sys.exit(0)

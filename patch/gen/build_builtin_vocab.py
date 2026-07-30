@@ -369,21 +369,22 @@ def infer_noun_plural(spelling):
 
 
 # ============================================================================
-# 4. 加载自动标注词表（patch/annotations/ 下的拼写数组，单一事实源）
+# 4. annotations 说明（重要：定位已变更，2026-07-30 起生效）
+#    patch/annotations/ 下的四个词表（plural_only / ungradable / stative / is_person）
+#    是「句子生成器的外部语法知识」，只供造句知识库（patch/sentence/）和独立校验工具使用。
+#    它们【不再】写回 Word / Meaning —— README 数据模型中已删除这四个字段，
+#    Word、Meaning、SQLite、用户备份、导入格式一律不含它们。
+#    本生成器保留读取能力（load_annotation），但构建 word 对象时绝不使用。
 # ============================================================================
 
 def load_annotation(filename):
-    """读取 patch/annotations/ 下的标注词表，返回小写拼写集合"""
+    """读取 patch/annotations/ 下的标注词表，返回小写拼写集合。
+    仅供外部工具复用（如造句知识库构建脚本 import 本模块调用），
+    本脚本自身不再用它生成任何 Word/Meaning 字段。"""
     path = os.path.join(ROOT, "annotations", filename)
     if not os.path.exists(path):
         return set()
     return {w.lower() for w in json.load(open(path, encoding="utf-8"))}
-
-
-IS_PERSON = load_annotation("is_person.json")        # meaning 层 is_person=true
-PLURAL_ONLY = load_annotation("plural_only.json")    # word 层 plural_only=true
-UNGRADABLE = load_annotation("ungradable.json")      # word 层 gradable=false
-STATIVE = load_annotation("stative.json")            # meaning 层 stative=true
 
 
 # ============================================================================
@@ -401,21 +402,20 @@ def make_verb_word(wid, spelling, pos, zh):
                 "index": 1,
                 "pos": pos,                       # vt. / vi. / vi. vt.
                 "definitions": [zh],
-                "stative": spelling.lower() in STATIVE,   # 静态动词标记（绑定词性）
+                # 注意：stative 等语法标记不属于 Meaning 模型（README 已删除），
+                # 静态动词知识由 patch/sentence/ 造句知识库承载。
             }
         ],
         "difficulty": 0,                          # number，系统基线无难度梯度
         "phonetic_uk": None,                      # 音标可空
         "phonetic_us": None,
         "plural": [],                             # 动词无复数
-        "plural_only": False,
         "third_person_singular": forms["third_person_singular"],
         "gerund": forms["gerund"],
         "past_tense": forms["past_tense"],
         "past_participle": forms["past_participle"],
         "comparative": [],
         "superlative": [],
-        "gradable": True,                         # 动词 gradable 无意义，给默认 true
         "reviewed_at": None,
         "created_at": NOW,                        # number 时间戳
         "updated_at": NOW,
@@ -424,8 +424,7 @@ def make_verb_word(wid, spelling, pos, zh):
 
 
 def make_noun_word(wid, spelling, zh):
-    """构建名词 word 对象"""
-    sp = spelling.lower()
+    """构建名词 word 对象（严格按 README 现行字段，不含任何已删除的语法标记）"""
     return {
         "id": wid,
         "spelling": spelling,
@@ -434,21 +433,20 @@ def make_noun_word(wid, spelling, zh):
                 "index": 1,
                 "pos": "n.",
                 "definitions": [zh],
-                "is_person": sp in IS_PERSON,     # 是否为人（绑定词性）
+                # 注意：is_person 等语义标记不属于 Meaning 模型（README 已删除），
+                # 人物名词知识由 patch/sentence/ 造句知识库承载。
             }
         ],
         "difficulty": 0,
         "phonetic_uk": None,
         "phonetic_us": None,
         "plural": infer_noun_plural(spelling),    # 由规则推导
-        "plural_only": sp in PLURAL_ONLY,         # 只有复数（scissors 等）
         "third_person_singular": [],
         "gerund": [],
         "past_tense": [],
         "past_participle": [],
         "comparative": [],
         "superlative": [],
-        "gradable": True,                         # 名词 gradable 无意义，给默认 true
         "reviewed_at": None,
         "created_at": NOW,
         "updated_at": NOW,

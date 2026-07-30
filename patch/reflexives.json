@@ -110,5 +110,21 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
+  },
+  {
+    "id": 101308,
+    "spelling": "himself",
+    "meanings": [
+      {
+        "index": 1,
+        "pos": "pron.",
+        "definitions": [
+          "他自己（反身代词）"
+        ]
+      }
+    ],
+    "difficulty": null,
+    "created_at": "2026-07-30",
+    "updated_at": "2026-07-30"
   }
 ]
