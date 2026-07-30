@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "collocations",
+  "type": "object",
+  "properties": {
+    "_comment": { "type": "string" },
+    "verb_restrictions": {
+      "type": "object",
+      "description": "动词 -> 允许的宾语语义标签列表",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "noun_tags": {
+      "type": "object",
+      "description": "名词 -> 额外搭配标签（语义类别仍复用 noun_usage.semantic_category）",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  },
+  "required": ["verb_restrictions"],
+  "additionalProperties": true
+}

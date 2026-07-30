@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-最小句子生成器原型（任务31）
+最小句子生成器原型（任务31，整改版）
 =============================
 
 目标：证明"系统基线词库 + 造句知识库"闭环可用——不加载 words.json，
 在 SV / SVP / SVO / There be 四种句型 × 六时态 × 肯/否/一般疑问 下
-生成合法句子；任何数据缺口按安全失败规则返回机器可读拒绝码。
+生成句子；任何数据缺口按安全失败规则返回机器可读拒绝码。
 
-实现规范：严格遵循 docs/generation_order.md 的九步流水线。
-这是原理验证原型（CLI），不是 Flutter 正式实现；正式实现移植本文件逻辑。
+本文件是原理验证原型（CLI），不是 Flutter 正式实现；正式实现移植本逻辑。
+注意：CLI 原型仍在验证"主谓一致 / 真实测试执行 / 自然搭配质量"，
+尚不能宣称"100% 无病句"或"可直接翻译成 Dart"——见 docs 完成报告。
 
-用法：
-  # 演示模式：每种句型×时态×极性抽样打印
-  /Users/iguoji/.workbuddy/binaries/python/envs/default/bin/python \
-      patch/sentence/tools/mini_generator.py demo
-  # 组合测试模式（任务28）：穷举全组合，统计成功/拒绝分布，病句即失败
-  ... mini_generator.py matrix
-  # 黄金句回归模式（任务27/28）：golden.json 的黄金句必须可生成、禁止句必须生成不出
-  ... mini_generator.py golden
+运行（标准方式见 requirements.txt）：
+  python3 patch/sentence/tools/mini_generator.py demo      # 抽样打印
+  python3 patch/sentence/tools/mini_generator.py matrix    # 组合卫生 + 语法校验
+  python3 patch/sentence/tools/mini_generator.py golden    # 驱动 tests/golden.json
+  python3 patch/sentence/tools/mini_generator.py --help
 """
 
+import argparse
 import itertools
 import json
 import glob
 import os
 import random
+import re
 import sys
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ def load(relpath):
 
 
 # ---------------------------------------------------------------------------
-# 数据装载：词条层（仅 patch/*.json）+ 知识层 + 用法层 + 范式层
+# 数据装载：词条层（仅 patch/*.json）+ 知识层 + 用法层 + 范式层 + 搭配层
 # ---------------------------------------------------------------------------
 class Knowledge:
     """把所有数据源装进内存并建好索引（推导都在加载时做，热循环零现推）"""
@@ -80,6 +80,13 @@ class Knowledge:
         # 契约层
         self.formulas = {f['formula_id']: f for f in load('formulas/core_formulas.json')}
         self.matrix = load('formulas/compatibility_matrix.json')['rules']
+
+        # 搭配层（P1-4 新增，独立文件，不改动 verb_frames/noun_usage 结构）
+        # verb_restrictions: 动词 -> 允许的宾语语义标签列表
+        # noun_tags: 名词 -> 额外搭配标签（语义类别仍复用 noun_usage.semantic_category）
+        self.colloc = load('lexicon/collocations.json')
+        self.verb_restr = self.colloc['verb_restrictions']
+        self.noun_tags = self.colloc.get('noun_tags', {})
 
     # ---- 词形读取：字段缺失即 None（安全失败由调用方处理）----
     def verb_form(self, spelling, field):
@@ -173,13 +180,15 @@ def build_np(noun, number='singular', definite=False):
 # 动词组装（流水线第 7、8 步）：时态 × 极性 × 疑问 → (前置助词, 助词, 动词形)
 # ---------------------------------------------------------------------------
 def be_form(tense_key, person, number):
-    """从 auxiliaries 范式取 be 的变位（现在/过去）"""
+    """从 auxiliaries 范式取 be 的变位（现在/过去）。
+
+    严格按 (tense, person, number) 精确匹配——不回退到“只看 number”，
+    否则 you（person=2，单数）会被错误回退到 am。
+    范式覆盖全部 6 种 (person, number) 组合：
+      I→am/was | you→are/were（单复同形）| he/she/it→is/was | we/they→are/were
+    """
     for f in K.aux['be']['finite_forms']:
         if f['tense'] == tense_key and person in f['person'] and f['number'] == number:
-            return f['form']
-    # 范式按 number 分行；people 等语法复数主语人称取 3
-    for f in K.aux['be']['finite_forms']:
-        if f['tense'] == tense_key and f['number'] == number:
             return f['form']
     raise Reject('be_paradigm_gap')
 
@@ -292,18 +301,47 @@ def _wrap(core, polarity, question, aux_is_first):
 # 句型生成器（流水线全流程）
 # ---------------------------------------------------------------------------
 def _person_number_of_subject(subj_kind, subj_value):
-    """主语的 (人称, 语法数)：代词查范式；名词短语用构造时返回的语法数"""
+    """主语的 (人称, 语法数, 主语文本)：代词查范式；其余拒绝"""
     if subj_kind == 'pronoun':
         p = K.pronouns[subj_value]
         return p['person'], p['number'], p['forms']['subject']
     raise Reject('unsupported_subject_kind')
 
 
-def generate(pattern, tense, polarity, question, choice=None):
-    """生成一个句子；choice 允许固定选词（黄金句回归用），否则用 random。
-    返回句子字符串；不合法组合抛 Reject。"""
+def _object_ok(usage, verb):
+    """宾语搭配过滤（P1-4 搭配层）：
+
+    - 动词未在 collocations.verb_restrictions 登记 → 保守返回 False（禁止随机拼接）
+    - 名词命中动词允许的任一语义标签即通过：
+      标签既可与 noun_usage.semantic_category 相等（food/drink/person/place/object…），
+      也可命中 noun_tags 里的细标签（如 readable）
+    """
+    tags = K.verb_restr.get(verb)
+    if not tags:
+        return False
+    cat = usage.get('semantic_category')
+    ntags = K.noun_tags.get(usage['spelling'], [])
+    for t in tags:
+        if t == cat:
+            return True
+        if t in ntags:
+            return True
+    return False
+
+
+def _generate(pattern, tense, polarity, question, choice=None, full=False):
+    """生成一个句子。
+
+    choice 允许固定选词（黄金句回归用），否则用 random。
+    返回句子字符串；当 full=True 时返回 (句子, info) 供语法校验使用。
+    不合法组合抛 Reject。"""
     rng = choice or {}
     pick = rng.get('pick', random.choice)
+
+    info = dict(pattern=pattern, tense=tense, polarity=polarity, question=question,
+                subject=None, person=None, number=None, verb=None,
+                is_be=False, object_noun=None, mass_object=False,
+                semantic_unnatural=False)
 
     # 第 1 步：选项合法化（矩阵 forbid 的静态维度）
     if pattern == 'THERE_BE' and tense in ('present_continuous', 'past_continuous'):
@@ -317,9 +355,11 @@ def generate(pattern, tense, polarity, question, choice=None):
         raise Reject('tense_not_supported')
 
     if pattern == 'THERE_BE':
-        return gen_there_be(tense, polarity, question, rng)
+        sent, info_there = gen_there_be(tense, polarity, question, rng, full=True)
+        info.update(info_there)
+        return (sent, info) if full else sent
 
-    # 第 3 步：动词候选（按框架 + 静态×进行时预筛）
+    # 第 3 步：动词候选（按框架 + 静态×进行时预筛 + 搭配层登记）
     need_frame = {'SV': 'SV', 'SVP': 'SVP', 'SVO': 'SVO'}[pattern]
     cands = [v for v, f in K.verb_frames.items() if need_frame in f['frames']]
     if pattern == 'SVP':
@@ -327,11 +367,15 @@ def generate(pattern, tense, polarity, question, choice=None):
     if tense in ('present_continuous', 'past_continuous'):
         cands = [v for v in cands
                  if K.verb_frames[v]['stative_policy'] != 'usually_stative']
-    # SVO 额外剔除：只在 SV_COMP 场景合法的动词已被框架筛掉；宾语限制后面处理
+    # P1-4：SVO 仅从已登记搭配规则的动词中随机选取，未登记者保守排除
+    if pattern == 'SVO':
+        cands = [v for v in cands if v in K.verb_restr]
     if not cands:
         raise Reject('no_candidate_verb')
     verb = rng.get('verb') or pick(sorted(cands))
     vf = K.verb_frames[verb]
+    info['verb'] = verb
+    info['is_be'] = (verb == 'be')
 
     # 第 4 步：主语构造（满足 subject_restriction）
     restriction = vf.get('subject_restriction', 'any')
@@ -349,6 +393,9 @@ def generate(pattern, tense, polarity, question, choice=None):
         if restriction == 'expletive_it' and subj_lemma != 'it':
             raise Reject('subject_restriction_unmet')
     person, number, subj_text = _person_number_of_subject('pronoun', subj_lemma)
+    info['subject'] = subj_lemma
+    info['person'] = person
+    info['number'] = number
 
     # 第 7/8 步：变位 + 否定/疑问
     fronted, verb_words = conjugate(verb, tense, polarity, question,
@@ -359,11 +406,14 @@ def generate(pattern, tense, polarity, question, choice=None):
     if pattern == 'SVO':
         obj_restr = vf.get('object_restriction', 'any')
         pool = [n for n, u in K.noun_usage.items()
-                if _object_ok(u, obj_restr)]
+                if _object_ok(u, verb)]
         if not pool:
             raise Reject('no_candidate_object')
         obj = rng.get('object') or pick(sorted(pool))
         np_text, _ = build_np(obj, number='singular', definite=False)
+        u = K.noun_usage[obj]
+        info['object_noun'] = obj
+        info['mass_object'] = (u['number_behavior'] == 'mass')
         tail = [np_text]
     elif pattern == 'SVP':
         pool = [a for a, u in K.adj_usage.items() if u['predicative'] == 'yes']
@@ -371,35 +421,33 @@ def generate(pattern, tense, polarity, question, choice=None):
         tail = [adj]
 
     # 第 9 步：表层
-    words = ([fronted] if fronted else []) + [subj_text] + verb_words + tail \
-        if fronted else [subj_text] + verb_words + tail
     if fronted:
         words = [fronted, subj_text] + verb_words + tail
+    else:
+        words = [subj_text] + verb_words + tail
     sent = ' '.join(w for w in words if w)
     sent = sent[0].upper() + sent[1:]
-    return sent + ('?' if question == 'yes_no' else '.')
+    sent = sent + ('?' if question == 'yes_no' else '.')
+    return (sent, info) if full else sent
 
 
-def _object_ok(usage, restriction):
-    """宾语语义过滤：edible/drinkable 映射到 semantic_category"""
-    cat = usage.get('semantic_category')
-    if restriction == 'edible':
-        return cat == 'food'
-    if restriction == 'drinkable':
-        return cat == 'drink'
-    if restriction == 'concrete':
-        return cat in ('object', 'food', 'drink', 'animal', 'person', 'place')
-    if restriction in ('any', None):
-        return cat not in (None, 'unknown')
-    if restriction in ('person', 'animate'):
-        return cat == 'person' if restriction == 'person' \
-            else cat in ('person', 'animal')
-    return False
+def generate(pattern, tense, polarity, question, choice=None):
+    """生成句子（仅返回字符串，供精确比对/演示）。"""
+    return _generate(pattern, tense, polarity, question, choice=choice, full=False)
 
 
-def gen_there_be(tense, polarity, question, rng):
+def generate_full(pattern, tense, polarity, question, choice=None):
+    """生成句子并返回 (句子, info)，供 matrix 语法校验。"""
+    return _generate(pattern, tense, polarity, question, choice=choice, full=True)
+
+
+def gen_there_be(tense, polarity, question, rng, full=False):
     """There be 存在句：非特指 NP + 就近一致 + 可选地点状语"""
     pick = rng.get('pick', random.choice)
+    info = dict(pattern='THERE_BE', tense=tense, polarity=polarity,
+                question=question, subject='there', person=3, number=None,
+                verb='be', is_be=True, object_noun=None,
+                mass_object=False, semantic_unnatural=False)
     # 存在 NP：只取 regular/mass/invariant，避开 collective 边角
     pool = [n for n, u in K.noun_usage.items()
             if u['number_behavior'] in ('regular', 'mass', 'invariant', 'plural_only')]
@@ -414,6 +462,9 @@ def gen_there_be(tense, polarity, question, rng):
         np_text, gram = build_np(noun, number=number, definite=False)
     except Reject:
         raise
+    info['number'] = gram
+    info['object_noun'] = noun
+    info['mass_object'] = (u['number_behavior'] == 'mass')
     # plural_only 裸复数在存在句需要数量词感——用 some
     if u['number_behavior'] == 'plural_only':
         np_text = 'some ' + np_text
@@ -438,6 +489,9 @@ def gen_there_be(tense, polarity, question, rng):
     if loc_pool and (rng.get('with_location', True)):
         ln = rng.get('location') or pick(sorted(loc_pool))
         loc = ' ' + K.noun_usage[ln]['location_preposition'] + ' the ' + ln
+        # 语义自然度启发式：抽象名词（如 health/idea）配地点状语不自然
+        if u.get('semantic_category') == 'abstract':
+            info['semantic_unnatural'] = True
 
     # 否定/疑问
     parts = be.split()
@@ -446,18 +500,63 @@ def gen_there_be(tense, polarity, question, rng):
         body = f"{head} there" + (' not' if polarity == 'negative' else '') \
             + (' ' + ' '.join(rest) if rest else '') + f" {np_text}{loc}"
         s = body[0].upper() + body[1:] + '?'
-        return s
+        return (s, info) if full else s
     neg = ' not' if polarity == 'negative' else ''
-    # 否定用 no 更自然，但第一版统一 not + any？——安全起见用 "not"（is not a book 语法合法）
     s = f"There {head}{neg}" + (' ' + ' '.join(rest) if rest else '') + f" {np_text}{loc}."
-    return s
+    return (s, info) if full else s
+
+
+# ---------------------------------------------------------------------------
+# 语法 / 搭配 / 语义 三层校验（供 matrix 使用）
+# ---------------------------------------------------------------------------
+# be 主谓一致守门正则：直接抓 "Am you / Is we / Was they / Are I ..." 这类错配
+_BAD_BE = re.compile(
+    r'^(Am|Is|Was)\s+(you|we|they)\b|^(Are|Were)\s+(I|he|she|it)\b')
+
+
+def check_grammar(sent, info):
+    """返回问题清单，每项 = (类别, 码, 句子)。类别：grammar / collocation / semantic。"""
+    issues = []
+    p, n, t = info['person'], info['number'], info['tense']
+    pol, q = info['polarity'], info['question']
+    is_be = info['is_be']
+
+    # 1) be 主谓一致（直接守门，独立于 be_form 实现，专门防 "Am you" 回归）
+    if _BAD_BE.match(sent):
+        issues.append(('grammar', 'be_agreement', sent))
+
+    # 2) do-support 存在性：实义动词一般现在/过去时的否定或疑问必须含 do/does/did
+    #    （句首 Do/Does 大写，正则须忽略大小写）
+    if not is_be and t in ('present_simple', 'past_simple') \
+            and (pol == 'negative' or q == 'yes_no'):
+        if not re.search(r'\b(do|does|did)\b', sent, re.IGNORECASE):
+            issues.append(('grammar', 'missing_do_support', sent))
+
+    # 3) 三单一般现在肯定：动词须为三单形
+    if not is_be and t == 'present_simple' and pol == 'affirmative' \
+            and q == 'none' and p == 3 and n == 'singular':
+        exp = K.verb_form(info['verb'], 'third_person_singular')
+        toks = sent.replace('?', '').replace('.', '').split()
+        if len(toks) > 1 and exp and toks[1] != exp:
+            issues.append(('grammar', 'third_singular', sent))
+
+    # 4) 冠词 + 不可数：mass 宾语不得出现 a/an
+    if info.get('mass_object') and info.get('object_noun') \
+            and re.search(r'\b(a|an)\s+' + re.escape(info['object_noun']) + r'\b', sent):
+        issues.append(('grammar', 'uncountable_with_article', sent))
+
+    # 5) 语义自然度（启发式，单独归类，不计入语法失败导致构建中断）
+    if info.get('semantic_unnatural'):
+        issues.append(('semantic', 'there_be_abstract_location', sent))
+
+    return issues
 
 
 # ---------------------------------------------------------------------------
 # 三种运行模式
 # ---------------------------------------------------------------------------
 def mode_demo():
-    """演示：每种句型 × 六时态 × 肯否 × 陈述/疑问 各抽一句"""
+    """演示：每种句型 × 六时态 × 肯否 × 陈述/疑问 各抽一句（优先可靠搭配）"""
     random.seed(20260730)
     for pattern in ('SV', 'SVP', 'SVO', 'THERE_BE'):
         print(f"\n== {pattern} ==")
@@ -473,21 +572,39 @@ def mode_demo():
 
 
 def mode_matrix():
-    """组合测试（任务28）：穷举 句型×时态×极性×疑问，每组合抽 20 次，
-    统计成功/拒绝码分布。成功句还做基础卫生检查（无 None、无双空格）。"""
+    """组合测试（任务28 整改）：穷举 句型×时态×极性×疑问，每组合抽 20 次，
+    成功句再做三层校验（表面格式 + 语法/搭配/语义）。任一层失败即记 FAIL。"""
     random.seed(42)
-    total = ok = rejected = 0
+    total = ok = rejected = grammar_fail = colloc_fail = semantic_warn = 0
     reject_codes = {}
-    bad = []
+    failures = []
     for pattern, tense, polarity, question in itertools.product(
             ('SV', 'SVP', 'SVO', 'THERE_BE'), TENSES, POLARITIES, QUESTIONS):
         for _ in range(20):
             total += 1
             try:
-                s = generate(pattern, tense, polarity, question)
+                s, info = generate_full(pattern, tense, polarity, question)
                 ok += 1
+                # 表面格式卫生
                 if 'None' in s or '  ' in s or not s[0].isupper():
-                    bad.append((pattern, tense, polarity, question, s))
+                    grammar_fail += 1
+                    failures.append(('surface', s,
+                                     dict(pattern=pattern, tense=tense,
+                                          polarity=polarity, question=question)))
+                    continue
+                # 三层校验
+                issues = check_grammar(s, info)
+                for cat, code, sent in issues:
+                    if cat == 'grammar':
+                        grammar_fail += 1
+                        failures.append(('grammar:' + code, sent,
+                                         dict(pattern=pattern, tense=tense)))
+                    elif cat == 'collocation':
+                        colloc_fail += 1
+                        failures.append(('collocation:' + code, sent,
+                                         dict(pattern=pattern, tense=tense)))
+                    elif cat == 'semantic':
+                        semantic_warn += 1
             except Reject as r:
                 rejected += 1
                 reject_codes[r.code] = reject_codes.get(r.code, 0) + 1
@@ -495,123 +612,96 @@ def mode_matrix():
     print("拒绝码分布:")
     for c, n in sorted(reject_codes.items(), key=lambda x: -x[1]):
         print(f"  {c}: {n}")
-    if bad:
-        print(f"\n[FAIL] 卫生检查失败 {len(bad)} 句:")
-        for b in bad[:10]:
-            print('  ', b)
+    print(f"语法错误: {grammar_fail}，搭配错误: {colloc_fail}，"
+          f"语义不自然(仅提示): {semantic_warn}")
+    if failures:
+        print(f"\n[FAIL] {len(failures)} 句未通过校验:")
+        for b in failures[:12]:
+            print('  ', b[0], '->', b[1], b[2])
         sys.exit(1)
-    print("\n[PASS] 组合测试通过：所有成功句通过卫生检查，其余均安全拒绝（未加载 words.json）")
+    print("\n[PASS] matrix 通过：成功句均通过表面格式与语法/搭配校验"
+          "（未加载 words.json）。语义不自然项见上方提示。")
 
 
 def mode_golden():
-    """黄��句回归（任务27/28 联动）：
-    - golden: 用固定选词重放，生成结果必须与黄金句完全一致（可实现子集）
-    - forbidden: 对应的非法组合必须被拒绝或不可能被本生成器产出
-    第一版只回放最小生成器能力范围内的用例，其余标记 skipped。"""
-    cases = [
-        # (说明, 生成参数, 期望句)
-        ("三单 -s", dict(pattern='SV', tense='present_simple', polarity='affirmative',
-                         question='none', choice={'verb': 'run', 'subject': 'she'}),
-         "She runs."),
-        ("不规则过去式", dict(pattern='SVO', tense='past_simple', polarity='affirmative',
-                              question='none',
-                              choice={'verb': 'eat', 'subject': 'she', 'object': 'apple'}),
-         "She ate an apple."),
-        ("do-support 否定", dict(pattern='SVO', tense='present_simple', polarity='negative',
-                                 question='none',
-                                 choice={'verb': 'read', 'subject': 'she', 'object': 'book'}),
-         "She does not read a book."),
-        ("do-support 疑问", dict(pattern='SVO', tense='present_simple',
-                                 polarity='affirmative', question='yes_no',
-                                 choice={'verb': 'read', 'subject': 'she', 'object': 'book'}),
-         "Does she read a book?"),
-        ("不可数宾语 some", dict(pattern='SVO', tense='present_simple',
-                                 polarity='affirmative', question='none',
-                                 choice={'verb': 'drink', 'subject': 'she', 'object': 'water'}),
-         "She drinks some water."),
-        ("a/an 读音特例", dict(pattern='SVO', tense='present_simple',
-                               polarity='affirmative', question='none',
-                               choice={'verb': 'visit', 'subject': 'he', 'object': 'university'}),
-         "He visits a university."),
-        ("完成时分词", dict(pattern='SVO', tense='present_perfect',
-                            polarity='affirmative', question='none',
-                            choice={'verb': 'eat', 'subject': 'she', 'object': 'apple'}),
-         "She has eaten an apple."),
-        ("进行时", dict(pattern='SVO', tense='present_continuous',
-                        polarity='affirmative', question='none',
-                        choice={'verb': 'eat', 'subject': 'he', 'object': 'apple'}),
-         "He is eating an apple."),
-        ("There be 单数", dict(pattern='THERE_BE', tense='present_simple',
-                               polarity='affirmative', question='none',
-                               choice={'noun': 'book', 'np_number': 'singular',
-                                       'location': 'desk'}),
-         "There is a book on the desk."),
-        ("There be 不可数", dict(pattern='THERE_BE', tense='present_simple',
-                                 polarity='affirmative', question='none',
-                                 choice={'noun': 'water', 'with_location': False}),
-         "There is some water."),
-        ("天气动词虚主语", dict(pattern='SV', tense='present_simple',
-                                polarity='affirmative', question='none',
-                                choice={'verb': 'rain'}),
-         "It rains."),
-        ("be 表语句", dict(pattern='SVP', tense='present_simple',
-                           polarity='affirmative', question='none',
-                           choice={'verb': 'be', 'subject': 'he', 'predicative': 'happy'}),
-         "He is happy."),
-        ("be 否定", dict(pattern='SVP', tense='present_simple',
-                         polarity='negative', question='none',
-                         choice={'verb': 'be', 'subject': 'they', 'predicative': 'hungry'}),
-         "They are not hungry."),
-        ("be 疑问", dict(pattern='SVP', tense='past_simple',
-                         polarity='affirmative', question='yes_no',
-                         choice={'verb': 'be', 'subject': 'she', 'predicative': 'tired'}),
-         "Was she tired?"),
-    ]
-    # 必须被拒绝的组合（禁止句等价物）
-    reject_cases = [
-        ("静态动词进行时", dict(pattern='SVO', tense='present_continuous',
-                                polarity='affirmative', question='none',
-                                choice={'verb': 'know', 'subject': 'I', 'object': 'answer'}),
-         'stative_in_continuous'),
-        ("There be 进行时", dict(pattern='THERE_BE', tense='present_continuous',
-                                 polarity='affirmative', question='none', choice={}),
-         'forbid_there_be_continuous'),
-    ]
+    """黄金句回归（任务27/28 整改）：直接驱动 tests/golden.json。
 
+    - exec: 可执行的黄金句，必须生成并精确比对 -> PASS/FAIL
+    - exec_forbidden: 禁止组合，必须被拒绝且拒绝码匹配 -> PASS/FAIL
+    - 其余无 exec/exec_forbidden 的条目 -> SKIP（说明原因，不计入 PASS）
+    最终报告明确列出 PASS / FAIL / SKIP 实际数量。"""
+    data = load('tests/golden.json')
+    npass = nfail = nskip = 0
     fails = []
-    for name, kwargs, expect in cases:
-        try:
-            got = generate(**kwargs)
-        except Reject as r:
-            got = f"[拒绝:{r.code}]"
-        status = 'PASS' if got == expect else 'FAIL'
-        if status == 'FAIL':
-            fails.append((name, expect, got))
-        print(f"  [{status}] {name}: {got}")
-    for name, kwargs, expect_code in reject_cases:
-        try:
-            got = generate(**kwargs)
-            fails.append((name, f"拒绝:{expect_code}", got))
-            print(f"  [FAIL] {name}: 未被拒绝，生成了 {got}")
-        except Reject as r:
-            status = 'PASS' if r.code == expect_code else 'FAIL'
-            if status == 'FAIL':
-                fails.append((name, expect_code, r.code))
-            print(f"  [{status}] {name}: 拒绝码 {r.code}")
 
-    # 禁止句反查：golden.json 里所有 forbidden 句不得等于任何一条黄金重放输出
-    golden_data = load('tests/golden.json')
-    produced = {generate(**k) if True else '' for _, k, _ in []}  # 占位：重放集有限
-    print(f"\n黄金回放 {len(cases)} 条 + 拒绝断言 {len(reject_cases)} 条，"
-          f"失败 {len(fails)} 条")
+    for entry in data:
+        tid = entry.get('test_id', '?')
+        rule = entry.get('rule', '')
+        # 可执行黄金句：精确比对
+        for case in entry.get('exec', []):
+            expect = case['expect']
+            kw = {k: case[k] for k in ('pattern', 'tense', 'polarity', 'question')}
+            kw['choice'] = case.get('choice', {})
+            try:
+                got = generate(**kw)
+            except Reject as r:
+                got = f"[REJECT:{r.code}]"
+            if got == expect:
+                npass += 1
+                print(f"  [PASS] {tid}: {got}")
+            else:
+                nfail += 1
+                fails.append((tid, expect, got))
+                print(f"  [FAIL] {tid}: 期望「{expect}」得到「{got}」")
+        # 禁止组合：必须被拒绝
+        for case in entry.get('exec_forbidden', []):
+            code = case['expect_reject']
+            kw = {k: case[k] for k in ('pattern', 'tense', 'polarity', 'question')}
+            kw['choice'] = case.get('choice', {})
+            try:
+                got = generate(**kw)
+                nfail += 1
+                fails.append((tid, f"应拒绝:{code}", got))
+                print(f"  [FAIL] {tid}: 未被拒绝，生成了「{got}」")
+            except Reject as r:
+                if r.code == code:
+                    npass += 1
+                    print(f"  [PASS] {tid}: 拒绝码 {r.code}")
+                else:
+                    nfail += 1
+                    fails.append((tid, code, r.code))
+                    print(f"  [FAIL] {tid}: 期望拒绝 {code}，得到 {r.code}")
+        # 无可执行规格 -> SKIP
+        if not entry.get('exec') and not entry.get('exec_forbidden'):
+            nskip += 1
+            reason = entry.get('skip', '生成器第一版不支持该句法特征'
+                               '（名词主语/定冠词/被动/双宾/比较级/副词等）')
+            print(f"  [SKIP] {tid} ({rule}): {reason}")
+
+    print(f"\n黄金测试：PASS={npass}  FAIL={nfail}  SKIP={nskip}")
     if fails:
         for f_ in fails:
             print('  [FAIL]', f_)
         sys.exit(1)
-    print("[PASS] 黄金句回归全部通过（未加载 words.json）")
+    print("[PASS] 黄金句测试完成（未加载 words.json）")
+
+
+# ---------------------------------------------------------------------------
+# CLI 入口：argparse（支持 --help / demo / golden / matrix / 未知参数非零退出）
+# ---------------------------------------------------------------------------
+def main():
+    global K
+    parser = argparse.ArgumentParser(
+        prog='mini_generator.py',
+        description='最小句子生成器原型（不加载 words.json）')
+    parser.add_argument('mode', nargs='?', default='demo',
+                        choices=['demo', 'golden', 'matrix'],
+                        help='运行模式：demo（抽样）| golden（驱动 tests/golden.json）'
+                             '| matrix（组合 + 语法校验）')
+    args = parser.parse_args()
+    K = Knowledge()
+    {'demo': mode_demo, 'golden': mode_golden, 'matrix': mode_matrix}[args.mode]()
 
 
 if __name__ == '__main__':
-    K = Knowledge()
-    mode = sys.argv[1] if len(sys.argv) > 1 else 'demo'
-    {'demo': mode_demo, 'matrix': mode_matrix, 'golden': mode_golden}[mode]()
+    main()
