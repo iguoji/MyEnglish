@@ -228,22 +228,54 @@ IRREGULAR_NOUNS = {
     "life": ["lives"], "loaf": ["loaves"], "self": ["selves"], "sheaf": ["sheaves"],
     "shelf": ["shelves"], "thief": ["thieves"], "wife": ["wives"], "wolf": ["wolves"],
     "elf": ["elves"], "dwarf": ["dwarves", "dwarfs"], "scarf": ["scarves", "scarfs"],
-    "wharf": ["wharves", "wharfs"], "hoof": ["hooves", "hoofs"], "beef": ["beeves", "beefs"],
-    # 不可数名词（无复数，复数形=自身）
-    "news": ["news"], "music": ["music"], "bread": ["bread"], "information": ["information"],
-    "advice": ["advice"], "furniture": ["furniture"], "luggage": ["luggage"],
-    "baggage": ["baggage"], "equipment": ["equipment"], "homework": ["homework"],
-    "knowledge": ["knowledge"], "weather": ["weather"], "money": ["money"],
-    "health": ["health"], "wealth": ["wealth"], "math": ["math"], "physics": ["physics"],
-    "politics": ["politics"], "cash": ["cash"], "hair": ["hair"], "traffic": ["traffic"],
-    "fun": ["fun"], "luck": ["luck"], "progress": ["progress"], "research": ["research"],
-    "evidence": ["evidence"], "rice": ["rice"], "sugar": ["sugar"], "butter": ["butter"],
+    "wharf": ["wharves", "wharfs"], "hoof": ["hooves", "hoofs"],
+    # 2026-07-30 任务10 审计修正：
+    #   buffalo 原条目拼写错误(bufalo)导致规则未命中；单复同形亦合法一并补上
+    #   reef 若走 f→ves 规则会生成错误的 reeves（那是 reeve 的复数），显式钉死
+    #   zero 机械规则给 zeroes，实际 zeros 更常用，两者均合法
+    "buffalo": ["buffaloes", "buffalo"], "reef": ["reefs"], "zero": ["zeros", "zeroes"],
 }
 
-# 复数拼写例外（以 o 结尾但 +s，不 +es）
-O_PLUS_S = {"photo", "piano", "radio", "video", "zoo", "kilo", "logo", " solo", "tobacco", "memo", "auto"}
+# ----------------------------------------------------------------------------
+# 不可数名词总表（2026-07-30 任务10 逐词人工审计产出）
+# README 约定：plural 为非空数组 ⇒ 可数。因此不可数名词的 plural 必须是空数组 []，
+# 绝不能填自身（否则被推导成"单复同形可数词"，生成 *two rice* 这类病句）。
+# 歧义词按基线释义的义项判定：tin罐头/marble弹珠/nickel五分币/straw吸管/lace鞋带/
+# cold感冒/litter一窝/wood森林/glass杯子/matter事情 等含可数义的词【不在】本表。
+# ----------------------------------------------------------------------------
+UNCOUNTABLE_NOUNS = {
+    # 食物饮品
+    "water", "rain", "snow", "ice", "rice", "bread", "meat", "milk", "tea", "coffee",
+    "sugar", "salt", "oil", "butter", "cheese", "soup", "pepper", "wheat", "flour",
+    "honey", "corn", "cream", "pork", "beef", "bacon", "wine", "beer", "garlic", "toast",
+    # 材料物质
+    "sand", "grass", "gold", "silver", "steel", "steam", "silk", "wool", "cotton",
+    "coal", "cement", "chalk", "leather", "paper", "plastic", "cloth", "fur", "flesh",
+    "mud", "dust", "dirt", "moss", "smoke", "soap", "soil", "yarn", "carbon", "zinc",
+    "wood_material_only_DO_NOT_ADD",  # 占位提醒：wood 含"森林 woods"可数义，不入表
+    # 自然现象/抽象
+    "fog", "frost", "mist", "gravity", "scenery", "weather", "earth", "land", "ground",
+    "space", "time", "energy", "power", "hair", "skin", "blood", "health", "news",
+    "east", "west", "south", "north", "midnight",
+    # 学科/概念
+    "money", "music", "knowledge", "advice", "luggage", "baggage", "furniture", "math",
+    "grammar", "art", "history", "information", "equipment", "homework", "wealth",
+    "physics", "politics", "cash", "traffic", "fun", "luck", "progress", "research",
+    "evidence", "advertising", "agriculture", "aid", "alcohol", "anger", "appreciation",
+    "approval", "architecture", "assistance", "beauty", "behavior", "biology",
+    "bravery", "breadth", "praise", "powder", "wash", "affection", "access", "abuse",
+    "amusement", "golf",
+}
+UNCOUNTABLE_NOUNS.discard("wood_material_only_DO_NOT_ADD")  # 移除占位提醒项
+
+# 只有复数形（拼写本身即复数）与集体名词：plural 同样置空，
+# 具体行为（谓语用复数等）由 patch/sentence/annotations/number_behavior.json 驱动
+PLURAL_ONLY_OR_COLLECTIVE_NOUNS = {"scissors", "clothes", "pants", "stairs", "cattle"}
+
+# 复数拼写例外（以 o 结尾但 +s，不 +es）；修正：原表 " solo" 带前导空格永远匹配不上
+O_PLUS_S = {"photo", "piano", "radio", "video", "zoo", "kilo", "logo", "solo", "tobacco", "memo", "auto", "kangaroo", "bamboo"}
 # 以 f/fe 结尾但 +s（不 +ves）的例外
-F_PLUS_S = {"chef", "chief", "belief", "roof", "proof", "gulf", "cliff", "dwarf"}
+F_PLUS_S = {"chef", "chief", "belief", "roof", "proof", "gulf", "cliff", "dwarf", "reef", "beef", "safe", "giraffe", "cafe"}
 
 
 # ============================================================================
@@ -332,9 +364,13 @@ def infer_verb_forms(spelling):
 def infer_noun_plural(spelling):
     """
     推导名词复数。返回 list（多合法形）。
-    优先级：不规则表 > 拼写规则。
+    优先级：不可数/只有复数形（返回空表） > 不规则表 > 拼写规则。
+    README 约定：plural 非空 ⇒ 可数；因此不可数词必须返回 []。
     """
     sp = spelling.lower()
+    # 不可数名词与"拼写本身即复数/集体名词"：没有可生成的复数形
+    if sp in UNCOUNTABLE_NOUNS or sp in PLURAL_ONLY_OR_COLLECTIVE_NOUNS:
+        return []
     if sp in IRREGULAR_NOUNS:
         return IRREGULAR_NOUNS[sp]
 

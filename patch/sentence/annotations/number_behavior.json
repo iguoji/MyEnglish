@@ -6,6 +6,10 @@
       "policy": "plural_only",
       "notes": "成对名词，用 a pair of 计数"
     },
+    "clothes": {
+      "policy": "plural_only",
+      "notes": "只有复数形，谓语用复数（These clothes are…）；不可用数词直接计数，需借助 a piece of clothing 等"
+    },
     "trousers": {
       "policy": "plural_only",
       "notes": "成对名词，用 a pair of 计数"
