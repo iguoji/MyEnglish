@@ -1,0 +1,15 @@
+# MyEnglish 句子生成器 · Python 依赖
+# 用途：patch/sentence/tools/* 与 patch/tools/* 的校验器/生成器原型
+# 安装方式（任选其一）：
+#   1) venv（推荐）：
+#      python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#   2) 直接装到当前解释器：
+#      pip install -r requirements.txt
+# 运行示例（venv 激活后）：
+#   .venv/bin/python patch/sentence/tools/validate_sentence_data.py
+#   .venv/bin/python patch/sentence/tools/mini_generator.py golden
+
+# JSON Schema 校验（draft-07），用于所有 *.schema.json 的结构校验
+jsonschema==4.26.0
+# jsonschema 的依赖：Schema $ref 注册表解析（相对/绝对 $id 引用）
+referencing==0.37.0

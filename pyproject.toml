@@ -1,0 +1,23 @@
+[project]
+name = "myenglish-sentence-tooling"
+version = "0.1.0"
+description = "MyEnglish 句子生成器的数据与规则地基：校验器 + 最小 CLI 生成器原型"
+requires-python = ">=3.9"
+dependencies = [
+    "jsonschema==4.26.0",
+    "referencing==0.37.0",
+]
+
+[project.scripts]
+# 安装后可用命令（pip install -e . 后生效）：
+#   myenglish-validate    -> 句子数据 Schema + 策略一致性校验
+#   myenglish-generate    -> 最小句子生成器（demo/golden/matrix）
+validate = "tools_entry:run_validate"
+generate = "tools_entry:run_generate"
+
+[tool.setuptools]
+py-modules = ["tools_entry"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
