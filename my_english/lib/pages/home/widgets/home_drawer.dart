@@ -27,7 +27,7 @@ import '../../../services/word_audio_cache.dart';
 /// 9. 分割线
 /// 10. “学习设置”分区标题（字号小 2px）
 /// 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习
-/// 16. 页脚：Github + 邮箱（水平排列、居左、有间隔）
+/// 16. 页脚：Github 图标 + 邮箱图标（居左、有间隔）
 class HomeDrawer extends StatelessWidget {
   /// 各入口的动作全部由首页注入，抽屉自身不包含业务逻辑。
   const HomeDrawer({
@@ -116,14 +116,14 @@ class HomeDrawer extends StatelessWidget {
                       label: '数据导出',
                       onTap: onExport,
                     ),
-                    // 8. 清空数据：红色危险样式，作为本区块末项补下边距 10。
+                    // 8. 清空数据：红色危险样式，作为本区块末项补下边距 20。
                     _DrawerItem(
                       key: const Key('drawer-clear'),
                       icon: TablerIcons.trash,
                       label: '清空数据',
                       onTap: onClearData,
                       isDanger: true,
-                      bottomPadding: 10,
+                      bottomPadding: 20,
                     ),
                     // 9. 分隔线。
                     Divider(height: 1, color: tokens.rowBorder),
@@ -250,50 +250,49 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                   size: 23,
                 ),
               ),
-              // 中：Expanded 让名称+版号在剩余空间内居中。
+              // 图标与文字间距。
+              const SizedBox(width: 12),
               Expanded(
-                child: Center(
-                  // 名称与版号分两行：名称普通文字、版号 Azure 浅色徽章。
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 应用名称（普通文字）。
-                      Text(
-                        'MyEnglish',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 应用名称（普通文字）。
+                    Text(
+                      'MyEnglish',
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    // 名称与版号间距。
+                    const SizedBox(height: 4),
+                    // 版号 Azure 浅色徽章：圆角 4、横向 8 纵向 3 内边距。
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        // Azure 主色按透明度叠加为浅底。
+                        color: badgeBg,
+                        // Tabler badge 默认 4 像素圆角。
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'v0.11.1',
                         style: TextStyle(
-                          color: tokens.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          // Azure 加深色文字。
+                          color: badgeText,
+                          // 版号字号比名称小。
+                          fontSize: 11,
+                          // Tabler badge 字重 600。
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      // 名称与版号间距。
-                      const SizedBox(height: 4),
-                      // 版号 Azure 浅色徽章：圆角 4、横向 8 纵向 3 内边距。
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          // Azure 主色按透明度叠加为浅底。
-                          color: badgeBg,
-                          // Tabler badge 默认 4 像素圆角。
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'v0.11.1',
-                          style: TextStyle(
-                            // Azure 加深色文字。
-                            color: badgeText,
-                            // 版号字号比名称小。
-                            fontSize: 11,
-                            // Tabler badge 字重 600。
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               // 右：主题切换图标按钮。
@@ -338,9 +337,9 @@ class _AddWordButton extends StatelessWidget {
   /// 输出 38 高的整行主色按钮。
   @override
   Widget build(BuildContext context) {
-    // Padding 让按钮左右与菜单项对齐（20），上 32 拉高留白、下 12 收尾。
+    // Padding 让按钮左右与菜单项对齐（20），上下 32 对称留白。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
       // InkWell 提供整行点击反馈。
       child: InkWell(
         // key 供测试点击触发添加单词表单。
@@ -434,9 +433,9 @@ class _DrawerOfflineSpeech extends StatelessWidget {
                 // 否则进入缓存（进行中时内部自动忽略重复点击）。
                 cache.start();
               },
-              // 与 _DrawerItem 一致的整行内边距：上 10 下 0，让项间间距=10 对等。
+              // 与 _DrawerItem 一致的整行内边距：上 20 下 0，让项间间距=20 对等。
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Row(
                   children: <Widget>[
                     // 17 像素灰色描边图标，与 _DrawerItem 视觉一致。
@@ -513,11 +512,11 @@ class _DrawerItem extends StatelessWidget {
   /// 是否使用红色危险样式（清空数据）。
   final bool isDanger;
 
-  /// 底部内边距：默认 0（项间间距由下一项的 top 10 决定），
-  /// 区块最后一项传 10 让其与下方分割线间距也=10，保持全链路对等。
+  /// 底部内边距：默认 0（项间间距由下一项的 top 20 决定），
+  /// 区块最后一项传 20 让其与下方分割线间距也=20，保持全链路对等。
   final double bottomPadding;
 
-  /// 输出上 10、下 [bottomPadding] 的入口行。
+  /// 输出上 20、下 [bottomPadding] 的入口行。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -529,8 +528,8 @@ class _DrawerItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        // 上 10 下 bottomPadding：项间间距=10 对等，末项补下边距。
-        padding: EdgeInsets.fromLTRB(20, 10, 20, bottomPadding),
+        // 上 20 下 bottomPadding：项间间距=20 对等，末项补下边距让与下方分割线也=20。
+        padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
         child: Row(
           children: [
             // 17 像素图标，危险样式红色、普通样式灰色。
@@ -997,9 +996,9 @@ class _StepButton extends StatelessWidget {
   }
 }
 
-/// 页脚：Github 图标 + Github 文字 + 间隔 + 邮箱图标 + 邮箱文字。
+/// 页脚：Github 图标 + 邮箱图标，两个图标居左排列、有间隔。
 ///
-/// 两项水平排列、居左、之间有 16 像素间隔。整行位于抽屉底部。
+/// 仅显示图标，不显示文字。整行位于抽屉底部。
 class _DrawerFooter extends StatelessWidget {
   /// 接收两个点击动作。
   const _DrawerFooter({required this.onOpenGithub, required this.onCopyEmail});
@@ -1019,73 +1018,34 @@ class _DrawerFooter extends StatelessWidget {
       // 上 14 与分隔线留白，下 18 贴近抽屉底。
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
       child: Row(
-        // 两项居左排列。
+        // 两图标居左排列。
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          // Github 项：图标 + 文字（自然宽度）。
+          // Github 图标项。
           InkWell(
             onTap: onOpenGithub,
             borderRadius: BorderRadius.circular(6),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-              child: Row(
-                // min 让 Row 只占内容宽度。
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Tabler 品牌图标。
-                  Icon(
-                    TablerIcons.brandGithub,
-                    size: 16,
-                    color: tokens.textSecondary,
-                  ),
-                  // 图标与文字间距。
-                  const SizedBox(width: 6),
-                  // 文字。
-                  Text(
-                    'Github',
-                    style: TextStyle(
-                      color: tokens.textSecondary,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                TablerIcons.brandGithub,
+                size: 18,
+                color: tokens.textSecondary,
               ),
             ),
           ),
-          // 两项之间 16 像素间隔。
+          // 两图标之间 16 像素间隔。
           const SizedBox(width: 16),
-          // 邮箱项：图标 + 文字（Expanded 占剩余空间，文字过长时省略）。
-          Expanded(
-            child: InkWell(
-              onTap: onCopyEmail,
-              borderRadius: BorderRadius.circular(6),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                child: Row(
-                  // min 让 Row 只占内容宽度，配合外层 Expanded 限制总宽。
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 邮件图标。
-                    Icon(
-                      TablerIcons.mail,
-                      size: 16,
-                      color: tokens.textSecondary,
-                    ),
-                    // 图标与文字间距。
-                    const SizedBox(width: 6),
-                    // 邮箱地址：Flexible 让文字在空间不足时省略而非溢出。
-                    Flexible(
-                      child: Text(
-                        'asgeg@qq.com',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: tokens.textSecondary,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          // 邮箱图标项。
+          InkWell(
+            onTap: onCopyEmail,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                TablerIcons.mail,
+                size: 18,
+                color: tokens.textSecondary,
               ),
             ),
           ),

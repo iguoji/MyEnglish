@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // flutter_test 提供 Widget 测试驱动，作用类似 PHPUnit 加小程序自动化工具。
 import 'package:flutter_test/flutter_test.dart';
+// 引入 Tabler 图标，用于按图标断言页脚图标项存在。
+import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
@@ -67,9 +69,12 @@ void main() {
     expect(find.text('单词分隔'), findsOneWidget);
     expect(find.text('每日复习'), findsOneWidget);
     expect(find.text('数据导出'), findsOneWidget);
-    // 页脚显示 Github 与邮箱两项。
-    expect(find.text('Github'), findsOneWidget);
-    expect(find.text('asgeg@qq.com'), findsOneWidget);
+    // 页脚只显示 Github 与邮箱两个图标，不再有文字。
+    expect(find.text('Github'), findsNothing);
+    expect(find.text('asgeg@qq.com'), findsNothing);
+    // 两个图标可点击项存在。
+    expect(find.byIcon(TablerIcons.brandGithub), findsOneWidget);
+    expect(find.byIcon(TablerIcons.mail), findsOneWidget);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -104,8 +109,8 @@ void main() {
     await tester.tap(find.byKey(const Key('open-menu')));
     await tester.pumpAndSettle();
 
-    // 点击页脚作者邮箱（已改为新地址）。
-    await tester.tap(find.text('asgeg@qq.com'));
+    // 点击页脚邮箱图标（页脚已改为仅图标）。
+    await tester.tap(find.byIcon(TablerIcons.mail));
     await tester.pumpAndSettle();
 
     // 应弹出复制成功提示。
@@ -155,11 +160,13 @@ void main() {
     expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
     // 点击顶部主题切换图标，从 Light 切到 Dark。
     await tester.tap(find.byKey(const Key('theme-toggle')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(settings.theme, AppThemePreference.dark);
-    // 每日复习 +5。
+    // 每日复习 +5（卡片内步进器，先滚动确保可见再点击）。
+    await tester.ensureVisible(find.byKey(const Key('goal-plus')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('goal-plus')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(settings.dailyGoal, 105);
 
     // 设置项内嵌在抽屉中，没有独立的"完成"按钮，直接收尾清理。
