@@ -172,6 +172,34 @@ IRREGULAR_VERBS = {
     "cling": ["clung", "clung"], "fling": ["flung", "flung"], "string": ["strung", "strung"],
     "fling": ["flung", "flung"], "sling": ["slung", "slung"], "sting": ["stung", "stung"],
     "swing": ["swung", "swung"], "wring": ["wrung", "wrung"], "cling": ["clung", "clung"],
+
+    # ------------------------------------------------------------------
+    # 2026-07-30 任务11 审计修正块（后写覆盖先写：Python 字典字面量同键后者生效）
+    # 判定全部由人工完成，依据主流词典通行形；多合法形"常用形在前"
+    # ------------------------------------------------------------------
+    "forbid": ["forbade", "forbidden"],          # 原被机械化成 forbided
+    "withdraw": ["withdrew", "withdrawn"],       # 原被机械化成 withdrawed
+    "undo": ["undid", "undone"],                 # 原被机械化成 undoed
+    "upset": ["upset", "upset"],                 # 原被机械化成 upseted
+    "bet": [["bet", "betted"], ["bet", "betted"]],   # bet 为主形，betted 少见但合法
+    "fit": [["fit", "fitted"], ["fit", "fitted"]],   # 美式 fit / 英式 fitted 均合法
+    "light": [["lit", "lighted"], ["lit", "lighted"]],   # README 示例明确要求双形
+    "learn": [["learned", "learnt"], ["learned", "learnt"]],  # README 示例明确要求双形
+    "burn": [["burned", "burnt"], ["burned", "burnt"]],
+    "smell": [["smelled", "smelt"], ["smelled", "smelt"]],
+    "spell": [["spelled", "spelt"], ["spelled", "spelt"]],
+    "spill": [["spilled", "spilt"], ["spilled", "spilt"]],
+    "leap": [["leapt", "leaped"], ["leapt", "leaped"]],
+    "kneel": [["knelt", "kneeled"], ["knelt", "kneeled"]],
+    "lean": [["leaned", "leant"], ["leaned", "leant"]],
+    "dive": [["dived", "dove"], ["dived"]],      # dove 仅过去式（美式），过去分词只有 dived
+    "spit": [["spat", "spit"], ["spat", "spit"]],
+    "shine": [["shone", "shined"], ["shone", "shined"]],  # shined 用于"擦亮"义
+    "saw": ["sawed", ["sawed", "sawn"]],
+    "sew": ["sewed", ["sewn", "sewed"]],
+    "mow": ["mowed", ["mown", "mowed"]],
+    "sow": ["sowed", ["sown", "sowed"]],
+    "well": ["welled", "welled"],                # 动词义"涌出"；原条目 wells 是名词复数，错误
 }
 
 # 三单不规则（have→has, do→does, go→goes 已由规则+特例处理）
@@ -185,7 +213,15 @@ GERUND_DOUBLE = {
     "prefer", "refer", "occur", "admit", "omit", "begin", "forget", "regret",
     "permit", "commit", "control", "travel", "cancel", "model", "label",
     "quarrel", "equip", "kidnap", "defer", "deter", "transfer", "patrol",
-    "compel", "expel", "repel", "counsel", "parallel", "profit", "target",
+    "compel", "expel", "repel", "counsel", "parallel",
+    # 2026-07-30 任务11 审计修正：
+    #   移除 profit/target（重音在首音节：profiting/profited、targeting/targeted）
+    #   补充末音节重读多音节动词：submit/transmit/upset/forbid
+    #   worship/signal 取英式双写（与不规则表 worshipped/signalled 保持一致）
+    #   program 取双写主形 programming/programmed
+    #   strap/strip/split 为单音节 CVC，但长度 >4 被机械规则漏掉，显式补入
+    "submit", "transmit", "upset", "forbid", "worship", "signal", "program",
+    "strap", "strip", "split",
 }
 
 # ============================================================================

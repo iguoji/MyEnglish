@@ -1809,9 +1809,11 @@
       "learning"
     ],
     "past_tense": [
+      "learned",
       "learnt"
     ],
     "past_participle": [
+      "learned",
       "learnt"
     ],
     "comparative": [],
@@ -4400,10 +4402,12 @@
       "leaning"
     ],
     "past_tense": [
-      "leaned"
+      "leaned",
+      "leant"
     ],
     "past_participle": [
-      "leaned"
+      "leaned",
+      "leant"
     ],
     "comparative": [],
     "superlative": [],
@@ -4470,10 +4474,12 @@
       "lighting"
     ],
     "past_tense": [
-      "lit"
+      "lit",
+      "lighted"
     ],
     "past_participle": [
-      "lit"
+      "lit",
+      "lighted"
     ],
     "comparative": [],
     "superlative": [],
@@ -7480,10 +7486,12 @@
       "shining"
     ],
     "past_tense": [
-      "shone"
+      "shone",
+      "shined"
     ],
     "past_participle": [
-      "shone"
+      "shone",
+      "shined"
     ],
     "comparative": [],
     "superlative": [],
@@ -7620,9 +7628,11 @@
       "smelling"
     ],
     "past_tense": [
+      "smelled",
       "smelt"
     ],
     "past_participle": [
+      "smelled",
       "smelt"
     ],
     "comparative": [],
@@ -7725,9 +7735,11 @@
       "spilling"
     ],
     "past_tense": [
+      "spilled",
       "spilt"
     ],
     "past_participle": [
+      "spilled",
       "spilt"
     ],
     "comparative": [],
@@ -7792,7 +7804,7 @@
       "splits"
     ],
     "gerund": [
-      "spliting"
+      "splitting"
     ],
     "past_tense": [
       "split"
@@ -8212,7 +8224,7 @@
       "submits"
     ],
     "gerund": [
-      "submiting"
+      "submitting"
     ],
     "past_tense": [
       "submitted"
@@ -9547,10 +9559,10 @@
       "withdrawing"
     ],
     "past_tense": [
-      "withdrawed"
+      "withdrew"
     ],
     "past_participle": [
-      "withdrawed"
+      "withdrawn"
     ],
     "comparative": [],
     "superlative": [],
@@ -9897,9 +9909,11 @@
       "burning"
     ],
     "past_tense": [
+      "burned",
       "burnt"
     ],
     "past_participle": [
+      "burned",
       "burnt"
     ],
     "comparative": [],
@@ -10247,7 +10261,8 @@
       "diving"
     ],
     "past_tense": [
-      "dived"
+      "dived",
+      "dove"
     ],
     "past_participle": [
       "dived"
@@ -10843,10 +10858,12 @@
       "kneeling"
     ],
     "past_tense": [
-      "knelt"
+      "knelt",
+      "kneeled"
     ],
     "past_participle": [
-      "knelt"
+      "knelt",
+      "kneeled"
     ],
     "comparative": [],
     "superlative": [],
@@ -10948,10 +10965,12 @@
       "leaping"
     ],
     "past_tense": [
-      "leapt"
+      "leapt",
+      "leaped"
     ],
     "past_participle": [
-      "leapt"
+      "leapt",
+      "leaped"
     ],
     "comparative": [],
     "superlative": [],
@@ -11091,7 +11110,8 @@
       "mowed"
     ],
     "past_participle": [
-      "mown"
+      "mown",
+      "mowed"
     ],
     "comparative": [],
     "superlative": [],
@@ -11406,7 +11426,8 @@
       "sawed"
     ],
     "past_participle": [
-      "sawed"
+      "sawed",
+      "sawn"
     ],
     "comparative": [],
     "superlative": [],
@@ -11476,7 +11497,8 @@
       "sewed"
     ],
     "past_participle": [
-      "sewn"
+      "sewn",
+      "sewed"
     ],
     "comparative": [],
     "superlative": [],
@@ -11756,7 +11778,8 @@
       "sowed"
     ],
     "past_participle": [
-      "sown"
+      "sown",
+      "sowed"
     ],
     "comparative": [],
     "superlative": [],
@@ -11788,10 +11811,12 @@
       "spitting"
     ],
     "past_tense": [
-      "spat"
+      "spat",
+      "spit"
     ],
     "past_participle": [
-      "spat"
+      "spat",
+      "spit"
     ],
     "comparative": [],
     "superlative": [],
@@ -11925,13 +11950,13 @@
       "straps"
     ],
     "gerund": [
-      "straping"
+      "strapping"
     ],
     "past_tense": [
-      "straped"
+      "strapped"
     ],
     "past_participle": [
-      "straped"
+      "strapped"
     ],
     "comparative": [],
     "superlative": [],
@@ -17318,10 +17343,12 @@
       "fitting"
     ],
     "past_tense": [
-      "fit"
+      "fit",
+      "fitted"
     ],
     "past_participle": [
-      "fit"
+      "fit",
+      "fitted"
     ],
     "comparative": [],
     "superlative": [],
@@ -17490,13 +17517,13 @@
       "forbids"
     ],
     "gerund": [
-      "forbiding"
+      "forbidding"
     ],
     "past_tense": [
-      "forbided"
+      "forbade"
     ],
     "past_participle": [
-      "forbided"
+      "forbidden"
     ],
     "comparative": [],
     "superlative": [],
@@ -18260,13 +18287,13 @@
       "profits"
     ],
     "gerund": [
-      "profitting"
+      "profiting"
     ],
     "past_tense": [
-      "profitted"
+      "profited"
     ],
     "past_participle": [
-      "profitted"
+      "profited"
     ],
     "comparative": [],
     "superlative": [],
@@ -18295,13 +18322,13 @@
       "programs"
     ],
     "gerund": [
-      "programing"
+      "programming"
     ],
     "past_tense": [
-      "programed"
+      "programmed"
     ],
     "past_participle": [
-      "programed"
+      "programmed"
     ],
     "comparative": [],
     "superlative": [],
@@ -21130,7 +21157,7 @@
       "signals"
     ],
     "gerund": [
-      "signaling"
+      "signalling"
     ],
     "past_tense": [
       "signalled"
@@ -21623,9 +21650,11 @@
       "spelling"
     ],
     "past_tense": [
+      "spelled",
       "spelt"
     ],
     "past_participle": [
+      "spelled",
       "spelt"
     ],
     "comparative": [],
@@ -21970,13 +21999,13 @@
       "strips"
     ],
     "gerund": [
-      "striping"
+      "stripping"
     ],
     "past_tense": [
-      "striped"
+      "stripped"
     ],
     "past_participle": [
-      "striped"
+      "stripped"
     ],
     "comparative": [],
     "superlative": [],
@@ -23335,13 +23364,13 @@
       "transmits"
     ],
     "gerund": [
-      "transmiting"
+      "transmitting"
     ],
     "past_tense": [
-      "transmited"
+      "transmitted"
     ],
     "past_participle": [
-      "transmited"
+      "transmitted"
     ],
     "comparative": [],
     "superlative": [],
@@ -23863,10 +23892,10 @@
       "undoing"
     ],
     "past_tense": [
-      "undoed"
+      "undid"
     ],
     "past_participle": [
-      "undoed"
+      "undone"
     ],
     "comparative": [],
     "superlative": [],
@@ -24175,13 +24204,13 @@
       "upsets"
     ],
     "gerund": [
-      "upseting"
+      "upsetting"
     ],
     "past_tense": [
-      "upseted"
+      "upset"
     ],
     "past_participle": [
-      "upseted"
+      "upset"
     ],
     "comparative": [],
     "superlative": [],
@@ -24875,7 +24904,7 @@
       "worships"
     ],
     "gerund": [
-      "worshiping"
+      "worshipping"
     ],
     "past_tense": [
       "worshipped"
@@ -27888,9 +27917,11 @@
       "betting"
     ],
     "past_tense": [
+      "bet",
       "betted"
     ],
     "past_participle": [
+      "bet",
       "betted"
     ],
     "comparative": [],
