@@ -20,6 +20,8 @@ import '../../common/date.dart';
 import '../../models/word.dart';
 // 音频服务由首页、随身听和默写共同复用。
 import '../../services/word_audio.dart';
+// 离线语音缓存进度服务：首页加载词库后把单词列表交给它，供抽屉"离线语音"使用。
+import '../../services/word_audio_cache.dart';
 // 原生 SAF 文件读写服务：导入选 JSON、导出写文件，不依赖第三方 file_picker。
 import '../../services/file_io.dart';
 // 新版原型中的全屏默写页。
@@ -505,18 +507,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     // 难度视角：数值从高到低，"无难度"固定在最后。
     if (_mode == GroupMode.difficulty) {
-      // 收集出现过的难度值（含 null）。
-      final values = <int?>{
-        for (final word in _allWords) word.difficulty,
-      }.toList()..sort((a, b) => (b ?? -1).compareTo(a ?? -1));
-      // 逐个难度生成区块。
+      // 业务约定：难度 0 与"无难度"(null) 是同一概念，内部必须合并成同一个组，
+      // 不能像以前那样把 0 显示成"难度 0"、把 null 显示成"无难度"分成两个区块。
+      // 因此先把每个单词的难度按 null→0 归一成 int，再收集去重。
+      final values = <int>{
+        for (final word in _allWords) word.difficulty ?? 0,
+      }.toList()..sort((a, b) => b.compareTo(a));
+      // 逐个难度生成区块；分区筛选与单词归属都用 (difficulty ?? 0) 比较。
       for (final value in values) {
         sections.add(
           _WordSection(
-            key: value == null ? 'dx' : 'd$value',
-            name: value == null ? '无难度' : '难度 $value',
+            // 合并后 0 与 null 共用 key 'd0'，不再出现 'dx'。
+            key: 'd$value',
+            // 值为 0 表示"无难度"（含原 null 单词），其余显示具体难度。
+            name: value == 0 ? '无难度' : '难度 $value',
             words: _filterAndSort(
-              _allWords.where((word) => word.difficulty == value).toList(),
+              _allWords
+                  .where((word) => (word.difficulty ?? 0) == value)
+                  .toList(),
             ),
           ),
         );
@@ -672,6 +680,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 隐藏加载指示器。
         _isLoading = false;
       });
+      // 把最新词库告知离线语音缓存服务，用于计算总数与初始已缓存百分比。
+      // 通道不可用（如单元测试无原生实现）时服务内部会安全回退为 0。
+      unawaited(
+        WordAudioCache.instance.setWordList(
+          words.map((word) => word.spelling).toList(),
+        ),
+      );
     } catch (error, stackTrace) {
       // 调试控制台保留完整错误和调用堆栈，真机日志也能直接查到根因。
       debugPrint('单词数据加载失败：$error');
@@ -709,6 +724,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _swipedWord = null;
       }
     });
+    // 增删改后同样刷新离线语音缓存服务的总数与已缓存百分比。
+    unawaited(
+      WordAudioCache.instance.setWordList(
+        words.map((word) => word.spelling).toList(),
+      ),
+    );
   }
 
   /// 读取今日复习的单词数（按词去重），用于副标题「今日复习 X/目标」刷新。
@@ -1781,6 +1802,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         },
         // 全局设置 Store：设置项已内嵌到抽屉中，点击即生效，无需再开独立窗口。
         settings: _settings,
+        // 离线语音缓存服务：抽屉"离线语音"入口读取百分比并驱动后台预缓存。
+        cache: WordAudioCache.instance,
         // 数据导入：方法内部会先关抽屉再弹出系统文件选择器。
         onImport: () => unawaited(_importData()),
         // 数据导出：方法内部会先关抽屉再弹出系统保存框。

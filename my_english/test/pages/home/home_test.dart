@@ -167,6 +167,34 @@ void main() {
     settings.dispose();
   });
 
+  // 验证抽屉"离线语音"入口显示初始百分比，点击安全启动后台预缓存。
+  testWidgets('offline speech entry shows percentage and starts caching', (
+    tester,
+  ) async {
+    // 打开首页（默认注入静音播放器，缓存服务通道异常时安全回退 0%）。
+    await _pumpHome(tester);
+    // 打开右侧抽屉。
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+
+    // "离线语音"入口出现，且初始未缓存任何音频时显示 0%。
+    expect(find.text('离线语音'), findsOneWidget);
+    expect(find.text('0%'), findsOneWidget);
+    // 入口位于"数据导入"上方（抽屉顺序：离线语音 → 数据导入）。
+    final offline = tester.getTopLeft(find.text('离线语音')).dy;
+    final import = tester.getTopLeft(find.text('数据导入')).dy;
+    expect(offline, lessThan(import));
+
+    // 点击启动后台批量预缓存；测试无原生实现，应安全忽略异常而不崩溃。
+    await tester.tap(find.byKey(const Key('offline-speech')));
+    await tester.pumpAndSettle();
+    // 入口仍然存在，未因后台任务异常而消失。
+    expect(find.text('离线语音'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 验证列表贴屏、占满底部且外层只有顶部边框。
   testWidgets('word list is edge-to-edge with only a top border', (
     tester,

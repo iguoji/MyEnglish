@@ -7,6 +7,8 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 // MethodChannel 类似小程序 JS 调用原生插件时使用的桥接 API。
 import io.flutter.plugin.common.MethodChannel
+// EventChannel 用于把离线预缓存的实时进度持续推回 Dart。
+import io.flutter.plugin.common.EventChannel
 // Executors 提供单独数据库线程，避免 SQLite 和 JSON 导入阻塞 Flutter UI。
 import java.util.concurrent.Executors
 
@@ -38,6 +40,12 @@ class MainActivity : FlutterActivity() {
 
     // 音频通道负责缓存、双来源下载和 MediaPlayer 播放。
     private val audioChannelName = "my_english/word_audio"
+
+    // 离线预缓存进度事件通道：Kotlin 在后台批量缓存时持续推送 {cached,total,done}。
+    private val audioCacheChannelName = "my_english/audio_cache"
+
+    // 当前 Dart 端对进度流的订阅接收器；null 表示还没有任何页面在监听。
+    private var audioCacheSink: EventChannel.EventSink? = null
 
     // 文件通道负责 SAF 选 JSON 与导出写文件，与 word_store 同风格的原生桥接。
     private val fileIoChannelName = "my_english/file_io"
@@ -393,10 +401,65 @@ class MainActivity : FlutterActivity() {
                     // 页面销毁或进入后台时停止当前播放。
                     "stop" -> wordAudioPlayer.stop(result)
 
+                    // 离线预缓存：Dart 传入全部单词拼写，Kotlin 后台并发缓存并
+                    // 通过音频进度事件通道实时上报 {cached,total,done}。方法本身
+                    // 立即返回，缓存任务在独立线程池中长期运行，不受抽屉关闭影响。
+                    "precache" -> {
+                        // 读取 Dart 传来的拼写字符串列表。
+                        val payload = call.arguments as? Map<*, *>
+                        val spellings = (payload?.get("spellings") as? List<*>)
+                            ?.mapNotNull { it as? String } ?: emptyList()
+                        // 启动后台批量缓存；进度通过已注册的 EventSink 推回 Dart。
+                        wordAudioPlayer.precacheAll(spellings) { cached, total, done ->
+                            // 没有订阅者（页面未打开抽屉）时静默丢弃，不报错。
+                            audioCacheSink?.success(
+                                mapOf(
+                                    "cached" to cached,
+                                    "total" to total,
+                                    "done" to done,
+                                ),
+                            )
+                        }
+                        // 方法调用立即结束，缓存在后台继续。
+                        result.success(null)
+                    }
+
+                    // 查询当前已缓存的音频数量（美式 + 英式），用于抽屉显示初始百分比。
+                    "getCacheProgress" -> {
+                        // 读取 Dart 传来的拼写字符串列表。
+                        val payload = call.arguments as? Map<*, *>
+                        val spellings = (payload?.get("spellings") as? List<*>)
+                            ?.mapNotNull { it as? String } ?: emptyList()
+                        // 返回 {cached, total} 二元组供 Dart 计算百分比。
+                        val progress = wordAudioPlayer.getCacheProgress(spellings)
+                        result.success(
+                            mapOf(
+                                "cached" to progress.first,
+                                "total" to progress.second,
+                            ),
+                        )
+                    }
+
                     // 未登记方法按 Flutter 规范返回 notImplemented。
                     else -> result.notImplemented()
                 }
             }
+
+        // 注册离线预缓存进度事件通道：Dart 订阅后拿到 EventSink，Kotlin 在缓存
+        // 过程中持续向其 success(...) 推送进度。只要 Dart 端保持订阅，即使抽屉
+        // 被关闭、用户回到首页，进度仍会回流到全局缓存服务，重新打开即见最新百分比。
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, audioCacheChannelName)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                // Dart 调用 receiveBroadcastStream 时触发，保存接收器备用。
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+                    audioCacheSink = events
+                }
+
+                // Dart 端取消订阅（本 App 长期持有，一般不触发）时清空接收器。
+                override fun onCancel(arguments: Any?) {
+                    audioCacheSink = null
+                }
+            })
 
         // 注册文件通道：导入时选 JSON、导出时写文件，全部走系统 SAF 选择器。
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, fileIoChannelName)

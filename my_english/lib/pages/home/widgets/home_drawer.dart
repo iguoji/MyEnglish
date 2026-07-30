@@ -10,6 +10,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 import '../../../common/theme.dart';
 // 设置 Store 与口音/分隔符/主题枚举；抽屉内直接复用全局设置。
 import '../../../store/settings.dart';
+// 离线语音缓存进度服务：抽屉内的"离线语音"入口实时读取与驱动后台预缓存。
+import '../../../services/word_audio_cache.dart';
 
 /// 右侧抽屉菜单：App 信息、内嵌的设置项、数据与关于入口、页脚联系方式。
 class HomeDrawer extends StatelessWidget {
@@ -17,6 +19,7 @@ class HomeDrawer extends StatelessWidget {
   const HomeDrawer({
     required this.onAddWord,
     required this.settings,
+    required this.cache,
     required this.onImport,
     required this.onExport,
     required this.onClearData,
@@ -31,6 +34,9 @@ class HomeDrawer extends StatelessWidget {
 
   /// 全局设置 Store；抽屉内直接内嵌设置控件并实时反映修改。
   final SettingsStore settings;
+
+  /// 离线语音缓存进度服务；"离线语音"入口读取百分比并触发后台预缓存。
+  final WordAudioCache cache;
 
   /// 点击"数据导入"后由首页弹出文件选择器读取 JSON。
   final VoidCallback onImport;
@@ -146,6 +152,8 @@ class HomeDrawer extends StatelessWidget {
                     _DrawerSettings(settings: settings),
                     // 设置区与数据入口之间的细分隔线。
                     Divider(height: 1, color: tokens.rowBorder),
+                    // 离线语音：后台批量缓存词库全部单词的双口音音频，右侧实时显示缓存百分比。
+                    _DrawerOfflineSpeech(cache: cache),
                     // 数据类入口：导入、导出、清空。
                     _DrawerItem(
                       key: const Key('drawer-import'),
@@ -264,6 +272,96 @@ class HomeDrawer extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 抽屉里的"离线语音"入口：左侧图标+文案，右侧居右显示缓存百分比。
+///
+/// 点击后会在下方展开一条整行低高度进度条，并触发后台批量缓存词库全部单词的
+/// 双口音音频；缓存进度由 [WordAudioCache] 单例实时推送，因此关闭抽屉回到首页
+/// 后任务继续，重新打开即见最新百分比。组件只通过 ListenableBuilder 监听服务，
+/// 自身不持有任何后台状态。
+class _DrawerOfflineSpeech extends StatelessWidget {
+  /// 接收全局缓存服务。
+  const _DrawerOfflineSpeech({required this.cache});
+
+  /// 离线语音缓存进度服务。
+  final WordAudioCache cache;
+
+  /// 输出入口行 + 点击后出现的整行进度条。
+  @override
+  Widget build(BuildContext context) {
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+    // ListenableBuilder 让服务每次进度更新只刷新本入口，不重绘整个抽屉。
+    return ListenableBuilder(
+      // 监听全局缓存服务。
+      listenable: cache,
+      // 根据最新缓存状态重建。
+      builder: (context, child) {
+        // 当前已缓存百分比。
+        final percent = cache.percent;
+        // 是否仍在进行中。
+        final isCaching = cache.isCaching;
+        return Column(
+          // 让进度条紧贴入口下方、占满整行宽度。
+          children: <Widget>[
+            // 入口行：左图标 + 文案，右对齐百分比。
+            InkWell(
+              // 供测试点击触发离线预缓存。
+              key: const Key('offline-speech'),
+              // 点击即启动后台批量缓存（进行中时内部自动忽略重复点击）。
+              onTap: () => cache.start(),
+              // 与 _DrawerItem 一致的整行内边距。
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                child: Row(
+                  children: <Widget>[
+                    // 17 像素灰色描边图标，与 _DrawerItem 视觉一致。
+                    Icon(TablerIcons.cloudDownload, size: 17, color: tokens.muted),
+                    // 图标与文字间距。
+                    const SizedBox(width: 12),
+                    // 入口文案使用主文字色。
+                    Text(
+                      '离线语音',
+                      style: TextStyle(color: tokens.text, fontSize: 14.5),
+                    ),
+                    // 撑开中间空间，把百分比推到最右侧。
+                    const Spacer(),
+                    // 右侧居右对齐的百分比数字（默认 0%）。
+                    Text(
+                      '$percent%',
+                      style: TextStyle(color: tokens.muted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // 仅在进行中显示整行低高度进度条（高度 4，占据整行宽度）。
+            if (isCaching)
+              Padding(
+                // 左右与入口行对齐，进度条占满中间宽度。
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: SizedBox(
+                  // 低高度：4 逻辑像素，符合"高度不高"的需求。
+                  height: 4,
+                  // LinearProgressIndicator 类似小程序 progress 组件。
+                  child: LinearProgressIndicator(
+                    // 已完成比例，0~1。
+                    value: cache.ratio,
+                    // 轨道底色用次级面色。
+                    backgroundColor: tokens.sub,
+                    // 已完成部分用主色。
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTokens.accent),
+                    // 明确压低高度，避免默认 4 之上再增高。
+                    minHeight: 4,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
