@@ -92,6 +92,14 @@ class _DictationPageState extends State<DictationPage> {
   bool _isCurrentWordComplete = false;
   // 发音图标是否显示。
   bool _isPlaying = false;
+  // 发音请求代次号：每发起一次播放就 +1，相当于给这次播放发一张"号码牌"。
+  //
+  // 为什么需要它？因为 `_playAudio` 是异步的（await 原生播放直到音频结束），
+  // 当奖励音频还没播完、用户就点了"下一题"时，新播放会打断旧播放，
+  // 旧的那次 await 随后才抛出中断异常并进入 finally。若不加区分，
+  // 旧调用的 finally 会把 `_isPlaying` 置回 false，把新播放的"播放中"状态误清掉。
+  // 有了代次号，旧调用发现自己的号码牌已经过期，就什么都不做，直接安静退出。
+  int _playGeneration = 0;
   // 中间信息面板中的反馈文案。
   String _feedback = '';
   // 反馈颜色；null 时使用次要文字色。
@@ -155,21 +163,41 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   /// 调用真实发音服务，并在播放期间显示 Tabler 音量图标。
-  Future<void> _playAudio() async {
-    if (_isDone || _isPlaying) return;
+  ///
+  /// [interrupt] 决定"当前已经有音频在播"时的策略，类似小程序里两种点击语义：
+  /// - false（默认，用户手动点播放按钮）：正在播就忽略这次点击，避免连点导致反复重播；
+  /// - true（切下一题 / 再试一次这类自动播放）：**强制打断**正在播的旧音频。
+  ///   这是本次修复的关键——答对后的"奖励发音"还没结束时点下一题，
+  ///   必须允许新单词把它顶掉，否则新题永远发不出声。
+  ///
+  /// 底层原生播放器本身就支持"后来的请求替换先前请求"（旧请求会收到
+  /// AUDIO_INTERRUPTED），所以这里只要不在 Dart 层把请求拦下来即可。
+  Future<void> _playAudio({bool interrupt = false}) async {
+    // 整轮已完成时不再发声。
+    if (_isDone) return;
+    // 手动点击且正在播放中：保持原有防连点体验，直接忽略。
+    if (_isPlaying && !interrupt) return;
+    // 领取本次播放的代次号（前置 ++ 先自增再取值，保证全局唯一且递增）。
+    final generation = ++_playGeneration;
+    // 立刻切到"播放中"，右下角播放按钮换成音量图标。
     setState(() => _isPlaying = true);
     try {
+      // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
       await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
     } on WordAudioInterruptedException {
       // 页面关闭或新播放替换旧播放时无需弹出错误。
     } catch (error) {
-      if (mounted) {
+      // 只有仍是"最新一次播放"时才提示失败，过期的旧请求不打扰用户。
+      if (mounted && generation == _playGeneration) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('播放失败：$error')));
       }
     } finally {
-      if (mounted) setState(() => _isPlaying = false);
+      // 同理：号码牌过期说明已有更新的播放在跑，绝不能由旧请求清掉播放中状态。
+      if (mounted && generation == _playGeneration) {
+        setState(() => _isPlaying = false);
+      }
     }
   }
 
@@ -287,7 +315,8 @@ class _DictationPageState extends State<DictationPage> {
       _feedbackColor = const Color(0xFF2FB344);
     });
     // 自动重播一次发音作为答对奖励：既有听觉反馈，又强化单词记忆。
-    unawaited(_playAudio());
+    // interrupt: true —— 若用户刚好手动点了播放，奖励发音直接接管，不会被忽略。
+    unawaited(_playAudio(interrupt: true));
     // 当前单词已完成，把本次默写结果写入记录（每天首条为准，异步、不阻塞）。
     _recordCompletion();
   }
@@ -297,6 +326,12 @@ class _DictationPageState extends State<DictationPage> {
   /// 这一步发生在「单词完成」那一刻，此时 [_currentWrong]/[_currentHints]
   /// 仍保存着本词累计的选错与提示次数；即便用户随后返回首页也不影响已经落库。
   /// 若单词没有主键（极端情况）则直接跳过。
+  ///
+  /// 关于 isCorrect 的口径（重要）：默写只能以"全部选对"结束，所以不能用"是否
+  /// 完成"来判断对错。真正有意义的判定是**本次过程中有没有选错过候选词**：
+  /// - 一次没错（[_currentWrong] == 0）→ 视为本次默写正确；
+  /// - 中途选错过 → 视为本次默写错误，原生据此把难度 +1。
+  /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
   void _recordCompletion() {
     // 取出当前单词主键。
     final wordId = _currentWord.id;
@@ -308,9 +343,9 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(
       RecordStore.instance
           .addCompletion(
-            // 能走到完成必然是最终全对，故 isCorrect 为 true。
+            // 本次是否"一次做对"：零错选才算正确，见上方口径说明。
             wordId: wordId,
-            isCorrect: true,
+            isCorrect: _currentWrong == 0,
             wrongCount: _currentWrong,
             hintCount: _currentHints,
           )
@@ -337,6 +372,8 @@ class _DictationPageState extends State<DictationPage> {
     if (_wordIndex + 1 >= widget.words.length) {
       // 整轮完成给予中等震动，与单词完成同级但更持久。
       HapticFeedback.mediumImpact();
+      // 作废尚未结束的奖励发音代次，防止它稍后把播放状态改回去。
+      _playGeneration++;
       setState(() {
         // 切换到整轮完成状态。
         _isDone = true;
@@ -376,7 +413,48 @@ class _DictationPageState extends State<DictationPage> {
       _options = _buildOptions();
     });
     // 与首次进入页面一致，新题自动发音一次。
-    unawaited(_playAudio());
+    // interrupt: true 是本次 bug 的修复点：上一题答对后的"奖励发音"可能仍在播放，
+    // 必须允许新单词直接把它打断，否则新题的发音会被旧音频挡住而完全听不到。
+    unawaited(_playAudio(interrupt: true));
+  }
+
+  /// 用户点击"再试一次"：把当前单词整体退回刚进入这一题时的状态。
+  ///
+  /// 语义等同于"这道题重做一遍"：拼写没选、释义没选、提示未展开、错项全部清空，
+  /// 并像刚进入新题一样自动发音一次。注意整轮累计错误数 [_errors] 不回退，
+  /// 它统计的是本轮全部答错次数，属于历史事实。
+  void _retryCurrentWord() {
+    // 只有当前题处于"已完成"状态时才会出现这个按钮，其余情况忽略调用。
+    if (!_isCurrentWordComplete || _isDone) return;
+    // 轻触震动确认操作已被接受。
+    HapticFeedback.lightImpact();
+    // 一次 setState 完整回滚当前题的全部答题状态（与 _goToNextWord 相同的字段集，
+    // 唯一区别是不移动 _wordIndex，仍停留在同一个单词上）。
+    setState(() {
+      // 回到拼写阶段，重新"听音选词"。
+      _stage = DictationStage.word;
+      // 词性下标回到第一项。
+      _meaningIndex = 0;
+      // 释义下标回到第一项。
+      _definitionIndex = 0;
+      // 收起此前公开的开头字母。
+      _hintLevel = 0;
+      // 清除被标红禁用的错误候选项。
+      _wrongOptions.clear();
+      // 本题错误/提示计数归零，重做后按新一次成绩落库。
+      _currentWrong = 0;
+      _currentHints = 0;
+      // 退出完成态，底部重新显示四选一与提示/播放按钮。
+      _isCurrentWordComplete = false;
+      // 清除"本词完成！"反馈。
+      _feedback = '';
+      // 反馈颜色恢复主题默认值。
+      _feedbackColor = null;
+      // 重新生成当前单词的四个拼写候选项。
+      _options = _buildOptions();
+    });
+    // 与进入新题一致自动发音；同样要打断可能仍在播放的奖励音频。
+    unawaited(_playAudio(interrupt: true));
   }
 
   /// 构建当前单词的完整步骤清单：先“听音选词”，再逐条词性释义。
@@ -593,9 +671,9 @@ class _DictationPageState extends State<DictationPage> {
             ),
           ),
         ),
-        // 未完成时显示四选一与工具按钮，完成后整组替换为蓝色长条下一题按钮。
+        // 未完成时显示四选一与工具按钮，完成后整组替换为「再试一次 + 下一题」。
         _isCurrentWordComplete
-            ? _buildNextQuestionButton()
+            ? _buildNextQuestionButton(tokens)
             : _buildBottomControls(tokens),
       ],
     );
@@ -691,8 +769,12 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
-  /// 构建当前单词全部答对后的蓝色长条推进按钮。
-  Widget _buildNextQuestionButton() {
+  /// 构建当前单词全部答对后的底部操作区：左「再试一次」+ 右「下一题」。
+  ///
+  /// 两个按钮通过 Expanded 各占一半宽度，中间用 [DictationLayout.columnGap]
+  /// 留出间距（相当于小程序里 flex:1 + margin 的写法）。
+  /// 左侧是次要操作（描边样式），右侧是主操作（蓝色实心）。
+  Widget _buildNextQuestionButton(AppTokens tokens) {
     // 最后一个单词之后没有新题，此时按钮文案改为“完成”。
     final isLastWord = _wordIndex + 1 >= widget.words.length;
     // Padding 与普通候选区共用相同的左右、顶部和安全区留白。
@@ -704,32 +786,71 @@ class _DictationPageState extends State<DictationPage> {
         DictationLayout.pageInset,
         DictationLayout.bottomInset,
       ),
-      // SizedBox 让按钮占满左右留白之间的全部宽度。
+      // SizedBox 固定整行高度，两个按钮上下边界完全一致。
       child: SizedBox(
         width: double.infinity,
         height: DictationLayout.actionHeight,
-        // FilledButton.icon 用蓝色背景表达当前唯一的主操作。
-        child: FilledButton.icon(
-          key: const Key('next-dictation-word'),
-          onPressed: _goToNextWord,
-          // 最后一题使用勾选图标，其他题使用向右箭头。
-          icon: Icon(
-            isLastWord ? TablerIcons.check : TablerIcons.arrowRight,
-            size: 17,
-          ),
-          // 中间文字明确说明点击后的结果。
-          label: Text(isLastWord ? '完成' : '下一题'),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppTokens.accent,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        // Row 横向排列两个按钮，类似小程序的 display:flex。
+        child: Row(
+          children: [
+            // 左半：次要操作「再试一次」，把当前题退回初始状态重做。
+            Expanded(
+              child: OutlinedButton.icon(
+                key: const Key('retry-dictation-word'),
+                onPressed: _retryCurrentWord,
+                // Tabler 的刷新图标表达"重来一遍"。
+                icon: const Icon(TablerIcons.refresh, size: 17),
+                label: const Text('再试一次'),
+                style: OutlinedButton.styleFrom(
+                  // 描边样式使用卡片底色，视觉权重低于右侧主操作。
+                  backgroundColor: tokens.card,
+                  foregroundColor: tokens.textMedium,
+                  side: BorderSide(color: tokens.inputBorder),
+                  // 高度由外层 SizedBox 决定，这里去掉按钮自带的最小宽高限制。
+                  minimumSize: const Size(0, DictationLayout.actionHeight),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
-            textStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+            // 两个按钮之间的固定间距，复用候选区与操作区的同一套尺寸。
+            const SizedBox(width: DictationLayout.columnGap),
+            // 右半：主操作「下一题」/「完成」。
+            Expanded(
+              // FilledButton.icon 用蓝色背景表达当前的主操作。
+              child: FilledButton.icon(
+                key: const Key('next-dictation-word'),
+                onPressed: _goToNextWord,
+                // 最后一题使用勾选图标，其他题使用向右箭头。
+                icon: Icon(
+                  isLastWord ? TablerIcons.check : TablerIcons.arrowRight,
+                  size: 17,
+                ),
+                // 中间文字明确说明点击后的结果。
+                label: Text(isLastWord ? '完成' : '下一题'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTokens.accent,
+                  foregroundColor: Colors.white,
+                  // 与左侧按钮保持同样的高度基准和无额外内边距。
+                  minimumSize: const Size(0, DictationLayout.actionHeight),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

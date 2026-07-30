@@ -11,8 +11,6 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 // JSONArray 负责还原 SQLite 中保存的 definitions_json。
 import org.json.JSONArray
-// DatabaseUtils 提供按条件统计行数，用来判定"今天是否已有记录"。
-import android.database.DatabaseUtils
 // SimpleDateFormat 与 Date 负责把当前时刻格式化成 'yyyy-MM-dd' 本地日期。
 import java.text.SimpleDateFormat
 // Date 表示当前时刻，配合 SimpleDateFormat 取本地日期。
@@ -795,6 +793,9 @@ class WordsDatabase(context: Context) :
         )
         // 按日期查询"今日复习"时用得到，建索引加速；IF NOT EXISTS 保证幂等。
         db.execSQL("CREATE INDEX IF NOT EXISTS record_created_date ON record(created_date)")
+        // 难度判定要按单词取"最近 N 条"记录，一天多条后这类查询会变频繁，
+        // 用 (word_id, id) 复合索引让"某词最近几条"可以直接走索引倒序扫描。
+        db.execSQL("CREATE INDEX IF NOT EXISTS record_word_id_seq ON record(word_id, id)")
     }
 
     /** 取设备本机时区下的 'yyyy-MM-dd' 日期字符串，作为 created_date 与"今日"判定基准。 */
@@ -806,12 +807,17 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 记录一次单词默写结果，并在同一事务内更新单词难度。
+     * 记录一次单词默写结果，并在同一事务内更新单词难度与复习时间。
      *
-     * 规则（每天首条记录为准）：
-     * - 今日已有该词记录 → 直接忽略（后续完成不再插记录、不改难度，满足"每天一条"）。
-     * - 本次不完美（有错或用了提示）→ 难度 +1（每天最多 +1）。
-     * - 本次完美 → 检查最近 5 个练习日是否"每天首条都完美"，是则难度 -1。
+     * 规则（2026-07-30 起，不再限制"每天一条"）：
+     * 1. **无论任何情况都插入一条新记录**——同一天同一个词重复默写会产生多条，
+     *    这样"再试一次"或多轮复习都能被完整留痕。
+     * 2. **无论任何情况都更新单词的 reviewed_at**（最近复习时间）。
+     * 3. 难度调整：
+     *    - 本次错误（isCorrect = false，即中途选错过）→ 难度 +1；
+     *    - 本次正确 → 取该词最近 5 条记录（含本次）判断，若 5 条全部正确则难度 -1，
+     *      否则不动。历史不足 4 条时凑不满 5 条，同样不动。
+     *    - 难度有下限 0（words 表的 CHECK 约束不允许负数）。
      */
     fun addDictationRecord(
         wordId: Long,
@@ -823,36 +829,24 @@ class WordsDatabase(context: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            // 本机时区下的"今天"。
+            // 本机时区下的"今天"，写入 created_date 供按天统计使用。
             val today = localDateString()
-            // 今日是否已有该词记录（每天一条）。
-            val existing = DatabaseUtils.queryNumEntries(
-                db,
-                "record",
-                "word_id = ? AND created_date = ?",
-                arrayOf(wordId.toString(), today),
-            )
-            // 已有则跳过，既不插记录也不改难度。
-            if (existing > 0) {
-                db.setTransactionSuccessful()
-                return
-            }
             // 读取当前难度（null 视为 0）。
             val curDiff = getWordDifficulty(db, wordId)
-            // 完美 = 最终全对、且中途零错误零提示。
-            val perfect = isCorrect && wrongCount == 0 && hintCount == 0
             // 先以当前难度作基准，下面再决定增减。
             var newDiff = curDiff
-            if (!perfect) {
-                // 不完美：每天最多 +1。
+            if (!isCorrect) {
+                // 本次默写出过错：难度 +1，下次会更早被安排复习。
                 newDiff = curDiff + 1
             } else {
-                // 完美：往前数最近 4 个练习日（不含今天），全部完美才 -1。
-                // 加上今天这条完美记录，正好凑满"最近 5 个练习日全完美"。
-                val priorPerfectDays = countConsecutivePerfectDays(db, wordId, today, 4)
-                if (priorPerfectDays >= 4) newDiff = curDiff - 1
+                // 本次正确：往前数最近 4 条历史记录（不含本次），必须"够 4 条且全对"。
+                // 加上本次这条，正好构成"最近 5 条连续全部正确"。
+                val priorCorrect = countRecentCorrectRecords(db, wordId, 4)
+                // coerceAtLeast(0) 相当于 PHP 的 max(0, $x)：难度不允许降到负数，
+                // 否则会撞上 words 表 difficulty >= 0 的 CHECK 约束导致整个事务回滚。
+                if (priorCorrect >= 4) newDiff = (curDiff - 1).coerceAtLeast(0)
             }
-            // 插入今日唯一记录。
+            // 插入本次记录（不再判断今天是否已有）。
             val now = System.currentTimeMillis()
             val values = ContentValues().apply {
                 put("module", "dictation")
@@ -903,44 +897,70 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 从今天往前数，连续完美（全对且无错无提示）的练习天数，最多数 [limit] 天。
+     * 从最新一条往前数，该单词**连续正确**的历史记录条数，最多数 [limit] 条。
      *
-     * 按 created_date 倒序取最近 [limit] 天，遇到第一个不完美的就停止——
-     * 因为"最近 5 天全完美"要求连续，中间任何一天不完美都打断链条。
+     * 注意这里按"记录条"而不是"天"统计：一天内多次默写会产生多条记录，每条都算数。
+     * 按 id 倒序（等价于写入顺序倒序）取最近 [limit] 条，遇到第一条错误立即停止——
+     * "最近 5 条全部正确"要求连续，中间任何一条错误都会打断链条。
+     *
+     * 返回值小于 [limit] 有两种情况：历史记录本来就不够，或中途被错误打断。
+     * 两种情况都不满足"最近 5 条全对"，调用方一律不降难度。
      */
-    private fun countConsecutivePerfectDays(
+    private fun countRecentCorrectRecords(
         db: SQLiteDatabase,
         wordId: Long,
-        today: String,
         limit: Int,
     ): Int {
-        // 统计连续完美天数。
+        // 统计连续正确的记录条数。
         var count = 0
-        // 查今天之前最近的 limit 天记录（每天一条）。
+        // 查该词最近的 limit 条历史记录（本次尚未插入，因此天然不含本次）。
         db.query(
             "record",
-            arrayOf("is_correct", "wrong_count", "hint_count"),
-            "word_id = ? AND created_date < ?",
-            arrayOf(wordId.toString(), today),
+            arrayOf("is_correct"),
+            "word_id = ?",
+            arrayOf(wordId.toString()),
             null, null,
-            "created_date DESC",
+            // 自增主键倒序 = 写入时间倒序，比 created_at 更稳（同毫秒也不会乱序）。
+            "id DESC",
             limit.toString(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                // 取出这一天的三项判定字段。
+                // 这一条是否正确（原生用 1/0 存布尔）。
                 val correct = cursor.getInt(cursor.getColumnIndexOrThrow("is_correct")) == 1
-                val wrong = cursor.getInt(cursor.getColumnIndexOrThrow("wrong_count"))
-                val hint = cursor.getInt(cursor.getColumnIndexOrThrow("hint_count"))
-                // 完美才累加，否则打断并停止计数。
-                if (correct && wrong == 0 && hint == 0) {
+                // 正确才累加，遇到错误立即打断计数。
+                if (correct) {
                     count += 1
                 } else {
                     break
                 }
             }
         }
-        // 返回连续完美天数（封顶 limit）。
+        // 返回连续正确条数（封顶 limit）。
         return count
+    }
+
+    /**
+     * 今日复习的单词数量：按天 + 按单词汇总。
+     *
+     * 首页副标题「今日复习 X/目标」用的就是它。由于同一个词一天可能有多条记录
+     * （重复默写、再试一次），必须用 COUNT(DISTINCT word_id) 去重，
+     * 否则同一个词练两遍会被算成两个词。
+     */
+    fun getTodayReviewWordCount(): Int {
+        // 只读连接即可。
+        val db = readableDatabase
+        // 本机时区下的"今天"。
+        val today = localDateString()
+        // rawQuery 直接执行聚合 SQL，参数用占位符防注入。
+        db.rawQuery(
+            "SELECT COUNT(DISTINCT word_id) FROM record WHERE created_date = ?",
+            arrayOf(today),
+        ).use { cursor ->
+            // 聚合查询必定返回一行一列，取第 0 列即为去重后的单词数。
+            if (cursor.moveToFirst()) return cursor.getInt(0)
+        }
+        // 理论上不会走到这里，兜底返回 0。
+        return 0
     }
 
     /**

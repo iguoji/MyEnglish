@@ -1,3 +1,5 @@
+// dart:async 提供 Completer，用于模拟"发音请求挂起、可被新请求打断"的异步行为。
+import 'dart:async';
 // material.dart 提供 MaterialApp 与 SizedBox。
 import 'package:flutter/material.dart';
 // flutter_test 提供页面交互和断言。
@@ -91,19 +93,40 @@ void main() {
     _expectNoOptions(tester);
     expect(find.byKey(const Key('dictation-hint')), findsNothing);
     expect(find.byKey(const Key('dictation-play')), findsNothing);
-    // 底部只显示一个蓝色长条“下一题”按钮。
+    // 底部显示「再试一次 + 下一题」两个按钮。
+    final retryButtonFinder = find.byKey(const Key('retry-dictation-word'));
     final nextButtonFinder = find.byKey(const Key('next-dictation-word'));
+    expect(retryButtonFinder, findsOneWidget);
     expect(nextButtonFinder, findsOneWidget);
+    expect(find.text('再试一次'), findsOneWidget);
     expect(find.text('下一题'), findsOneWidget);
+    // 右侧主操作仍保持蓝色实心。
     final nextButton = tester.widget<FilledButton>(nextButtonFinder);
     expect(
       nextButton.style?.backgroundColor?.resolve(const <WidgetState>{}),
       AppTokens.accent,
     );
+    // 两个按钮各占一半宽度，中间留出统一间距。
+    final nextAreaWidth = tester
+        .getSize(find.byKey(const Key('dictation-next-area')))
+        .width;
+    // 去掉左右各 20 像素页面留白后，才是两个按钮可用的内容宽度。
+    final contentWidth = nextAreaWidth - DictationLayout.pageInset * 2;
+    // 每个按钮 = （内容宽 - 中间间距）/ 2。
+    final halfWidth = (contentWidth - DictationLayout.columnGap) / 2;
+    expect(tester.getSize(retryButtonFinder).width, closeTo(halfWidth, 0.01));
+    expect(tester.getSize(nextButtonFinder).width, closeTo(halfWidth, 0.01));
+    // 左按钮的右边界 + 间距 = 右按钮的左边界，保证中间确实留有空隙。
+    final retryRect = tester.getRect(retryButtonFinder);
+    final nextRect = tester.getRect(nextButtonFinder);
     expect(
-      tester.getSize(nextButtonFinder).width,
-      tester.getSize(find.byKey(const Key('dictation-next-area'))).width - 40,
+      nextRect.left,
+      closeTo(retryRect.right + DictationLayout.columnGap, 0.01),
     );
+    // 两个按钮上下边界完全一致。
+    expect(retryRect.top, closeTo(nextRect.top, 0.01));
+    expect(retryRect.height, DictationLayout.actionHeight);
+    expect(nextRect.height, DictationLayout.actionHeight);
 
     // 只有点击长条按钮后才按首页列表顺序进入第二个单词。
     await tester.tap(nextButtonFinder);
@@ -122,6 +145,96 @@ void main() {
     expect(find.text('默写完成'), findsOneWidget);
     expect(find.text('共 2 个单词 · 答错 1 次'), findsOneWidget);
     expect(find.byIcon(TablerIcons.check), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 「再试一次」必须把当前单词退回到刚进入这一题的样子：
+  // 拼写没选、释义没选、提示收起、错项清空，底部重新出现四选一与提示/播放。
+  testWidgets('retry button resets the current word to its initial state', (
+    tester,
+  ) async {
+    // 只放一个带释义的单词，便于验证释义步骤也一起回滚。
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words.take(1).toList(),
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 先用提示公开一个字母，制造"非初始状态"。
+    await tester.tap(find.byKey(const Key('dictation-hint')));
+    await tester.pump();
+    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 1);
+
+    // 完整答对拼写与两条释义，进入完成态。
+    await tester.tap(find.text('ability'));
+    await tester.pump();
+    await tester.tap(find.text('能力'));
+    await tester.pump();
+    await tester.tap(find.text('才能'));
+    await tester.pump();
+    expect(find.text('当前单词已完成'), findsOneWidget);
+
+    // 点击「再试一次」。
+    await tester.tap(find.byKey(const Key('retry-dictation-word')));
+    await tester.pump();
+
+    // 回到拼写阶段：提示文案、四个候选、提示与播放按钮全部复位。
+    expect(find.text('听音，选出正确的单词'), findsOneWidget);
+    expect(find.text('当前单词已完成'), findsNothing);
+    _expectFourOptions(tester);
+    expect(find.byKey(const Key('dictation-hint')), findsOneWidget);
+    expect(find.byKey(const Key('dictation-play')), findsOneWidget);
+    // 完成态的两个按钮消失。
+    expect(find.byKey(const Key('retry-dictation-word')), findsNothing);
+    expect(find.byKey(const Key('next-dictation-word')), findsNothing);
+    // 此前公开的字母被收回，字母槽重新全空。
+    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 0);
+    // 上一次答出的释义 chips 不再显示（步骤回到未答状态）。
+    expect(find.text('才能'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 回归：答对后的"奖励发音"还在播时点下一题，新单词必须能正常发音。
+  // 旧实现里 _isPlaying 为 true 会让新播放请求被直接吞掉，新题永远不出声。
+  testWidgets('next word interrupts the pending reward audio', (tester) async {
+    // 这个假播放器的 play 会一直挂起，模拟"音频还没播完"。
+    final player = _PendingAudioPlayer();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words,
+          audioPlayer: player,
+          accent: PronunciationAccent.american,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 进入页面自动播放第一个单词，且这次播放一直没有结束。
+    expect(player.requested, <String>['ability']);
+
+    // 答对拼写与两条释义 → 触发一次奖励发音（第二次请求，仍是 ability）。
+    await tester.tap(find.text('ability'));
+    await tester.pump();
+    await tester.tap(find.text('能力'));
+    await tester.pump();
+    await tester.tap(find.text('才能'));
+    await tester.pump();
+    expect(player.requested, <String>['ability', 'ability']);
+
+    // 奖励音频尚未结束时点下一题。
+    await tester.tap(find.byKey(const Key('next-dictation-word')));
+    await tester.pump();
+
+    // 关键断言：新单词的发音请求必须真的发出去，而不是被"正在播放"挡掉。
+    expect(player.requested, <String>['ability', 'ability', 'abandon']);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -397,4 +510,41 @@ class _ImmediateAudioPlayer implements WordAudioPlayer {
 
   @override
   Future<void> stop() async {}
+}
+
+/// 模拟真实原生播放器：play 的 Future 会一直挂起直到音频播完，
+/// 新的 play 会把上一个请求以「已被替换」的中断异常结束（与 Android 实现一致）。
+class _PendingAudioPlayer implements WordAudioPlayer {
+  /// 依次记录每一次被请求播放的单词，供测试断言播放顺序。
+  final List<String> requested = <String>[];
+
+  /// 当前尚未结束的那次播放；Completer 相当于一个"手动兑现的 Promise"。
+  Completer<void>? _pending;
+
+  @override
+  Future<void> play(String spelling, PronunciationAccent accent) {
+    // 记录本次请求。
+    requested.add(spelling);
+    // 新请求到来时打断上一次，未完成的旧 Future 以中断异常结束。
+    _completePending();
+    // 本次播放挂起，不主动完成，模拟"音频正在播放中"。
+    final completer = Completer<void>();
+    _pending = completer;
+    return completer.future;
+  }
+
+  @override
+  Future<void> stop() async {
+    // 停止同样让挂起的播放以中断异常收尾。
+    _completePending();
+  }
+
+  /// 结束当前挂起的播放；页面会把这个异常当作"被替换"而静默忽略。
+  void _completePending() {
+    final pending = _pending;
+    _pending = null;
+    if (pending != null && !pending.isCompleted) {
+      pending.completeError(const WordAudioInterruptedException());
+    }
+  }
 }

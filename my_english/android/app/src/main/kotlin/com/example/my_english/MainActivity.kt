@@ -263,7 +263,7 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 记录一次单词默写结果并在事务内更新难度（每天首条为准）。
+                    // 记录一次单词默写结果并在事务内更新难度与复习时间（每次都插一条）。
                     "addDictationRecord" -> runDatabaseCall(result) {
                         // 读取 Dart 传来的本次默写结果。
                         val payload = call.arguments as? Map<*, *>
@@ -282,10 +282,16 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 读取今日全部默写记录，供"今日复习"展示。
+                    // 读取今日全部默写记录，供"今日复习"明细展示。
                     "getTodayReviewWords" -> runDatabaseCall(result) {
                         // 直接返回今日记录列表，Dart RecordStore 负责解析。
                         wordsDatabase.getTodayReviewWords()
+                    }
+
+                    // 今日复习数量：按天 + 按单词去重汇总，供首页副标题直接使用。
+                    "getTodayReviewWordCount" -> runDatabaseCall(result) {
+                        // 原生用 COUNT(DISTINCT word_id) 聚合，避免把整天记录搬到 Dart 再去重。
+                        wordsDatabase.getTodayReviewWordCount()
                     }
 
                     // 按 id 读取指定单词，供复习后只回刷相关单词。

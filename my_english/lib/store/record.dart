@@ -6,9 +6,11 @@ import '../models/record.dart';
 
 /// 默写记录 Store：记录写入与「今日复习」查询都走原生 word_store 通道。
 ///
-/// 设计上每个单词每天只会产生一条记录（首条为准），所以本 Store 只负责：
-/// 1) 把一次默写结果交给原生 `addDictationRecord`（难度增减也在原生事务内完成）；
-/// 2) 读取「今日复习」所需的记录列表。
+/// 记录策略（2026-07-30 起）：**每次默写成功都插入一条新记录**，同一个单词
+/// 一天可以有多条（重复练习、点了"再试一次"都会各留一条）。所以本 Store 负责：
+/// 1) 把一次默写结果交给原生 `addDictationRecord`（插记录、更新复习时间、
+///    调整难度都在原生同一个事务内完成）；
+/// 2) 读取「今日复习」所需的记录列表与去重后的数量。
 class RecordStore {
   /// 允许测试注入原生通道；正式 App 使用默认值。
   RecordStore({MethodChannel? channel})
@@ -30,11 +32,12 @@ class RecordStore {
   ///
   /// 参数对应页面在「单词完成」那一刻统计出的本次数据：
   /// - [wordId]：哪个单词；
-  /// - [isCorrect]：最终是否全对（默写只能以全对结束，这里通常为 true）；
+  /// - [isCorrect]：本次是否"一次做对"（中途没有选错过候选词）；
   /// - [wrongCount]：本次选错候选词的次数；
   /// - [hintCount]：本次点击提示的次数。
   ///
-  /// 原生内部按「每天首条为准」决定是否落库并调整难度，调用方无需关心。
+  /// 原生内部固定执行三件事，调用方无需关心：插入一条新记录、更新单词的
+  /// 复习时间、按「错了 +1 / 最近 5 条连续全对 -1」调整难度。
   Future<void> addCompletion({
     required int wordId,
     required bool isCorrect,
@@ -52,9 +55,9 @@ class RecordStore {
 
   /// 读取今日全部默写记录（原生已按 created_date = 今天 过滤）。
   ///
-  /// 返回的是「今天写进数据库的全部记录」，可能包含同一个单词的多条
-  /// （理论上一词一天一条，这里的多条来自不同单词）。UI 想展示「今天复习了哪些词」
-  /// 时再用 [getTodayReviewWordIds] 去重即可。
+  /// 返回的是「今天写进数据库的全部记录」，同一个单词可能出现多条
+  /// （一天里练了几遍就有几条）。UI 想展示「今天复习了哪些词」时再用
+  /// [getTodayReviewWordIds] 去重即可。
   Future<List<Record>> getTodayRecords() async {
     // 原生返回 List<Map>，null 按空列表处理。
     final raw = await _channel.invokeListMethod<Object?>('getTodayReviewWords');
@@ -85,5 +88,16 @@ class RecordStore {
     }
     // 转成 List 返回。
     return ids.toList();
+  }
+
+  /// 今日复习数量：按天 + 按单词汇总（同一个词今天练几遍都只算 1）。
+  ///
+  /// 首页副标题「今日复习 X/目标」用的就是这个值。这里直接让原生用
+  /// `COUNT(DISTINCT word_id)` 聚合出数字，比把整天的记录都搬到 Dart 再去重更省。
+  Future<int> getTodayReviewWordCount() async {
+    // 原生返回一个整数；通道异常由调用方 try/catch 兜底。
+    final count = await _channel.invokeMethod<int>('getTodayReviewWordCount');
+    // null（如旧版本原生尚未实现）按 0 处理，界面仍能正常显示。
+    return count ?? 0;
   }
 }

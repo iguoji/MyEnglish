@@ -720,12 +720,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _loadReviewCount() async {
     // try/catch 兜底原生通道异常，保证首页在测试或异常环境下不崩溃。
     try {
-      // 取今天已产生记录的单词 id（去重），其长度即「今日复习」完成数。
-      final ids = await RecordStore.instance.getTodayReviewWordIds();
+      // 直接向原生要「今天 · 按单词去重」后的数量：同一个词今天练了几遍都只算 1。
+      // 聚合在 SQL 里完成（COUNT(DISTINCT word_id)），不用把整天记录搬到 Dart。
+      final count = await RecordStore.instance.getTodayReviewWordCount();
       // 页面可能在异步期间被关闭。
       if (!mounted) return;
       // 更新副标题展示的复习进度。
-      setState(() => _reviewCount = ids.length);
+      setState(() => _reviewCount = count);
     } catch (error, stackTrace) {
       // 调试输出保留完整错误与堆栈，方便真机日志定位。
       debugPrint('读取今日复习数失败：$error');
