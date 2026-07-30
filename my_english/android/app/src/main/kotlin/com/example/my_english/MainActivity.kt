@@ -411,14 +411,17 @@ class MainActivity : FlutterActivity() {
                             ?.mapNotNull { it as? String } ?: emptyList()
                         // 启动后台批量缓存；进度通过已注册的 EventSink 推回 Dart。
                         wordAudioPlayer.precacheAll(spellings) { cached, total, done ->
-                            // 没有订阅者（页面未打开抽屉）时静默丢弃，不报错。
-                            audioCacheSink?.success(
-                                mapOf(
-                                    "cached" to cached,
-                                    "total" to total,
-                                    "done" to done,
-                                ),
-                            )
+                            // EventSink 必须在主线程调用；后台线程池的回调切到 UI 线程。
+                            runOnUiThread {
+                                // 没有订阅者（页面未打开抽屉）时静默丢弃，不报错。
+                                audioCacheSink?.success(
+                                    mapOf(
+                                        "cached" to cached,
+                                        "total" to total,
+                                        "done" to done,
+                                    ),
+                                )
+                            }
                         }
                         // 方法调用立即结束，缓存在后台继续。
                         result.success(null)
