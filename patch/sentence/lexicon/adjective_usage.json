@@ -1012,6 +1012,20 @@
     }
   },
   {
+    "spelling": "sharp",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
     "spelling": "short",
     "pos": "adj.",
     "attributive": "yes",

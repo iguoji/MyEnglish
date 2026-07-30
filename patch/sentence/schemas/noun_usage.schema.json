@@ -19,6 +19,7 @@
       "pair_construction": { "type": "boolean", "description": "true=用 a pair of 计数（scissors/trousers）" },
       "verb_agreement": { "enum": ["singular", "plural", "both"], "description": "collective/invariant 名词的谓语一致性（police→plural, news→singular）" },
       "semantic_category": { "enum": ["person", "animal", "food", "drink", "object", "place", "time", "abstract", "event", "unknown"] },
+      "location_preposition": { "enum": ["in", "on", "at"], "description": "作地点状语时的默认介词：in the garden / on the desk / at school" },
       "notes": { "type": "string" },
       "provenance": { "$ref": "#/$defs/provenance" }
     }

@@ -111,7 +111,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "ball",
@@ -153,7 +154,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "beach",
@@ -167,7 +169,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "on"
   },
   {
     "spelling": "bean",
@@ -209,7 +212,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "beef",
@@ -353,7 +357,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "boy",
@@ -542,7 +547,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "on"
   },
   {
     "spelling": "cheese",
@@ -586,7 +592,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "at"
   },
   {
     "spelling": "city",
@@ -600,7 +607,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "clock",
@@ -790,7 +798,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "on"
   },
   {
     "spelling": "doctor",
@@ -976,7 +985,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "on"
   },
   {
     "spelling": "farmer",
@@ -1019,7 +1029,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "fork",
@@ -1089,7 +1100,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "gift",
@@ -1326,7 +1338,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "hour",
@@ -1473,7 +1486,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "knife",
@@ -1587,7 +1601,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "lion",
@@ -1643,7 +1658,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "at"
   },
   {
     "spelling": "math",
@@ -1880,7 +1896,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "onion",
@@ -1981,7 +1998,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "peach",
@@ -2227,7 +2245,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "school",
@@ -2241,7 +2260,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "at"
   },
   {
     "spelling": "scissors",
@@ -2350,7 +2370,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "at"
   },
   {
     "spelling": "store",
@@ -2392,7 +2413,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "in"
   },
   {
     "spelling": "student",
@@ -2420,7 +2442,8 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "on"
   },
   {
     "spelling": "tea",
@@ -2637,6 +2660,7 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "location_preposition": "at"
   }
 ]

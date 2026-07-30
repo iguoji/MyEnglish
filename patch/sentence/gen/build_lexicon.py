@@ -227,6 +227,11 @@ def build_noun_usage():
         e["pos"] = "n."
         e["provenance"] = dict(PROV)
         entries.append(e)
+    # 3.5) 地点介词：命中判定表的名词补 location_preposition 字段
+    for e in entries:
+        prep = NOUN_LOCATION_PREP.get(e["spelling"])
+        if prep:
+            e["location_preposition"] = prep
     # 4) 对齐校验：凡 annotations/number_behavior 已判定的词，本表必须一致
     for e in entries:
         pol = NUMBER_POLICY.get(e["spelling"])
@@ -516,7 +521,7 @@ ADJ_INFLECTIONAL = [  # 单音节 / -y 双音节：-er/-est 屈折比较
     "dry", "wet", "hungry", "thirsty", "busy", "angry", "kind", "nice",
     "cheap", "loud", "fresh", "rich", "poor", "strong", "weak", "heavy",
     "light", "clean", "dirty", "safe", "sick", "ugly", "sorry", "healthy",
-    "smart", "sweet", "full", "sure", "glad", "empty",
+    "smart", "sweet", "full", "sure", "glad", "empty", "sharp",
 ]
 ADJ_PERIPHRASTIC = [  # 多音节：more/most 迂回比较
     "beautiful", "difficult", "expensive", "delicious", "interesting",
@@ -545,6 +550,18 @@ ADJ_DOUBLE_COMP = {
     "sad": (["sadder"], ["saddest"]),
     "wet": (["wetter"], ["wettest"]),
 }
+# 地点介词（人工判定）：名词作地点状语时的默认介词，如 in the garden / on the desk
+# 只登记搭配明确的常用词；未登记的名词不参与 There be 的地点槽（安全失败）
+NOUN_LOCATION_PREP = {
+    "garden": "in", "kitchen": "in", "bathroom": "in", "bedroom": "in",
+    "room": "in", "park": "in", "city": "in", "forest": "in", "library": "in",
+    "hospital": "in", "office": "in", "box": "in", "bag": "in", "street": "in",
+    "desk": "on", "table": "on", "chair": "on", "floor": "on", "farm": "on",
+    "beach": "on", "wall_placeholder_DO_NOT_ADD": "on",
+    "school": "at", "station": "at", "market": "at", "church": "at", "zoo": "at",
+}
+NOUN_LOCATION_PREP.pop("wall_placeholder_DO_NOT_ADD")  # 占位提醒项，立即移除
+
 # 常用补语搭配（afraid of / interested in / ready to ...）
 ADJ_COMPLEMENTS = {
     "afraid": [("prep_of", "afraid of dogs"), ("to_infinitive", "afraid to go")],
