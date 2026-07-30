@@ -238,13 +238,14 @@ class WordListTile extends StatelessWidget {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // 任何非空难度都显示红色徽章。
-                                  if (item.difficulty
-                                      case final difficulty?) ...[
-                                    _DifficultyBadge(difficulty: difficulty),
-                                    // 徽章与日期之间留白。
-                                    const SizedBox(width: 10),
-                                  ],
+                              // 只有难度大于 0 才显示红色徽章：空值或已降到最低难度 0
+                              // （如 "big"）不显示，避免出现毫无意义的 "0" 标记。
+                              if (item.difficulty
+                                  case final difficulty? when difficulty > 0) ...[
+                                _DifficultyBadge(difficulty: difficulty),
+                                // 徽章与日期之间留白。
+                                const SizedBox(width: 10),
+                              ],
                                   // 固定 40 宽右对齐日期列，三个时间全缺时显示占位 00.00。
                                   SizedBox(
                                     width: 40,

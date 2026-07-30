@@ -46,8 +46,6 @@ import 'widgets/learning_fab.dart';
 import 'widgets/manage_groups_sheet.dart';
 // 移动/复制目标选择面板。
 import 'widgets/group_picker_sheet.dart';
-// 设置面板。
-import 'widgets/settings_sheet.dart';
 // 添加/修改单词表单。
 import 'widgets/word_form_sheet.dart';
 // 设计稿风格的单词行。
@@ -891,12 +889,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 输出调用堆栈。
       debugPrintStack(stackTrace: stackTrace);
     }
-  }
-
-  /// 打开设置面板。
-  void _openSettings() {
-    // Future 在用户关闭面板时结束，首页无需等待其结果。
-    unawaited(showAppSettingsSheet(context, _settings));
   }
 
   /// 打开添加/修改单词表单；editing 为 null 表示新增。
@@ -1787,11 +1779,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Navigator.of(context).pop();
           _openWordForm();
         },
-        // 设置：先关抽屉再开设置面板。
-        onOpenSettings: () {
-          Navigator.of(context).pop();
-          _openSettings();
-        },
+        // 全局设置 Store：设置项已内嵌到抽屉中，点击即生效，无需再开独立窗口。
+        settings: _settings,
         // 数据导入：方法内部会先关抽屉再弹出系统文件选择器。
         onImport: () => unawaited(_importData()),
         // 数据导出：方法内部会先关抽屉再弹出系统保存框。

@@ -59,9 +59,12 @@ void main() {
     // 点击汉堡按钮。
     await tester.tap(find.byKey(const Key('open-menu')));
     await tester.pumpAndSettle();
-    // 四个入口全部出现。
+    // 入口与内嵌设置全部出现：原"设置"项已被可直接操作的四项设置取代。
     expect(find.text('添加单词'), findsOneWidget);
-    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('发音'), findsOneWidget);
+    expect(find.text('单词分隔'), findsOneWidget);
+    expect(find.text('黑暗模式'), findsOneWidget);
+    expect(find.text('每日复习'), findsOneWidget);
     expect(find.text('数据导出'), findsOneWidget);
     expect(find.text('关于'), findsOneWidget);
     // 页脚显示真实仓库地址。
@@ -117,8 +120,8 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证抽屉"设置"打开新设计的设置面板，且四项设置全部可用。
-  testWidgets('settings sheet updates accent, separator, theme and goal', (
+  // 验证抽屉内直接内嵌的四项设置全部可用（不再弹出独立窗口）。
+  testWidgets('settings embedded in drawer update accent, separator, theme and goal', (
     tester,
   ) async {
     // 首页持有这份可观察内存设置。
@@ -126,10 +129,8 @@ void main() {
     // 注入首页。
     await _pumpHome(tester, settings: settings);
 
-    // 打开抽屉再进入设置。
+    // 打开抽屉，设置项已直接内嵌在抽屉内，无需再开独立窗口。
     await tester.tap(find.byKey(const Key('open-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('drawer-settings')));
     await tester.pumpAndSettle();
     // 四项设置标题都存在。
     expect(find.text('发音'), findsOneWidget);
@@ -161,9 +162,7 @@ void main() {
     await tester.pump();
     expect(settings.dailyGoal, 105);
 
-    // 完成关闭面板并清理。
-    await tester.tap(find.byKey(const Key('settings-done')));
-    await tester.pumpAndSettle();
+    // 设置项内嵌在抽屉中，没有独立的"完成"按钮，直接收尾清理。
     await tester.pumpWidget(const SizedBox.shrink());
     settings.dispose();
   });
