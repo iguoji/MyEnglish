@@ -195,6 +195,49 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // 验证"离线语音"百分比能反映真实已缓存数量，且 Dart 端把拼写包装成 Map 传入。
+  testWidgets('offline speech percentage reflects real cache progress', (
+    tester,
+  ) async {
+    // 拦截音频通道：校验 getCacheProgress 收到的是 Map{spellings:...} 而非裸 List，
+    // 并返回 3/4 的缓存进度（词库 2 词 → 总数 4，已缓存 3 → 75%）。
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('my_english/word_audio'),
+      (call) async {
+        if (call.method == 'getCacheProgress') {
+          // 若参数不是带 'spellings' 键的 Map（即旧 bug：裸 List），返回 0 让测试失败。
+          final args = call.arguments;
+          if (args is! Map || !args.containsKey('spellings')) {
+            return <String, Object?>{'cached': 0, 'total': 0};
+          }
+          return <String, Object?>{'cached': 3, 'total': 4};
+        }
+        return null;
+      },
+    );
+    // 测试结束注销桩。
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel('my_english/word_audio'),
+        null,
+      ),
+    );
+
+    // 打开首页并展开抽屉。
+    await _pumpHome(tester);
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+
+    // 抽屉应显示真实缓存比例 75%，而不是旧 bug 的 0%。
+    expect(find.text('离线语音'), findsOneWidget);
+    expect(find.text('75%'), findsOneWidget);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 验证列表贴屏、占满底部且外层只有顶部边框。
   testWidgets('word list is edge-to-edge with only a top border', (
     tester,

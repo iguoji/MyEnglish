@@ -77,9 +77,12 @@ class WordAudioCache extends ChangeNotifier {
     _total = spellings.length * 2;
     // 询问原生当前已缓存数量，得到真实的初始百分比。
     try {
+      // 注意：原生 getCacheProgress 期望参数是一个 Map（键为 'spellings'），
+      // 必须包装成 Map 而非直接传裸 List，否则 Kotlin 端 call.arguments as? Map
+      // 会得到 null，把词表当成空、返回 {cached:0,total:0}，入口永远显示 0%。
       final result = await _channel.invokeMapMethod<String, Object?>(
         'getCacheProgress',
-        spellings,
+        <String, Object?>{'spellings': spellings},
       );
       // 原生返回 {cached,total}，total 以原生实际计算为准（理论上等于两倍单词数）。
       _cached = (result?['cached'] as num?)?.toInt() ?? 0;
@@ -101,6 +104,9 @@ class WordAudioCache extends ChangeNotifier {
     if (_isCaching) return;
     // 没有单词无需缓存。
     if (_spellings.isEmpty) return;
+    // 已经全部缓存完毕（已缓存数达到总数）则无需再下载，直接跳过，
+    // 避免点击后进度条一闪而过造成"点了没反应"的错觉。
+    if (_total > 0 && _cached >= _total) return;
     // 订阅原生进度流（全局只订阅一次）。
     _ensureSubscribed();
     // 立即进入缓存状态，抽屉下方出现进度条。
