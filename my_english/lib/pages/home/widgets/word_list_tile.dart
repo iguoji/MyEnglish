@@ -14,12 +14,14 @@ import '../../../common/theme.dart';
 import '../../../models/meaning.dart';
 import '../../../models/word.dart';
 
-/// 设计稿风格的单词行：36 高标题行 + 可展开释义 + 左滑"修改/删除"。
+/// 设计稿风格的单词行：40 高标题行 + 可展开释义 + 左滑"修改/删除"。
 class WordListTile extends StatelessWidget {
   /// 创建列表项；选择与滑动状态都由首页集中保存。
   const WordListTile({
     required this.item,
     required this.dateReference,
+    // 列表日期必须显式传入：首页按当前分组模式算好（复习/更新/加入时间其一）。
+    required this.displayDate,
     required this.isExpanded,
     required this.onTap,
     this.definitionSeparator = '、',
@@ -34,8 +36,15 @@ class WordListTile extends StatelessWidget {
     super.key,
   });
 
-  /// 标题行固定为设计稿的 36 像素。
-  static const double headerHeight = 36;
+  /// 当前要显示的列表日期；由首页按分组模式预先算好再传进来。
+  ///
+  /// 首页根据"分组模式"决定用复习时间 / 更新时间 / 加入时间中的哪一个
+  /// （详见 HomePage._listDateOf）；本组件只负责把它格式化显示，不关心业务规则。
+  /// 为 null 时（对应模式下的时间字段为空）显示占位 "00.00"。
+  final DateTime? displayDate;
+
+  /// 标题行固定为设计稿的 40 像素。
+  static const double headerHeight = 40;
 
   /// 左滑露出的操作区总宽度：修改 64 + 删除 64。
   static const double actionWidth = 128;
@@ -84,8 +93,8 @@ class WordListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // 日期按统一标准取值：复习时间 → 加入时间 → 更新时间，三者全空为 null。
-    final displayDate = item.displayDate;
+    // displayDate 已由首页按分组模式算好（复习/更新/加入时间其一），直接用它。
+    final displayDate = this.displayDate;
     // 是否真的存在可展开内容。
     final hasMeanings = item.meanings.isNotEmpty;
 
@@ -158,14 +167,14 @@ class WordListTile extends StatelessWidget {
                     // InkWell 提供整行点击反馈。
                     child: InkWell(
                       onTap: onTap,
-                      // SizedBox 固定 36 高标题行。
+                      // SizedBox 固定 40 高标题行。
                       child: SizedBox(
                         height: headerHeight,
                         // 与设计稿一致的 20 像素左右边距。
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Row(
-                            // 整条标题行在 36 高内垂直居中，单词与右侧日期不会上下错位。
+                            // 整条标题行在 40 高内垂直居中，单词与右侧日期不会上下错位。
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               // 左半部分：勾选框、播放喇叭与单词。
@@ -207,9 +216,9 @@ class WordListTile extends StatelessWidget {
                                           color: tokens.text,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
-                                          // 关键居中方案：把 Text 的 line box 高度直接锁成 36（= 标题行高），
-                                          // height = 36 / 16 = 2.25。外层 Row(center) 把 36 高的 line box 在
-                                          // 36 高的行内完美居中（完全重合），单词的几何中心必然落在 36 像素
+                                          // 关键居中方案：把 Text 的 line box 高度直接锁成 40（= 标题行高），
+                                          // height = 40 / 16 = 2.5。外层 Row(center) 把 40 高的 line box 在
+                                          // 40 高的行内完美居中（完全重合），单词的几何中心必然落在 40 像素
                                           // 行的中线上。该做法只依赖 height 锁定的行高，与字体自身的
                                           // ascent/descent 绝对值无关——换任何系统字体都不会再上下漂移。
                                           // even 再把字体的 ascent+descent 盒在 line box 内均分上下，进一步吸收字体偏差。
@@ -249,14 +258,18 @@ class WordListTile extends StatelessWidget {
                                       // 右对齐让日期竖向成列。
                                       textAlign: TextAlign.right,
                                       style: TextStyle(
-                                        color: tokens.textSecondary,
+                                        // 有日期用 listDate（极淡灰）；
+                                        // 无日期占位"00.00"用 listDateEmpty（更淡，几乎不可见）。
+                                        color: displayDate == null
+                                            ? tokens.listDateEmpty
+                                            : tokens.listDate,
                                         fontSize: 13,
                                         // 等宽数字避免日期跳动。
                                         fontFeatures: const [
                                           FontFeature.tabularFigures(),
                                         ],
-                                        // 与单词一致：把 line box 锁成 36 高（height = 36 / 13），
-                                        // 保证日期与单词在同一个 36 像素行的垂直中线上对齐。
+                                        // 与单词一致：把 line box 锁成 40 高（height = 40 / 13），
+                                        // 保证日期与单词在同一个 40 像素行的垂直中线上对齐。
                                         height: headerHeight / 13,
                                         leadingDistribution:
                                             TextLeadingDistribution.even,

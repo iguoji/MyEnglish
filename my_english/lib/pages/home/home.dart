@@ -263,16 +263,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 比较两个 Word；每种排序字段都执行固定的多级次序，最终由编号升序保底。
   ///
-  /// "日期"层统一为三级时间链：复习时间 → 加入时间 → 更新时间（见 _compareDate）。
-  /// 字母：拼写(当前方向) → 难度降序 → 时间链降序 → 编号升序。
-  /// 难度：难度(当前方向，null 视为 0) → 时间链降序 → 拼写升序 → 编号升序。
-  /// 日期：时间链(当前方向，空值固定末尾) → 难度降序 → 拼写升序 → 编号升序。
+  /// "日期"层按当前分组模式取单字段（复习/更新/加入时间，见 _compareDate）。
+  /// 默认：编号升序 → 字母升序 → 难度降序 → 日期降序。
+  /// 字母：拼写(当前方向) → 难度降序 → 日期降序 → 编号升序。
+  /// 难度：难度(当前方向，null 视为 0) → 日期降序 → 拼写升序 → 编号升序。
+  /// 日期：日期(当前方向，空值固定末尾) → 难度降序 → 拼写升序 → 编号升序。
   int _compareWords(Word first, Word second, bool isAscending) {
     // switch 根据当前选中字段进入对应的多级比较链。
     switch (_sortField) {
-      // 默认字段不会真正进入排序，这里返回相等作为完整兜底。
+      // 默认排序：编号升序 → 字母升序 → 难度降序 → 日期降序。
       case WordSortField.original:
-        return 0;
+        {
+          // 第一级：编号升序。
+          final byId = _compareId(first, second);
+          if (byId != 0) return byId;
+          // 第二级：字母升序。
+          final bySpelling = _compareSpelling(first, second, true);
+          if (bySpelling != 0) return bySpelling;
+          // 第三级：难度降序。
+          final byDifficulty = _compareDifficulty(first, second, false);
+          if (byDifficulty != 0) return byDifficulty;
+          // 第四级：日期降序。
+          return _compareDate(first, second, false);
+        }
 
       // 字母排序链。
       case WordSortField.alphabet:
@@ -359,36 +372,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return _applyDirection(firstValue.compareTo(secondValue), isAscending);
   }
 
-  /// 日期层：按"复习时间 → 加入时间 → 更新时间"三级逐级比较。
+  /// 按当前分组模式返回列表行应显示/排序使用的日期。
   ///
-  /// 每一级都是可空日期：空值在任何方向都固定排在末尾（复用 _compareNullable），
-  /// 当前级打平（都为空或时间相同）时才进入下一级。isAscending 作用于整条链，
-  /// 默认降序即用户约定的"复习降序 → 加入降序 → 更新降序"。
+  /// 需求约定：列表日期与"日期排序"的第一级字段都跟随分组模式——
+  /// - 默认 / 自定义 / 难度 / 复习时间视角 → reviewedAt（复习时间）
+  /// - 更新时间视角 → updatedAt（更新时间）
+  /// - 加入时间视角 → createdAt（加入时间）
+  /// 对应单词为空时返回 null，由调用方统一处理占位"00.00"与排序末尾。
+  DateTime? _listDateOf(Word word) => switch (_mode) {
+    // 更新时间视角取 updatedAt。
+    GroupMode.updated => word.updatedAt,
+    // 加入时间视角取 createdAt。
+    GroupMode.added => word.createdAt,
+    // 其余视角（custom/difficulty/reviewed）统一取复习时间。
+    _ => word.reviewedAt,
+  };
+
+  /// 日期层：按当前分组模式取单字段比较（复习/更新/加入时间其一）。
+  ///
+  /// 空值方向跟随升降序：升序时空值排最前（与难度升序 null=0 排前一致），
+  /// 降序时空值排最后。isAscending 决定升序还是降序。
   int _compareDate(Word first, Word second, bool isAscending) {
-    // 第一级：最近复习时间；没复习过的词整体排在复习过的词之后。
-    final byReviewed = _compareNullable<DateTime>(
-      first.reviewedAt,
-      second.reviewedAt,
-      (firstValue, secondValue) => firstValue.compareTo(secondValue),
-      isAscending,
-    );
-    // 复习时间不同就直接得出结论。
-    if (byReviewed != 0) return byReviewed;
-    // 第二级：加入时间（创建时间）。
-    final byCreated = _compareNullable<DateTime>(
-      first.createdAt,
-      second.createdAt,
-      (firstValue, secondValue) => firstValue.compareTo(secondValue),
-      isAscending,
-    );
-    // 加入时间不同立即返回。
-    if (byCreated != 0) return byCreated;
-    // 第三级：更新时间兜底。
+    // 按模式取出该单词的"列表日期"，再统一做可空比较。
+    // nullsLast = !isAscending：升序时 null 排前，降序时 null 排后。
     return _compareNullable<DateTime>(
-      first.updatedAt,
-      second.updatedAt,
+      _listDateOf(first),
+      _listDateOf(second),
       (firstValue, secondValue) => firstValue.compareTo(secondValue),
       isAscending,
+      nullsLast: !isAscending,
     );
   }
 
@@ -403,19 +415,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  /// 比较可空值，并确保 null 不会因为降序翻到列表顶部。
+  /// 比较可空值；nullsLast 控制空值排在末尾还是开头。
+  ///
+  /// 默认 nullsLast=true（空值排末尾），兼容编号保底等"空值永远在后"的场景。
+  /// 日期排序传入 nullsLast=!isAscending，使升序时空值排前、降序时空值排后，
+  /// 与难度升序（null 视为 0 排前）的行为保持一致。
   int _compareNullable<T>(
     T? first,
     T? second,
     int Function(T first, T second) compareValues,
-    bool isAscending,
-  ) {
+    bool isAscending, {
+    bool nullsLast = true,
+  }) {
     // 两边都为空时业务字段相等。
     if (first == null && second == null) return 0;
-    // 只有第一个为空时固定排后。
-    if (first == null) return 1;
-    // 只有第二个为空时第一个固定排前。
-    if (second == null) return -1;
+    // 只有第一个为空：nullsLast=true 排后(1)，nullsLast=false 排前(-1)。
+    if (first == null) return nullsLast ? 1 : -1;
+    // 只有第二个为空：nullsLast=true 排前(-1)，nullsLast=false 排后(1)。
+    if (second == null) return nullsLast ? -1 : 1;
     // 两边都有值时才应用升降序。
     return _applyDirection(compareValues(first, second), isAscending);
   }
@@ -428,8 +445,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         : source
               .where((word) => word.spelling.toLowerCase().contains(_query))
               .toList();
-    // 默认排序保持 Store/JSON 原始顺序。
-    if (_sortField == WordSortField.original) return filtered;
+    // 所有排序字段（含默认）都走多级比较链，不再对 original 早退。
     // 记录原始下标，作为多级比较后的最终稳定兜底。
     final originalIndexes = <Word, int>{};
     for (var index = 0; index < filtered.length; index += 1) {
@@ -509,16 +525,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       return sections;
     }
-    // 时间视角：复习时间用 reviewedAt，更新时间用 effectiveDate，加入时间用 createdAt。
-    // switch 表达式类似 PHP 8 的 match，按当前模式选出取日期的规则。
-    DateTime? dateOf(Word word) => switch (_mode) {
-      // 复习时间视角：直接取最近复习时间，没复习过即为 null。
-      GroupMode.reviewed => word.reviewedAt,
-      // 更新时间视角：沿用"更新时间优先、加入时间兜底"的业务日期。
-      GroupMode.updated => word.effectiveDate,
-      // 其余（加入时间视角）取创建时间。
-      _ => word.createdAt,
-    };
+    // 时间视角分组：复用 _listDateOf 确保分组日期与列表行显示日期完全一致。
+    // 复习时间视角 → reviewedAt；更新时间视角 → updatedAt；加入时间视角 → createdAt。
+    DateTime? dateOf(Word word) => _listDateOf(word);
     // 收集出现过的"天"数字键（yyyyMMdd），null 单独一组。
     final dayKeys = <int>{};
     var hasNullDate = false;
@@ -1649,6 +1658,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       item: word,
       // 传入静态年份参考。
       dateReference: _dateReference,
+      // 按当前分组模式计算列表行应显示的日期（复习/更新/加入时间其一）。
+      displayDate: _listDateOf(word),
       // 根据页面 Set 判断当前行是否展开。
       isExpanded: _expandedWords.contains(word),
       // 全部中文释义统一使用首页设置中选择的全角分隔符。

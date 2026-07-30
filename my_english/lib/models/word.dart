@@ -57,10 +57,12 @@ class Word {
   /// 目前仅供首页"更新时间"分组视角使用；列表右侧日期改用 [displayDate]。
   DateTime? get effectiveDate => updatedAt ?? createdAt;
 
-  /// 列表右侧日期的统一取值标准：复习时间 → 加入时间 → 更新时间。
+  /// 列表日期的兼容取值（回退链）：复习时间 → 加入时间 → 更新时间。
   ///
-  /// 类似 PHP 的 `$reviewedAt ?? $createdAt ?? $updatedAt`：
-  /// 从左到右取第一个非空日期；三者全空时返回 null，由界面显示占位 00.00。
+  /// 仅作为"未指定模式"时的兜底。首页实际展示的日期随分组模式切换
+  /// （默认看复习时间、更新时间模式看 updatedAt、加入时间模式看 createdAt），
+  /// 由 [HomePage._listDateOf] 计算后通过 WordListTile 的 displayDate 参数传入。
+  /// 三者全空时返回 null，界面显示占位 00.00。
   DateTime? get displayDate => reviewedAt ?? createdAt ?? updatedAt;
 
   /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。

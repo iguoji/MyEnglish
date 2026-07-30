@@ -45,6 +45,8 @@ void main() {
           body: WordListTile(
             item: item,
             dateReference: reference,
+            // 传入与旧 displayDate getter 等价的日期，保持测试断言不变。
+            displayDate: item.reviewedAt ?? item.createdAt ?? item.updatedAt,
             isExpanded: isExpanded,
             selectMode: selectMode,
             isSelected: isSelected,
@@ -58,8 +60,8 @@ void main() {
     );
   }
 
-  // 收起状态：36 高标题行、红色难度徽章与右对齐日期。
-  testWidgets('collapsed row shows badge, date and 36px header', (
+  // 收起状态：40 高标题行、红色难度徽章与右对齐日期。
+  testWidgets('collapsed row shows badge, date and 40px header', (
     tester,
   ) async {
     // 渲染收起行。
@@ -139,6 +141,7 @@ void main() {
           body: WordListTile(
             item: sample,
             dateReference: reference,
+            displayDate: sample.reviewedAt ?? sample.createdAt ?? sample.updatedAt,
             isExpanded: true,
             definitionSeparator: '，',
             onTap: () {},

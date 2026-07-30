@@ -206,6 +206,8 @@ class AppTokens {
     required this.inputBorder,
     required this.muted,
     required this.check,
+    required this.listDate,
+    required this.listDateEmpty,
   });
 
   /// 页面背景（cPage）。
@@ -244,6 +246,12 @@ class AppTokens {
   /// 未选中复选框边框与开关轨道（chk）。
   final Color check;
 
+  /// 列表右侧日期的极淡灰：刻意比 textSecondary 更弱，让辅助信息不抢眼。
+  final Color listDate;
+
+  /// 列表右侧无日期占位"00.00"的更淡灰：比 listDate 还弱，进一步降低存在感。
+  final Color listDateEmpty;
+
   /// 品牌主色，与设计稿 accent 一致。
   static const Color accent = AppTheme.primaryColor;
 
@@ -264,6 +272,10 @@ class AppTokens {
     inputBorder: AppTheme.borderColor,
     muted: Color(0xFF9AA3AF),
     check: Color(0xFFC6CCD3),
+    // 比 muted(0xFF9AA3AF) 更浅，确保日期在白色卡片上几乎只是淡淡的水印感。
+    listDate: Color(0xFF7E868F),
+    // 无日期占位"00.00"比有日期更淡，接近背景几乎不可见。
+    listDateEmpty: Color(0xFFE0E4E9),
   );
 
   /// 深色令牌，与设计稿深色 CSS 变量一致。
@@ -280,6 +292,10 @@ class AppTokens {
     inputBorder: AppTheme.darkBorderColor,
     muted: Color(0xFF71808F),
     check: Color(0xFF4A5866),
+    // 深色表面(#1B232E)上比 muted(0xFF71808F) 更暗，弱化到几乎不干扰正文。
+    listDate: Color(0xFF98A4B2),
+    // 无日期占位"00.00"比有日期更暗，融入深色背景几乎不可见。
+    listDateEmpty: Color(0xFF3A4350),
   );
 
   /// 按当前主题亮度返回对应令牌集合。

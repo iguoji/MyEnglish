@@ -396,7 +396,7 @@ void main() {
   testWidgets('sort bar toggles all fields with the agreed null rules', (
     tester,
   ) async {
-    // 第一个单词更新时间最新，但难度最低。
+    // 第一个单词复习时间最早，但难度最低。
     final words = <Word>[
       Word(
         id: 21,
@@ -404,13 +404,15 @@ void main() {
         difficulty: 1,
         createdAt: DateTime(2026, 1, 1),
         updatedAt: DateTime(2026, 7, 1),
+        reviewedAt: DateTime(2026, 1, 1),
       ),
-      // 第二个单词没有更新时间，日期应回退到 createdAt。
+      // 第二个单词没有更新时间，复习时间较新。
       Word(
         id: 22,
         spelling: 'apple',
         difficulty: 3,
         createdAt: DateTime(2026, 6, 1),
+        reviewedAt: DateTime(2026, 6, 1),
       ),
       // 第三个单词故意没有难度和日期，难度层按 0 参与比较。
       const Word(id: 23, spelling: 'middle'),
@@ -428,7 +430,8 @@ void main() {
       findsNothing,
     );
 
-    // 默认顺序严格保持 Store 返回顺序。
+    // 默认排序：编号升序 → 字母升序 → 难度降序 → 日期降序。
+    // 三个词 id 依次递增，编号升序即保持 Store 返回顺序。
     _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
     // 第一次点字母是升序。
     await tester.tap(find.byKey(const Key('word-sort-alphabet')));
@@ -448,15 +451,15 @@ void main() {
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['middle', 'zebra', 'apple']);
 
-    // 第一次点日期默认最近到最早；三级时间链为复习→加入→更新：
-    // 三个词都没复习过，落到加入时间比较，apple(6/1) 排在 zebra(1/1) 前。
+    // 第一次点日期默认最近到最早；默认模式下日期取 reviewedAt：
+    // apple(6/1) 排在 zebra(1/1) 前，middle 无复习时间固定末尾（降序 null 在后）。
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
-    // 再点日期从早到晚，空日期仍然固定在末尾。
+    // 再点日期从早到晚，空日期排最前（升序 null 在前，与难度升序一致）。
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
-    _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
+    _expectTextsInVerticalOrder(tester, <String>['middle', 'zebra', 'apple']);
 
     // 清理页面资源。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -468,23 +471,25 @@ void main() {
   ) async {
     // 四个单词难度完全相同，用来检验难度排序的后续层级。
     final sameDifficultyWords = <Word>[
-      // 日期第二新，应排第二。
+      // 复习时间第二新，应排第二。
       Word(
         id: 31,
         spelling: 'delta',
         difficulty: 5,
         createdAt: DateTime(2026, 3, 1),
+        reviewedAt: DateTime(2026, 3, 1),
       ),
-      // 日期最新，应排第一。
+      // 复习时间最新，应排第一。
       Word(
         id: 32,
         spelling: 'alpha',
         difficulty: 5,
         createdAt: DateTime(2026, 5, 1),
+        reviewedAt: DateTime(2026, 5, 1),
       ),
-      // 无日期，与 bravo 同组后比拼写。
+      // 无复习时间，与 bravo 同组后比拼写。
       const Word(id: 33, spelling: 'echo', difficulty: 5),
-      // 无日期，拼写字母序在 echo 之前。
+      // 无复习时间，拼写字母序在 echo 之前。
       const Word(id: 34, spelling: 'bravo', difficulty: 5),
     ];
     // 打开首页。
@@ -508,20 +513,23 @@ void main() {
         spelling: 'same',
         difficulty: 1,
         createdAt: DateTime(2026, 7, 1),
+        reviewedAt: DateTime(2026, 7, 1),
       ),
-      // 难度最高但日期较旧，应排第二。
+      // 难度最高但复习时间较旧，应排第二。
       Word(
         id: 42,
         spelling: 'same',
         difficulty: 9,
         createdAt: DateTime(2026, 1, 1),
+        reviewedAt: DateTime(2026, 1, 1),
       ),
-      // 难度同为最高且日期更新，应排第一。
+      // 难度同为最高且复习时间更新，应排第一。
       Word(
         id: 43,
         spelling: 'same',
         difficulty: 9,
         createdAt: DateTime(2026, 6, 1),
+        reviewedAt: DateTime(2026, 6, 1),
       ),
     ];
     // 重新打开首页。
