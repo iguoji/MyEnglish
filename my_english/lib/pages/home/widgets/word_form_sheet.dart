@@ -13,6 +13,30 @@ import '../../../models/word.dart';
 // 分组 Store 提供当前分组列表。
 import '../../../store/group.dart';
 
+/// 词性选项列表，按词库使用频率降序排列。
+///
+/// 必定包含 vt. / vi. / vi. vt. 三项；'*' 表示未选词性（占位）。
+/// 该列表作为词性单选区域的固定数据源，UI 横向滑动展示。
+const List<String> _kPosOptions = <String>[
+  'n.',
+  'vt.',
+  '*',
+  'vi. vt.',
+  'adj.',
+  'vi.',
+  'v.',
+  'adv.',
+  'prep.',
+  'num.',
+  'pron.',
+  'conj.',
+  'aux.',
+  'vlink.',
+  'int.',
+  'art.',
+  'det.',
+];
+
 /// 表单提交结果：首页据此调用 WordStore 创建或更新。
 class WordFormResult {
   /// 创建结果对象。
@@ -558,51 +582,21 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 第一行：词性输入 + 删除块按钮。
+          // 第一行：词性单选横向滑动区 + 删除块按钮。
           Row(
             children: [
-              // 词性输入固定 110 宽。
-              SizedBox(
-                width: 110,
-                height: 34,
-                child: TextFormField(
-                  initialValue: meaning.pos,
-                  onChanged: (value) => meaning.pos = value,
-                  // expands 撑满 34 高 SizedBox，否则描边框只裹住矮内容区而错位。
-                  expands: true,
-                  // expands 为 true 时 maxLines 必须为 null。
-                  maxLines: null,
-                  // 文字在撑满的高度内垂直居中。
-                  textAlignVertical: TextAlignVertical.center,
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: 13.5,
-                    height: 1.2,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: '词性，如 n.',
-                    hintStyle: TextStyle(
-                      color: tokens.muted,
-                      fontSize: 13.5,
-                      height: 1.2,
-                    ),
-                    // 清空垂直内边距，由 34 高容器 + 居中控制。
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: tokens.inputBorder),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppTokens.accent),
-                    ),
-                  ),
+              // 词性单选区：占满剩余宽度，可横向滑动。
+              Expanded(
+                child: _PosSelector(
+                  tokens: tokens,
+                  // 当前选中词性；空字符串视为'*'未选。
+                  selected: meaning.pos.isEmpty ? '*' : meaning.pos,
+                  // 点击词性：选'*'时清空为空字符串(语义=未选)，否则写入词性。
+                  onSelect: (pos) => setState(() {
+                    meaning.pos = pos == '*' ? '' : pos;
+                  }),
                 ),
               ),
-              const Spacer(),
               // 只剩一个块时不显示删除。
               if (_meanings.length > 1)
                 IconButton(
@@ -744,6 +738,115 @@ class _WordFormSheetState extends State<_WordFormSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 词性单选横向滑动区。
+///
+/// 按 [_kPosOptions] 顺序横向排列所有词性选项，点击即选中；
+/// 选中项使用主色描边+主色文字，未选中项使用普通边框+次要文字。
+/// 区域可横向滑动，避免词性过多时溢出。
+class _PosSelector extends StatelessWidget {
+  /// 接收设计令牌、当前选中词性与选择回调。
+  const _PosSelector({
+    required this.tokens,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  /// 设计令牌，用于读取颜色。
+  final AppTokens tokens;
+
+  /// 当前选中的词性文字；'*' 表示未选。
+  final String selected;
+
+  /// 点击词性选项后的回调。
+  final void Function(String pos) onSelect;
+
+  /// 输出 34 高的可横向滑动词性 Chip 列表。
+  @override
+  Widget build(BuildContext context) {
+    // SingleChildScrollView +横向滚动 让词性列表超出宽度时可滑动。
+    return SizedBox(
+      // 与原词性输入框同高 34。
+      height: 34,
+      child: SingleChildScrollView(
+        // 横向滚动。
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            // 选项之间的间距通过 Padding 包裹实现。
+            for (var i = 0; i < _kPosOptions.length; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              _PosChip(
+                tokens: tokens,
+                label: _kPosOptions[i],
+                isSelected: _kPosOptions[i] == selected,
+                onTap: () => onSelect(_kPosOptions[i]),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 单个词性选项 Chip。
+class _PosChip extends StatelessWidget {
+  /// 接收设计令牌、文案、是否选中与点击回调。
+  const _PosChip({
+    required this.tokens,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  /// 设计令牌。
+  final AppTokens tokens;
+
+  /// 词性文字。
+  final String label;
+
+  /// 是否选中。
+  final bool isSelected;
+
+  /// 点击回调。
+  final VoidCallback onTap;
+
+  /// 输出圆角描边 Chip。
+  @override
+  Widget build(BuildContext context) {
+    // InkWell 提供点击反馈。
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        // 横向 10 纵向 0 内边距，高度由外层 34 控制。
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          // 选中项用浅主色背景，未选中用透明。
+          color: isSelected
+              ? const Color(0x1A206BC4)
+              : Colors.transparent,
+          // 选中项用主色描边，未选中用输入框边框色。
+          border: Border.all(
+            color: isSelected ? AppTokens.accent : tokens.inputBorder,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            // 选中项主色加粗，未选中次要色常规。
+            color: isSelected ? AppTokens.accent : tokens.textSecondary,
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
       ),
     );
   }
