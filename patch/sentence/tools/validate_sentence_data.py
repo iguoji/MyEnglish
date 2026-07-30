@@ -296,6 +296,44 @@ def main():
                     err(f"{rel}: 范式词不在系统词库 {miss}")
                 stats[rel] = {'entries': len(data)}
 
+    # ---- 检查 7：公式与测试集的引用完整性 ----
+    # golden.json 的 formula_id 必须在 formulas/ 中登记；
+    # depends_on 的 "lexicon文件:spelling+pos" 必须指向真实词条。
+    formula_ids = set()
+    for fp in glob.glob(os.path.join(SENT_DIR, 'formulas', '*.json')):
+        fdata, fok = load_json_strict(fp)
+        if fok and isinstance(fdata, list):          # 公式文件是数组；兼容矩阵是对象，自动跳过
+            formula_ids.update(f.get('formula_id') for f in fdata if isinstance(f, dict))
+    # 预载 lexicon 词条键 {文件名前缀: {(spelling, pos)}}
+    lexicon_keys = {}
+    for lp in glob.glob(os.path.join(SENT_DIR, 'lexicon', '*.json')):
+        base = os.path.basename(lp).replace('.json', '')
+        ldata, lok = load_json_strict(lp)
+        if lok and isinstance(ldata, list):
+            lexicon_keys[base] = {(i.get('spelling'), i.get('pos'))
+                                  for i in ldata if isinstance(i, dict)}
+    golden_path = os.path.join(SENT_DIR, 'tests', 'golden.json')
+    if os.path.exists(golden_path):
+        gdata, gok = load_json_strict(golden_path)
+        if gok and isinstance(gdata, list):
+            for t in gdata:
+                tid = t.get('test_id', '?')
+                if t.get('formula_id') not in formula_ids:
+                    err(f"tests/golden.json[{tid}]: formula_id "
+                        f"'{t.get('formula_id')}' 未在 formulas/ 登记")
+                for dep in t.get('depends_on', []):
+                    # 依赖格式 "noun_usage:water+n." → 文件 noun_usage.json 里的 (water, n.)
+                    if ':' not in dep or '+' not in dep:
+                        err(f"tests/golden.json[{tid}]: depends_on 格式非法 '{dep}'")
+                        continue
+                    fname, key = dep.split(':', 1)
+                    sp, pos = key.rsplit('+', 1)
+                    if fname not in lexicon_keys:
+                        err(f"tests/golden.json[{tid}]: 依赖的 lexicon 文件不存在 '{fname}'")
+                    elif (sp, pos) not in lexicon_keys[fname]:
+                        err(f"tests/golden.json[{tid}]: 依赖词条不存在 {fname}:{sp}+{pos}")
+            stats['patch/sentence/tests/golden.json'] = {'entries': len(gdata)}
+
     # ---- 检查 6：跨表语义冲突（number_behavior 内部由值域保证互斥；
     #      跨表如 stative(动词表) 与 gradability(形容词表) 同词只警告，因跨词性同拼写合法）----
     cross = {sp: kinds for sp, kinds in policy_word_kinds.items() if len(kinds) > 1}

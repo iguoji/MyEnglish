@@ -1,0 +1,321 @@
+[
+  {
+    "test_id": "sv_agreement_third_singular",
+    "rule": "主谓一致：三单加 -s / 不规则三单",
+    "golden": ["The dog runs.", "She swims.", "He goes."],
+    "forbidden": [
+      { "sentence": "The dog run.", "reason": "third_person_singular_missing" },
+      { "sentence": "He gos.", "reason": "mechanical_s_on_irregular" }
+    ],
+    "formula_id": "sv_basic",
+    "depends_on": ["verb_frames:run+vi.", "verb_frames:swim+vi.", "verb_frames:go+vi."]
+  },
+  {
+    "test_id": "sv_weather_expletive",
+    "rule": "天气动词只能用虚主语 it",
+    "golden": ["It rains.", "It is snowing."],
+    "forbidden": [
+      { "sentence": "The dog rains.", "reason": "subject_restriction_unmet" }
+    ],
+    "formula_id": "sv_basic",
+    "depends_on": ["verb_frames:rain+vi.", "verb_frames:snow+vi."]
+  },
+  {
+    "test_id": "svo_uncountable_article",
+    "rule": "不可数名词禁接不定冠词",
+    "golden": ["She drinks water.", "She drinks some water."],
+    "forbidden": [
+      { "sentence": "She drinks a water.", "reason": "uncountable_with_indefinite_article" },
+      { "sentence": "She drinks two waters.", "reason": "uncountable_with_numeral" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["noun_usage:water+n.", "verb_frames:drink+vt."]
+  },
+  {
+    "test_id": "svo_object_restriction_edible",
+    "rule": "eat 的宾语必须可食用",
+    "golden": ["The boy eats an apple.", "The monkey eats a banana."],
+    "forbidden": [
+      { "sentence": "The boy eats a desk.", "reason": "object_restriction_unmet" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:eat+vt.", "noun_usage:apple+n.", "noun_usage:desk+n."]
+  },
+  {
+    "test_id": "svo_stative_continuous",
+    "rule": "静态动词不进进行时",
+    "golden": ["I know the answer.", "She likes music."],
+    "forbidden": [
+      { "sentence": "I am knowing the answer.", "reason": "stative_in_continuous" },
+      { "sentence": "She is liking music.", "reason": "stative_in_continuous" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:know+vt.", "verb_frames:like+vt.", "noun_usage:answer+n.", "noun_usage:music+n."]
+  },
+  {
+    "test_id": "svo_do_support_negation",
+    "rule": "一般现在/过去时否定用 do-support",
+    "golden": ["She does not read books.", "They did not eat bread."],
+    "forbidden": [
+      { "sentence": "She reads not books.", "reason": "missing_do_support" },
+      { "sentence": "She does not reads books.", "reason": "double_inflection_after_do" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:read+vt.", "verb_frames:eat+vt.", "noun_usage:book+n.", "noun_usage:bread+n."]
+  },
+  {
+    "test_id": "svo_do_support_question",
+    "rule": "一般疑问句 do/does/did 提前",
+    "golden": ["Does she read books?", "Did they eat bread?"],
+    "forbidden": [
+      { "sentence": "Reads she books?", "reason": "missing_do_support" },
+      { "sentence": "Does she reads books?", "reason": "double_inflection_after_do" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:read+vt.", "noun_usage:book+n."]
+  },
+  {
+    "test_id": "svo_irregular_past",
+    "rule": "不规则过去式取词条字段，禁止机械 -ed",
+    "golden": ["She ate an apple.", "He wrote a letter."],
+    "forbidden": [
+      { "sentence": "She eated an apple.", "reason": "mechanical_ed_on_irregular" },
+      { "sentence": "He writed a letter.", "reason": "mechanical_ed_on_irregular" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:eat+vt.", "verb_frames:write+vt.", "noun_usage:apple+n.", "noun_usage:letter+n."]
+  },
+  {
+    "test_id": "svo_passive_allowed",
+    "rule": "被动 = be 变位 + 过去分词，且动词须 allows_passive",
+    "golden": ["The apple is eaten.", "The letter was written."],
+    "forbidden": [
+      { "sentence": "The coat is fitted by me.", "reason": "passive_not_allowed" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:eat+vt.", "verb_frames:write+vt.", "verb_frames:fit+vi. vt."]
+  },
+  {
+    "test_id": "svp_predicative_only",
+    "rule": "afraid 类只作表语；main 类只作定语",
+    "golden": ["The child is afraid.", "The happy child smiles."],
+    "forbidden": [
+      { "sentence": "An afraid child smiles.", "reason": "adjective_predicative_only" },
+      { "sentence": "The reason is main.", "reason": "adjective_attributive_only" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["adjective_usage:afraid+adj.", "adjective_usage:happy+adj.", "adjective_usage:main+adj."]
+  },
+  {
+    "test_id": "svp_copula_adjective",
+    "rule": "系动词接形容词表语（非副词）",
+    "golden": ["The soup tastes good.", "She looks happy."],
+    "forbidden": [
+      { "sentence": "The soup tastes well.", "reason": "adverb_as_predicative" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["verb_frames:taste+vi. vt.", "verb_frames:look+vi.", "adjective_usage:good+adj.", "noun_usage:soup+n."]
+  },
+  {
+    "test_id": "svp_ungradable_degree",
+    "rule": "不可分级形容词禁入 very/more 公式",
+    "golden": ["The man is dead.", "The cat is alive."],
+    "forbidden": [
+      { "sentence": "The man is very dead.", "reason": "ungradable_with_degree" },
+      { "sentence": "The cat is more alive.", "reason": "ungradable_with_comparative" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["adjective_usage:dead+adj.", "adjective_usage:alive+adj.", "noun_usage:cat+n."]
+  },
+  {
+    "test_id": "svoo_dative_order",
+    "rule": "双宾语序 V+间宾+直宾；for 类动词介词改写用 for",
+    "golden": ["He gives her a gift.", "She buys him a book."],
+    "forbidden": [
+      { "sentence": "He gives a gift her.", "reason": "dative_order_violation" },
+      { "sentence": "She buys a book to him.", "reason": "wrong_dative_preposition" }
+    ],
+    "formula_id": "svoo_dative",
+    "depends_on": ["verb_frames:give+vt.", "verb_frames:buy+vt.", "noun_usage:gift+n.", "noun_usage:book+n."]
+  },
+  {
+    "test_id": "svoc_bare_infinitive",
+    "rule": "使役/感官动词接不带 to 的不定式",
+    "golden": ["She makes him cry.", "I see him run."],
+    "forbidden": [
+      { "sentence": "She makes him to cry.", "reason": "to_infinitive_after_causative" }
+    ],
+    "formula_id": "svoc_complement",
+    "depends_on": ["verb_frames:make+vt.", "verb_frames:see+vt.", "verb_frames:cry+vi. vt."]
+  },
+  {
+    "test_id": "svoc_gerund_only",
+    "rule": "enjoy/finish 只接动名词",
+    "golden": ["She enjoys reading.", "He finishes eating."],
+    "forbidden": [
+      { "sentence": "She enjoys to read.", "reason": "complement_type_mismatch" }
+    ],
+    "formula_id": "svoc_complement",
+    "depends_on": ["verb_frames:enjoy+vt.", "verb_frames:finish+vi. vt."]
+  },
+  {
+    "test_id": "sv_prep_o_fixed",
+    "rule": "固定介词不可省略或错换",
+    "golden": ["She listens to music.", "They wait for the bus."],
+    "forbidden": [
+      { "sentence": "She listens music.", "reason": "missing_fixed_preposition" },
+      { "sentence": "They wait to the bus.", "reason": "wrong_fixed_preposition" }
+    ],
+    "formula_id": "sv_prep_o",
+    "depends_on": ["verb_frames:listen+vi.", "verb_frames:wait+vi.", "noun_usage:music+n.", "noun_usage:bus+n."]
+  },
+  {
+    "test_id": "there_be_agreement",
+    "rule": "There be 就近一致：单数/不可数用 is，复数用 are",
+    "golden": ["There is a book on the desk.", "There is some water.", "There are two dogs."],
+    "forbidden": [
+      { "sentence": "There are a book.", "reason": "existential_agreement_violation" },
+      { "sentence": "There is two dogs.", "reason": "existential_agreement_violation" }
+    ],
+    "formula_id": "there_be_existential",
+    "depends_on": ["noun_usage:book+n.", "noun_usage:water+n.", "noun_usage:dog+n.", "noun_usage:desk+n."]
+  },
+  {
+    "test_id": "there_be_definiteness",
+    "rule": "存在句要求非特指名词短语",
+    "golden": ["There is a cat in the garden."],
+    "forbidden": [
+      { "sentence": "There is the cat in the garden.", "reason": "definite_np_rejected" }
+    ],
+    "formula_id": "there_be_existential",
+    "depends_on": ["noun_usage:cat+n.", "noun_usage:garden+n."]
+  },
+  {
+    "test_id": "imperative_base_form",
+    "rule": "祈使句动词原形开头，无主语无时态",
+    "golden": ["Open the door.", "Please sit down."],
+    "forbidden": [
+      { "sentence": "Opens the door.", "reason": "inflected_imperative" },
+      { "sentence": "Opened the door.", "reason": "inflected_imperative" }
+    ],
+    "formula_id": "imperative_basic",
+    "depends_on": ["verb_frames:open+vt.", "verb_frames:sit+vi.", "noun_usage:door+n."]
+  },
+  {
+    "test_id": "np_article_phonetic",
+    "rule": "a/an 按读音：hour→an，university→a",
+    "golden": ["An hour is enough.", "She visits a university."],
+    "forbidden": [
+      { "sentence": "A hour is enough.", "reason": "article_phonetic_exception" },
+      { "sentence": "She visits an university.", "reason": "article_phonetic_exception" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["noun_usage:hour+n.", "verb_frames:visit+vt."]
+  },
+  {
+    "test_id": "np_plural_only_pair",
+    "rule": "plural_only 名词计数用 a pair of",
+    "golden": ["The scissors are sharp.", "She buys a pair of scissors."],
+    "forbidden": [
+      { "sentence": "She buys a scissors.", "reason": "plural_only_with_indefinite_article" },
+      { "sentence": "She buys two scissors.", "reason": "plural_only_with_numeral" },
+      { "sentence": "The scissors is sharp.", "reason": "plural_only_agreement_violation" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["noun_usage:scissors+n.", "verb_frames:buy+vt."]
+  },
+  {
+    "test_id": "np_collective_agreement",
+    "rule": "集体名词谓语一致：police 恒复数，news 恒单数",
+    "golden": ["The police are here.", "The news is good."],
+    "forbidden": [
+      { "sentence": "The police is here.", "reason": "collective_agreement_violation" },
+      { "sentence": "The news are good.", "reason": "false_plural_form" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["noun_usage:police+n.", "noun_usage:news+n."]
+  },
+  {
+    "test_id": "np_invariant_plural",
+    "rule": "单复同形名词：two sheep，禁 sheeps",
+    "golden": ["A sheep eats grass.", "Two sheep eat grass."],
+    "forbidden": [
+      { "sentence": "Two sheeps eat grass.", "reason": "mechanical_plural_on_invariant" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["noun_usage:sheep+n.", "verb_frames:eat+vt.", "noun_usage:grass+n."]
+  },
+  {
+    "test_id": "adv_degree_not_verb",
+    "rule": "程度副词不直接修饰动词",
+    "golden": ["I like it very much.", "The box is very heavy."],
+    "forbidden": [
+      { "sentence": "I very like it.", "reason": "degree_adverb_on_verb" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["adverb_usage:very+adv.", "verb_frames:like+vt.", "adjective_usage:heavy+adj."]
+  },
+  {
+    "test_id": "adv_frequency_position",
+    "rule": "频度副词中位：助动词后/实义动词前",
+    "golden": ["She always reads books.", "He is always happy."],
+    "forbidden": [
+      { "sentence": "Always she reads books.", "reason": "frequency_adverb_front_disallowed" },
+      { "sentence": "She reads always books.", "reason": "adverb_between_verb_object" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["adverb_usage:always+adv.", "verb_frames:read+vt."]
+  },
+  {
+    "test_id": "adv_double_negative",
+    "rule": "never 等否定义副词不与 not 叠加",
+    "golden": ["She never eats meat."],
+    "forbidden": [
+      { "sentence": "She does not never eat meat.", "reason": "double_negative" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["adverb_usage:never+adv.", "verb_frames:eat+vt.", "noun_usage:meat+n."]
+  },
+  {
+    "test_id": "adv_enough_postposition",
+    "rule": "enough 修饰形容词时后置",
+    "golden": ["The room is big enough."],
+    "forbidden": [
+      { "sentence": "The room is enough big.", "reason": "enough_preposed" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["adverb_usage:enough+adv.", "adjective_usage:big+adj.", "noun_usage:room+n."]
+  },
+  {
+    "test_id": "adj_irregular_comparison",
+    "rule": "不规则比较级取词条字段：good→better，禁 gooder",
+    "golden": ["This book is better."],
+    "forbidden": [
+      { "sentence": "This book is gooder.", "reason": "mechanical_er_on_irregular" },
+      { "sentence": "This book is more good.", "reason": "periphrastic_on_inflectional" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["adjective_usage:good+adj.", "noun_usage:book+n."]
+  },
+  {
+    "test_id": "adj_double_consonant_comparison",
+    "rule": "CVC 双写比较级：big→bigger，禁 biger",
+    "golden": ["The dog is bigger."],
+    "forbidden": [
+      { "sentence": "The dog is biger.", "reason": "missing_consonant_doubling" }
+    ],
+    "formula_id": "svp_copula",
+    "depends_on": ["adjective_usage:big+adj.", "noun_usage:dog+n."]
+  },
+  {
+    "test_id": "tense_perfect_participle",
+    "rule": "完成时 have/has + 过去分词（不规则取词条）",
+    "golden": ["She has eaten an apple.", "They have gone."],
+    "forbidden": [
+      { "sentence": "She has ate an apple.", "reason": "past_tense_as_participle" },
+      { "sentence": "They have goed.", "reason": "mechanical_ed_on_irregular" }
+    ],
+    "formula_id": "svo_basic",
+    "depends_on": ["verb_frames:eat+vt.", "verb_frames:go+vi.", "noun_usage:apple+n."]
+  }
+]

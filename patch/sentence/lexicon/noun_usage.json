@@ -1182,6 +1182,22 @@
     }
   },
   {
+    "spelling": "grass",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
     "spelling": "group",
     "countability": "countable",
     "number_behavior": "collective",
@@ -2500,6 +2516,20 @@
     "number_behavior": "regular",
     "default_number": "singular",
     "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "university",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
     "provenance": {
       "source": "curated_by_agent",
       "reviewed": true,

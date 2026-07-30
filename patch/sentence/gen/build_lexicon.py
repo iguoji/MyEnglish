@@ -97,6 +97,7 @@ NOUN_REGULAR_BY_CATEGORY = {
         "kitchen", "bathroom", "bedroom", "garden", "city", "country",
         "market", "office", "church", "beach", "mountain", "lake", "island",
         "forest", "shop", "store", "street", "room", "zoo", "station",
+        "university",
     ],
     # 时间类（时间状语）
     "time": [
@@ -112,7 +113,8 @@ NOUN_REGULAR_BY_CATEGORY = {
 # 不可数（物质/抽象）名词：countability=uncountable, number_behavior=mass,
 # 禁止不定冠词（*a water），谓语一致按单数
 NOUN_MASS = {
-    "food":  ["bread", "rice", "meat", "cheese", "beef", "butter", "corn", "soup"],
+    "food":  ["bread", "rice", "meat", "cheese", "beef", "butter", "corn", "soup",
+              "grass"],
     "drink": ["milk", "water", "coffee", "tea", "juice", "beer", "wine"],
     "abstract": ["advice", "money", "music", "knowledge", "health", "energy",
                  "history", "grammar", "math", "information"],
