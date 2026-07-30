@@ -26,9 +26,7 @@ import '../../../services/word_audio_cache.dart';
 /// 8. 清空数据（红色危险样式）
 /// 9. 分割线
 /// 10. “学习设置”分区标题（字号小 2px）
-/// 11~13. 卡片包裹：口语发音 + 内分割线 + 单词分隔
-/// 14. 分割线
-/// 15. 每日复习步进器
+/// 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习
 /// 16. 页脚：Github + 邮箱（水平排列、居左、有间隔）
 class HomeDrawer extends StatelessWidget {
   /// 各入口的动作全部由首页注入，抽屉自身不包含业务逻辑。
@@ -118,25 +116,22 @@ class HomeDrawer extends StatelessWidget {
                       label: '数据导出',
                       onTap: onExport,
                     ),
-                    // 8. 清空数据：红色危险样式。
+                    // 8. 清空数据：红色危险样式，作为本区块末项补下边距 10。
                     _DrawerItem(
                       key: const Key('drawer-clear'),
                       icon: TablerIcons.trash,
                       label: '清空数据',
                       onTap: onClearData,
                       isDanger: true,
+                      bottomPadding: 10,
                     ),
                     // 9. 分隔线。
                     Divider(height: 1, color: tokens.rowBorder),
                     // 10. “学习设置”分区标题，字号比普通菜单项小 2px。
                     const _SectionLabel('学习设置'),
-                    // 11~13. 卡片包裹：口语发音 + 内分割线 + 单词分隔。
-                    // 卡片有 padding、无边框、有背景色（tokens.sub）。
+                    // 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习。
+                    // 卡片有 padding、无边框、有背景色（tokens.expand）。
                     _SettingsCard(settings: settings),
-                    // 14. 分隔线。
-                    Divider(height: 1, color: tokens.rowBorder),
-                    // 15. 每日复习步进器（卡片外）。
-                    _DailyGoalRow(settings: settings),
                   ],
                 ),
               ),
@@ -255,33 +250,49 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                   size: 23,
                 ),
               ),
-              // 中：Expanded 让徽章在剩余空间内居中。
+              // 中：Expanded 让名称+版号在剩余空间内居中。
               Expanded(
                 child: Center(
-                  // Azure 浅色徽章：圆角 4、横向 8 纵向 4 内边距。
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      // Azure 主色按透明度叠加为浅底。
-                      color: badgeBg,
-                      // Tabler badge 默认 4 像素圆角。
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    // 名字 + 空格 + 版号，单行显示。
-                    child: Text(
-                      'MyEnglish v0.11.0',
-                      style: TextStyle(
-                        // Azure 加深色文字。
-                        color: badgeText,
-                        // Tabler badge 字号约 12。
-                        fontSize: 12,
-                        // Tabler badge 字重 600。
-                        fontWeight: FontWeight.w600,
+                  // 名称与版号分两行：名称普通文字、版号 Azure 浅色徽章。
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 应用名称（普通文字）。
+                      Text(
+                        'MyEnglish',
+                        style: TextStyle(
+                          color: tokens.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+                      // 名称与版号间距。
+                      const SizedBox(height: 4),
+                      // 版号 Azure 浅色徽章：圆角 4、横向 8 纵向 3 内边距。
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          // Azure 主色按透明度叠加为浅底。
+                          color: badgeBg,
+                          // Tabler badge 默认 4 像素圆角。
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'v0.11.1',
+                          style: TextStyle(
+                            // Azure 加深色文字。
+                            color: badgeText,
+                            // 版号字号比名称小。
+                            fontSize: 11,
+                            // Tabler badge 字重 600。
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -299,7 +310,8 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                   child: Icon(
                     // 深色显示太阳（切回浅色）、浅色显示月亮（切到深色）。
                     isDark ? TablerIcons.sun : TablerIcons.moon,
-                    size: 20,
+                    // 缩小三分之一（原 20 → 14）。
+                    size: 14,
                     // 次要文字色，不抢 logo 视觉。
                     color: tokens.textSecondary,
                   ),
@@ -326,9 +338,9 @@ class _AddWordButton extends StatelessWidget {
   /// 输出 38 高的整行主色按钮。
   @override
   Widget build(BuildContext context) {
-    // Padding 让按钮左右与菜单项对齐（20），上下 12 留白。
+    // Padding 让按钮左右与菜单项对齐（20），上 32 拉高留白、下 12 收尾。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
       // InkWell 提供整行点击反馈。
       child: InkWell(
         // key 供测试点击触发添加单词表单。
@@ -422,9 +434,9 @@ class _DrawerOfflineSpeech extends StatelessWidget {
                 // 否则进入缓存（进行中时内部自动忽略重复点击）。
                 cache.start();
               },
-              // 与 _DrawerItem 一致的整行内边距。
+              // 与 _DrawerItem 一致的整行内边距：上 10 下 0，让项间间距=10 对等。
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                 child: Row(
                   children: <Widget>[
                     // 17 像素灰色描边图标，与 _DrawerItem 视觉一致。
@@ -485,6 +497,7 @@ class _DrawerItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.isDanger = false,
+    this.bottomPadding = 0,
     super.key,
   });
 
@@ -500,7 +513,11 @@ class _DrawerItem extends StatelessWidget {
   /// 是否使用红色危险样式（清空数据）。
   final bool isDanger;
 
-  /// 输出 13 像素上下内边距的入口行。
+  /// 底部内边距：默认 0（项间间距由下一项的 top 10 决定），
+  /// 区块最后一项传 10 让其与下方分割线间距也=10，保持全链路对等。
+  final double bottomPadding;
+
+  /// 输出上 10、下 [bottomPadding] 的入口行。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -512,8 +529,8 @@ class _DrawerItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        // 与设计稿一致的行内边距。
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        // 上 10 下 bottomPadding：项间间距=10 对等，末项补下边距。
+        padding: EdgeInsets.fromLTRB(20, 10, 20, bottomPadding),
         child: Row(
           children: [
             // 17 像素图标，危险样式红色、普通样式灰色。
@@ -562,12 +579,11 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// 设置卡片：包裹口语发音 + 内分割线 + 单词分隔。
+/// 设置卡片：包裹口语发音 + 单词分隔 + 每日复习（11~15 项）。
 ///
-/// 卡片有 padding、无边框、有背景色（tokens.sub），圆角 8。
-/// 内部口音与分隔符选择器样式与原 _DrawerSettings 完全一致，
-/// 选择器轨道同样使用 tokens.sub，在卡片背景上轨道自然融入、
-/// 选中项 tokens.card 白色浮起，视觉层次仍然清晰。
+/// 卡片有 padding、无边框、有背景色（tokens.expand），圆角 8。
+/// 背景用 tokens.expand（比 tokens.sub 更浅），让选择器轨道 tokens.sub 可见，
+/// 选中项 tokens.card 白色浮起，视觉层次清晰。
 class _SettingsCard extends StatefulWidget {
   /// 接收全局设置 Store。
   const _SettingsCard({required this.settings});
@@ -636,15 +652,15 @@ class _SettingsCardState extends State<_SettingsCard> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // Container 作为卡片：横向 12 边距、纵向 4 内边距、tokens.sub 背景、8 圆角、无边框。
+    // Container 作为卡片：横向 12 边距、纵向 4 内边距、tokens.expand 背景、8 圆角、无边框。
     return Container(
       // 横向 12 边距让卡片在抽屉内可见圆角。
       margin: const EdgeInsets.symmetric(horizontal: 12),
       // 纵向 4 内边距避免设置行紧贴卡片上下边。
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        // 卡片背景色用次级底色，与抽屉表面区分。
-        color: tokens.sub,
+        // 卡片背景用 tokens.expand（比 tokens.sub 更浅），让选择器轨道 tokens.sub 可见。
+        color: tokens.expand,
         // 8 像素圆角。
         borderRadius: BorderRadius.circular(8),
         // 无边框（用户要求）。
@@ -673,8 +689,8 @@ class _SettingsCardState extends State<_SettingsCard> {
               // 13. 单词分隔 + 、/，/；分段选择器。
               _SettingRow(
                 label: '单词分隔',
-                // 最后一行不画分隔线。
-                showDivider: false,
+                // 中间行画分隔线，与下方每日复习分隔。
+                showDivider: true,
                 horizontalPadding: 16,
                 control: _SeparatorControl(
                   settings: widget.settings,
@@ -682,6 +698,8 @@ class _SettingsCardState extends State<_SettingsCard> {
                       unawaited(_setDefinitionSeparator(separator)),
                 ),
               ),
+              // 15. 每日复习步进器（卡片内最后一行，不画分隔线）。
+              _DailyGoalRow(settings: widget.settings),
             ],
           );
         },
@@ -845,8 +863,10 @@ class _DailyGoalRow extends StatelessWidget {
       builder: (context, child) {
         return _SettingRow(
           label: '每日复习',
-          // 卡片外最后一行，不画分隔线。
+          // 卡片内最后一行，不画分隔线。
           showDivider: false,
+          // 卡片内横向 16 内边距（卡片已有 12 边距）。
+          horizontalPadding: 16,
           control: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

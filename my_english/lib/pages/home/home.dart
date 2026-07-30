@@ -1288,7 +1288,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 标识来源 App。
         'app': 'MyEnglish',
         // 与 pubspec 版本保持一致。
-        'version': '0.11.0',
+        'version': '0.11.1',
         // 导出时间，便于区分多份备份。
         'exportedAt': DateTime.now().toIso8601String(),
         // 分组列表，导入时整库重建。
