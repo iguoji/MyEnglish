@@ -281,7 +281,7 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'v0.11.1',
+                        'v0.11.3',
                         style: TextStyle(
                           // Azure 加深色文字。
                           color: badgeText,
@@ -295,22 +295,22 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                   ],
                 ),
               ),
-              // 右：主题切换图标按钮。
+              // 右：主题切换图标按钮，尺寸与页脚图标一致(图标 18 + padding 4)。
               InkWell(
                 // key 供测试点击切换主题（替代原 dark-mode-switch）。
                 key: const Key('theme-toggle'),
                 // 保存中禁用点击。
                 onTap: _isSaving ? null : () => unawaited(_toggleTheme()),
                 // 圆形点击反馈区。
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
                 child: Padding(
-                  // 6 像素内边距让点击区域约 32×32。
-                  padding: const EdgeInsets.all(6),
+                  // padding 4 与页脚图标项一致。
+                  padding: const EdgeInsets.all(4),
                   child: Icon(
                     // 深色显示太阳（切回浅色）、浅色显示月亮（切到深色）。
                     isDark ? TablerIcons.sun : TablerIcons.moon,
-                    // 缩小三分之一（原 20 → 14）。
-                    size: 14,
+                    // 与页脚图标一致 18px。
+                    size: 18,
                     // 次要文字色，不抢 logo 视觉。
                     color: tokens.textSecondary,
                   ),
@@ -651,10 +651,10 @@ class _SettingsCardState extends State<_SettingsCard> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // Container 作为卡片：横向 12 边距、纵向 4 内边距、tokens.expand 背景、8 圆角、无边框。
+    // Container 作为卡片：横向 20 边距（与学习设置标题左对齐）、纵向 4 内边距、tokens.expand 背景、8 圆角、无边框。
     return Container(
-      // 横向 12 边距让卡片在抽屉内可见圆角。
-      margin: const EdgeInsets.symmetric(horizontal: 12),
+      // 横向 20 边距让卡片左右与"学习设置"标题对齐。
+      margin: const EdgeInsets.symmetric(horizontal: 20),
       // 纵向 4 内边距避免设置行紧贴卡片上下边。
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
@@ -678,8 +678,8 @@ class _SettingsCardState extends State<_SettingsCard> {
                 label: '口语发音',
                 // 卡片内行间分隔线。
                 showDivider: true,
-                // 卡片内横向 16 内边距（卡片已有 12 边距）。
-                horizontalPadding: 16,
+                // 卡片内横向 8 内边距（卡片已有 20 边距对齐标题）。
+                horizontalPadding: 8,
                 control: _AccentControl(
                   settings: widget.settings,
                   onTap: (accent) => unawaited(_setAccent(accent)),
@@ -690,7 +690,7 @@ class _SettingsCardState extends State<_SettingsCard> {
                 label: '单词分隔',
                 // 中间行画分隔线，与下方每日复习分隔。
                 showDivider: true,
-                horizontalPadding: 16,
+                horizontalPadding: 8,
                 control: _SeparatorControl(
                   settings: widget.settings,
                   onTap: (separator) =>
@@ -707,9 +707,12 @@ class _SettingsCardState extends State<_SettingsCard> {
   }
 }
 
+/// 三种设置控件共用的轨道宽度，让口语发音/单词分隔/每日复习视觉等宽。
+const double _kSettingControlWidth = 108;
+
 /// 口语发音分段选择器：美式 / 英式。
 ///
-/// 样式与原 _DrawerSettings 内的口音选择器完全一致，抽出独立组件便于复用与阅读。
+/// 轨道与段钮样式与单词分隔、每日复习完全一致，统一宽度 [_kSettingControlWidth]。
 class _AccentControl extends StatelessWidget {
   /// 接收设置 Store 与选择回调。
   const _AccentControl({required this.settings, required this.onTap});
@@ -720,48 +723,50 @@ class _AccentControl extends StatelessWidget {
   /// 点击某个口音后的回调。
   final void Function(PronunciationAccent) onTap;
 
-  /// 输出浅底圆角轨道 + 两个段钮。
+  /// 输出固定宽轨道 + 两个段钮。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
     return Container(
-      // 设计稿的浅底圆角轨道。
-      padding: const EdgeInsets.all(2),
+      // 固定宽度让三种控件视觉等宽。
+      width: _kSettingControlWidth,
+      // padding 6（原 2 增大三倍），让段钮间隔更舒展。
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: tokens.sub,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        // 两个段钮均分轨道宽度。
         children: [
-          // 逐个生成美式/英式段钮。
           for (final accent in PronunciationAccent.values)
-            InkWell(
-              // key 供测试点击具体口音。
-              key: Key('accent-${accent.storageValue}'),
-              onTap: () => onTap(accent),
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                height: 26,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  // 当前口音使用卡片底浮起。
-                  color: settings.accent == accent
-                      ? tokens.card
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  accent.label,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    // 当前口音主色，其余次要色。
+            Expanded(
+              child: InkWell(
+                // key 供测试点击具体口音。
+                key: Key('accent-${accent.storageValue}'),
+                onTap: () => onTap(accent),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    // 当前口音使用卡片底浮起。
                     color: settings.accent == accent
-                        ? AppTokens.accent
-                        : tokens.textSecondary,
+                        ? tokens.card
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    accent.label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      // 当前口音主色，其余次要色。
+                      color: settings.accent == accent
+                          ? AppTokens.accent
+                          : tokens.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -774,7 +779,7 @@ class _AccentControl extends StatelessWidget {
 
 /// 单词分隔分段选择器：、/，/；。
 ///
-/// 样式与原 _DrawerSettings 内的分隔符选择器完全一致。
+/// 轨道宽度与口语发音一致 [_kSettingControlWidth]，三个段钮均分。
 class _SeparatorControl extends StatelessWidget {
   /// 接收设置 Store 与选择回调。
   const _SeparatorControl({required this.settings, required this.onTap});
@@ -785,49 +790,51 @@ class _SeparatorControl extends StatelessWidget {
   /// 点击某个分隔符后的回调。
   final void Function(DefinitionSeparator) onTap;
 
-  /// 输出浅底圆角轨道 + 三个段钮。
+  /// 输出固定宽轨道 + 三个段钮。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
     return Container(
-      // 轨道与发音选择器使用同一套浅底圆角样式。
-      padding: const EdgeInsets.all(2),
+      // 与口语发音等宽。
+      width: _kSettingControlWidth,
+      // padding 6 与口语发音一致。
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: tokens.sub,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        // 三个段钮均分轨道宽度。
         children: [
-          // 三个选项只显示全角中文标点，避免误用英文半角符号。
           for (final separator in DefinitionSeparator.values)
-            InkWell(
-              // key 供 Widget 测试和自动化准确选择标点。
-              key: Key(
-                'definition-separator-${separator.storageValue}',
-              ),
-              onTap: () => onTap(separator),
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                width: 34,
-                height: 26,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  // 当前符号使用卡片底浮起，其他符号保持透明。
-                  color: settings.definitionSeparator == separator
-                      ? tokens.card
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
+            Expanded(
+              child: InkWell(
+                // key 供 Widget 测试和自动化准确选择标点。
+                key: Key(
+                  'definition-separator-${separator.storageValue}',
                 ),
-                child: Text(
-                  separator.symbol,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                onTap: () => onTap(separator),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    // 当前符号使用卡片底浮起，其他符号保持透明。
                     color: settings.definitionSeparator == separator
-                        ? AppTokens.accent
-                        : tokens.textSecondary,
+                        ? tokens.card
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    separator.symbol,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: settings.definitionSeparator == separator
+                          ? AppTokens.accent
+                          : tokens.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -838,10 +845,10 @@ class _SeparatorControl extends StatelessWidget {
   }
 }
 
-/// 每日复习目标行：- 数值 +，位于卡片外（14 分隔线之后）。
+/// 每日复习目标行：- 数值 +，三元素放进 switch 风格容器。
 ///
-/// 控件样式与原 _DrawerSettings 的每日复习行完全一致，setDailyGoal 是同步内存操作，
-/// 不需要异步保存与错误处理。
+/// 容器样式（tokens.sub 背景、8 圆角、无边框、固定宽度 [_kSettingControlWidth]）
+/// 与口语发音/单词分隔完全一致；加减按钮去掉边框，仅保留图标。
 class _DailyGoalRow extends StatelessWidget {
   /// 接收全局设置 Store。
   const _DailyGoalRow({required this.settings});
@@ -864,44 +871,77 @@ class _DailyGoalRow extends StatelessWidget {
           label: '每日复习',
           // 卡片内最后一行，不画分隔线。
           showDivider: false,
-          // 卡片内横向 16 内边距（卡片已有 12 边距）。
-          horizontalPadding: 16,
-          control: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 减 5。
-              _StepButton(
-                key: const Key('goal-minus'),
-                icon: TablerIcons.minus,
-                onTap: () => settings.setDailyGoal(
-                  settings.dailyGoal - 5,
-                ),
-              ),
-              // 当前目标值。
-              Container(
-                constraints: const BoxConstraints(minWidth: 34),
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                alignment: Alignment.center,
-                child: Text(
-                  settings.dailyGoal.toString(),
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    // 等宽数字避免加减时宽度跳动。
-                    fontFeatures: const [FontFeature.tabularFigures()],
+          // 卡片内横向 8 内边距（卡片已有 20 边距对齐标题）。
+          horizontalPadding: 8,
+          // 右侧容器：与口语发音/单词分隔同样的 switch 风格轨道。
+          control: Container(
+            // 与口语发音/单词分隔等宽。
+            width: _kSettingControlWidth,
+            // padding 6 与其他两个控件一致。
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              // 同样的背景色。
+              color: tokens.sub,
+              // 同样的圆角。
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                // 减 5：去掉边框，仅图标。
+                Expanded(
+                  child: InkWell(
+                    key: const Key('goal-minus'),
+                    onTap: () => settings.setDailyGoal(
+                      settings.dailyGoal - 5,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      height: 26,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        TablerIcons.minus,
+                        size: 15,
+                        color: tokens.textMedium,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              // 加 5。
-              _StepButton(
-                key: const Key('goal-plus'),
-                icon: TablerIcons.plus,
-                onTap: () => settings.setDailyGoal(
-                  settings.dailyGoal + 5,
+                // 当前目标值。
+                Container(
+                  constraints: const BoxConstraints(minWidth: 34),
+                  alignment: Alignment.center,
+                  child: Text(
+                    settings.dailyGoal.toString(),
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      // 等宽数字避免加减时宽度跳动。
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                // 加 5：去掉边框，仅图标。
+                Expanded(
+                  child: InkWell(
+                    key: const Key('goal-plus'),
+                    onTap: () => settings.setDailyGoal(
+                      settings.dailyGoal + 5,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      height: 26,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        TablerIcons.plus,
+                        size: 15,
+                        color: tokens.textMedium,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -956,41 +996,6 @@ class _SettingRow extends StatelessWidget {
           // 右侧控件。
           control,
         ],
-      ),
-    );
-  }
-}
-
-/// 每日复习目标的 28×28 步进按钮。
-class _StepButton extends StatelessWidget {
-  /// 接收 Tabler 图标与动作。
-  const _StepButton({required this.icon, required this.onTap, super.key});
-
-  /// 步进按钮使用的 Tabler 图标数据。
-  final IconData icon;
-
-  /// 点击动作。
-  final VoidCallback onTap;
-
-  /// 输出描边小方块。
-  @override
-  Widget build(BuildContext context) {
-    // 读取当前明暗对应的设计令牌。
-    final tokens = AppTokens.of(context);
-    // InkWell 提供点击反馈。
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 28,
-        height: 28,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: tokens.card,
-          border: Border.all(color: tokens.inputBorder),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: tokens.textMedium, size: 15),
       ),
     );
   }
