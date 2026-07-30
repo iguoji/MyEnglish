@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.verb_frame",
+  "title": "动词句法框架（造句知识库）",
+  "description": "key=spelling+pos。pos 只能粗分及物性，本表表达 SV/SVP/SVO/SVOO/SVOC、固定介词、补语、被动等。未知动词框架不参与造句。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["spelling", "pos", "frames", "allows_passive", "stative_policy", "provenance"],
+    "properties": {
+      "spelling": { "type": "string", "pattern": "^[a-z][a-z' -]*$" },
+      "pos": { "enum": ["v.", "vt.", "vi.", "vi. vt."] },
+      "usage_id": { "type": "string" },
+      "frames": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "enum": ["SV", "SVP", "SVO", "SVOO", "SVOC", "SV_PREP_O", "unknown"] }
+      },
+      "object_optional": { "type": "boolean", "description": "SVO 动词能否省略宾语退化为 SV（eat 可以，enjoy 不行）" },
+      "allows_passive": { "enum": ["yes", "no", "unknown"] },
+      "dative_alternation": { "enum": ["to", "for", "none"], "description": "SVOO 改写介词：give→to，buy→for，none=不可改写或不适用" },
+      "fixed_preposition": { "type": "string", "description": "SV_PREP_O 的必要介词，如 listen→to，look→at" },
+      "complement_types": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": { "enum": ["to_infinitive", "gerund", "bare_infinitive", "adjective", "noun_phrase", "past_participle", "that_clause"] },
+        "description": "SVOC/宾语补语或动词补语类型：want→to_infinitive，enjoy→gerund，make(使役)→bare_infinitive/adjective"
+      },
+      "subject_restriction": { "enum": ["person", "animate", "any", "unknown"] },
+      "object_restriction": { "enum": ["person", "animate", "edible", "drinkable", "concrete", "any", "unknown"] },
+      "stative_policy": { "enum": ["usually_stative", "dynamic", "both", "unknown"], "description": "usually_stative 通常不进进行时" },
+      "copula": { "type": "boolean", "description": "true=系动词（SVP 用），如 be/become/look" },
+      "notes": { "type": "string" },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

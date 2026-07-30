@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.annotation_policy",
+  "title": "外部语法标注策略表（升级版 annotations）",
+  "description": "patch/annotations/ 四个 Boolean 词表的策略化升级：Boolean 过度判断的词在此细化为多值策略。key=spelling。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy_kind", "entries"],
+  "properties": {
+    "policy_kind": { "enum": ["stative", "gradability", "number_behavior", "person_default"] },
+    "description": { "type": "string" },
+    "entries": {
+      "type": "object",
+      "description": "spelling → 策略值。合法值域由 policy_kind 决定，由校验工具二次检查。",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["policy"],
+        "properties": {
+          "policy": {
+            "enum": [
+              "usually_stative", "dynamic", "both",
+              "gradable", "usually_ungradable", "contextual",
+              "regular", "invariant", "plural_only", "collective", "mass",
+              "default_person", "person_only_some_senses",
+              "unknown"
+            ]
+          },
+          "notes": { "type": "string" },
+          "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+        }
+      }
+    }
+  }
+}

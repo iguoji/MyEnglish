@@ -1,0 +1,437 @@
+{
+  "policy_kind": "stative",
+  "description": "升级自 patch/annotations/stative.json。usually_stative 默认不进进行时；both 需按具体含义判断（第一版生成器保守处理：一律不进进行时）；dynamic 为审计修正出的误标词。",
+  "entries": {
+    "know": {
+      "policy": "usually_stative"
+    },
+    "understand": {
+      "policy": "usually_stative"
+    },
+    "realize": {
+      "policy": "usually_stative"
+    },
+    "recognize": {
+      "policy": "usually_stative"
+    },
+    "believe": {
+      "policy": "usually_stative"
+    },
+    "suppose": {
+      "policy": "usually_stative"
+    },
+    "doubt": {
+      "policy": "usually_stative"
+    },
+    "mean": {
+      "policy": "usually_stative"
+    },
+    "matter": {
+      "policy": "usually_stative"
+    },
+    "belong": {
+      "policy": "usually_stative"
+    },
+    "own": {
+      "policy": "usually_stative"
+    },
+    "possess": {
+      "policy": "usually_stative"
+    },
+    "lack": {
+      "policy": "usually_stative"
+    },
+    "need": {
+      "policy": "usually_stative"
+    },
+    "want": {
+      "policy": "usually_stative"
+    },
+    "like": {
+      "policy": "usually_stative"
+    },
+    "hate": {
+      "policy": "usually_stative"
+    },
+    "prefer": {
+      "policy": "usually_stative"
+    },
+    "desire": {
+      "policy": "usually_stative"
+    },
+    "seem": {
+      "policy": "usually_stative"
+    },
+    "exist": {
+      "policy": "usually_stative"
+    },
+    "depend": {
+      "policy": "usually_stative"
+    },
+    "deserve": {
+      "policy": "usually_stative"
+    },
+    "involve": {
+      "policy": "usually_stative"
+    },
+    "require": {
+      "policy": "usually_stative"
+    },
+    "resemble": {
+      "policy": "usually_stative"
+    },
+    "concern": {
+      "policy": "usually_stative"
+    },
+    "consist": {
+      "policy": "usually_stative"
+    },
+    "contain": {
+      "policy": "usually_stative"
+    },
+    "include": {
+      "policy": "usually_stative"
+    },
+    "comprise": {
+      "policy": "usually_stative"
+    },
+    "constitute": {
+      "policy": "usually_stative"
+    },
+    "equal": {
+      "policy": "usually_stative"
+    },
+    "owe": {
+      "policy": "usually_stative"
+    },
+    "mind": {
+      "policy": "usually_stative"
+    },
+    "regret": {
+      "policy": "usually_stative"
+    },
+    "forgive": {
+      "policy": "usually_stative"
+    },
+    "cost": {
+      "policy": "usually_stative"
+    },
+    "fit": {
+      "policy": "usually_stative"
+    },
+    "suit": {
+      "policy": "usually_stative"
+    },
+    "remain": {
+      "policy": "usually_stative"
+    },
+    "appear": {
+      "policy": "usually_stative"
+    },
+    "fear": {
+      "policy": "usually_stative"
+    },
+    "agree": {
+      "policy": "usually_stative"
+    },
+    "disagree": {
+      "policy": "usually_stative"
+    },
+    "differ": {
+      "policy": "usually_stative"
+    },
+    "have": {
+      "policy": "both",
+      "notes": "静态=拥有(I have a car)；动态=进餐等(having lunch)常见",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "see": {
+      "policy": "both",
+      "notes": "静态=看见/明白；动态=会见(seeing a doctor)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "feel": {
+      "policy": "both",
+      "notes": "静态=认为/感觉；动态=触摸(feeling the fabric)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "look": {
+      "policy": "both",
+      "notes": "静态=看起来(look tired)；动态=看(looking at me)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "sound": {
+      "policy": "both",
+      "notes": "静态=听起来；动态用法少见但存在",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "smell": {
+      "policy": "both",
+      "notes": "静态=闻起来(smells good)；动态=闻(smelling the flower)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "taste": {
+      "policy": "both",
+      "notes": "静态=尝起来；动态=品尝(tasting the soup)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "weigh": {
+      "policy": "both",
+      "notes": "静态=重达(weighs 5kg)；动态=称重(weighing the bag)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "measure": {
+      "policy": "both",
+      "notes": "静态=尺寸为；动态=测量",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "hold": {
+      "policy": "both",
+      "notes": "静态=容纳(holds 50 people)；动态=握住(holding a pen)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "imagine": {
+      "policy": "both",
+      "notes": "静态=认为；动态=想象过程(I'm imagining...)口语可用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "wonder": {
+      "policy": "both",
+      "notes": "进行��常见(I'm wondering if...)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "hope": {
+      "policy": "both",
+      "notes": "进行时常见(I'm hoping to...)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "worry": {
+      "policy": "both",
+      "notes": "动态常见(Don't worry / She's worrying too much)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "care": {
+      "policy": "both"
+    },
+    "love": {
+      "policy": "both",
+      "notes": "静态为主；口语进行时(I'm loving it)存在",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "wish": {
+      "policy": "both"
+    },
+    "stay": {
+      "policy": "both",
+      "notes": "动态常见(I'm staying home)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "live": {
+      "policy": "both",
+      "notes": "动态常见(is living in London)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "remember": {
+      "policy": "both"
+    },
+    "forget": {
+      "policy": "both"
+    },
+    "admit": {
+      "policy": "both"
+    },
+    "surprise": {
+      "policy": "both",
+      "notes": "心理使役动词，进行时罕见但非绝对",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "interest": {
+      "policy": "both"
+    },
+    "excite": {
+      "policy": "both"
+    },
+    "bore": {
+      "policy": "both"
+    },
+    "satisfy": {
+      "policy": "both"
+    },
+    "annoy": {
+      "policy": "both",
+      "notes": "使役义可进进行时(He's annoying me)",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "frighten": {
+      "policy": "both"
+    },
+    "scare": {
+      "policy": "both"
+    },
+    "demonstrate": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "indicate": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "prove": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "suggest": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "imply": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "deny": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "confess": {
+      "policy": "dynamic",
+      "notes": "审计修正：原 Boolean 表误标为静态；此类交流/论证动词是动态动词，可正常进进行时",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    }
+  }
+}

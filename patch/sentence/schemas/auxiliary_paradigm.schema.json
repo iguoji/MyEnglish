@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.auxiliary_paradigm",
+  "title": "be/do/have 与情态动词范式（造句知识库）",
+  "description": "时态、否定、疑问、进行、完成和被动的公共零件。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["lemma", "kind", "provenance"],
+    "properties": {
+      "lemma": { "type": "string" },
+      "kind": { "enum": ["be", "do", "have", "modal", "semi_modal"] },
+      "finite_forms": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["form", "tense"],
+          "properties": {
+            "form": { "type": "string" },
+            "tense": { "enum": ["present", "past"] },
+            "person": { "type": "array", "items": { "enum": [1, 2, 3] } },
+            "number": { "enum": ["singular", "plural", "both"] },
+            "negative_full": { "type": "string", "description": "is not / do not" },
+            "negative_contracted": { "type": "string", "description": "isn't / don't；am 无缩写否定用 'm not" }
+          }
+        }
+      },
+      "nonfinite_forms": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base": { "type": "string" },
+          "past_participle": { "type": "string" },
+          "present_participle": { "type": "string" }
+        }
+      },
+      "modal_negative_full": { "type": "string", "description": "情态词全拼否定：cannot / will not" },
+      "modal_negative_contracted": { "type": "string", "description": "can't / won't；may 无常用缩写则省略" },
+      "takes_bare_infinitive": { "type": "boolean", "description": "情态后接原形" },
+      "invertible": { "type": "boolean", "description": "能否直接提前构成疑问（所有 be/do/have/modal 均可；semi_modal 视情况）" },
+      "notes": { "type": "string" },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

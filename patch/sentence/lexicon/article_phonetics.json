@@ -1,0 +1,17 @@
+{
+  "description": "a/an 按开头读音选择的特例表。默认规则：拼写以 a/e/i/o/u 开头用 an，否则用 a；本表登记与默认规则相反的词。逐词表优先于 prefix_rules。",
+  "an_despite_consonant_letter": [
+    "hour", "honest", "honor", "honour", "heir", "heiress", "honorable", "honourable", "hourly"
+  ],
+  "a_despite_vowel_letter": [
+    "university", "uniform", "union", "unit", "united", "unique", "universe", "universal",
+    "user", "useful", "usual", "usage", "utensil", "eulogy", "euro", "European", "ewe",
+    "one", "once"
+  ],
+  "prefix_rules": [
+    { "prefix": "uni", "article": "a", "example": "a university" },
+    { "prefix": "use", "article": "a", "example": "a useful book" },
+    { "prefix": "eu",  "article": "a", "example": "a European" },
+    { "prefix": "one", "article": "a", "example": "a one-way street" }
+  ]
+}

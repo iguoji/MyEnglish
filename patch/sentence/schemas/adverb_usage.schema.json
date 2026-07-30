@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.adverb_usage",
+  "title": "副词位置规则（造句知识库）",
+  "description": "always、slowly、yesterday、fortunately 的位置规则不同。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["spelling", "pos", "category", "positions", "provenance"],
+    "properties": {
+      "spelling": { "type": "string", "pattern": "^[a-z][a-z' -]*$" },
+      "pos": { "const": "adv." },
+      "category": { "enum": ["frequency", "time", "place", "manner", "degree", "comment", "unknown"] },
+      "positions": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "enum": ["front", "mid", "end"] },
+        "description": "front=句首（+逗号视 category）；mid=助动词后/实义动词前；end=句尾"
+      },
+      "default_position": { "enum": ["front", "mid", "end"] },
+      "modifies": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": { "enum": ["verb", "adjective", "adverb", "sentence"] },
+        "description": "degree 副词（very/too）只修饰 adj/adv，不修饰动词"
+      },
+      "notes": { "type": "string" },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

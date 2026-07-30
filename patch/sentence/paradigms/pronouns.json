@@ -1,0 +1,50 @@
+[
+  {
+    "lemma": "I", "person": 1, "number": "singular", "gender": "none", "human": true,
+    "forms": { "subject": "I", "object": "me", "possessive_determiner": "my", "possessive_pronoun": "mine", "reflexive": "myself" },
+    "be_present": "am", "be_past": "was", "verb_agreement": "base",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "you", "person": 2, "number": "singular", "gender": "none", "human": true,
+    "forms": { "subject": "you", "object": "you", "possessive_determiner": "your", "possessive_pronoun": "yours", "reflexive": "yourself" },
+    "be_present": "are", "be_past": "were", "verb_agreement": "base",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "you_plural", "person": 2, "number": "plural", "gender": "none", "human": true,
+    "forms": { "subject": "you", "object": "you", "possessive_determiner": "your", "possessive_pronoun": "yours", "reflexive": "yourselves" },
+    "be_present": "are", "be_past": "were", "verb_agreement": "base",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "he", "person": 3, "number": "singular", "gender": "masculine", "human": true,
+    "forms": { "subject": "he", "object": "him", "possessive_determiner": "his", "possessive_pronoun": "his", "reflexive": "himself" },
+    "be_present": "is", "be_past": "was", "verb_agreement": "third_singular",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "she", "person": 3, "number": "singular", "gender": "feminine", "human": true,
+    "forms": { "subject": "she", "object": "her", "possessive_determiner": "her", "possessive_pronoun": "hers", "reflexive": "herself" },
+    "be_present": "is", "be_past": "was", "verb_agreement": "third_singular",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "it", "person": 3, "number": "singular", "gender": "neuter", "human": false,
+    "forms": { "subject": "it", "object": "it", "possessive_determiner": "its", "possessive_pronoun": "its", "reflexive": "itself" },
+    "be_present": "is", "be_past": "was", "verb_agreement": "third_singular",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "we", "person": 1, "number": "plural", "gender": "none", "human": true,
+    "forms": { "subject": "we", "object": "us", "possessive_determiner": "our", "possessive_pronoun": "ours", "reflexive": "ourselves" },
+    "be_present": "are", "be_past": "were", "verb_agreement": "base",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "they", "person": 3, "number": "plural", "gender": "none", "human": true,
+    "forms": { "subject": "they", "object": "them", "possessive_determiner": "their", "possessive_pronoun": "theirs", "reflexive": "themselves" },
+    "be_present": "are", "be_past": "were", "verb_agreement": "base",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  }
+]

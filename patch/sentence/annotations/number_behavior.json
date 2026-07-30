@@ -1,0 +1,164 @@
+{
+  "policy_kind": "number_behavior",
+  "description": "升级自 patch/annotations/plural_only.json。审计结论：原表把 scissors 类（真 plural_only）与 police/cattle/people 类（collective：单数形+复数谓语）混在一个 Boolean 里，已拆分。",
+  "entries": {
+    "scissors": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "trousers": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "jeans": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "pants": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "shorts": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "pajamas": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "briefs": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "glasses": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "goggles": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "pliers": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "tweezers": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "shears": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "binoculars": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "headphones": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "sunglasses": {
+      "policy": "plural_only",
+      "notes": "成对名词，用 a pair of 计数"
+    },
+    "belongings": {
+      "policy": "plural_only"
+    },
+    "goods": {
+      "policy": "plural_only"
+    },
+    "riches": {
+      "policy": "plural_only"
+    },
+    "savings": {
+      "policy": "plural_only"
+    },
+    "thanks": {
+      "policy": "plural_only"
+    },
+    "regards": {
+      "policy": "plural_only"
+    },
+    "wishes": {
+      "policy": "plural_only"
+    },
+    "congratulations": {
+      "policy": "plural_only"
+    },
+    "remains": {
+      "policy": "plural_only"
+    },
+    "outskirts": {
+      "policy": "plural_only"
+    },
+    "surroundings": {
+      "policy": "plural_only"
+    },
+    "premises": {
+      "policy": "plural_only"
+    },
+    "wages": {
+      "policy": "plural_only"
+    },
+    "earnings": {
+      "policy": "plural_only"
+    },
+    "proceeds": {
+      "policy": "plural_only"
+    },
+    "ashes": {
+      "policy": "plural_only"
+    },
+    "cattle": {
+      "policy": "collective",
+      "notes": "单数拼写形接复数谓语（The police are...）；与 scissors 类根本不同，不能共用一个 Boolean"
+    },
+    "police": {
+      "policy": "collective",
+      "notes": "单数拼写形接复数谓语（The police are...）；与 scissors 类根本不同，不能共用一个 Boolean"
+    },
+    "clergy": {
+      "policy": "collective",
+      "notes": "单数拼写形接复数谓语（The police are...）；与 scissors 类根本不同，不能共用一个 Boolean"
+    },
+    "vermin": {
+      "policy": "collective",
+      "notes": "单数拼写形接复数谓语（The police are...）；与 scissors 类根本不同，不能共用一个 Boolean"
+    },
+    "people": {
+      "policy": "collective",
+      "notes": "collective（The people are...）；同时是 person 的不规则复数，两个身份并存"
+    },
+    "stairs": {
+      "policy": "plural_only",
+      "notes": "常用复数；单数 stair 存在但少用，第一版按 plural_only 处理",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "scales": {
+      "policy": "plural_only",
+      "notes": "秤义为 plural_only；鳞片义有单数 scale。仅当释义为秤时适用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "sweeps": {
+      "policy": "unknown",
+      "notes": "疑似误标（无 plural_only 名词用法证据），待复核，暂不参与造句",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    }
+  }
+}

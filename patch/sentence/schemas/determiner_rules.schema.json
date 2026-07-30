@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.determiner_rules",
+  "title": "限定词和数量词规则",
+  "description": "防止 much books、these book 等错误。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["spelling", "combines_with", "polarity", "provenance"],
+    "properties": {
+      "spelling": { "type": "string" },
+      "combines_with": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "enum": ["countable_singular", "countable_plural", "uncountable"] }
+      },
+      "polarity": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "enum": ["affirmative", "negative", "interrogative"] },
+        "description": "some 用于肯定，any 用于否定/疑问"
+      },
+      "verb_agreement": { "enum": ["singular", "plural", "follows_noun"], "description": "each/every+单数谓语；限定词决定或跟随名词" },
+      "article_slot": { "type": "boolean", "description": "true=占用冠词槽位，与 a/an/the 互斥" },
+      "notes": { "type": "string" },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

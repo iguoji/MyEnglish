@@ -1,0 +1,456 @@
+{
+  "policy_kind": "gradability",
+  "description": "升级自 patch/annotations/ungradable.json。审计发现原表混入了完全可分级的词（busy/clear/sure/free/full），且 right 重复出现两次。usually_ungradable 不进 more/most/very 公式；contextual 第一版保守按不可分级处理。",
+  "entries": {
+    "unique": {
+      "policy": "usually_ungradable"
+    },
+    "perfect": {
+      "policy": "usually_ungradable"
+    },
+    "dead": {
+      "policy": "usually_ungradable"
+    },
+    "impossible": {
+      "policy": "usually_ungradable"
+    },
+    "absolute": {
+      "policy": "usually_ungradable"
+    },
+    "identical": {
+      "policy": "usually_ungradable"
+    },
+    "complete": {
+      "policy": "usually_ungradable"
+    },
+    "main": {
+      "policy": "usually_ungradable"
+    },
+    "chief": {
+      "policy": "usually_ungradable"
+    },
+    "major": {
+      "policy": "usually_ungradable"
+    },
+    "minor": {
+      "policy": "usually_ungradable"
+    },
+    "principal": {
+      "policy": "usually_ungradable"
+    },
+    "same": {
+      "policy": "usually_ungradable"
+    },
+    "married": {
+      "policy": "usually_ungradable"
+    },
+    "single": {
+      "policy": "usually_ungradable"
+    },
+    "pregnant": {
+      "policy": "usually_ungradable"
+    },
+    "wooden": {
+      "policy": "usually_ungradable"
+    },
+    "golden": {
+      "policy": "usually_ungradable"
+    },
+    "silk": {
+      "policy": "usually_ungradable"
+    },
+    "electric": {
+      "policy": "usually_ungradable"
+    },
+    "nuclear": {
+      "policy": "usually_ungradable"
+    },
+    "weekly": {
+      "policy": "usually_ungradable"
+    },
+    "daily": {
+      "policy": "usually_ungradable"
+    },
+    "annual": {
+      "policy": "usually_ungradable"
+    },
+    "monthly": {
+      "policy": "usually_ungradable"
+    },
+    "vertical": {
+      "policy": "usually_ungradable"
+    },
+    "horizontal": {
+      "policy": "usually_ungradable"
+    },
+    "left": {
+      "policy": "usually_ungradable"
+    },
+    "northern": {
+      "policy": "usually_ungradable"
+    },
+    "southern": {
+      "policy": "usually_ungradable"
+    },
+    "eastern": {
+      "policy": "usually_ungradable"
+    },
+    "western": {
+      "policy": "usually_ungradable"
+    },
+    "indoor": {
+      "policy": "usually_ungradable"
+    },
+    "outdoor": {
+      "policy": "usually_ungradable"
+    },
+    "female": {
+      "policy": "usually_ungradable"
+    },
+    "male": {
+      "policy": "usually_ungradable"
+    },
+    "total": {
+      "policy": "usually_ungradable"
+    },
+    "whole": {
+      "policy": "usually_ungradable"
+    },
+    "entire": {
+      "policy": "usually_ungradable"
+    },
+    "maximum": {
+      "policy": "usually_ungradable"
+    },
+    "minimum": {
+      "policy": "usually_ungradable"
+    },
+    "medical": {
+      "policy": "usually_ungradable"
+    },
+    "legal": {
+      "policy": "usually_ungradable"
+    },
+    "final": {
+      "policy": "usually_ungradable"
+    },
+    "previous": {
+      "policy": "usually_ungradable"
+    },
+    "following": {
+      "policy": "usually_ungradable"
+    },
+    "current": {
+      "policy": "usually_ungradable"
+    },
+    "existing": {
+      "policy": "usually_ungradable"
+    },
+    "future": {
+      "policy": "usually_ungradable"
+    },
+    "past": {
+      "policy": "usually_ungradable"
+    },
+    "present": {
+      "policy": "usually_ungradable"
+    },
+    "digital": {
+      "policy": "usually_ungradable"
+    },
+    "chemical": {
+      "policy": "usually_ungradable"
+    },
+    "political": {
+      "policy": "usually_ungradable"
+    },
+    "economic": {
+      "policy": "usually_ungradable"
+    },
+    "financial": {
+      "policy": "usually_ungradable"
+    },
+    "national": {
+      "policy": "usually_ungradable"
+    },
+    "international": {
+      "policy": "usually_ungradable"
+    },
+    "eternal": {
+      "policy": "usually_ungradable"
+    },
+    "permanent": {
+      "policy": "usually_ungradable"
+    },
+    "optional": {
+      "policy": "usually_ungradable"
+    },
+    "invisible": {
+      "policy": "usually_ungradable"
+    },
+    "audible": {
+      "policy": "usually_ungradable"
+    },
+    "absent": {
+      "policy": "usually_ungradable"
+    },
+    "missing": {
+      "policy": "usually_ungradable"
+    },
+    "alive": {
+      "policy": "usually_ungradable"
+    },
+    "various": {
+      "policy": "usually_ungradable"
+    },
+    "numerous": {
+      "policy": "usually_ungradable"
+    },
+    "several": {
+      "policy": "usually_ungradable"
+    },
+    "average": {
+      "policy": "usually_ungradable"
+    },
+    "original": {
+      "policy": "usually_ungradable"
+    },
+    "round": {
+      "policy": "usually_ungradable"
+    },
+    "square": {
+      "policy": "usually_ungradable"
+    },
+    "circular": {
+      "policy": "usually_ungradable"
+    },
+    "human": {
+      "policy": "usually_ungradable"
+    },
+    "wrong": {
+      "policy": "contextual",
+      "notes": "very wrong / more wrong 口语常见",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "right": {
+      "policy": "contextual",
+      "notes": "同 wrong",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "correct": {
+      "policy": "contextual",
+      "notes": "more correct 可用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "true": {
+      "policy": "contextual",
+      "notes": "truer 存在",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "false": {
+      "policy": "contextual"
+    },
+    "empty": {
+      "policy": "contextual",
+      "notes": "emptier 可用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "open": {
+      "policy": "contextual",
+      "notes": "more open 常见（开放义）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "closed": {
+      "policy": "contextual"
+    },
+    "different": {
+      "policy": "contextual",
+      "notes": "very different 极常见",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "certain": {
+      "policy": "contextual",
+      "notes": "程度义 more certain 常见",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "definite": {
+      "policy": "contextual"
+    },
+    "obvious": {
+      "policy": "contextual",
+      "notes": "more obvious 常见",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "visible": {
+      "policy": "contextual",
+      "notes": "more visible 可用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "possible": {
+      "policy": "contextual",
+      "notes": "严格逻辑上不可分级，但 more possible 有使用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "necessary": {
+      "policy": "contextual"
+    },
+    "universal": {
+      "policy": "contextual"
+    },
+    "temporary": {
+      "policy": "contextual"
+    },
+    "constant": {
+      "policy": "contextual"
+    },
+    "public": {
+      "policy": "contextual"
+    },
+    "private": {
+      "policy": "contextual",
+      "notes": "more private 常见",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "native": {
+      "policy": "contextual"
+    },
+    "foreign": {
+      "policy": "contextual"
+    },
+    "physical": {
+      "policy": "contextual"
+    },
+    "mental": {
+      "policy": "contextual"
+    },
+    "social": {
+      "policy": "contextual"
+    },
+    "local": {
+      "policy": "contextual"
+    },
+    "broken": {
+      "policy": "contextual"
+    },
+    "available": {
+      "policy": "contextual",
+      "notes": "more available 可用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "busy": {
+      "policy": "gradable",
+      "notes": "审计修正：busier/busiest 完全常规，原表误标",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "clear": {
+      "policy": "gradable",
+      "notes": "审计修正：clearer/clearest 完全常规，原表误标",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "sure": {
+      "policy": "gradable",
+      "notes": "审计修正：surer / more sure 常规，原表误标",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "free": {
+      "policy": "gradable",
+      "notes": "审计修正：freer/freest 常规（自由义），原表误标",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "full": {
+      "policy": "gradable",
+      "notes": "审计修正：fuller/fullest 常规，原表误标",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "high",
+        "checked_at": "2026-07-30"
+      }
+    }
+  }
+}

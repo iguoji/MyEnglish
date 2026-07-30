@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.compatibility_matrix",
+  "title": "选项兼容矩阵",
+  "description": "确定哪些 UI 选项能同时开启。sentence.html 只提供组合维度参考，不代表其中全部组合合法。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rules"],
+  "properties": {
+    "description": { "type": "string" },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "kind", "message"],
+        "properties": {
+          "rule_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "kind": { "enum": ["forbid", "require", "constrain"] },
+          "when": {
+            "type": "object",
+            "description": "条件：维度名 → 值（全部满足才触发），如 {\"pattern\":\"SVP\",\"voice\":\"passive\"}",
+            "additionalProperties": { "type": ["string", "boolean", "array"] }
+          },
+          "then": {
+            "type": "object",
+            "description": "kind=require/constrain 时生效的约束，如 {\"verb_form\":\"past_participle\"}",
+            "additionalProperties": { "type": ["string", "boolean", "array"] }
+          },
+          "message": { "type": "string", "description": "机器可读拒绝/约束说明" }
+        }
+      }
+    }
+  }
+}

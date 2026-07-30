@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.pronoun_paradigm",
+  "title": "代词范式（造句知识库）",
+  "description": "程序不能从中文 definitions 解析主格/宾格，必须结构化保存。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["lemma", "person", "number", "forms", "provenance"],
+    "properties": {
+      "lemma": { "type": "string", "description": "范式主键，用主格形，如 I / he / they" },
+      "person": { "enum": [1, 2, 3] },
+      "number": { "enum": ["singular", "plural", "both"] },
+      "gender": { "enum": ["masculine", "feminine", "neuter", "none"] },
+      "human": { "type": "boolean", "description": "he/she 指人，it 指物；用于语义槽位过滤" },
+      "forms": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "object", "possessive_determiner", "possessive_pronoun", "reflexive"],
+        "properties": {
+          "subject": { "type": "string" },
+          "object": { "type": "string" },
+          "possessive_determiner": { "type": "string", "description": "形容词性物主代词 my/your" },
+          "possessive_pronoun": { "type": "string", "description": "名词性物主代词 mine/yours" },
+          "reflexive": { "type": "string" }
+        }
+      },
+      "be_present": { "type": "string", "description": "搭配的 be 现在式 am/is/are" },
+      "be_past": { "type": "string", "description": "搭配的 be 过去式 was/were" },
+      "verb_agreement": { "enum": ["base", "third_singular"], "description": "一般现在时谓语用原形还是三单" },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

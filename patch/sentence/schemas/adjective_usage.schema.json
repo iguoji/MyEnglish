@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.adjective_usage",
+  "title": "形容词用法资料（造句知识库）",
+  "description": "key=spelling+pos。不是所有形容词都能任意放进定语、表语和比较公式。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["spelling", "pos", "attributive", "predicative", "gradability", "provenance"],
+    "properties": {
+      "spelling": { "type": "string", "pattern": "^[a-z][a-z' -]*$" },
+      "pos": { "const": "adj." },
+      "usage_id": { "type": "string" },
+      "attributive": { "enum": ["yes", "no", "unknown"], "description": "能否放名词前（a happy child）" },
+      "predicative": { "enum": ["yes", "no", "unknown"], "description": "能否放 be 后（the child is happy）；afraid/asleep 只能表语" },
+      "gradability": { "enum": ["gradable", "usually_ungradable", "contextual", "unknown"], "description": "usually_ungradable 不进 more/most/very 公式" },
+      "comparative": { "type": "array", "items": { "type": "string" }, "description": "不规则或双写比较级（good→better）；空=按规则推导或不可分级" },
+      "superlative": { "type": "array", "items": { "type": "string" } },
+      "comparison_strategy": { "enum": ["inflectional", "periphrastic", "both", "none", "unknown"], "description": "-er/-est 还是 more/most（大于两音节用 more）" },
+      "complements": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["prep_of", "prep_in", "prep_at", "prep_with", "prep_for", "prep_about", "to_infinitive", "that_clause"] },
+            "example": { "type": "string" }
+          }
+        },
+        "description": "afraid of / interested in / ready to 等补语"
+      },
+      "notes": { "type": "string" },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

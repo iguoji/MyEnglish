@@ -1,0 +1,95 @@
+[
+  {
+    "lemma": "be", "kind": "be",
+    "finite_forms": [
+      { "form": "am",  "tense": "present", "person": [1], "number": "singular", "negative_full": "am not", "negative_contracted": "'m not" },
+      { "form": "is",  "tense": "present", "person": [3], "number": "singular", "negative_full": "is not", "negative_contracted": "isn't" },
+      { "form": "are", "tense": "present", "person": [1, 2, 3], "number": "plural", "negative_full": "are not", "negative_contracted": "aren't" },
+      { "form": "was", "tense": "past", "person": [1, 3], "number": "singular", "negative_full": "was not", "negative_contracted": "wasn't" },
+      { "form": "were", "tense": "past", "person": [1, 2, 3], "number": "plural", "negative_full": "were not", "negative_contracted": "weren't" }
+    ],
+    "nonfinite_forms": { "base": "be", "past_participle": "been", "present_participle": "being" },
+    "takes_bare_infinitive": false, "invertible": true,
+    "notes": "are 同时用于 you 单数；was/were 的 person/number 以主语实际数为准。",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "do", "kind": "do",
+    "finite_forms": [
+      { "form": "do",   "tense": "present", "person": [1, 2, 3], "number": "plural", "negative_full": "do not", "negative_contracted": "don't" },
+      { "form": "does", "tense": "present", "person": [3], "number": "singular", "negative_full": "does not", "negative_contracted": "doesn't" },
+      { "form": "did",  "tense": "past", "person": [1, 2, 3], "number": "both", "negative_full": "did not", "negative_contracted": "didn't" }
+    ],
+    "nonfinite_forms": { "base": "do", "past_participle": "done", "present_participle": "doing" },
+    "takes_bare_infinitive": true, "invertible": true,
+    "notes": "do 也用于 I/you 单数；作助动词后接原形。",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "have", "kind": "have",
+    "finite_forms": [
+      { "form": "have", "tense": "present", "person": [1, 2, 3], "number": "plural", "negative_full": "have not", "negative_contracted": "haven't" },
+      { "form": "has",  "tense": "present", "person": [3], "number": "singular", "negative_full": "has not", "negative_contracted": "hasn't" },
+      { "form": "had",  "tense": "past", "person": [1, 2, 3], "number": "both", "negative_full": "had not", "negative_contracted": "hadn't" }
+    ],
+    "nonfinite_forms": { "base": "have", "past_participle": "had", "present_participle": "having" },
+    "takes_bare_infinitive": false, "invertible": true,
+    "notes": "完成体助动词，后接过去分词；have 也用于 I/you 单数。",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "will", "kind": "modal",
+    "modal_negative_full": "will not", "modal_negative_contracted": "won't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "would", "kind": "modal",
+    "modal_negative_full": "would not", "modal_negative_contracted": "wouldn't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "can", "kind": "modal",
+    "modal_negative_full": "cannot", "modal_negative_contracted": "can't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "could", "kind": "modal",
+    "modal_negative_full": "could not", "modal_negative_contracted": "couldn't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "may", "kind": "modal",
+    "modal_negative_full": "may not",
+    "takes_bare_infinitive": true, "invertible": true,
+    "notes": "may 的否定缩写 mayn't 已罕用，不提供。",
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "might", "kind": "modal",
+    "modal_negative_full": "might not",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "must", "kind": "modal",
+    "modal_negative_full": "must not", "modal_negative_contracted": "mustn't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "shall", "kind": "modal",
+    "modal_negative_full": "shall not", "modal_negative_contracted": "shan't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "lemma": "should", "kind": "modal",
+    "modal_negative_full": "should not", "modal_negative_contracted": "shouldn't",
+    "takes_bare_infinitive": true, "invertible": true,
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  }
+]

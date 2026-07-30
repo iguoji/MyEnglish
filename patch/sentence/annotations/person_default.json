@@ -1,0 +1,498 @@
+{
+  "policy_kind": "person_default",
+  "description": "升级自 patch/annotations/is_person.json。语义：造句时该拼写默认可作为人物槽位候选；person_only_some_senses 表示仅部分含义是人，不能宣称所有含义都是人。",
+  "entries": {
+    "person": {
+      "policy": "default_person"
+    },
+    "people": {
+      "policy": "default_person"
+    },
+    "man": {
+      "policy": "default_person"
+    },
+    "woman": {
+      "policy": "default_person"
+    },
+    "child": {
+      "policy": "default_person"
+    },
+    "children": {
+      "policy": "default_person"
+    },
+    "boy": {
+      "policy": "default_person"
+    },
+    "girl": {
+      "policy": "default_person"
+    },
+    "baby": {
+      "policy": "default_person"
+    },
+    "student": {
+      "policy": "default_person"
+    },
+    "teacher": {
+      "policy": "default_person"
+    },
+    "doctor": {
+      "policy": "default_person"
+    },
+    "nurse": {
+      "policy": "default_person"
+    },
+    "friend": {
+      "policy": "default_person"
+    },
+    "enemy": {
+      "policy": "default_person"
+    },
+    "neighbor": {
+      "policy": "default_person"
+    },
+    "colleague": {
+      "policy": "default_person"
+    },
+    "boss": {
+      "policy": "default_person"
+    },
+    "worker": {
+      "policy": "default_person"
+    },
+    "farmer": {
+      "policy": "default_person"
+    },
+    "driver": {
+      "policy": "default_person"
+    },
+    "singer": {
+      "policy": "default_person"
+    },
+    "dancer": {
+      "policy": "default_person"
+    },
+    "writer": {
+      "policy": "default_person"
+    },
+    "reader": {
+      "policy": "default_person"
+    },
+    "speaker": {
+      "policy": "default_person"
+    },
+    "listener": {
+      "policy": "default_person"
+    },
+    "player": {
+      "policy": "default_person"
+    },
+    "athlete": {
+      "policy": "default_person"
+    },
+    "actor": {
+      "policy": "default_person"
+    },
+    "actress": {
+      "policy": "default_person"
+    },
+    "king": {
+      "policy": "default_person"
+    },
+    "queen": {
+      "policy": "default_person"
+    },
+    "prince": {
+      "policy": "default_person"
+    },
+    "princess": {
+      "policy": "default_person"
+    },
+    "president": {
+      "policy": "default_person"
+    },
+    "minister": {
+      "policy": "default_person"
+    },
+    "governor": {
+      "policy": "default_person"
+    },
+    "mayor": {
+      "policy": "default_person"
+    },
+    "judge": {
+      "policy": "person_only_some_senses",
+      "notes": "法官（人）/评判（动词用法不适用）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "lawyer": {
+      "policy": "default_person"
+    },
+    "policeman": {
+      "policy": "default_person"
+    },
+    "policewoman": {
+      "policy": "default_person"
+    },
+    "officer": {
+      "policy": "default_person"
+    },
+    "soldier": {
+      "policy": "default_person"
+    },
+    "sailor": {
+      "policy": "default_person"
+    },
+    "pilot": {
+      "policy": "default_person"
+    },
+    "engineer": {
+      "policy": "default_person"
+    },
+    "scientist": {
+      "policy": "default_person"
+    },
+    "programmer": {
+      "policy": "default_person"
+    },
+    "designer": {
+      "policy": "default_person"
+    },
+    "artist": {
+      "policy": "default_person"
+    },
+    "painter": {
+      "policy": "default_person"
+    },
+    "musician": {
+      "policy": "default_person"
+    },
+    "chef": {
+      "policy": "default_person"
+    },
+    "cook": {
+      "policy": "person_only_some_senses",
+      "notes": "厨师（人）/烹饪（动词用法不适用）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "waiter": {
+      "policy": "default_person"
+    },
+    "waitress": {
+      "policy": "default_person"
+    },
+    "customer": {
+      "policy": "default_person"
+    },
+    "guest": {
+      "policy": "default_person"
+    },
+    "host": {
+      "policy": "person_only_some_senses",
+      "notes": "主人（人）/宿主（生物学，物）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "visitor": {
+      "policy": "default_person"
+    },
+    "passenger": {
+      "policy": "default_person"
+    },
+    "tourist": {
+      "policy": "default_person"
+    },
+    "traveler": {
+      "policy": "default_person"
+    },
+    "stranger": {
+      "policy": "default_person"
+    },
+    "native": {
+      "policy": "person_only_some_senses",
+      "notes": "本地人（人）/本土的（形），只有名词人义适用",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "foreigner": {
+      "policy": "default_person"
+    },
+    "citizen": {
+      "policy": "default_person"
+    },
+    "resident": {
+      "policy": "default_person"
+    },
+    "parent": {
+      "policy": "default_person"
+    },
+    "father": {
+      "policy": "default_person"
+    },
+    "mother": {
+      "policy": "default_person"
+    },
+    "son": {
+      "policy": "default_person"
+    },
+    "daughter": {
+      "policy": "default_person"
+    },
+    "brother": {
+      "policy": "default_person"
+    },
+    "sister": {
+      "policy": "default_person"
+    },
+    "husband": {
+      "policy": "default_person"
+    },
+    "wife": {
+      "policy": "default_person"
+    },
+    "uncle": {
+      "policy": "default_person"
+    },
+    "aunt": {
+      "policy": "default_person"
+    },
+    "cousin": {
+      "policy": "default_person"
+    },
+    "nephew": {
+      "policy": "default_person"
+    },
+    "niece": {
+      "policy": "default_person"
+    },
+    "grandfather": {
+      "policy": "default_person"
+    },
+    "grandmother": {
+      "policy": "default_person"
+    },
+    "grandson": {
+      "policy": "default_person"
+    },
+    "granddaughter": {
+      "policy": "default_person"
+    },
+    "boyfriend": {
+      "policy": "default_person"
+    },
+    "girlfriend": {
+      "policy": "default_person"
+    },
+    "partner": {
+      "policy": "default_person"
+    },
+    "spouse": {
+      "policy": "default_person"
+    },
+    "relative": {
+      "policy": "default_person"
+    },
+    "classmate": {
+      "policy": "default_person"
+    },
+    "teammate": {
+      "policy": "default_person"
+    },
+    "roommate": {
+      "policy": "default_person"
+    },
+    "member": {
+      "policy": "default_person"
+    },
+    "owner": {
+      "policy": "default_person"
+    },
+    "user": {
+      "policy": "default_person"
+    },
+    "buyer": {
+      "policy": "default_person"
+    },
+    "seller": {
+      "policy": "default_person"
+    },
+    "thief": {
+      "policy": "default_person"
+    },
+    "robber": {
+      "policy": "default_person"
+    },
+    "murderer": {
+      "policy": "default_person"
+    },
+    "victim": {
+      "policy": "default_person"
+    },
+    "hero": {
+      "policy": "default_person"
+    },
+    "villain": {
+      "policy": "default_person"
+    },
+    "criminal": {
+      "policy": "default_person"
+    },
+    "witness": {
+      "policy": "default_person"
+    },
+    "suspect": {
+      "policy": "default_person"
+    },
+    "prisoner": {
+      "policy": "default_person"
+    },
+    "beggar": {
+      "policy": "default_person"
+    },
+    "giant": {
+      "policy": "person_only_some_senses",
+      "notes": "巨人（人）/巨头企业（组织）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "dwarf": {
+      "policy": "person_only_some_senses",
+      "notes": "侏儒（人）/矮星（天体）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "fool": {
+      "policy": "default_person"
+    },
+    "genius": {
+      "policy": "default_person"
+    },
+    "idiot": {
+      "policy": "default_person"
+    },
+    "expert": {
+      "policy": "default_person"
+    },
+    "professional": {
+      "policy": "default_person"
+    },
+    "amateur": {
+      "policy": "default_person"
+    },
+    "beginner": {
+      "policy": "default_person"
+    },
+    "learner": {
+      "policy": "default_person"
+    },
+    "winner": {
+      "policy": "default_person"
+    },
+    "loser": {
+      "policy": "default_person"
+    },
+    "champion": {
+      "policy": "default_person"
+    },
+    "candidate": {
+      "policy": "default_person"
+    },
+    "competitor": {
+      "policy": "default_person"
+    },
+    "opponent": {
+      "policy": "default_person"
+    },
+    "ally": {
+      "policy": "default_person"
+    },
+    "leader": {
+      "policy": "default_person"
+    },
+    "follower": {
+      "policy": "default_person"
+    },
+    "fan": {
+      "policy": "person_only_some_senses",
+      "notes": "粉丝（人）/风扇（物）",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "supporter": {
+      "policy": "default_person"
+    },
+    "critic": {
+      "policy": "default_person"
+    },
+    "editor": {
+      "policy": "default_person"
+    },
+    "author": {
+      "policy": "default_person"
+    },
+    "poet": {
+      "policy": "default_person"
+    },
+    "reporter": {
+      "policy": "default_person"
+    },
+    "journalist": {
+      "policy": "default_person"
+    },
+    "photographer": {
+      "policy": "default_person"
+    },
+    "model": {
+      "policy": "person_only_some_senses",
+      "notes": "模特（人）/模型（物），只有模特义是人",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    },
+    "celebrity": {
+      "policy": "default_person"
+    },
+    "star": {
+      "policy": "person_only_some_senses",
+      "notes": "明星（人）/星星（物），只有明星义是人",
+      "provenance": {
+        "source": "curated_by_agent",
+        "reviewed": true,
+        "confidence": "medium",
+        "checked_at": "2026-07-30"
+      }
+    }
+  }
+}

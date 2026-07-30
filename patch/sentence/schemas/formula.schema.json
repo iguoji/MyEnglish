@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.formula",
+  "title": "正式公式契约（造句公式）",
+  "description": "archive/formula_schema.json 只记录 UI 选项和槽位，不足以生成句子。本契约定义可运行公式：必需槽位、槽位类型、允许时态、被动/否定/疑问开关、冲突项、机器可读拒绝原因。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["formula_id", "pattern", "slots", "allowed_tenses", "allows_passive", "allows_negation", "allows_question", "provenance"],
+    "properties": {
+      "formula_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+      "pattern": { "enum": ["SV", "SVP", "SVO", "SVOO", "SVOC", "THERE_BE", "IMPERATIVE", "SV_PREP_O"] },
+      "description": { "type": "string" },
+      "slots": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "accepts", "required"],
+          "properties": {
+            "name": { "enum": ["subject", "verb", "object", "indirect_object", "direct_object", "complement", "predicative", "preposition", "prep_object", "adverbial", "determiner", "existential_np", "location"] },
+            "accepts": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "enum": ["pronoun_subject", "pronoun_object", "noun_phrase", "verb_lemma", "adjective", "preposition_fixed", "adverb", "bare_noun_uncountable", "plural_noun_phrase"] }
+            },
+            "required": { "type": "boolean" },
+            "semantic_filter": { "type": "array", "items": { "type": "string" }, "description": "按 semantic_category / subject_restriction 过滤候选词" }
+          }
+        }
+      },
+      "allowed_tenses": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "enum": ["present_simple", "past_simple", "future_simple", "present_continuous", "past_continuous", "present_perfect"] }
+      },
+      "allows_passive": { "type": "boolean" },
+      "allows_negation": { "type": "boolean" },
+      "allows_question": { "type": "boolean" },
+      "conflicts_with": { "type": "array", "items": { "type": "string" }, "description": "互斥的 UI 选项/公式 id" },
+      "rejection_reasons": {
+        "type": "object",
+        "additionalProperties": { "type": "string" },
+        "description": "机器可读拒绝原因代码 → 人类可读解释，如 no_candidate_verb / tense_not_supported"
+      },
+      "provenance": { "$ref": "noun_usage.schema.json#/$defs/provenance" }
+    }
+  }
+}

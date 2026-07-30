@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.article_phonetics",
+  "title": "a/an 读音特例表",
+  "description": "a/an 根据开头读音，而不是简单看首字母。默认规则：元音字母开头用 an；本表登记与默认规则相反的特例。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["an_despite_consonant_letter", "a_despite_vowel_letter"],
+  "properties": {
+    "description": { "type": "string" },
+    "an_despite_consonant_letter": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "辅音字母开头但发元音（哑音 h）：hour, honest, honor, heir"
+    },
+    "a_despite_vowel_letter": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "元音字母开头但发辅音（/j/、/w/、/ju:/）：university, European, one, uniform"
+    },
+    "prefix_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["prefix", "article"],
+        "properties": {
+          "prefix": { "type": "string" },
+          "article": { "enum": ["a", "an"] },
+          "example": { "type": "string" }
+        }
+      },
+      "description": "按前缀匹配的补充规则（uni-→a，仅当逐词表未命中时使用）"
+    }
+  }
+}

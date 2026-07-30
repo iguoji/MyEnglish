@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "myenglish.sentence.golden_test",
+  "title": "黄金句 / 禁止句测试集",
+  "description": "每条规则同时准备应生成的正确句与不得生成的错误句，防止规则回退。",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["test_id", "rule", "golden", "forbidden", "formula_id", "depends_on"],
+    "properties": {
+      "test_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+      "rule": { "type": "string", "description": "被验证的语法规则，如 主谓一致-三单" },
+      "golden": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "应能生成的正确句" },
+      "forbidden": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sentence", "reason"],
+          "properties": {
+            "sentence": { "type": "string" },
+            "reason": { "type": "string", "description": "错误原因，如 uncountable_with_indefinite_article" }
+          }
+        }
+      },
+      "formula_id": { "type": "string" },
+      "depends_on": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "依赖的词汇规则条目，格式 lexicon_file:spelling+pos，如 noun_usage:water+n."
+      }
+    }
+  }
+}
