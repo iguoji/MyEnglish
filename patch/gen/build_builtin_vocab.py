@@ -463,9 +463,101 @@ def load_annotation(filename):
 # 5. 构建 word 对象（严格按 README 的 word 模型字段）
 # ============================================================================
 
+# ----------------------------------------------------------------------------
+# 及物性归一化总表（2026-07-30 任务12 逐词人工判定产出，共 271 词）
+# 数据源 data_verbs_*.py 中部分动词只标了模糊的 "v."，无法驱动生成器选句型
+# （vt. 才能进 SVO，vi. 只能进 SV）。本表按【基线中文释义对应义项】的日常用法判定：
+#   vt.      —— 该义项基本总带宾语（remember/believe/celebrate…）
+#   vi.      —— 该义项基本不带宾语（travel/rest/complain/retire…）
+#   vi. vt.  —— 两种用法都常见（start/play/break/move…），生成器可自由选句型
+# 判定为人工完成；脚本仅查表应用。不在表中的 "v." 一律保持原样并计入 unknown。
+# ----------------------------------------------------------------------------
+POS_OVERRIDE = {
+    # ---- 两栖（vi. vt.）：及物/不及物都常见 ----
+    "start": "vi. vt.", "leave": "vi. vt.", "play": "vi. vt.", "study": "vi. vt.",
+    "learn": "vi. vt.", "break": "vi. vt.", "drive": "vi. vt.", "lead": "vi. vt.",
+    "sing": "vi. vt.", "think": "vi. vt.", "count": "vi. vt.", "cross": "vi. vt.",
+    "develop": "vi. vt.", "fight": "vi. vt.", "gather": "vi. vt.", "guess": "vi. vt.",
+    "hunt": "vi. vt.", "join": "vi. vt.", "lean": "vi. vt.", "measure": "vi. vt.",
+    "move": "vi. vt.", "paint": "vi. vt.", "pass": "vi. vt.", "plan": "vi. vt.",
+    "point": "vi. vt.", "pray": "vi. vt.", "prepare": "vi. vt.", "reflect": "vi. vt.",
+    "relate": "vi. vt.", "reply": "vi. vt.", "report": "vi. vt.", "return": "vi. vt.",
+    "ride": "vi. vt.", "ring": "vi. vt.", "roll": "vi. vt.", "rule": "vi. vt.",
+    "search": "vi. vt.", "separate": "vi. vt.", "shake": "vi. vt.", "shave": "vi. vt.",
+    "shoot": "vi. vt.", "sign": "vi. vt.", "smell": "vi. vt.", "spill": "vi. vt.",
+    "spin": "vi. vt.", "split": "vi. vt.", "spread": "vi. vt.", "stick": "vi. vt.",
+    "stop": "vi. vt.", "stretch": "vi. vt.", "strike": "vi. vt.", "submit": "vi. vt.",
+    "taste": "vi. vt.", "train": "vi. vt.", "unite": "vi. vt.", "vary": "vi. vt.",
+    "wake": "vi. vt.", "wave": "vi. vt.", "weigh": "vi. vt.", "withdraw": "vi. vt.",
+    "wonder": "vi. vt.", "worry": "vi. vt.", "yield": "vi. vt.", "boil": "vi. vt.",
+    "burn": "vi. vt.", "climb": "vi. vt.", "cry": "vi. vt.", "drop": "vi. vt.",
+    "grow": "vi. vt.", "hide": "vi. vt.", "melt": "vi. vt.", "pack": "vi. vt.",
+    "row": "vi. vt.", "sew": "vi. vt.", "shout": "vi. vt.", "skip": "vi. vt.",
+    "snap": "vi. vt.", "soak": "vi. vt.", "spit": "vi. vt.", "stamp": "vi. vt.",
+    "sway": "vi. vt.", "sweep": "vi. vt.", "swing": "vi. vt.", "weave": "vi. vt.",
+    "whistle": "vi. vt.", "agree": "vi. vt.", "attack": "vi. vt.", "beg": "vi. vt.",
+    "begin": "vi. vt.", "believe": "vi. vt.", "bend": "vi. vt.", "blow": "vi. vt.",
+    "bounce": "vi. vt.", "bowl": "vi. vt.", "brake": "vi. vt.", "breathe": "vi. vt.",
+    "bump": "vi. vt.", "care": "vi. vt.", "cease": "vi. vt.", "charge": "vi. vt.",
+    "cheat": "vi. vt.", "check": "vi. vt.", "cheer": "vi. vt.", "circle": "vi. vt.",
+    "clear": "vi. vt.", "command": "vi. vt.", "comment": "vi. vt.", "confess": "vi. vt.",
+    "continue": "vi. vt.", "cool": "vi. vt.", "crack": "vi. vt.", "crash": "vi. vt.",
+    "curl": "vi. vt.", "curve": "vi. vt.", "cycle": "vi. vt.", "dare": "vi. vt.",
+    "debate": "vi. vt.", "decide": "vi. vt.", "decrease": "vi. vt.", "delay": "vi. vt.",
+    "demand": "vt.", "dictate": "vi. vt.", "dispute": "vi. vt.", "dissolve": "vi. vt.",
+    "divorce": "vi. vt.", "double": "vi. vt.", "dress": "vi. vt.", "drown": "vi. vt.",
+    "dry": "vi. vt.", "end": "vi. vt.", "engage": "vi. vt.", "enter": "vi. vt.",
+    "escape": "vi. vt.", "exercise": "vi. vt.", "expand": "vi. vt.", "extend": "vi. vt.",
+    "farm": "vi. vt.", "fear": "vt.", "finish": "vi. vt.", "fit": "vi. vt.",
+    "flap": "vi. vt.", "flash": "vi. vt.", "focus": "vi. vt.", "fold": "vi. vt.",
+    "pop": "vi. vt.", "pose": "vi. vt.", "preach": "vi. vt.", "press": "vi. vt.",
+    "probe": "vi. vt.", "qualify": "vi. vt.", "quit": "vi. vt.", "race": "vi. vt.",
+    "rank": "vi. vt.", "reason": "vi. vt.", "reckon": "vi. vt.", "recover": "vi. vt.",
+    "register": "vi. vt.", "remark": "vi. vt.", "resign": "vi. vt.", "resolve": "vi. vt.",
+    "reverse": "vi. vt.", "roar": "vi. vt.", "rock": "vi. vt.", "root": "vi. vt.",
+    "sail": "vi. vt.", "scatter": "vi. vt.", "score": "vi. vt.", "scratch": "vi. vt.",
+    "settle": "vi. vt.", "shift": "vi. vt.", "shrink": "vi. vt.", "signal": "vi. vt.",
+    "sink": "vi. vt.", "smash": "vi. vt.", "smoke": "vi. vt.", "sniff": "vi. vt.",
+    "spark": "vi. vt.", "spell": "vi. vt.", "stitch": "vi. vt.", "surf": "vi. vt.",
+    "survive": "vi. vt.", "swallow": "vi. vt.", "swear": "vi. vt.", "swell": "vi. vt.",
+    "switch": "vi. vt.", "tap": "vi. vt.", "telephone": "vi. vt.", "tend": "vi. vt.",
+    "thaw": "vi. vt.", "theorize": "vi. vt.", "tick": "vi. vt.", "tidy": "vi. vt.",
+    "tip": "vi. vt.", "trade": "vi. vt.", "tug": "vi. vt.", "twist": "vi. vt.",
+    "unfold": "vi. vt.", "venture": "vi. vt.", "vote": "vi. vt.", "warm": "vi. vt.",
+    "weaken": "vi. vt.", "widen": "vi. vt.", "wind": "vi. vt.", "worsen": "vi. vt.",
+    "wrestle": "vi. vt.", "accelerate": "vi. vt.", "accumulate": "vi. vt.",
+    "adapt": "vi. vt.", "adjust": "vi. vt.", "advance": "vi. vt.",
+    "advertise": "vi. vt.", "answer": "vi. vt.", "applaud": "vi. vt.",
+    "apply": "vi. vt.", "approach": "vi. vt.", "approve": "vi. vt.",
+    "argue": "vi. vt.", "ascend": "vi. vt.", "assist": "vi. vt.",
+    "awaken": "vi. vt.", "bang": "vi. vt.", "bathe": "vi. vt.", "beat": "vi. vt.",
+    "bet": "vi. vt.", "bid": "vi. vt.", "bite": "vi. vt.", "blend": "vi. vt.",
+    "blink": "vi. vt.", "boast": "vi. vt.", "breed": "vi. vt.", "browse": "vi. vt.",
+    "end_of_amphibious_block_DO_NOT_ADD": "",
+    # ---- 纯及物（vt.）：该义项几乎总带宾语 ----
+    "remember": "vt.", "hurt": "vt.", "celebrate": "vt.", "arrange": "vt.",
+    "bother": "vt.", "seek": "vt.", "suspect": "vt.", "tire": "vt.",
+    "witness": "vt.", "worship": "vt.", "admit": "vt.", "alter": "vt.",
+    "explore": "vt.", "pretend": "vt.", "spoil": "vt.", "dispose": "vi.",
+    "avail": "vt.", "bank": "vi. vt.", "bruise": "vt.", "bust": "vi. vt.",
+    "bound": "vi.",
+    # ---- 纯不及物（vi.）：该义项基本不带宾语 ----
+    "stand": "vi.", "fail": "vi.", "look": "vi.", "nod": "vi.", "respond": "vi.",
+    "rest": "vi.", "travel": "vi.", "fade": "vi.", "bow": "vi.", "complain": "vi.",
+    "profit": "vi.", "relax": "vi.", "remain": "vi.", "retire": "vi.",
+    "scream": "vi.", "sneak": "vi.", "trip": "vi.", "refer": "vi.",
+    "behave": "vi.",
+}
+POS_OVERRIDE.pop("end_of_amphibious_block_DO_NOT_ADD")  # 移除分块占位提醒项
+
+
 def make_verb_word(wid, spelling, pos, zh):
     """构建动词 word 对象"""
     forms = infer_verb_forms(spelling)
+    # 及物性归一化：数据源标 "v." 的动词优先查人工判定总表；
+    # 表里没有则保持原值（由校验工具计为 unknown，禁止机器猜测）
+    if pos == "v.":
+        pos = POS_OVERRIDE.get(spelling.lower(), pos)
     return {
         "id": wid,
         "spelling": spelling,
