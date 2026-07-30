@@ -1,0 +1,1306 @@
+[
+  {
+    "spelling": "afraid",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "complements": [
+      {
+        "type": "prep_of",
+        "example": "afraid of dogs"
+      },
+      {
+        "type": "to_infinitive",
+        "example": "afraid to go"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "alive",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "alone",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "angry",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "prep_with",
+        "example": "angry with him"
+      },
+      {
+        "type": "prep_about",
+        "example": "angry about it"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "asleep",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "awake",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bad",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "comparative": [
+      "worse"
+    ],
+    "superlative": [
+      "worst"
+    ],
+    "complements": [
+      {
+        "type": "prep_at",
+        "example": "bad at cooking"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "beautiful",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "big",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "comparative": [
+      "bigger"
+    ],
+    "superlative": [
+      "biggest"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "boring",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bright",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "busy",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "careful",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cheap",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "clean",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "clever",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cold",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cool",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dangerous",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dark",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dead",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "delicious",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "different",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "contextual",
+    "comparison_strategy": "periphrastic",
+    "complements": [
+      {
+        "type": "prep_from",
+        "example": "different from mine"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "difficult",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dirty",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dry",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "early",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "easy",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "empty",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "contextual",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "expensive",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fast",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "favorite",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "no",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fresh",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "full",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "prep_of",
+        "example": "full of water"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "glad",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "to_infinitive",
+        "example": "glad to see you"
+      },
+      {
+        "type": "that_clause",
+        "example": "glad that you came"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "good",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "comparative": [
+      "better"
+    ],
+    "superlative": [
+      "best"
+    ],
+    "complements": [
+      {
+        "type": "prep_at",
+        "example": "good at math"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "happy",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "to_infinitive",
+        "example": "happy to help"
+      },
+      {
+        "type": "that_clause",
+        "example": "happy that you came"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hard",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "healthy",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "heavy",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "high",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hot",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "comparative": [
+      "hotter"
+    ],
+    "superlative": [
+      "hottest"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hungry",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ill",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "important",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "interested",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "complements": [
+      {
+        "type": "prep_in",
+        "example": "interested in music"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "interesting",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "kind",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "prep_to",
+        "example": "kind to animals"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "late",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "light",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "long",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "loud",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "low",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "main",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "no",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "new",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "nice",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "old",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "open",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "contextual",
+    "comparison_strategy": "periphrastic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "poor",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "quiet",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ready",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "complements": [
+      {
+        "type": "to_infinitive",
+        "example": "ready to go"
+      },
+      {
+        "type": "prep_for",
+        "example": "ready for school"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "rich",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sad",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "comparative": [
+      "sadder"
+    ],
+    "superlative": [
+      "saddest"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "safe",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "short",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sick",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "slow",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "small",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "smart",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sorry",
+    "pos": "adj.",
+    "attributive": "no",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "prep_for",
+        "example": "sorry for him"
+      },
+      {
+        "type": "prep_about",
+        "example": "sorry about that"
+      },
+      {
+        "type": "to_infinitive",
+        "example": "sorry to hear that"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "strong",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sure",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "complements": [
+      {
+        "type": "prep_of",
+        "example": "sure of it"
+      },
+      {
+        "type": "that_clause",
+        "example": "sure that he will come"
+      },
+      {
+        "type": "to_infinitive",
+        "example": "sure to win"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sweet",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "tall",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "thirsty",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "tired",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "periphrastic",
+    "complements": [
+      {
+        "type": "prep_of",
+        "example": "tired of waiting"
+      }
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ugly",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "warm",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "weak",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wet",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "comparative": [
+      "wetter"
+    ],
+    "superlative": [
+      "wettest"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wooden",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "usually_ungradable",
+    "comparison_strategy": "none",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "young",
+    "pos": "adj.",
+    "attributive": "yes",
+    "predicative": "yes",
+    "gradability": "gradable",
+    "comparison_strategy": "inflectional",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  }
+]

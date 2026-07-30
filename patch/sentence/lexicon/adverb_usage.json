@@ -1,0 +1,951 @@
+[
+  {
+    "spelling": "again",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ahead",
+    "pos": "adv.",
+    "category": "place",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "almost",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb",
+      "adjective",
+      "adverb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "already",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "多用于肯定/完成时",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "also",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "always",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "away",
+    "pos": "adv.",
+    "category": "place",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "badly",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "carefully",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "easily",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "enough",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "notes": "唯一后置的程度副词：good enough，*enough good",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "even",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ever",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "限疑问/否定/完成时",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fast",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "形副同形：run fast",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "happily",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hard",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "形副同形：work hard；hardly 是另一个词",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hardly",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "自带否定义：hardly ever",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "here",
+    "pos": "adv.",
+    "category": "place",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "notes": "无介词：come here",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "however",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "front"
+    ],
+    "default_position": "front",
+    "modifies": [
+      "sentence"
+    ],
+    "notes": "句首需逗号",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "just",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "完成时常用：have just done",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "loudly",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "maybe",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "front"
+    ],
+    "default_position": "front",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "never",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "自带否定义，不与 not 连用",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "now",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "front",
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "often",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "only",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "sentence"
+    ],
+    "notes": "位置影响辖域，默认中位",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "perhaps",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "front"
+    ],
+    "default_position": "front",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "please",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "front",
+    "modifies": [
+      "sentence"
+    ],
+    "notes": "祈使句礼貌标记",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "quickly",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "quietly",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "quite",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "rarely",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "自带否定义",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "rather",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "seldom",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "自带否定义",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "slowly",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "mid",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "so",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "notes": "so big that...",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sometimes",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "front",
+      "mid",
+      "end"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "soon",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "still",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "then",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "there",
+    "pos": "adv.",
+    "category": "place",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "notes": "无介词：go there",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "today",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "together",
+    "pos": "adv.",
+    "category": "comment",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "tomorrow",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "too",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "notes": "too big 过于；句尾'也'义另算",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "usually",
+    "pos": "adv.",
+    "category": "frequency",
+    "positions": [
+      "front",
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "verb"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "very",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "notes": "*very like；修饰动词改 very much 句尾",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "well",
+    "pos": "adv.",
+    "category": "manner",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb"
+    ],
+    "notes": "good 的副词形；不规则",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "yesterday",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "front",
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "yet",
+    "pos": "adv.",
+    "category": "time",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "sentence"
+    ],
+    "notes": "限否定与疑问：not...yet",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  }
+]

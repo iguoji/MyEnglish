@@ -1,0 +1,2612 @@
+[
+  {
+    "spelling": "actor",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "advice",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "answer",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "apple",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "artist",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "aunt",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "baby",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bag",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ball",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "banana",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bathroom",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "beach",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bean",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bear",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bedroom",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "beef",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "beer",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bike",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bird",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "birthday",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "boat",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "book",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "boss",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bottle",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "box",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "boy",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bread",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bus",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "butter",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cabbage",
+    "countability": "both",
+    "number_behavior": "regular",
+    "semantic_category": "food",
+    "notes": "a cabbage 整棵 / some cabbage 菜肴",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cake",
+    "countability": "both",
+    "number_behavior": "regular",
+    "semantic_category": "food",
+    "notes": "a cake 整只可数 / some cake 切块不可数；生成器默认按可数用",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "camera",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "candy",
+    "countability": "both",
+    "number_behavior": "regular",
+    "semantic_category": "food",
+    "notes": "美式 a candy 可数；也常作物质名词",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "car",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "carrot",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cat",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cattle",
+    "countability": "countable",
+    "number_behavior": "collective",
+    "semantic_category": "animal",
+    "default_number": "plural",
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "twenty cattle 合法；*a cattle",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "chair",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cheese",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "child",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "church",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "city",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "clock",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "clothes",
+    "countability": "uncountable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": false,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "*three clothes / *a pair of clothes；计数换 pieces of clothing",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "coffee",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "computer",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cookie",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "corn",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "country",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cousin",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cow",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cup",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "day",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "deer",
+    "countability": "countable",
+    "number_behavior": "invariant",
+    "semantic_category": "animal",
+    "verb_agreement": "both",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "desk",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "doctor",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dog",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "door",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dream",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "driver",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "duck",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "egg",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "elephant",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "energy",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "evening",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "factory",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "family",
+    "countability": "countable",
+    "number_behavior": "collective",
+    "semantic_category": "person",
+    "default_number": "singular",
+    "verb_agreement": "both",
+    "notes": "英式可 my family are；生成器默认单数一致",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "farm",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "farmer",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fish",
+    "countability": "countable",
+    "number_behavior": "invariant",
+    "semantic_category": "animal",
+    "verb_agreement": "both",
+    "notes": "复数 fish；fishes 仅指多鱼种，生成器不用",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "forest",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fork",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "friend",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "frog",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "game",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "garden",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "gift",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "girl",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "glasses",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": true,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "眼镜义；玻璃杯义是 glass 的规则复数，另词处理",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "goat",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "goose",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "grammar",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "group",
+    "countability": "countable",
+    "number_behavior": "collective",
+    "semantic_category": "person",
+    "default_number": "singular",
+    "verb_agreement": "both",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "guest",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "health",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hen",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hero",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "history",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "home",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "semantic_category": "place",
+    "notes": "go home / at home 为副词性用法，不加冠词与介词 to",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "horse",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hospital",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hour",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "house",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "idea",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "information",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "island",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "jeans",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": true,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "juice",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "key",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "king",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "kitchen",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "knife",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "knowledge",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "lady",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "lake",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "lamp",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "lemon",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "letter",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "library",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "lion",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "man",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "map",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "market",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "math",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "meat",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "milk",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "minute",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "mirror",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "money",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "monkey",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "month",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "morning",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "mountain",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "mouse",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "music",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "news",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "semantic_category": "abstract",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "notes": "形似复数实为单数：The news is good；计数 a piece of news",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "night",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "nurse",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "office",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "onion",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "orange",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ox",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "panda",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pants",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": true,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "parent",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "park",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "peach",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pear",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pen",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pencil",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "people",
+    "countability": "countable",
+    "number_behavior": "collective",
+    "semantic_category": "person",
+    "default_number": "plural",
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "three people 直接计数；*a people（民族义除外，本表不收）",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "person",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "phone",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "picture",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pie",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pig",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "plane",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "police",
+    "countability": "uncountable",
+    "number_behavior": "collective",
+    "semantic_category": "person",
+    "default_number": "plural",
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "the police are...；计数用 police officers",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "queen",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "question",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "rabbit",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "rice",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "room",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "school",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "scissors",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": true,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "计数必须 a pair of scissors",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sheep",
+    "countability": "countable",
+    "number_behavior": "invariant",
+    "semantic_category": "animal",
+    "verb_agreement": "both",
+    "notes": "a sheep / two sheep；谓语随指称数",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "shop",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "song",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "soup",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "food",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "stairs",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "place",
+    "default_number": "plural",
+    "pair_construction": false,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "习惯用复数；单数 stair 罕用，生成器不产出",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "station",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "store",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "story",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "abstract",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "street",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "student",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "table",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "tea",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "teacher",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "team",
+    "countability": "countable",
+    "number_behavior": "collective",
+    "semantic_category": "person",
+    "default_number": "singular",
+    "verb_agreement": "both",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "tiger",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "animal",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "toy",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "umbrella",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "uncle",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "water",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "week",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "window",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "object",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wine",
+    "pos": "n.",
+    "countability": "uncountable",
+    "number_behavior": "mass",
+    "default_number": "singular",
+    "indefinite_article_override": "none",
+    "verb_agreement": "singular",
+    "semantic_category": "drink",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "woman",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "person",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "year",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "time",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "zoo",
+    "pos": "n.",
+    "countability": "countable",
+    "number_behavior": "regular",
+    "default_number": "singular",
+    "semantic_category": "place",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  }
+]

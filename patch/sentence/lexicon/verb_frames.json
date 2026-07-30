@@ -1,0 +1,2313 @@
+[
+  {
+    "spelling": "agree",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SV_PREP_O",
+      "SV_COMP"
+    ],
+    "fixed_preposition": "with",
+    "complement_types": [
+      "to_infinitive",
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "allows_passive": "no",
+    "stative_policy": "usually_stative",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "arrive",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "notes": "地点用 at(小)/in(大)，属状语非补语",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ask",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO",
+      "SVOC"
+    ],
+    "dative_alternation": "none",
+    "complement_types": [
+      "to_infinitive"
+    ],
+    "subject_restriction": "person",
+    "notes": "ask him a question；双宾不可改介词句",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "be",
+    "pos": "vlink.",
+    "frames": [
+      "SVP"
+    ],
+    "copula": true,
+    "allows_passive": "no",
+    "notes": "唯一纯系动词；变位由 paradigms/auxiliaries.json 提供",
+    "stative_policy": "usually_stative",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "become",
+    "pos": "vi.",
+    "frames": [
+      "SVP"
+    ],
+    "copula": true,
+    "allows_passive": "no",
+    "complement_types": [
+      "adjective",
+      "noun_phrase"
+    ],
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "begin",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "believe",
+    "pos": "vi. vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "belong",
+    "pos": "vi.",
+    "frames": [
+      "SV_PREP_O"
+    ],
+    "fixed_preposition": "to",
+    "allows_passive": "no",
+    "stative_policy": "usually_stative",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "borrow",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "break",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "notes": "The window broke（作格动词）",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "bring",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "build",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "buy",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "for",
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "call",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "noun_phrase"
+    ],
+    "notes": "call him Tom",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "carry",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "catch",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "choose",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "clean",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "close",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "come",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cook",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "for",
+    "object_optional": true,
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "count",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cry",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "cut",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "dance",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "decide",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive",
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "draw",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "object_optional": true,
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "drink",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "object_optional": true,
+    "subject_restriction": "animate",
+    "object_restriction": "drinkable",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "drive",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "eat",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "object_optional": true,
+    "subject_restriction": "animate",
+    "object_restriction": "edible",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "enjoy",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund"
+    ],
+    "notes": "只接动名词：enjoy reading，*enjoy to read；宾语不可省",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "find",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "adjective"
+    ],
+    "notes": "find the book interesting",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "finish",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund"
+    ],
+    "notes": "只接动名词：finish doing",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fit",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "allows_passive": "no",
+    "notes": "The coat fits me；无被动",
+    "stative_policy": "usually_stative",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fix",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "fly",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "forget",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive",
+      "that_clause"
+    ],
+    "notes": "同 remember，to do/doing 义不同",
+    "stative_policy": "both",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "get",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVP"
+    ],
+    "copula": true,
+    "complement_types": [
+      "adjective"
+    ],
+    "allows_passive": "yes",
+    "notes": "get tired 变化（系）；get a gift 获得（及物）",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "give",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "go",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "grow",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO",
+      "SVP"
+    ],
+    "copula": true,
+    "complement_types": [
+      "adjective"
+    ],
+    "allows_passive": "yes",
+    "notes": "grow old 渐变（系）；grow rice 种植（及物）",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hate",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive"
+    ],
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hear",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "bare_infinitive",
+      "gerund"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "help",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "bare_infinitive",
+      "to_infinitive"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hit",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hold",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "both",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "hope",
+    "pos": "vt.",
+    "frames": [
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive",
+      "that_clause"
+    ],
+    "allows_passive": "no",
+    "subject_restriction": "person",
+    "notes": "*hope a gift；接名词需 hope for",
+    "stative_policy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "jump",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "keep",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "adjective",
+      "gerund"
+    ],
+    "notes": "keep the room clean / keep him waiting",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "know",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "laugh",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "learn",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "leave",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "let",
+    "pos": "vt.",
+    "frames": [
+      "SVOC"
+    ],
+    "complement_types": [
+      "bare_infinitive"
+    ],
+    "allows_passive": "no",
+    "notes": "let him go；无被动",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "like",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive"
+    ],
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "listen",
+    "pos": "vi.",
+    "frames": [
+      "SV",
+      "SV_PREP_O"
+    ],
+    "fixed_preposition": "to",
+    "subject_restriction": "animate",
+    "allows_passive": "no",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "live",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "notes": "live in 的 in 属地点状语，非固定介词补语",
+    "stative_policy": "both",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "look",
+    "pos": "vi.",
+    "frames": [
+      "SVP",
+      "SV_PREP_O"
+    ],
+    "copula": true,
+    "fixed_preposition": "at",
+    "allows_passive": "no",
+    "complement_types": [
+      "adjective"
+    ],
+    "notes": "look happy(系) / look at(短语动词) 两用法",
+    "stative_policy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "lose",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "love",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive"
+    ],
+    "stative_policy": "both",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "make",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO",
+      "SVOC"
+    ],
+    "dative_alternation": "for",
+    "complement_types": [
+      "bare_infinitive",
+      "adjective",
+      "noun_phrase"
+    ],
+    "notes": "make him cry / make him happy / make him a star",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "mean",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "that_clause"
+    ],
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "move",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "need",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive"
+    ],
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "open",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "own",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "paint",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pay",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pick",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "plan",
+    "pos": "vi. vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "play",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "prefer",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive"
+    ],
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "promise",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO",
+      "SV_COMP"
+    ],
+    "dative_alternation": "none",
+    "complement_types": [
+      "to_infinitive",
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "pull",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "push",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "put",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "notes": "必须带地点状语：put it on the desk，*put it",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "rain",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "expletive_it",
+    "allows_passive": "no",
+    "notes": "It rains. *The dog rains",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "read",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "object_optional": true,
+    "subject_restriction": "person",
+    "object_restriction": "concrete",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "remember",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive",
+      "that_clause"
+    ],
+    "notes": "remember to do 未做 / doing 已做，义不同",
+    "stative_policy": "both",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "repair",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "ride",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "run",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "save",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "say",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "see",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "bare_infinitive",
+      "gerund"
+    ],
+    "subject_restriction": "animate",
+    "notes": "see him cross(全程)/crossing(片段)",
+    "stative_policy": "both",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "seem",
+    "pos": "vi.",
+    "frames": [
+      "SVP",
+      "SV_COMP"
+    ],
+    "copula": true,
+    "allows_passive": "no",
+    "complement_types": [
+      "adjective",
+      "to_infinitive"
+    ],
+    "notes": "seem happy / seem to know",
+    "stative_policy": "usually_stative",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sell",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "send",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "share",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "shout",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "show",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sing",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sit",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "sleep",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "smell",
+    "pos": "vi. vt.",
+    "frames": [
+      "SVP",
+      "SVO"
+    ],
+    "copula": true,
+    "complement_types": [
+      "adjective"
+    ],
+    "allows_passive": "yes",
+    "stative_policy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "smile",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "snow",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "expletive_it",
+    "allows_passive": "no",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "speak",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "notes": "speak English 语言作宾语",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "spend",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "stand",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "start",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund",
+      "to_infinitive"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "stay",
+    "pos": "vi.",
+    "frames": [
+      "SV",
+      "SVP"
+    ],
+    "copula": true,
+    "complement_types": [
+      "adjective"
+    ],
+    "allows_passive": "no",
+    "stative_policy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "stop",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "gerund"
+    ],
+    "notes": "stop doing 停止做；stop to do 的 to do 是目的状语不是补语",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "study",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "swim",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "take",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "talk",
+    "pos": "vi.",
+    "frames": [
+      "SV",
+      "SV_PREP_O"
+    ],
+    "fixed_preposition": "to",
+    "subject_restriction": "person",
+    "allows_passive": "no",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "taste",
+    "pos": "vi. vt.",
+    "frames": [
+      "SVP",
+      "SVO"
+    ],
+    "copula": true,
+    "complement_types": [
+      "adjective"
+    ],
+    "allows_passive": "yes",
+    "stative_policy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "teach",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "dative_alternation": "to",
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "tell",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO",
+      "SVOC"
+    ],
+    "dative_alternation": "to",
+    "complement_types": [
+      "to_infinitive",
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "notes": "tell him a story(双宾) / tell him to go(宾补)",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "think",
+    "pos": "vi. vt.",
+    "frames": [
+      "SV",
+      "SV_COMP",
+      "SV_PREP_O"
+    ],
+    "complement_types": [
+      "that_clause"
+    ],
+    "fixed_preposition": "about",
+    "subject_restriction": "person",
+    "allows_passive": "no",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "throw",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "travel",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "try",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive",
+      "gerund"
+    ],
+    "notes": "try to do 设法 / try doing 尝试，义不同",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "turn",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV",
+      "SVP"
+    ],
+    "copula": true,
+    "complement_types": [
+      "adjective"
+    ],
+    "allows_passive": "yes",
+    "notes": "turn red 变得（系）；turn the key 转动（及物）",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "understand",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "use",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "visit",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wait",
+    "pos": "vi.",
+    "frames": [
+      "SV",
+      "SV_PREP_O"
+    ],
+    "fixed_preposition": "for",
+    "allows_passive": "no",
+    "stative_policy": "dynamic",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "walk",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "want",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC",
+      "SV_COMP"
+    ],
+    "complement_types": [
+      "to_infinitive"
+    ],
+    "notes": "want a car / want him to go / want to go",
+    "stative_policy": "usually_stative",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wash",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "object_optional": true,
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "watch",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOC"
+    ],
+    "complement_types": [
+      "bare_infinitive",
+      "gerund"
+    ],
+    "subject_restriction": "animate",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wear",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "subject_restriction": "person",
+    "object_restriction": "concrete",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "win",
+    "pos": "vt.",
+    "frames": [
+      "SVO"
+    ],
+    "object_optional": true,
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "wish",
+    "pos": "vt.",
+    "frames": [
+      "SVOO",
+      "SV_COMP"
+    ],
+    "dative_alternation": "none",
+    "complement_types": [
+      "to_infinitive",
+      "that_clause"
+    ],
+    "subject_restriction": "person",
+    "allows_passive": "no",
+    "notes": "wish you luck(双宾) / wish to go(补语)；*wish a car",
+    "stative_policy": "both",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "work",
+    "pos": "vi.",
+    "frames": [
+      "SV"
+    ],
+    "notes": "人工作/机器运转均可",
+    "stative_policy": "dynamic",
+    "allows_passive": "no",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "write",
+    "pos": "vt.",
+    "frames": [
+      "SVO",
+      "SVOO"
+    ],
+    "object_optional": true,
+    "dative_alternation": "to",
+    "subject_restriction": "person",
+    "stative_policy": "dynamic",
+    "allows_passive": "yes",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  }
+]

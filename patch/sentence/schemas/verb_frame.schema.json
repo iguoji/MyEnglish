@@ -10,13 +10,13 @@
     "required": ["spelling", "pos", "frames", "allows_passive", "stative_policy", "provenance"],
     "properties": {
       "spelling": { "type": "string", "pattern": "^[a-z][a-z' -]*$" },
-      "pos": { "enum": ["v.", "vt.", "vi.", "vi. vt."] },
+      "pos": { "enum": ["v.", "vt.", "vi.", "vi. vt.", "vlink."] },
       "usage_id": { "type": "string" },
       "frames": {
         "type": "array",
         "minItems": 1,
         "uniqueItems": true,
-        "items": { "enum": ["SV", "SVP", "SVO", "SVOO", "SVOC", "SV_PREP_O", "unknown"] }
+        "items": { "enum": ["SV", "SVP", "SVO", "SVOO", "SVOC", "SV_PREP_O", "SV_COMP", "unknown"] }
       },
       "object_optional": { "type": "boolean", "description": "SVO 动词能否省略宾语退化为 SV（eat 可以，enjoy 不行）" },
       "allows_passive": { "enum": ["yes", "no", "unknown"] },
@@ -28,7 +28,7 @@
         "items": { "enum": ["to_infinitive", "gerund", "bare_infinitive", "adjective", "noun_phrase", "past_participle", "that_clause"] },
         "description": "SVOC/宾语补语或动词补语类型：want→to_infinitive，enjoy→gerund，make(使役)→bare_infinitive/adjective"
       },
-      "subject_restriction": { "enum": ["person", "animate", "any", "unknown"] },
+      "subject_restriction": { "enum": ["person", "animate", "any", "expletive_it", "unknown"], "description": "expletive_it=天气类动词只能用虚主语 it（It rains / *The dog rains）" },
       "object_restriction": { "enum": ["person", "animate", "edible", "drinkable", "concrete", "any", "unknown"] },
       "stative_policy": { "enum": ["usually_stative", "dynamic", "both", "unknown"], "description": "usually_stative 通常不进进行时" },
       "copula": { "type": "boolean", "description": "true=系动词（SVP 用），如 be/become/look" },

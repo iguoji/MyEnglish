@@ -26,7 +26,7 @@
           "additionalProperties": false,
           "required": ["type"],
           "properties": {
-            "type": { "enum": ["prep_of", "prep_in", "prep_at", "prep_with", "prep_for", "prep_about", "to_infinitive", "that_clause"] },
+            "type": { "enum": ["prep_of", "prep_in", "prep_at", "prep_with", "prep_for", "prep_about", "prep_from", "prep_to", "to_infinitive", "that_clause"] },
             "example": { "type": "string" }
           }
         },

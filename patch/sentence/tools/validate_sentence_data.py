@@ -88,10 +88,11 @@ DATA_SCHEMA_MAP = [
     ('paradigms/auxiliaries.json',    'auxiliary_paradigm.schema.json', False),
     ('paradigms/determiner_rules.json', 'determiner_rules.schema.json', False),
     ('lexicon/article_phonetics.json', 'article_phonetics.schema.json', False),
-    ('lexicon/noun_usage.json',       'noun_usage.schema.json',         True),
-    ('lexicon/verb_frames.json',      'verb_frame.schema.json',         True),
-    ('lexicon/adjective_usage.json',  'adjective_usage.schema.json',    True),
-    ('lexicon/adverb_usage.json',     'adverb_usage.schema.json',       True),
+    # lexicon 四表的 Schema 顶层同样是 type:array（描述整个文件）→ 整体校验
+    ('lexicon/noun_usage.json',       'noun_usage.schema.json',         False),
+    ('lexicon/verb_frames.json',      'verb_frame.schema.json',         False),
+    ('lexicon/adjective_usage.json',  'adjective_usage.schema.json',    False),
+    ('lexicon/adverb_usage.json',     'adverb_usage.schema.json',       False),
     ('formulas/*.json',               'formula.schema.json',            True),
     ('formulas/compatibility_matrix.json', 'compatibility_matrix.schema.json', False),
     ('tests/golden.json',             'golden_test.schema.json',        False),
@@ -189,6 +190,16 @@ def main():
     policy_word_kinds = {}       # 检查 6：spelling -> {policy_kind} 用于跨表冲突
     stats = {}                   # 检查 9：覆盖率统计
 
+    # 预加载策略表 {policy_kind: {拼写: policy}}：供 lexicon 交叉一致性检查使用
+    # （不依赖主循环遍历顺序，主循环里 annotations 的其他检查照旧执行）
+    annotation_entries = {}
+    for ap in sorted(glob.glob(os.path.join(SENT_DIR, 'annotations', '*.json'))):
+        adata, aok = load_json_strict(ap)
+        if aok and isinstance(adata, dict) and 'policy_kind' in adata:
+            annotation_entries[adata['policy_kind']] = {
+                sp.lower(): info.get('policy')
+                for sp, info in adata.get('entries', {}).items()}
+
     # ---- 逐个数据文件：Schema + 枚举 + 词存在性 ----
     for pattern, schema_name, item_level in DATA_SCHEMA_MAP:
         paths = sorted(glob.glob(os.path.join(SENT_DIR, pattern)))
@@ -238,6 +249,41 @@ def main():
                 stats[rel] = {'entries': len(entries), 'unknown': n_unknown,
                               'in_system': n_in_system}
 
+            # ---- lexicon 专属：条目统计 + 覆盖率 + 与 annotations 交叉一致性 ----
+            # lexicon 与 annotations 同属"外部语法知识"，允许收录基线外高频词，
+            # 因此"不在系统词库"只统计不报错；但同一拼写在 lexicon 与 annotations
+            # 出现判定矛盾（如 lexicon 说 mass、annotations 说 plural_only）是致命错误。
+            if pattern.startswith('lexicon/') and isinstance(data, list) \
+                    and os.path.basename(path) != 'article_phonetics.json':
+                n_unknown = 0
+                n_in_system = 0
+                # 每张 lexicon 表要与哪张策略表交叉核对：文件名 -> (字段名, 策略字典名)
+                cross_map = {
+                    'noun_usage.json': ('number_behavior', 'number_behavior'),
+                    'verb_frames.json': ('stative_policy', 'stative'),
+                    'adjective_usage.json': ('gradability', 'gradability'),
+                }
+                cross_field, cross_kind = cross_map.get(
+                    os.path.basename(path), (None, None))
+                for item in data:
+                    if not isinstance(item, dict):
+                        continue
+                    sp = (item.get('spelling') or '').lower()
+                    # unknown 统计：任何值为 'unknown' 的字段都计入
+                    n_unknown += sum(1 for v in item.values() if v == 'unknown')
+                    if sp in system_forms:
+                        n_in_system += 1
+                    # 交叉一致性：lexicon 的判定必须与 annotations 策略表一致
+                    if cross_field and sp in annotation_entries.get(cross_kind, {}):
+                        ann_pol = annotation_entries[cross_kind][sp]
+                        lex_val = item.get(cross_field)
+                        # 允许 lexicon 显式覆盖的白名单：be 系动词的 stative
+                        if lex_val and lex_val != ann_pol and sp != 'be':
+                            err(f"{rel}: '{sp}' 的 {cross_field}='{lex_val}' 与 "
+                                f"annotations 策略 '{ann_pol}' 矛盾")
+                stats[rel] = {'entries': len(data), 'unknown': n_unknown,
+                              'in_system': n_in_system}
+
             # ---- paradigms 专属：拼写字段存在性（范式词本身属封闭类，必须在系统词库）----
             if pattern.startswith('paradigms/') and isinstance(data, list):
                 miss = []
@@ -265,7 +311,9 @@ def main():
         print(f"  {rel}: {s['entries']} 条{extra}")
     print(f"\nunknown 总数: {unknown_count}")
 
-    # ---- 汇总 ----
+    # ---- 汇总（同一文件被预加载与主循环各读一次，错误需按原顺序去重）----
+    ERRORS[:] = list(dict.fromkeys(ERRORS))
+    WARNINGS[:] = list(dict.fromkeys(WARNINGS))
     if WARNINGS:
         print(f"\n== 警告 {len(WARNINGS)} 条 ==")
         for w in WARNINGS:
