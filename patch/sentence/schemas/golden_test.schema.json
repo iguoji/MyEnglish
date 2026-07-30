@@ -7,11 +7,11 @@
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["test_id", "rule", "golden", "forbidden", "formula_id", "depends_on"],
+    "required": ["test_id", "rule", "golden", "forbidden", "formula_id"],
     "properties": {
       "test_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
       "rule": { "type": "string", "description": "被验证的语法规则，如 主谓一致-三单" },
-      "golden": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "应能生成的正确句" },
+      "golden": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "应能生成的正确句（人工核验的文档级黄金句）" },
       "forbidden": {
         "type": "array",
         "minItems": 1,
@@ -29,7 +29,43 @@
       "depends_on": {
         "type": "array",
         "items": { "type": "string" },
-        "description": "依赖的词汇规则条目，格式 lexicon_file:spelling+pos，如 noun_usage:water+n."
+        "description": "依赖的词汇规则条目，格式 lexicon_file:spelling+pos，如 noun_usage:water+n.。可选；无法映射到单一词条的规则（如 be 变位依赖 paradigms）可省略。"
+      },
+      "exec": {
+        "type": "array",
+        "description": "可由生成器直接执行并逐字比对的黄金句（executable golden）。测试时读取本字段驱动 generate()，expect 须与输出逐字一致。",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pattern", "tense", "polarity", "question", "expect"],
+          "properties": {
+            "pattern": { "type": "string", "description": "句式，如 SV / SVO / SVP / THERE_BE" },
+            "tense": { "type": "string", "description": "时态，如 present_simple / past_continuous" },
+            "polarity": { "type": "string", "enum": ["affirmative", "negative"], "description": "肯定 / 否定" },
+            "question": { "type": "string", "enum": ["none", "yes_no"], "description": "是否疑问句" },
+            "expect": { "type": "string", "description": "期望生成结果，须与 generate() 输出逐字一致" },
+            "choice": { "type": "object", "description": "注入给 generate() 的 choice 覆盖参数（subject/object/verb/predicative…）" },
+            "note": { "type": "string", "description": "可选备注" }
+          }
+        }
+      },
+      "exec_forbidden": {
+        "type": "array",
+        "description": "生成器必须拒绝（返回带 expect_reject 诊断码）的非法组合。测试时读取本字段驱动 generate()，须以对应诊断码拒绝才算通过。",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pattern", "tense", "polarity", "question", "expect_reject"],
+          "properties": {
+            "pattern": { "type": "string" },
+            "tense": { "type": "string" },
+            "polarity": { "type": "string", "enum": ["affirmative", "negative"] },
+            "question": { "type": "string", "enum": ["none", "yes_no"] },
+            "expect_reject": { "type": "string", "description": "期望的拒绝诊断码，如 stative_in_continuous / forbid_there_be_continuous" },
+            "choice": { "type": "object" },
+            "note": { "type": "string" }
+          }
+        }
       }
     }
   }

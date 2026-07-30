@@ -93,6 +93,8 @@ DATA_SCHEMA_MAP = [
     ('lexicon/verb_frames.json',      'verb_frame.schema.json',         False),
     ('lexicon/adjective_usage.json',  'adjective_usage.schema.json',    False),
     ('lexicon/adverb_usage.json',     'adverb_usage.schema.json',       False),
+    # 搭配层（P1-4 新增，独立文件）
+    ('lexicon/collocations.json',      'collocations.schema.json',        False),
     # 公式 Schema 顶层同样是 type:array → 整体校验
     ('formulas/*.json',               'formula.schema.json',            False),
     ('formulas/compatibility_matrix.json', 'compatibility_matrix.schema.json', False),
