@@ -815,8 +815,9 @@ class WordsDatabase(context: Context) :
      * 2. **无论任何情况都更新单词的 reviewed_at**（最近复习时间）。
      * 3. 难度调整：
      *    - 本次错误（isCorrect = false，即中途选错过）→ 难度 +1；
-     *    - 本次正确 → 取该词最近 5 条记录（含本次）判断，若 5 条全部正确则难度 -1，
-     *      否则不动。历史不足 4 条时凑不满 5 条，同样不动。
+     *    - 本次正确 → 从本次向前数「连续完美（无错）」的记录条数，再把本次计入总数。
+     *      只有「连续完美总数 > 1 且为 5 的倍数」时才难度 -1（即第 5、10、15…次连续正确才降），
+     *      其余情况不动。遇到一次有错误的记录即终止计数，链条被错误打断就不再累加。
      *    - 难度有下限 0（words 表的 CHECK 约束不允许负数）。
      */
     fun addDictationRecord(
@@ -839,12 +840,16 @@ class WordsDatabase(context: Context) :
                 // 本次默写出过错：难度 +1，下次会更早被安排复习。
                 newDiff = curDiff + 1
             } else {
-                // 本次正确：往前数最近 4 条历史记录（不含本次），必须"够 4 条且全对"。
-                // 加上本次这条，正好构成"最近 5 条连续全部正确"。
-                val priorCorrect = countRecentCorrectRecords(db, wordId, 4)
+                // 本次正确：先数「本次之前」连续完美的历史条数（查询时本次记录尚未插入，天然不含本次）。
+                // 遇到第一条有错误的记录立即停止，链条被错误打断就只统计到错误为止。
+                val priorPerfect = countConsecutivePerfect(db, wordId)
+                // 把本次（必然完美）计入总数，得到「连续完美总数」。
+                val streak = priorPerfect + 1
+                // 仅当「连续完美总数 > 1 且为 5 的倍数」（第 5、10、15…次）才降难度：
+                // 修正旧逻辑每次都只数最近 4 条历史，导致第 6 次正确仍误判为"连续 5 条"而重复减 1。
                 // coerceAtLeast(0) 相当于 PHP 的 max(0, $x)：难度不允许降到负数，
                 // 否则会撞上 words 表 difficulty >= 0 的 CHECK 约束导致整个事务回滚。
-                if (priorCorrect >= 4) newDiff = (curDiff - 1).coerceAtLeast(0)
+                if (streak > 1 && streak % 5 == 0) newDiff = (curDiff - 1).coerceAtLeast(0)
             }
             // 插入本次记录（不再判断今天是否已有）。
             val now = System.currentTimeMillis()
@@ -897,23 +902,25 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 从最新一条往前数，该单词**连续正确**的历史记录条数，最多数 [limit] 条。
+     * 统计「本次之前」该单词**连续完美**（无错）的历史记录条数。
+     *
+     * 调用方在插入「本次记录」之前调用本函数，因此按 id 倒序取到的记录全是本次之前的，
+     * 天然不含本次；是否再降难度由调用方把本次累加后用「总数 > 1 且为 5 的倍数」判断。
      *
      * 注意这里按"记录条"而不是"天"统计：一天内多次默写会产生多条记录，每条都算数。
-     * 按 id 倒序（等价于写入顺序倒序）取最近 [limit] 条，遇到第一条错误立即停止——
-     * "最近 5 条全部正确"要求连续，中间任何一条错误都会打断链条。
+     * 按 id 倒序（等价于写入顺序倒序）从最新往前数，遇到第一条错误立即停止——
+     * 连续链条一旦被错误打断，更久以前的正确记录不再计入。
      *
-     * 返回值小于 [limit] 有两种情况：历史记录本来就不够，或中途被错误打断。
-     * 两种情况都不满足"最近 5 条全对"，调用方一律不降难度。
+     * 查询不加 LIMIT：必须数到第一条错误才停，截断会漏掉打断点导致计数偏多、
+     * 进而误判"又是 5 的倍数"重复减难度。由于遇到错误即停，正常数据量下返回不会很大。
      */
-    private fun countRecentCorrectRecords(
+    private fun countConsecutivePerfect(
         db: SQLiteDatabase,
         wordId: Long,
-        limit: Int,
     ): Int {
-        // 统计连续正确的记录条数。
+        // 本次之前连续完美的条数。
         var count = 0
-        // 查该词最近的 limit 条历史记录（本次尚未插入，因此天然不含本次）。
+        // 查该词全部历史记录，按 id 倒序（最新在前），由下方循环在遇到错误时打断。
         db.query(
             "record",
             arrayOf("is_correct"),
@@ -922,7 +929,6 @@ class WordsDatabase(context: Context) :
             null, null,
             // 自增主键倒序 = 写入时间倒序，比 created_at 更稳（同毫秒也不会乱序）。
             "id DESC",
-            limit.toString(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 // 这一条是否正确（原生用 1/0 存布尔）。
@@ -935,7 +941,7 @@ class WordsDatabase(context: Context) :
                 }
             }
         }
-        // 返回连续正确条数（封顶 limit）。
+        // 返回本次之前的连续完美条数（不含本次）。
         return count
     }
 
