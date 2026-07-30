@@ -1,26 +1,54 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "collocations",
+  "description": "动宾搭配层。标签枚举必须与本文件 definitions.semantic_tag 一致；键（动词/名词拼写）的跨文件存在性由 validate_sentence_data.py 做引用完整性校验（JSON Schema 无法跨文件查表）。",
   "type": "object",
+  "definitions": {
+    "semantic_tag": {
+      "description": "允许的语义标签闭集。前 8 个与 noun_usage.semantic_category 对齐，后 2 个是搭配层自有的细分标签（noun_tags 里显式登记）。新增标签必须先改本枚举，拼错立即报错。",
+      "type": "string",
+      "enum": [
+        "abstract",
+        "animal",
+        "drink",
+        "food",
+        "object",
+        "person",
+        "place",
+        "time",
+        "readable",
+        "question"
+      ]
+    },
+    "tag_list": {
+      "description": "标签数组：至少一个、不得重复、只能取枚举内的值。",
+      "type": "array",
+      "items": { "$ref": "#/definitions/semantic_tag" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "lemma_key": {
+      "description": "词条键：只允许小写字母与连字符，杜绝空串/大小写混用/带空格的脏键。",
+      "type": "string",
+      "pattern": "^[a-z][a-z-]*$"
+    }
+  },
   "properties": {
     "_comment": { "type": "string" },
     "verb_restrictions": {
       "type": "object",
-      "description": "动词 -> 允许的宾语语义标签列表",
-      "additionalProperties": {
-        "type": "array",
-        "items": { "type": "string" }
-      }
+      "description": "动词 -> 允许的宾语语义标签列表（动词须在 verb_frames.json 登记）",
+      "propertyNames": { "$ref": "#/definitions/lemma_key" },
+      "additionalProperties": { "$ref": "#/definitions/tag_list" },
+      "minProperties": 1
     },
     "noun_tags": {
       "type": "object",
-      "description": "名词 -> 额外搭配标签（语义类别仍复用 noun_usage.semantic_category）",
-      "additionalProperties": {
-        "type": "array",
-        "items": { "type": "string" }
-      }
+      "description": "名词 -> 额外搭配标签（名词须在 noun_usage.json 登记；语义类别仍复用 noun_usage.semantic_category）",
+      "propertyNames": { "$ref": "#/definitions/lemma_key" },
+      "additionalProperties": { "$ref": "#/definitions/tag_list" }
     }
   },
   "required": ["verb_restrictions"],
-  "additionalProperties": true
+  "additionalProperties": false
 }

@@ -63,6 +63,19 @@
           "verb": "snow"
         }
       }
+    ],
+    "exec_forbidden": [
+      {
+        "expect_reject": "subject_restriction_unmet",
+        "pattern": "SV",
+        "tense": "present_simple",
+        "polarity": "affirmative",
+        "question": "none",
+        "choice": {
+          "verb": "rain",
+          "subject": "dog"
+        }
+      }
     ]
   },
   {
@@ -144,6 +157,20 @@
           "verb": "eat",
           "subject": "she",
           "object": "apple"
+        }
+      }
+    ],
+    "exec_forbidden": [
+      {
+        "expect_reject": "object_restriction_unmet",
+        "pattern": "SVO",
+        "tense": "present_simple",
+        "polarity": "affirmative",
+        "question": "none",
+        "choice": {
+          "verb": "eat",
+          "subject": "she",
+          "object": "desk"
         }
       }
     ]
@@ -1439,6 +1466,77 @@
           "verb": "eat",
           "subject": "they",
           "object": "apple"
+        }
+      }
+    ]
+  },
+  {
+    "test_id": "svo_object_restriction_demo",
+    "rule": "SVO 宾语必须匹配动词语义限制：read→readable、ask→person/question。通过 choice 强行指定错搭（read+deer / ask+market）必须被 object_restriction_unmet 拒绝。",
+    "golden": [
+      "He reads a letter.",
+      "She asks a teacher."
+    ],
+    "forbidden": [
+      {
+        "sentence": "He reads a deer.",
+        "reason": "object_restriction_unmet"
+      },
+      {
+        "sentence": "She asks a market.",
+        "reason": "object_restriction_unmet"
+      }
+    ],
+    "formula_id": "svo_basic",
+    "exec": [
+      {
+        "expect": "He reads a letter.",
+        "pattern": "SVO",
+        "tense": "present_simple",
+        "polarity": "affirmative",
+        "question": "none",
+        "choice": {
+          "verb": "read",
+          "subject": "he",
+          "object": "letter"
+        }
+      },
+      {
+        "expect": "She asks a teacher.",
+        "pattern": "SVO",
+        "tense": "present_simple",
+        "polarity": "affirmative",
+        "question": "none",
+        "choice": {
+          "verb": "ask",
+          "subject": "she",
+          "object": "teacher"
+        }
+      }
+    ],
+    "exec_forbidden": [
+      {
+        "expect_reject": "object_restriction_unmet",
+        "pattern": "SVO",
+        "tense": "present_simple",
+        "polarity": "affirmative",
+        "question": "none",
+        "choice": {
+          "verb": "read",
+          "subject": "he",
+          "object": "deer"
+        }
+      },
+      {
+        "expect_reject": "object_restriction_unmet",
+        "pattern": "SVO",
+        "tense": "present_simple",
+        "polarity": "affirmative",
+        "question": "none",
+        "choice": {
+          "verb": "ask",
+          "subject": "she",
+          "object": "market"
         }
       }
     ]

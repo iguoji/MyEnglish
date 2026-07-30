@@ -312,9 +312,12 @@ def _object_ok(usage, verb):
     """宾语搭配过滤（P1-4 搭配层）：
 
     - 动词未在 collocations.verb_restrictions 登记 → 保守返回 False（禁止随机拼接）
-    - 名词命中动词允许的任一语义标签即通过：
-      标签既可与 noun_usage.semantic_category 相等（food/drink/person/place/object…），
+    - 名词命中动词允许的任一【具体】语义标签即通过：
+      标签既可与 noun_usage.semantic_category 相等（food/drink/person/place…），
       也可命中 noun_tags 里的细标签（如 readable）
+    - 通用兜底标签 'object' 不参与精确匹配：它语义为空（几乎所有名词都是 object），
+      留着只会让 taste+chair / help+computer / move+pants 这类错搭放行。
+      因此仅当动词有限制性标签时才算“可靠限制”，详见 _is_demo_safe_verb。
     """
     tags = K.verb_restr.get(verb)
     if not tags:
@@ -322,11 +325,23 @@ def _object_ok(usage, verb):
     cat = usage.get('semantic_category')
     ntags = K.noun_tags.get(usage['spelling'], [])
     for t in tags:
-        if t == cat:
-            return True
-        if t in ntags:
+        if t == 'object':           # 通用兜底标签，跳过
+            continue
+        if t == cat or t in ntags:
             return True
     return False
+
+
+def _is_demo_safe_verb(verb):
+    """动词是否有‘可靠（非通用兜底）’的宾语限制。
+
+    仅含 ['object'] 的动词（play/sing/help/move/…）限制力为空，
+    不该进入随机演示池——否则会造出 play a pencil / help a computer。
+    这类动词仍可通过 choice 显式指定宾语，但会被 object_restriction_unmet 拒绝。"""
+    tags = K.verb_restr.get(verb)
+    if not tags:
+        return False
+    return any(t != 'object' for t in tags)
 
 
 def _generate(pattern, tense, polarity, question, choice=None, full=False):
@@ -360,19 +375,29 @@ def _generate(pattern, tense, polarity, question, choice=None, full=False):
         return (sent, info) if full else sent
 
     # 第 3 步：动词候选（按框架 + 静态×进行时预筛 + 搭配层登记）
+    # frame_cands：仅按“句型框架”判定，用于 choice 的 verb_frame_unmet 校验
+    #             （与进行时/搭配预筛解耦，避免 know（静态动词）在进行时里被误判为 verb_frame_unmet）
     need_frame = {'SV': 'SV', 'SVP': 'SVP', 'SVO': 'SVO'}[pattern]
-    cands = [v for v, f in K.verb_frames.items() if need_frame in f['frames']]
+    frame_cands = [v for v, f in K.verb_frames.items() if need_frame in f['frames']]
     if pattern == 'SVP':
-        cands = [v for v in cands if K.verb_frames[v].get('copula')]
+        frame_cands = [v for v in frame_cands if K.verb_frames[v].get('copula')]
+    # cands：随机候选池，再叠加 静态×进行时 / 搭配登记 / 具体标签 预筛
+    cands = list(frame_cands)
     if tense in ('present_continuous', 'past_continuous'):
         cands = [v for v in cands
                  if K.verb_frames[v]['stative_policy'] != 'usually_stative']
     # P1-4：SVO 仅从已登记搭配规则的动词中随机选取，未登记者保守排除
     if pattern == 'SVO':
         cands = [v for v in cands if v in K.verb_restr]
+        # 随机池再收窄：仅保留“有具体语义标签”的动词（排除仅靠通用 'object' 兜底的），
+        # 否则随机会造出 play a pencil / help a computer / move pants 之类错搭
+        cands = [v for v in cands if _is_demo_safe_verb(v)]
     if not cands:
         raise Reject('no_candidate_verb')
     verb = rng.get('verb') or pick(sorted(cands))
+    # P0 修复：choice 指定的动词必须真的落在当前句型框架候选里（与进行时/搭配预筛无关），否则拒绝对齐框架
+    if rng.get('verb') and verb not in frame_cands:
+        raise Reject('verb_frame_unmet')
     vf = K.verb_frames[verb]
     info['verb'] = verb
     info['is_be'] = (verb == 'be')
@@ -380,18 +405,31 @@ def _generate(pattern, tense, polarity, question, choice=None, full=False):
     # 第 4 步：主语构造（满足 subject_restriction）
     restriction = vf.get('subject_restriction', 'any')
     if restriction == 'expletive_it':
+        # 虚主语动词（rain/snow）主语恒为 it；若通过 choice 强行指定其它主语（如 dog），
+        # 必须拒绝，不能静默改回 it（否则禁止句 dog rains 永远测不到）
+        if rng.get('subject') is not None and rng.get('subject') != 'it':
+            raise Reject('subject_restriction_unmet')
         subj_lemma = 'it'
     else:
+        # 主语池按 subject_restriction 分级（越往下越宽）：
+        #   person  = 只能是人：I/you/he/she/we/they（排除 it，it 不指人）
+        #   animate = 有生命即可：person ∪ {it}（it 可指动物，"It is eating an apple." 合法）
+        #             注意 animate 必须是 person 的超集，早前写成 [he,she,they] 比 person 还窄，属数据 bug
+        #   any     = 无限制
         pool = {'person': ['I', 'you', 'he', 'she', 'we', 'they'],
-                'animate': ['he', 'she', 'they'],
+                'animate': ['I', 'you', 'he', 'she', 'it', 'we', 'they'],
                 'any': ['I', 'you', 'he', 'she', 'it', 'we', 'they'],
                 'unknown': None}[restriction if restriction in
                                  ('person', 'animate', 'any') else 'unknown']
         if pool is None:
             raise Reject('subject_restriction_unknown')
         subj_lemma = rng.get('subject') or pick(pool)
-        if restriction == 'expletive_it' and subj_lemma != 'it':
+        # P0 修复：choice 指定的主语必须符合该动词的主语限制，否则拒绝
+        if rng.get('subject') and subj_lemma not in pool:
             raise Reject('subject_restriction_unmet')
+    # 虚主语动词（rain/snow）若被强行指定非 it 主语，同样拒绝
+    if restriction == 'expletive_it' and subj_lemma != 'it':
+        raise Reject('subject_restriction_unmet')
     person, number, subj_text = _person_number_of_subject('pronoun', subj_lemma)
     info['subject'] = subj_lemma
     info['person'] = person
@@ -410,6 +448,9 @@ def _generate(pattern, tense, polarity, question, choice=None, full=False):
         if not pool:
             raise Reject('no_candidate_object')
         obj = rng.get('object') or pick(sorted(pool))
+        # P0 修复：choice 指定的宾语必须落在搭配过滤后的宾语池，否则拒绝（eat+desk / read+deer 等）
+        if rng.get('object') and obj not in pool:
+            raise Reject('object_restriction_unmet')
         np_text, _ = build_np(obj, number='singular', definite=False)
         u = K.noun_usage[obj]
         info['object_noun'] = obj
@@ -418,6 +459,9 @@ def _generate(pattern, tense, polarity, question, choice=None, full=False):
     elif pattern == 'SVP':
         pool = [a for a, u in K.adj_usage.items() if u['predicative'] == 'yes']
         adj = rng.get('predicative') or pick(sorted(pool))
+        # P0 修复：choice 指定的表语必须真的可作表语（在形容词表语池里），否则拒绝
+        if rng.get('predicative') and adj not in pool:
+            raise Reject('predicative_not_allowed')
         tail = [adj]
 
     # 第 9 步：表层
@@ -452,7 +496,12 @@ def gen_there_be(tense, polarity, question, rng, full=False):
     pool = [n for n, u in K.noun_usage.items()
             if u['number_behavior'] in ('regular', 'mass', 'invariant', 'plural_only')]
     noun = rng.get('noun') or pick(sorted(pool))
+    # P0 修复：choice 指定的存在句名词必须落在合法存在名词池
+    if rng.get('noun') and noun not in pool:
+        raise Reject('there_be_noun_unmet')
     number = rng.get('np_number') or pick(['singular', 'plural'])
+    if rng.get('np_number') and number not in ('singular', 'plural'):
+        raise Reject('there_be_number_unmet')
     u = K.noun_usage[noun]
     if u['number_behavior'] == 'mass':
         number = 'singular'
@@ -481,13 +530,17 @@ def gen_there_be(tense, polarity, question, rng, full=False):
     else:
         raise Reject('tense_not_supported')
 
-    # 地点状语（可选槽）：只用登记了 location_preposition 的地点名词
+    # 地点状语（可选槽）：判定依据是"有没有登记 location_preposition"，
+    # 而不是 semantic_category 是否为 place —— desk/table/chair/box/bag 属 object 类，
+    # 但都登记了 on/in，"There is a book on the desk." 完全合法，不能被类别过滤误杀。
     loc = ''
     loc_pool = [n for n, uu in K.noun_usage.items()
-                if uu.get('semantic_category') == 'place'
-                and uu.get('location_preposition')]
+                if uu.get('location_preposition')]
     if loc_pool and (rng.get('with_location', True)):
         ln = rng.get('location') or pick(sorted(loc_pool))
+        # P0 修复：choice 指定地点必须符合地点介词规则池
+        if rng.get('location') and ln not in loc_pool:
+            raise Reject('there_be_location_unmet')
         loc = ' ' + K.noun_usage[ln]['location_preposition'] + ' the ' + ln
         # 语义自然度启发式：抽象名词（如 health/idea）配地点状语不自然
         if u.get('semantic_category') == 'abstract':
@@ -509,21 +562,185 @@ def gen_there_be(tense, polarity, question, rng, full=False):
 # ---------------------------------------------------------------------------
 # 语法 / 搭配 / 语义 三层校验（供 matrix 使用）
 # ---------------------------------------------------------------------------
-# be 主谓一致守门正则：直接抓 "Am you / Is we / Was they / Are I ..." 这类错配
-_BAD_BE = re.compile(
-    r'^(Am|Is|Was)\s+(you|we|they)\b|^(Are|Were)\s+(I|he|she|it)\b')
+# ---------------------------------------------------------------------------
+# 语法校验（供 matrix / self-test 使用）
+# ---------------------------------------------------------------------------
+# 完整 be 变位表：校验器自带，独立于生成器 be_form() 的实现，
+# 专门防“两边一起写错仍 PASS”。覆盖全部 (tense_key, person, number)。
+BE_TABLE = {
+    ('present', 1, 'singular'): 'am', ('present', 2, 'singular'): 'are',
+    ('present', 3, 'singular'): 'is',  ('present', 1, 'plural'): 'are',
+    ('present', 2, 'plural'): 'are',   ('present', 3, 'plural'): 'are',
+    ('past', 1, 'singular'): 'was',   ('past', 2, 'singular'): 'were',
+    ('past', 3, 'singular'): 'was',   ('past', 1, 'plural'): 'were',
+    ('past', 2, 'plural'): 'were',     ('past', 3, 'plural'): 'were',
+}
+_BE_WORDS = {'am', 'is', 'are', 'was', 'were'}
+
+
+def _clean_tokens(sent):
+    """去标点后分词。"""
+    return sent.replace('?', '').replace('.', '').split()
+
+
+def _subject_of(sent, question='none'):
+    """从句子取主语代词文本（存在句 There 返回 None）。
+
+    陈述句主语在首词；一般疑问句（be/do 提前）主语在第二个词。
+    大小写归一（'I' 在 JSON 里是大写lemma）。"""
+    toks = _clean_tokens(sent)
+    if not toks:
+        return None
+    if question == 'yes_no':
+        cand = toks[1].lower() if len(toks) > 1 else toks[0].lower()
+    else:
+        cand = toks[0].lower()
+    if cand == 'there':
+        return None
+    return cand
+
+
+def _aux_be_of(sent, question):
+    """取与主语一致的 be 形：疑问取首词；陈述取主语后第一个 be 词。"""
+    toks = _clean_tokens(sent)
+    if question == 'yes_no':
+        return toks[0].lower() if toks and toks[0].lower() in _BE_WORDS else None
+    for w in toks[1:]:
+        if w.lower() in _BE_WORDS:
+            return w.lower()
+    return None
+
+
+def _tense_key(tense):
+    if tense in ('present_simple', 'present_continuous'):
+        return 'present'
+    if tense in ('past_simple', 'past_continuous'):
+        return 'past'
+    return None
+
+
+_PLURAL_INDEX = None       # 复数形 -> 原形 的反查表，懒加载一次
+
+
+def _plural_index():
+    """建立"复数拼写 -> 单数原形"反查表，供检查器从句子文本独立判断名词数。
+    只建一次，避免在校验热循环里反复遍历词表。"""
+    global _PLURAL_INDEX
+    if _PLURAL_INDEX is None:
+        idx = {}
+        for n in K.noun_usage:
+            pl = K.noun_plural(n)
+            if pl:
+                idx[pl] = n
+        _PLURAL_INDEX = idx
+    return _PLURAL_INDEX
+
+
+# 存在句 be/助动词的数标记：单数一列、复数一列（will be 不区分数，忽略）
+_THERE_SG = {'is', 'was', 'has'}
+_THERE_PL = {'are', 'were', 'have'}
+
+
+def _there_be_agreement_issue(sent):
+    """存在句 There be 的"就近一致"独立校验。
+
+    完全从句子文本推断，不看生成器的 info：
+      1) 确认是存在句（there 在陈述句首词或疑问句第二词）
+      2) 取第一个数标记（is/was/has = 单数；are/were/have = 复数；will 跳过）
+      3) 向后找第一个能在名词表命中的词（就近原则 = 紧跟 be 的那个 NP）
+      4) 名词命中复数形 或 plural_only -> 应配复数；否则应配单数
+    返回 True 表示发现不一致。"""
+    toks = _clean_tokens(sent)
+    low = [t.lower() for t in toks]
+    if not low:
+        return False
+    if not (low[0] == 'there' or (len(low) > 1 and low[1] == 'there')):
+        return False
+    # 找数标记；遇到 will（将来时）直接放弃判定
+    mark_i = mark_num = None
+    for i, w in enumerate(low):
+        if w == 'will':
+            return False
+        if w in _THERE_SG:
+            mark_i, mark_num = i, 'singular'
+            break
+        if w in _THERE_PL:
+            mark_i, mark_num = i, 'plural'
+            break
+    if mark_i is None:
+        return False
+    # 就近取 be 之后第一个名词
+    pidx = _plural_index()
+    prev = ''
+    for w in low[mark_i + 1:]:
+        hit_pl = w in pidx
+        u = K.noun_usage.get(w)
+        if not hit_pl and not u:
+            prev = w
+            continue
+        # 单复同形（sheep/fish/deer 这类 invariant）：拼写本身分不出数，
+        # 只能看限定词——a/an/one 判单数，two/some/three 判复数。
+        if hit_pl and u and pidx.get(w) == w:
+            if prev in ('a', 'an', 'one'):
+                want = 'singular'
+            elif prev in ('two', 'three', 'some', 'many'):
+                want = 'plural'
+            else:
+                return False                # 没有可靠线索，不下结论
+        elif hit_pl:
+            want = 'plural'                 # 命中复数形
+        else:
+            want = 'plural' if u['number_behavior'] == 'plural_only' else 'singular'
+        return mark_num != want
+    return False
+
+
+def _check_collocation(verb, noun):
+    """校验器侧的宾语搭配检查（独立于生成器 _object_ok，复用同一份数据但独立判定）。
+    通用兜底标签 'object' 不参与精确匹配，避免错搭放行。"""
+    tags = K.verb_restr.get(verb)
+    if not tags:
+        return False
+    u = K.noun_usage.get(noun)
+    if not u:
+        return False
+    cat = u.get('semantic_category')
+    ntags = K.noun_tags.get(noun, [])
+    for t in tags:
+        if t == 'object':
+            continue
+        if t == cat or t in ntags:
+            return True
+    return False
 
 
 def check_grammar(sent, info):
-    """返回问题清单，每项 = (类别, 码, 句子)。类别：grammar / collocation / semantic。"""
+    """返回问题清单，每项 = (类别, 码, 句子)。类别：grammar / collocation / semantic。
+
+    关键设计：be 主谓一致从【句子文本】独立解析主语代词与其 be 形，再对照完整
+    BE_TABLE 判定，不信任生成器传入的 info。这样即便生成器自己算错 be，
+    检查器也能抓到 You am / He are / I is / We was / Is I / Am he 等回退。
+    """
     issues = []
-    p, n, t = info['person'], info['number'], info['tense']
+    t = info['tense']
     pol, q = info['polarity'], info['question']
     is_be = info['is_be']
 
-    # 1) be 主谓一致（直接守门，独立于 be_form 实现，专门防 "Am you" 回归）
-    if _BAD_BE.match(sent):
-        issues.append(('grammar', 'be_agreement', sent))
+    # 1) be 主谓一致：从句子文本独立解析，对照完整 BE_TABLE
+    #    存在句（there）没有代词主语，走"就近一致"专用校验分支
+    if _there_be_agreement_issue(sent):
+        issues.append(('grammar', 'there_be_agreement', sent))
+    elif is_be or t in ('present_continuous', 'past_continuous'):
+        subj = _subject_of(sent, q)
+        pron = (K.pronouns.get(subj) or K.pronouns.get(subj.capitalize())) if subj else None
+        if subj and pron:
+            p, n = pron['person'], pron['number']
+            key = _tense_key(t)
+            if key:
+                actual = _aux_be_of(sent, q)
+                expected = BE_TABLE[(key, p, n)]
+                if actual and actual != expected:
+                    issues.append(('grammar', 'be_agreement', sent))
 
     # 2) do-support 存在性：实义动词一般现在/过去时的否定或疑问必须含 do/does/did
     #    （句首 Do/Does 大写，正则须忽略大小写）
@@ -534,9 +751,10 @@ def check_grammar(sent, info):
 
     # 3) 三单一般现在肯定：动词须为三单形
     if not is_be and t == 'present_simple' and pol == 'affirmative' \
-            and q == 'none' and p == 3 and n == 'singular':
+            and q == 'none' and info.get('person') == 3 \
+            and info.get('number') == 'singular':
         exp = K.verb_form(info['verb'], 'third_person_singular')
-        toks = sent.replace('?', '').replace('.', '').split()
+        toks = _clean_tokens(sent)
         if len(toks) > 1 and exp and toks[1] != exp:
             issues.append(('grammar', 'third_singular', sent))
 
@@ -545,7 +763,17 @@ def check_grammar(sent, info):
             and re.search(r'\b(a|an)\s+' + re.escape(info['object_noun']) + r'\b', sent):
         issues.append(('grammar', 'uncountable_with_article', sent))
 
-    # 5) 语义自然度（启发式，单独归类，不计入语法失败导致构建中断）
+    # 5) 宾语搭配（校验器独立复核，与生成器过滤双保险；生成已过滤故常态为 0，
+    #    但 self-test 用错误句可证明检查器确实能抓到 object_restriction_unmet）
+    #    注意：只有"实义动词 + 真宾语"才谈得上动宾搭配。
+    #    存在句 THERE_BE 里的 object_noun 是存在主体（There is a hen...），
+    #    系动词 be 也不带真宾语，二者都必须排除，否则会刷出海量假阳性。
+    if info.get('verb') and info.get('object_noun') \
+            and info.get('pattern') == 'SVO' and not is_be:
+        if not _check_collocation(info['verb'], info['object_noun']):
+            issues.append(('collocation', 'object_restriction_unmet', sent))
+
+    # 6) 语义自然度（启发式，单独归类，不计入语法失败导致构建中断）
     if info.get('semantic_unnatural'):
         issues.append(('semantic', 'there_be_abstract_location', sent))
 
@@ -633,10 +861,23 @@ def mode_golden():
     data = load('tests/golden.json')
     npass = nfail = nskip = 0
     fails = []
+    # P0 整改：禁止句"声明了但没执行"必须单独统计，不能让整组 PASS 掩盖未执行的 forbidden。
+    # forb_total    = 所有组里声明的 forbidden 句子总数
+    # forb_executed = 已通过 exec_forbidden 真正执行到拒绝路径的用例数
+    # forb_unexec_groups = 有 forbidden 声明、却一条 exec_forbidden 都没有的组
+    forb_total = forb_executed = 0
+    forb_unexec_groups = []
 
     for entry in data:
         tid = entry.get('test_id', '?')
         rule = entry.get('rule', '')
+        # 先统计本组声明了多少 forbidden、实际执行了多少
+        n_forb_decl = len(entry.get('forbidden', []))
+        n_forb_exec = len(entry.get('exec_forbidden', []))
+        forb_total += n_forb_decl
+        forb_executed += n_forb_exec
+        if n_forb_decl and not n_forb_exec:
+            forb_unexec_groups.append(tid)
         # 可执行黄金句：精确比对
         for case in entry.get('exec', []):
             expect = case['expect']
@@ -679,6 +920,13 @@ def mode_golden():
             print(f"  [SKIP] {tid} ({rule}): {reason}")
 
     print(f"\n黄金测试：PASS={npass}  FAIL={nfail}  SKIP={nskip}")
+    # 单独一行汇报禁止句执行率：声明数 vs 已执行数 vs 未执行的组
+    print(f"禁止句统计：声明 {forb_total} 条，已执行拒绝用例 {forb_executed} 条，"
+          f"未执行禁止用例的组 {len(forb_unexec_groups)} 个")
+    if forb_unexec_groups:
+        print("  未执行禁止用例的组（多为 CLI 尚未实现的句型，随 SKIP 组顺延）：")
+        for g in forb_unexec_groups:
+            print(f"    - {g}")
     if fails:
         for f_ in fails:
             print('  [FAIL]', f_)
@@ -687,7 +935,77 @@ def mode_golden():
 
 
 # ---------------------------------------------------------------------------
-# CLI 入口：argparse（支持 --help / demo / golden / matrix / 未知参数非零退出）
+# 检查器自检（P1 整改）：用人工构造的错误句证明 check_grammar 能独立发现错误，
+# 而不只是复检生成器输出；并反向验证正确句不被误报。任一条未通过即非零退出。
+# ---------------------------------------------------------------------------
+def mode_checker_selftest():
+    base = dict(pattern='X', polarity='affirmative', question='none',
+                is_be=False, person=None, number=None,
+                verb=None, object_noun=None, mass_object=False,
+                semantic_unnatural=False)
+    # (句子, info 覆盖, 期望类别, 期望码)
+    cases = [
+        # be 主谓一致：代词在前（You am / He are / I is / We was）与在后（Is I / Am he）都覆盖
+        ("You am happy.", dict(tense='present_simple', is_be=True), 'grammar', 'be_agreement'),
+        ("He are happy.", dict(tense='present_simple', is_be=True), 'grammar', 'be_agreement'),
+        ("I is happy.", dict(tense='present_simple', is_be=True), 'grammar', 'be_agreement'),
+        ("We was happy.", dict(tense='past_simple', is_be=True), 'grammar', 'be_agreement'),
+        ("Is I happy?", dict(tense='present_simple', is_be=True, question='yes_no'), 'grammar', 'be_agreement'),
+        ("Am he happy?", dict(tense='present_simple', is_be=True, question='yes_no'), 'grammar', 'be_agreement'),
+        # 存在句就近一致：单数标记配复数 NP、复数标记配单数 NP 都要抓到
+        ("There is two books on the desk.",
+         dict(tense='present_simple', pattern='THERE_BE', is_be=True),
+         'grammar', 'there_be_agreement'),
+        ("There were a book on the desk.",
+         dict(tense='past_simple', pattern='THERE_BE', is_be=True),
+         'grammar', 'there_be_agreement'),
+        # 宾语搭配
+        ("He eats a desk.", dict(tense='present_simple', pattern='SVO', verb='eat', object_noun='desk'), 'collocation', 'object_restriction_unmet'),
+        # do-support 缺失
+        ("She reads not books.", dict(tense='present_simple', polarity='negative', verb='read'), 'grammar', 'missing_do_support'),
+        # 三单缺失
+        ("He run.", dict(tense='present_simple', person=3, number='singular', verb='run'), 'grammar', 'third_singular'),
+    ]
+    nfail = 0
+    for sent, info, exp_cat, exp_code in cases:
+        full = dict(base)
+        full.update(info)
+        issues = check_grammar(sent, full)
+        found = any(c == exp_code for (_, c, _) in issues)
+        codes = [c for (_, c, _) in issues]
+        print(f"  [{'OK ' if found else 'MISS'}] {sent}  -> 期望 {exp_cat}:{exp_code}，实际 {codes}")
+        if not found:
+            nfail += 1
+    # 反向：正确句必须不被误报
+    good = [
+        ("You are happy.", dict(tense='present_simple', is_be=True)),
+        ("He eats an apple.", dict(tense='present_simple', pattern='SVO', verb='eat', object_noun='apple')),
+        ("She does not read a book.", dict(tense='present_simple', polarity='negative', verb='read')),
+        ("He runs.", dict(tense='present_simple', person=3, number='singular', verb='run')),
+        ("There are two books on the desk.",
+         dict(tense='present_simple', pattern='THERE_BE', is_be=True)),
+        ("There is a sheep in the kitchen.",
+         dict(tense='present_simple', pattern='THERE_BE', is_be=True)),
+    ]
+    for sent, info in good:
+        full = dict(base)
+        full.update(info)
+        issues = check_grammar(sent, full)
+        bad = [c for (_, c, _) in issues
+               if c in ('be_agreement', 'there_be_agreement',
+                        'object_restriction_unmet',
+                        'missing_do_support', 'third_singular')]
+        print(f"  [{'OK ' if not bad else 'FALSE+'}] {sent}  -> 误报 {bad}")
+        if bad:
+            nfail += 1
+    if nfail:
+        print(f"\n[FAIL] 检查器自检 {nfail} 项未通过")
+        sys.exit(1)
+    print("\n[PASS] 检查器自检通过：能发现 be 一致/搭配/do-support/三单 错误，且不误报正确句")
+
+
+# ---------------------------------------------------------------------------
+# CLI 入口：argparse（支持 --help / demo / golden / matrix / selftest / 未知参数非零退出）
 # ---------------------------------------------------------------------------
 def main():
     global K
@@ -695,12 +1013,13 @@ def main():
         prog='mini_generator.py',
         description='最小句子生成器原型（不加载 words.json）')
     parser.add_argument('mode', nargs='?', default='demo',
-                        choices=['demo', 'golden', 'matrix'],
+                        choices=['demo', 'golden', 'matrix', 'selftest'],
                         help='运行模式：demo（抽样）| golden（驱动 tests/golden.json）'
-                             '| matrix（组合 + 语法校验）')
+                             '| matrix（组合 + 语法校验）| selftest（检查器自检）')
     args = parser.parse_args()
     K = Knowledge()
-    {'demo': mode_demo, 'golden': mode_golden, 'matrix': mode_matrix}[args.mode]()
+    {'demo': mode_demo, 'golden': mode_golden, 'matrix': mode_matrix,
+     'selftest': mode_checker_selftest}[args.mode]()
 
 
 if __name__ == '__main__':

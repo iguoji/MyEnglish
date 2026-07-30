@@ -6,7 +6,26 @@
 
 ---
 
-## 0. 本轮整改摘要（相对初版的关键修订）
+## 0-B. 第二轮复查整改（本次）
+
+第一轮修完后复查又发现 6 处硬伤，均已修复并有可复现的验证命令：
+
+| 复查项 | 复查发现的问题 | 本轮修复 | 验证方式 |
+|--------|----------------|----------|----------|
+| **P0 choice 绕过全部过滤** | `choice` 直接取用指定词，不校验是否在候选池内，能造出 `He eats a desk.` / `He reads a deer.` / `She asks a market.` | 动词须在句型框架池、主语须过 `subject_restriction`、宾语须在搭配过滤后的池、表语须真能作表语、there-be 的名词/数/地点各自校验；分别返回 `verb_frame_unmet` / `subject_restriction_unmet` / `object_restriction_unmet` / `predicative_not_allowed` / `there_be_*_unmet` | `golden` 中 6 条 `exec_forbidden` 断言拒绝码 |
+| **P0 禁止句多数没真跑** | 31 组全写了 `forbidden`，只有 13 组有 `exec`、2 组有 `exec_forbidden` | 新增 `svo_object_restriction_demo` 组与多条 `exec_forbidden`（eat+desk / read+deer / ask+market / rain+dog / know+answer）；golden 汇总**单列**「禁止句声明数 / 已执行数 / 未执行组数」 | `golden` 末尾固定打印禁止句统计行 |
+| **P1 matrix 两项假检查** | 正则抓不到 `You am happy.` / `He are happy.` / `I is happy.` / `We was happy.` / `Is I happy?` / `Am he happy?`；`colloc_fail` 永远为 0 | 检查器改为**从句子文本独立解析**主语与实际 be 形，对照完整 `BE_TABLE`（present/past × 1/2/3 人称 × 单复数 12 格）；存在句另走「就近一致」独立分支；搭配复核独立实现 `_check_collocation` | 新增 `selftest` 模式：10 条人造病句全被抓、6 条正确句零误报 |
+| **P1 搭配层过宽** | demo 仍出 `She does not play a pencil.` / `I have helped a computer.` / `He moved pants.`；`taste+chair`、`tell+table` 等能过 | 通用兜底标签 `object` **不参与精确匹配**；只有带具体标签的动词才进随机演示池（`_is_demo_safe_verb`）；`give/send/show/tell` 去掉 `person` 标签（*give a baby 缺主题宾语），随即退出随机池 | `demo` 的 SVO 段落全部为自然搭配 |
+| **P1 console 命令不可用** | `pyproject.toml` 注册的是 `validate`/`generate`，报告却写 `myenglish-validate`/`myenglish-generate`；包里只有 `tools_entry.py`，装完必报 `ModuleNotFoundError` | 按「二选一」**删除** `pyproject.toml` 与 `tools_entry.py`，只保留仓库内脚本 + `requirements.txt` | 已在仓库外目录（`/tmp`）用绝对路径调用两个脚本，均正常 |
+| **P2 Schema 过松 / 报告口径矛盾** | `collocations.schema.json` 允许任意标签、空数组、重复标签、未知字段，且不校验词是否存在；报告称「覆盖 7 句型」而 CLI 只实现 4 种 | Schema 增加标签枚举、`minItems:1`、`uniqueItems`、键名 pattern、`additionalProperties:false`；跨文件存在性下沉到校验器「检查 10」（动词须在 `verb_frames`、名词须在 `noun_usage`、标签不得是死规则）；报告口径拆成「公式定义 7 种 / CLI 实现 4 种」 | Schema 负向测试 5 例全部拦截；检查 10 当场抓出 4 个未登记动词、10 个未登记名词、1 条死标签（`ask+question`），已清理/补齐 |
+
+**第二轮附带修掉的数据 bug**：
+- `subject_restriction: animate` 的主语池被写成 `[he, she, they]`，比 `person` 还窄，导致 `I/you/we/it eat an apple` 被误拒。已改为 `person ∪ {it}`。
+- there-be 地点池按 `semantic_category == 'place'` 过滤，误杀 `desk/table/chair/box/bag`（这些是 object 类但登记了 `on`/`in`）。已改为「只看有没有 `location_preposition`」。
+
+---
+
+## 0. 首轮整改摘要（相对初版的关键修订）
 
 初版报告存在**过度承诺**，本轮已逐项修正（对应整改要求 P0/P1/P2）：
 
@@ -15,8 +34,8 @@
 | P0-1 be 变位 | `be_form()` 回退到 `am`，产出 `Am you not tasting warm?` | `auxiliaries.json` 补齐 (person,number) 全网格；`be_form()` 去除忽略 person 的回退分支 |
 | P0-2 golden 真参与 | 反向校验是占位空循环（`for ... in []`），什么都没查 | `mode_golden` 直接读 `golden.json` 的 `exec`/`exec_forbidden`，逐字比对 / 断言拒绝码 |
 | P1-3 matrix 真实校验 | 只查 None/双空格/大小写，放行 `Am you` | 新增主谓一致、三单动词、do-support、冠词+不可数、搭配、禁止规则命中、永久 `Am you` 回归守卫 |
-| P1-4 搭配层 | `read` 宾语过宽（含动物/地点/人），能拼出 `read a deer` | 独立 `collocations.json` 层：93 动词绑定宾语语义标签，未登记动词保守拒绝、不随机拼接 |
-| P2-5 依赖与运行 | 只依赖 WorkBuddy 私有 venv 路径 | 新增 `requirements.txt` / `pyproject.toml` / `tools_entry.py` + 标准安装运行命令 |
+| P1-4 搭配层 | `read` 宾语过宽（含动物/地点/人），能拼出 `read a deer` | 独立 `collocations.json` 层：89 动词绑定宾语语义标签，未登记动词保守拒绝、不随机拼接 |
+| P2-5 依赖与运行 | 只依赖 WorkBuddy 私有 venv 路径 | 新增 `requirements.txt`；第二轮删除失效的 `pyproject.toml` / `tools_entry.py` console 入口（见 §0-B） |
 | P2-6 CLI | `--help` 抛 `KeyError`，未知参数静默 | 改用 argparse；`--help` 正常、未知参数退出码 2 |
 | P2-7 报告降调 | "100% 无病句""可直接翻译为 Dart""地基完全就绪" | 全文降调，区分「已验证地基」与「原型仍在验证」 |
 
@@ -50,8 +69,9 @@
 | validate_sentence_data.py | **PASS** | 错误 0，警告 2 | Schema + 策略一致性；警告为合法跨词性同拼写，非错误 |
 | check_master_vocab.py | **PASS** | 308/308 = 100% | 封闭类功能词总表全覆盖（仅 patch，未用 words.json） |
 | verify_coverage.py | **PASS** | 3454 模板 / 256 功能词种 | 全部模板功能词命中 patch |
-| mini_generator **golden** | **PASS** | **PASS=61 / FAIL=0 / SKIP=17** | 见 §4-D，SKIP 为生成器第一版未支持的句法特征 |
-| mini_generator **matrix** | **PASS** | 成功 1760 / 安全拒绝 160 / 语法错误 0 / 搭配错误 0 / 语义提示 27 | 组合卫生，拒绝码 `forbid_there_be_continuous` |
+| mini_generator **golden** | **PASS** | **PASS=67 / FAIL=0 / SKIP=17**（共 32 组）；禁止句：声明 52 条 / 已执行 6 条 / 未执行组 27 个 | 见 §4-D。SKIP 为生成器第一版未支持的句法特征；「未执行禁止句」单列统计，不被组内 PASS 掩盖 |
+| mini_generator **matrix** | **PASS** | 成功 1759 / 安全拒绝 161 / 语法错误 0 / 搭配错误 0 / 语义提示 32 | 组合卫生；检查器改为从句子文本独立解析，不复用生成器判断 |
+| mini_generator **selftest** | **PASS** | 10 条错误句全部被抓 / 6 条正确句零误报 | 用人造病句证明检查器真的会报错（见 §4-G） |
 | mini_generator **demo** | **PASS** | 抽样句合法 | 见 §4-F |
 | mini_generator **--help** | **PASS** | 退出码 0 | argparse 正常输出用法 |
 | mini_generator 未知参数 | **PASS** | 退出码 2 | 友好报错、非零退出 |
@@ -76,7 +96,7 @@ patch/sentence/
 │   ├── adjective_usage.json       83 条
 │   ├── adverb_usage.json          50 条
 │   ├── article_phonetics.json     a/an 读音特例表
-│   └── collocations.json          ★P1-4 新增：93 动词的宾语语义限制（独立搭配层）
+│   └── collocations.json          ★P1-4 新增：89 动词的宾语语义限制（独立搭配层，第二轮清理了 4 个未登记动词）
 ├── paradigms/                     # 范式层
 │   ├── auxiliaries.json           12 条（be/have/do 变位，★P0 补齐 person×number 网格）
 │   ├── pronouns.json               8 条
@@ -101,8 +121,8 @@ patch/sentence/
 **仓库根新增（P2-5 依赖与运行）**：
 ```
 requirements.txt      # jsonschema==4.26.0 / referencing==0.37.0
-pyproject.toml        # 工程元数据 + 控制台入口 myenglish-validate / myenglish-generate
-tools_entry.py        # 命令垫片，转发到 patch/sentence/tools 下的校验器与生成器
+                      # 注：pyproject.toml / tools_entry.py 已于第二轮删除（打包不完整、命令名与文档不符），
+                      #     统一走「仓库内脚本 + requirements.txt」，见 §9
 ```
 
 **底层 patch 词库（与句子生成器同仓，供校验）**：`patch/*.json` 共 1956 词（不加载 words.json），含变形共 17027 个拼写。
@@ -151,7 +171,7 @@ unknown 总数: 1
 [PASS] 系统词库独立覆盖：全部模板的功能词均被 patch 覆盖——穷举证明成立（未使用 words.json）。
 ```
 
-**D. mini_generator golden 回归 — PASS（**PASS=61 / FAIL=0 / SKIP=17**）**
+**D. mini_generator golden 回归 — PASS（**PASS=67 / FAIL=0 / SKIP=17**，共 32 组）**
 ```
   [SKIP] sv_agreement_third_singular : 生成器第一版不支持该句法特征
   [SKIP] svo_passive_allowed         : 生成器第一版不支持该句法特征
@@ -184,16 +204,26 @@ unknown 总数: 1
   [PASS] np_article_phonetic        : He visits a university.
   [PASS] tense_perfect_participle   : She has eaten an apple.
   [PASS] be_form_all_pronouns       : 42 条（全 7 代词 × 现在/过去 × 陈述/否定/疑问），永久防 "Am you"
-黄金测试：PASS=61  FAIL=0  SKIP=17
+  [PASS] svo_object_restriction_demo: He reads a letter. / She asks a teacher. / read+deer 拒绝 / ask+market 拒绝
+黄金测试：PASS=67  FAIL=0  SKIP=17
+禁止句统计：声明 52 条，已执行拒绝用例 6 条，未执行禁止用例的组 27 个
 [PASS] 黄金句测试完成（未加载 words.json）
 ```
 > SKIP 的 17 项均为「生成器第一版未实现的句法特征」（被动 / 双宾 / 比较级 / 副词位 / 祈使等），属已知延期（见 §7），不计为失败。
+> **禁止句执行率单列**：32 组共声明 52 条 forbidden，其中 6 条已通过 `exec_forbidden` 真正跑到拒绝路径并断言拒绝码；
+> 其余 27 组的 forbidden 依附于 CLI 尚未实现的句型（双宾/被动/祈使/副词位等），当前无法执行，随该句型一同顺延。
+> 这一行会在每次 golden 运行时打印，防止「组内 PASS」掩盖「禁止句根本没跑」。
+>
+> **附：本轮还修掉一处计数虚高。** `gen/build_golden.py` 早前用 `data.append()` 无条件追加，
+> 重复执行后 golden.json 里出现了两个同名 `be_form_all_pronouns` 组，42 条用例被重复计数，
+> 一度显示 PASS=109。脚本已改为按 `test_id` 的 upsert（幂等，连跑两次结果一致），
+> 去重后的**真实**数字是 PASS=67。
 
 **E. mini_generator matrix（组合卫生）— PASS**
 ```
-组合总尝试: 1920，成功: 1760，安全拒绝: 160
-拒绝码分布: forbid_there_be_continuous: 160
-语法错误: 0，搭配错误: 0，语义不自然(仅提示): 27
+组合总尝试: 1920，成功: 1759，安全拒绝: 161
+拒绝码分布: forbid_there_be_continuous: 160，missing_form:plural: 1
+语法错误: 0，搭配错误: 0，语义不自然(仅提示): 32
 [PASS] matrix 通过：成功句均通过表面格式与语法/搭配校验（未加载 words.json）。语义不自然项见上方提示。
 ```
 
@@ -232,6 +262,44 @@ unknown 总数: 1
 ```
 > 旧版 `read` 宾语过宽会放行 `read a deer`；现 6/6 错搭配全部被拒，自然搭配全部通过。
 
+**H. mini_generator selftest（检查器自检 · 第二轮新增）**
+
+> 目的：证明 matrix 的校验器**自己就会报错**，而不是「生成器怎么造、校验器怎么认」的自证循环。
+> 输入是人工构造的病句（生成器根本产不出这些），检查器必须独立抓出；再用正确句反向验证不误报。
+
+```
+  [OK ] You am happy.                    -> 期望 grammar:be_agreement，实际 ['be_agreement']
+  [OK ] He are happy.                    -> 期望 grammar:be_agreement，实际 ['be_agreement']
+  [OK ] I is happy.                      -> 期望 grammar:be_agreement，实际 ['be_agreement']
+  [OK ] We was happy.                    -> 期望 grammar:be_agreement，实际 ['be_agreement']
+  [OK ] Is I happy?                      -> 期望 grammar:be_agreement，实际 ['be_agreement']
+  [OK ] Am he happy?                     -> 期望 grammar:be_agreement，实际 ['be_agreement']
+  [OK ] There is two books on the desk.  -> 期望 grammar:there_be_agreement，实际 ['there_be_agreement']
+  [OK ] There were a book on the desk.   -> 期望 grammar:there_be_agreement，实际 ['there_be_agreement']
+  [OK ] He eats a desk.                  -> 期望 collocation:object_restriction_unmet，实际 ['object_restriction_unmet']
+  [OK ] She reads not books.             -> 期望 grammar:missing_do_support，实际 ['missing_do_support']
+  [OK ] He run.                          -> 期望 grammar:third_singular，实际 ['third_singular']
+  [OK ] You are happy. / He eats an apple. / She does not read a book. / He runs.
+        / There are two books on the desk. / There is a sheep in the kitchen.  -> 误报 []
+[PASS] 检查器自检通过：能发现 be 一致/搭配/do-support/三单 错误，且不误报正确句
+```
+
+**I. collocations Schema 负向测试（第二轮新增）**
+```
+原始数据通过: True
+  拼错标签 fooood : 已拦截  'fooood' is not one of ['abstract','animal','drink',...]
+  空标签数组      : 已拦截  [] should be non-empty
+  重复标签        : 已拦截  ['food','food'] has non-unique elements
+  未知顶层字段    : 已拦截  Additional properties are not allowed ('whatever' was unexpected)
+  脏键(大写/空格) : 已拦截  'Eat Now' does not match '^[a-z][a-z-]*$'
+```
+跨文件引用（Schema 管不到，落在校验器检查 10）：
+```
+  [FAIL] lexicon/collocations.json: verb_restrictions 的 'eeat' 未在 lexicon/verb_frames.json 登记
+  [FAIL] lexicon/collocations.json: noun_tags 的 'bok' 未在 lexicon/noun_usage.json 登记
+```
+> 两条为「故意写错拼写」的负向验证输出，还原数据后校验器立刻回到 PASS。
+
 ---
 
 ## 5. 不加载 words.json 的测试证据
@@ -260,7 +328,7 @@ unknown 总数: 1
 - **P0 be 变位修复**：`auxiliaries.json` 补齐 (person,number) 全网格，`be_form()` 去除忽略 person 的回退——根因 `Am you not tasting warm?` 已消除，新增 42 条全代词回归
 - **P0 golden 真参与**：删除占位空循环，改写为读 `exec`/`exec_forbidden` 逐字比对 + 拒绝码断言
 - **P1 matrix 真实校验**：新增主谓一致 / 三单动词 / do-support / 冠词+不可数 / 搭配 / 禁止规则命中 / 永久 `Am you` 守卫
-- **P1 搭配层**：新增 `collocations.json`（93 动词宾语语义限制），未登记动词保守拒绝
+- **P1 搭配层**：新增 `collocations.json`（89 动词宾语语义限制），未登记动词保守拒绝
 
 **待复核（非错误，需人工确认）**
 - `number_behavior.json` 中 **1 条** `unknown`（留待人工判定后补策略）。
@@ -275,11 +343,15 @@ unknown 总数: 1
 1. **未接入 Flutter / Dart / SQLite**：本轮交付界限是「数据与规则地基 + CLI 原型」。应用层（UI、持久化、生成循环宿主）留给 Flutter 端实现。
 2. **未接入 `words.json` 用户词合并**：原型仅消费系统 `patch`，已验证独立可用；用户词合并层（spelling+pos 身份、用户侧优先）设计已定稿于 `docs/identity_isolation.md`，待 Flutter 端接线。
 3. **时态仅 6 / 12+**：覆盖 present/past/future simple、present/past continuous、present perfect；past_perfect、future_continuous/perfect、条件句、虚拟语气延期。
-4. **句型仅 7 / 9**：覆盖 SV/SVP/SVO/SVOO/SVOC/THERE_BE/IMPERATIVE；WH-深层疑问、关系从句、祈使扩展延期（对应 §4-D 的 17 个 SKIP）。
+4. **句型口径必须分两层说（第二轮更正）**：
+   - **公式数据层已定义 7 种**：SV / SVP / SVO / SVOO / SVOC / THERE_BE / IMPERATIVE（`formulas/*.json` 里有条目与契约）。
+   - **CLI 原型层只实现 4 种**：SV / SVP / SVO / THERE_BE。SVOO / SVOC / IMPERATIVE 在 golden 里明确记为 SKIP，
+     `mini_generator.py` 的 `mode_demo` / `mode_matrix` 也只穷举这 4 种。
+   - 初版报告写「覆盖 7 种句型」属口径混淆——数据定义 ≠ 生成器可产出。WH-深层疑问、关系从句仍在 9 种之外，整体延期。
 5. **语义角色浅层**：仅主语/宾语/表语/状语，未做论元结构（theta-role）细化。
 6. **比较级仅形态层**：`-er/-est`、more/most、不规则、双写已实现；短语层（`the + 最高级 + of`）未做。
 7. **未覆盖**：否定缩略（`don't`/`isn't`）、强调、倒装、间接引语。
-8. **搭配层覆盖仍有限**：当前仅 93 个高频动词登记宾语限制；未登记动词一律保守拒绝（不会乱拼，但也限制了生成广度），需随语料扩充持续补录。
+8. **搭配层覆盖仍有限**：当前仅 89 个高频动词登记宾语限制（其中带具体语义标签、可进随机演示池的更少）；未登记动词一律保守拒绝（不会乱拼，但也限制了生成广度），需随语料扩充持续补录。
 
 延期均因「先立稳可验证的数据与契约地基，应用复杂度后置」，不代表不可实现。
 
@@ -311,30 +383,29 @@ Flutter 端仍需新建（不在本轮范围）：
 
 **依赖文件**
 - `requirements.txt`：`jsonschema==4.26.0`、`referencing==0.37.0`
-- `pyproject.toml`：工程元数据 + 控制台入口 `myenglish-validate` / `myenglish-generate`
-- `tools_entry.py`：命令垫片，把根命令转发到 `patch/sentence/tools/` 下的校验器与生成器
 
-**安装（任选其一）**
+> **第二轮更正**：初版的 `pyproject.toml` + `tools_entry.py` 控制台入口是**坏的**——
+> 注册名是 `validate` / `generate`（报告却写成 `myenglish-validate` / `myenglish-generate`），
+> 且只打包了 `tools_entry.py`，`patch/` 下的脚本与 JSON 数据全部没进包，装完调用必然
+> `ModuleNotFoundError: No module named 'mini_generator'`。
+> 本轮按「二选一」原则**直接删除这两个文件**，只保留「仓库内脚本 + requirements.txt」这一条可用路径。
+
+**安装**
 ```bash
-# 方式 1：venv（推荐，隔离干净）
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-
-# 方式 2：用 pyproject 安装（含控制台命令）
-python3 -m pip install -e .
 ```
 
 **运行**
 ```bash
-# 方式 1：venv 直跑脚本
+# venv 直跑脚本（脚本内部按 __file__ 定位数据，可在任意工作目录下调用）
 .venv/bin/python patch/sentence/tools/validate_sentence_data.py
 .venv/bin/python patch/sentence/tools/mini_generator.py golden
 .venv/bin/python patch/sentence/tools/mini_generator.py matrix
 .venv/bin/python patch/sentence/tools/mini_generator.py demo
 
-# 方式 2：pyproject 控制台命令（pip install -e . 后）
-myenglish-validate
-myenglish-generate golden
+# 检查器自检（用人造病句证明校验器会报错）
+.venv/bin/python patch/sentence/tools/mini_generator.py selftest
 
 # 功能词 / 模板覆盖校验（位于 patch/tools/）
 .venv/bin/python patch/tools/check_master_vocab.py

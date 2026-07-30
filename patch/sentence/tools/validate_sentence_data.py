@@ -336,6 +336,47 @@ def main():
                         err(f"tests/golden.json[{tid}]: 依赖词条不存在 {fname}:{sp}+{pos}")
             stats['patch/sentence/tests/golden.json'] = {'entries': len(gdata)}
 
+    # ---- 检查 10：搭配层跨文件引用完整性（P2 整改）----
+    # JSON Schema 只能管"标签是否在枚举内、数组是否非空去重、有无多余字段"，
+    # 但"这个动词/名词到底存不存在"必须跨文件查表，只能在这里做：
+    #   1) verb_restrictions 的键必须在 lexicon/verb_frames.json 登记（拼错立即报错）
+    #   2) noun_tags 的键必须在 lexicon/noun_usage.json 登记
+    #   3) 标签若与 noun_usage.semantic_category 同名，则必须真有名词属于该类，
+    #      否则这条限制永远匹配不到任何宾语 = 死规则
+    colloc_path = os.path.join(SENT_DIR, 'lexicon', 'collocations.json')
+    if os.path.exists(colloc_path):
+        cdata, cok = load_json_strict(colloc_path)
+        if cok and isinstance(cdata, dict):
+            verb_spellings = {sp for (sp, _) in lexicon_keys.get('verb_frames', set())}
+            noun_spellings = {sp for (sp, _) in lexicon_keys.get('noun_usage', set())}
+            # 名词表里真实出现过的语义类别（用于识别"死标签"）
+            noun_cats = set()
+            nu_path = os.path.join(SENT_DIR, 'lexicon', 'noun_usage.json')
+            nudata, nuok = load_json_strict(nu_path)
+            if nuok and isinstance(nudata, list):
+                noun_cats = {i.get('semantic_category') for i in nudata
+                             if isinstance(i, dict) and i.get('semantic_category')}
+            # 搭配层自带的细分标签（在 noun_tags 里显式登记的那些）
+            declared_tags = set()
+            for tags in (cdata.get('noun_tags') or {}).values():
+                declared_tags.update(tags)
+
+            for v, tags in (cdata.get('verb_restrictions') or {}).items():
+                if v not in verb_spellings:
+                    err(f"lexicon/collocations.json: verb_restrictions 的 '{v}' "
+                        f"未在 lexicon/verb_frames.json 登记")
+                for t in tags:
+                    if t not in noun_cats and t not in declared_tags:
+                        err(f"lexicon/collocations.json: 动词 '{v}' 的标签 '{t}' "
+                            f"既不是 noun_usage 的语义类别，也没有任何名词在 "
+                            f"noun_tags 里登记该标签（死规则，永远匹配不到宾语）")
+            for n in (cdata.get('noun_tags') or {}):
+                if n not in noun_spellings:
+                    err(f"lexicon/collocations.json: noun_tags 的 '{n}' "
+                        f"未在 lexicon/noun_usage.json 登记")
+            stats['patch/sentence/lexicon/collocations.json'] = {
+                'entries': len(cdata.get('verb_restrictions') or {})}
+
     # ---- 检查 6：跨表语义冲突（number_behavior 内部由值域保证互斥；
     #      跨表如 stative(动词表) 与 gradability(形容词表) 同词只警告，因跨词性同拼写合法）----
     cross = {sp: kinds for sp, kinds in policy_word_kinds.items() if len(kinds) > 1}

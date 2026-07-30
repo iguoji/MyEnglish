@@ -1,113 +1,297 @@
 {
   "_comment": "搭配层（P1-4 新增，独立于 verb_frames / noun_usage）。动词→允许的宾语语义标签；名词→额外搭配标签。语义类别复用 noun_usage.semantic_category（object/person/place/food/drink/animal/abstract/time）。未登记的 SVO 动词在随机造句时被保守排除，仅允许通过 choice 显式指定（测试用）。所有学习阶段共用本规则，阶段只控制公式复杂度。",
   "verb_restrictions": {
-    "read": ["readable"],
-    "write": ["readable"],
-    "eat": ["food"],
-    "drink": ["drink"],
-    "taste": ["food", "object"],
-    "visit": ["person", "place"],
-    "ask": ["person", "question"],
-    "tell": ["person", "object"],
-    "give": ["person", "object"],
-    "send": ["person", "object"],
-    "show": ["person", "object"],
-    "teach": ["person", "object"],
-    "pay": ["person", "object"],
-    "help": ["person", "object"],
-    "meet": ["person"],
-    "call": ["person", "object"],
-    "thank": ["person"],
-    "follow": ["person", "object"],
-    "invite": ["person"],
-    "sell": ["object"],
-    "buy": ["object"],
-    "make": ["object"],
-    "take": ["object"],
-    "get": ["object"],
-    "find": ["object"],
-    "keep": ["object"],
-    "need": ["object"],
-    "want": ["object"],
-    "like": ["object"],
-    "love": ["object"],
-    "see": ["object"],
-    "hear": ["object"],
-    "watch": ["object"],
-    "use": ["object"],
-    "open": ["object"],
-    "close": ["object"],
-    "clean": ["object"],
-    "wash": ["object"],
-    "carry": ["object"],
-    "push": ["object"],
-    "pull": ["object"],
-    "drive": ["object"],
-    "ride": ["object"],
-    "play": ["object"],
-    "sing": ["object"],
-    "draw": ["object"],
-    "build": ["object"],
-    "cook": ["object"],
-    "catch": ["object"],
-    "throw": ["object"],
-    "cut": ["object"],
-    "hit": ["object"],
-    "hold": ["object"],
-    "move": ["object"],
-    "turn": ["object"],
-    "count": ["object"],
-    "choose": ["object"],
-    "pick": ["object"],
-    "save": ["object"],
-    "spend": ["object"],
-    "lose": ["object"],
-    "win": ["object"],
-    "study": ["object"],
-    "learn": ["object"],
-    "understand": ["object"],
-    "remember": ["object"],
-    "forget": ["object"],
-    "know": ["object"],
-    "believe": ["object"],
-    "think": ["object"],
-    "say": ["object"],
-    "speak": ["object"],
-    "promise": ["object"],
-    "plan": ["object"],
-    "start": ["object"],
-    "stop": ["object"],
-    "try": ["object"],
-    "enjoy": ["object"],
-    "finish": ["object"],
-    "prefer": ["object"],
-    "smell": ["object"],
-    "break": ["object"],
-    "bring": ["object"],
-    "leave": ["object"],
-    "put": ["object"],
-    "fix": ["object"],
-    "repair": ["object"],
-    "grow": ["object"],
-    "paint": ["object"],
-    "share": ["object"],
-    "own": ["object"],
-    "wear": ["object"],
-    "borrow": ["object"]
+    "read": [
+      "readable"
+    ],
+    "write": [
+      "readable"
+    ],
+    "eat": [
+      "food"
+    ],
+    "drink": [
+      "drink"
+    ],
+    "taste": [
+      "food",
+      "object"
+    ],
+    "visit": [
+      "person",
+      "place"
+    ],
+    "ask": [
+      "person",
+      "question"
+    ],
+    "tell": [
+      "object"
+    ],
+    "give": [
+      "object"
+    ],
+    "send": [
+      "object"
+    ],
+    "show": [
+      "object"
+    ],
+    "teach": [
+      "person",
+      "object"
+    ],
+    "pay": [
+      "person",
+      "object"
+    ],
+    "help": [
+      "person",
+      "object"
+    ],
+    "call": [
+      "person",
+      "object"
+    ],
+    "sell": [
+      "object"
+    ],
+    "buy": [
+      "object"
+    ],
+    "make": [
+      "object"
+    ],
+    "take": [
+      "object"
+    ],
+    "get": [
+      "object"
+    ],
+    "find": [
+      "object"
+    ],
+    "keep": [
+      "object"
+    ],
+    "need": [
+      "object"
+    ],
+    "want": [
+      "object"
+    ],
+    "like": [
+      "object"
+    ],
+    "love": [
+      "object"
+    ],
+    "see": [
+      "object"
+    ],
+    "hear": [
+      "object"
+    ],
+    "watch": [
+      "object"
+    ],
+    "use": [
+      "object"
+    ],
+    "open": [
+      "object"
+    ],
+    "close": [
+      "object"
+    ],
+    "clean": [
+      "object"
+    ],
+    "wash": [
+      "object"
+    ],
+    "carry": [
+      "object"
+    ],
+    "push": [
+      "object"
+    ],
+    "pull": [
+      "object"
+    ],
+    "drive": [
+      "object"
+    ],
+    "ride": [
+      "object"
+    ],
+    "play": [
+      "object"
+    ],
+    "sing": [
+      "object"
+    ],
+    "draw": [
+      "object"
+    ],
+    "build": [
+      "object"
+    ],
+    "cook": [
+      "object"
+    ],
+    "catch": [
+      "object"
+    ],
+    "throw": [
+      "object"
+    ],
+    "cut": [
+      "object"
+    ],
+    "hit": [
+      "object"
+    ],
+    "hold": [
+      "object"
+    ],
+    "move": [
+      "object"
+    ],
+    "turn": [
+      "object"
+    ],
+    "count": [
+      "object"
+    ],
+    "choose": [
+      "object"
+    ],
+    "pick": [
+      "object"
+    ],
+    "save": [
+      "object"
+    ],
+    "spend": [
+      "object"
+    ],
+    "lose": [
+      "object"
+    ],
+    "win": [
+      "object"
+    ],
+    "study": [
+      "object"
+    ],
+    "learn": [
+      "object"
+    ],
+    "understand": [
+      "object"
+    ],
+    "remember": [
+      "object"
+    ],
+    "forget": [
+      "object"
+    ],
+    "know": [
+      "object"
+    ],
+    "believe": [
+      "object"
+    ],
+    "think": [
+      "object"
+    ],
+    "say": [
+      "object"
+    ],
+    "speak": [
+      "object"
+    ],
+    "promise": [
+      "object"
+    ],
+    "plan": [
+      "object"
+    ],
+    "start": [
+      "object"
+    ],
+    "stop": [
+      "object"
+    ],
+    "try": [
+      "object"
+    ],
+    "enjoy": [
+      "object"
+    ],
+    "finish": [
+      "object"
+    ],
+    "prefer": [
+      "object"
+    ],
+    "smell": [
+      "object"
+    ],
+    "break": [
+      "object"
+    ],
+    "bring": [
+      "object"
+    ],
+    "leave": [
+      "object"
+    ],
+    "put": [
+      "object"
+    ],
+    "fix": [
+      "object"
+    ],
+    "repair": [
+      "object"
+    ],
+    "grow": [
+      "object"
+    ],
+    "paint": [
+      "object"
+    ],
+    "share": [
+      "object"
+    ],
+    "own": [
+      "object"
+    ],
+    "wear": [
+      "object"
+    ],
+    "borrow": [
+      "object"
+    ]
   },
   "noun_tags": {
-    "book": ["readable", "object"],
-    "letter": ["readable", "object"],
-    "article": ["readable", "object"],
-    "newspaper": ["readable", "object"],
-    "magazine": ["readable", "object"],
-    "email": ["readable", "object"],
-    "message": ["readable", "object"],
-    "story": ["readable", "object"],
-    "note": ["readable", "object"],
-    "poem": ["readable", "object"],
-    "word": ["readable", "object"],
-    "name": ["readable", "object"],
-    "text": ["readable", "object"]
+    "book": [
+      "readable",
+      "object"
+    ],
+    "letter": [
+      "readable",
+      "object"
+    ],
+    "question": [
+      "question",
+      "abstract"
+    ],
+    "story": [
+      "readable",
+      "object"
+    ]
   }
 }
