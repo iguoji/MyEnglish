@@ -281,7 +281,7 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'v0.11.5',
+                        'v0.11.6',
                         style: TextStyle(
                           // Azure 加深色文字。
                           color: badgeText,

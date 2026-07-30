@@ -13,19 +13,19 @@ import '../../../models/word.dart';
 // 分组 Store 提供当前分组列表。
 import '../../../store/group.dart';
 
-/// 词性选项列表，按词库使用频率降序排列。
+/// 词性选项列表。
 ///
-/// 必定包含 vt. / vi. / vi. vt. 三项；'*' 表示未选词性（占位）。
+/// 前七个为高频词性固定顺序：n. / v. / adj. / adv. / vi. / vt. / vi. vt.，
+/// 其余按词库使用频率降序排列。不含 '*'（'*' 表示未选，由取消选择产生）。
 /// 该列表作为词性单选区域的固定数据源，UI 横向滑动展示。
 const List<String> _kPosOptions = <String>[
   'n.',
-  'vt.',
-  '*',
-  'vi. vt.',
-  'adj.',
-  'vi.',
   'v.',
+  'adj.',
   'adv.',
+  'vi.',
+  'vt.',
+  'vi. vt.',
   'prep.',
   'num.',
   'pron.',
@@ -589,11 +589,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
               Expanded(
                 child: _PosSelector(
                   tokens: tokens,
-                  // 当前选中词性；空字符串视为'*'未选。
-                  selected: meaning.pos.isEmpty ? '*' : meaning.pos,
-                  // 点击词性：选'*'时清空为空字符串(语义=未选)，否则写入词性。
+                  // 当前选中的词性；空字符串表示未选。
+                  selected: meaning.pos,
+                  // 点击词性：再次点击已选项则取消选择(置空)，否则选中。
                   onSelect: (pos) => setState(() {
-                    meaning.pos = pos == '*' ? '' : pos;
+                    meaning.pos = meaning.pos == pos ? '' : pos;
                   }),
                 ),
               ),
@@ -765,13 +765,13 @@ class _PosSelector extends StatelessWidget {
   /// 点击词性选项后的回调。
   final void Function(String pos) onSelect;
 
-  /// 输出 34 高的可横向滑动词性 Chip 列表。
+  /// 输出 23 高的可横向滑动词性 Chip 列表（原 34 缩小三分之一）。
   @override
   Widget build(BuildContext context) {
     // SingleChildScrollView +横向滚动 让词性列表超出宽度时可滑动。
     return SizedBox(
-      // 与原词性输入框同高 34。
-      height: 34,
+      // 高度从 34 缩小三分之一到 23。
+      height: 23,
       child: SingleChildScrollView(
         // 横向滚动。
         scrollDirection: Axis.horizontal,
@@ -822,10 +822,10 @@ class _PosChip extends StatelessWidget {
     // InkWell 提供点击反馈。
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(6),
       child: Container(
-        // 横向 10 纵向 0 内边距，高度由外层 34 控制。
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        // 横向 8 纵向 0 内边距，高度由外层 23 控制。
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           // 选中项用浅主色背景，未选中用透明。
@@ -836,14 +836,16 @@ class _PosChip extends StatelessWidget {
           border: Border.all(
             color: isSelected ? AppTokens.accent : tokens.inputBorder,
           ),
-          borderRadius: BorderRadius.circular(8),
+          // 圆角缩小到 6 匹配更小的高度。
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
           label,
           style: TextStyle(
             // 选中项主色加粗，未选中次要色常规。
             color: isSelected ? AppTokens.accent : tokens.textSecondary,
-            fontSize: 13,
+            // 字号从 13 缩小到 11.5 匹配 23 高度。
+            fontSize: 11.5,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
