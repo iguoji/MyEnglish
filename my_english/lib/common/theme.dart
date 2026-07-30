@@ -97,6 +97,23 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: backgroundColor,
     // Divider 和自定义列表边线统一读取此颜色。
     dividerColor: tableBorderColor,
+    // 全局关闭所有交互控件的按下背景与涟漪：暗色模式下 InkWell / IconButton 默认的
+    // 高亮背景非常刺眼（亮色主题下浅灰不易察觉，所以之前没发现）。在主题层统一关掉，
+    // 即可覆盖全站按钮——包括首页汉堡菜单、各页面返回按钮、FAB、列表行、抽屉项等
+    // 所有使用 InkWell 或 IconButton 的地方，无需逐个修改。
+    splashFactory: NoSplash.splashFactory,
+    // 涟漪颜色、长按高亮、悬停底色全部设为透明，杜绝任何可见的按下反馈色块。
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
+    // 图标按钮（如首页右上角汉堡菜单、删除含义的 IconButton）按下时的高亮覆盖层
+    // 同样设为透明，并复用无涟漪工厂。
+    iconButtonTheme: const IconButtonThemeData(
+      style: ButtonStyle(
+        overlayColor: WidgetStatePropertyAll<Color>(Colors.transparent),
+        splashFactory: NoSplash.splashFactory,
+      ),
+    ),
     // 纯文字 TextButton 只改变文字本身，不在按下时出现灰色或蓝色背景块。
     textButtonTheme: const TextButtonThemeData(
       style: ButtonStyle(
@@ -148,6 +165,20 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: darkBackgroundColor,
     // 深色列表分隔线。
     dividerColor: darkTableBorderColor,
+    // 与浅色主题保持一致：全局关闭所有交互控件的按下背景与涟漪。
+    // 暗色背景下高亮色块比亮色更显眼，这里统一关掉覆盖全站按钮。
+    splashFactory: NoSplash.splashFactory,
+    // 涟漪、长按高亮、悬停底色一律透明，不出现任何按下反馈色块。
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
+    // 图标按钮按下时的高亮覆盖层透明化，并复用无涟漪工厂。
+    iconButtonTheme: const IconButtonThemeData(
+      style: ButtonStyle(
+        overlayColor: WidgetStatePropertyAll<Color>(Colors.transparent),
+        splashFactory: NoSplash.splashFactory,
+      ),
+    ),
     // 深色模式与浅色模式保持一致：纯文字按钮按下时不增加背景色。
     textButtonTheme: const TextButtonThemeData(
       style: ButtonStyle(
