@@ -93,7 +93,8 @@ DATA_SCHEMA_MAP = [
     ('lexicon/verb_frames.json',      'verb_frame.schema.json',         False),
     ('lexicon/adjective_usage.json',  'adjective_usage.schema.json',    False),
     ('lexicon/adverb_usage.json',     'adverb_usage.schema.json',       False),
-    ('formulas/*.json',               'formula.schema.json',            True),
+    # 公式 Schema 顶层同样是 type:array → 整体校验
+    ('formulas/*.json',               'formula.schema.json',            False),
     ('formulas/compatibility_matrix.json', 'compatibility_matrix.schema.json', False),
     ('tests/golden.json',             'golden_test.schema.json',        False),
 ]

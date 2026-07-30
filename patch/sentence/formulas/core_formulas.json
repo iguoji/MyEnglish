@@ -1,0 +1,191 @@
+[
+  {
+    "formula_id": "sv_basic",
+    "pattern": "SV",
+    "description": "主+谓：不及物动词或可省宾语动词。The dog runs. / It rains.",
+    "slots": [
+      { "name": "subject", "accepts": ["pronoun_subject", "noun_phrase"], "required": true,
+        "semantic_filter": ["subject_restriction"] },
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["frames:SV"] },
+      { "name": "adverbial", "accepts": ["adverb"], "required": false }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple",
+                       "present_continuous", "past_continuous", "present_perfect"],
+    "allows_passive": false,
+    "allows_negation": true,
+    "allows_question": true,
+    "rejection_reasons": {
+      "no_candidate_verb": "词库中没有支持 SV 框架的动词",
+      "subject_restriction_unmet": "主语不满足动词的语义限制（如天气动词只能用 it）",
+      "stative_in_continuous": "静态动词不能用于进行时"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "svp_copula",
+    "pattern": "SVP",
+    "description": "主+系+表：be/become/look 等系动词 + 形容词/名词短语表语。The soup tastes good.",
+    "slots": [
+      { "name": "subject", "accepts": ["pronoun_subject", "noun_phrase"], "required": true },
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["frames:SVP", "copula:true"] },
+      { "name": "predicative", "accepts": ["adjective", "noun_phrase"], "required": true,
+        "semantic_filter": ["predicative:yes"] }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple",
+                       "present_continuous", "past_continuous", "present_perfect"],
+    "allows_passive": false,
+    "allows_negation": true,
+    "allows_question": true,
+    "rejection_reasons": {
+      "no_candidate_verb": "词库中没有系动词",
+      "adjective_attributive_only": "该形容词只能作定语不能作表语（如 main）",
+      "stative_in_continuous": "be/seem 等静态系动词不能用于进行时"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "svo_basic",
+    "pattern": "SVO",
+    "description": "主+谓+宾：及物动词 + 名词短语/宾格代词宾语。She reads a book.",
+    "slots": [
+      { "name": "subject", "accepts": ["pronoun_subject", "noun_phrase"], "required": true,
+        "semantic_filter": ["subject_restriction"] },
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["frames:SVO"] },
+      { "name": "object", "accepts": ["pronoun_object", "noun_phrase", "bare_noun_uncountable"], "required": true,
+        "semantic_filter": ["object_restriction"] },
+      { "name": "adverbial", "accepts": ["adverb"], "required": false }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple",
+                       "present_continuous", "past_continuous", "present_perfect"],
+    "allows_passive": true,
+    "allows_negation": true,
+    "allows_question": true,
+    "rejection_reasons": {
+      "no_candidate_verb": "词库中没有支持 SVO 框架的动词",
+      "object_restriction_unmet": "宾语不满足动词的语义限制（如 eat 需要 edible）",
+      "stative_in_continuous": "静态动词（know/like）不能用于进行时",
+      "passive_not_allowed": "该动词不可被动（如 fit/cost）"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "svoo_dative",
+    "pattern": "SVOO",
+    "description": "主+谓+间宾+直宾：give/send 类双宾动词。He gives her a gift.",
+    "slots": [
+      { "name": "subject", "accepts": ["pronoun_subject", "noun_phrase"], "required": true,
+        "semantic_filter": ["subject_restriction"] },
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["frames:SVOO"] },
+      { "name": "indirect_object", "accepts": ["pronoun_object", "noun_phrase"], "required": true,
+        "semantic_filter": ["semantic_category:person"] },
+      { "name": "direct_object", "accepts": ["noun_phrase"], "required": true }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple",
+                       "present_continuous", "past_continuous", "present_perfect"],
+    "allows_passive": true,
+    "allows_negation": true,
+    "allows_question": true,
+    "conflicts_with": [],
+    "rejection_reasons": {
+      "no_candidate_verb": "词库中没有支持 SVOO 框架的动词",
+      "indirect_object_not_person": "间接宾语必须是人物类名词或人称代词",
+      "direct_object_pronoun_order": "直接宾语为代词时必须改介词句（give it to her）"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "svoc_complement",
+    "pattern": "SVOC",
+    "description": "主+谓+宾+补：make/call/keep 类 + 形容词/名词/不带to不定式补语。She makes him happy.",
+    "slots": [
+      { "name": "subject", "accepts": ["pronoun_subject", "noun_phrase"], "required": true,
+        "semantic_filter": ["subject_restriction"] },
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["frames:SVOC"] },
+      { "name": "object", "accepts": ["pronoun_object", "noun_phrase"], "required": true },
+      { "name": "complement", "accepts": ["adjective", "noun_phrase", "verb_lemma"], "required": true,
+        "semantic_filter": ["complement_types"] }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple",
+                       "present_continuous", "past_continuous", "present_perfect"],
+    "allows_passive": false,
+    "allows_negation": true,
+    "allows_question": true,
+    "rejection_reasons": {
+      "no_candidate_verb": "词库中没有支持 SVOC 框架的动词",
+      "complement_type_mismatch": "补语类型与动词要求不符（enjoy 只接 gerund）",
+      "passive_deferred": "SVOC 被动改写（He is made to cry）超出第一版范围，统一拒绝"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "sv_prep_o",
+    "pattern": "SV_PREP_O",
+    "description": "主+谓+固定介词+介词宾语：listen to / wait for / belong to。She listens to music.",
+    "slots": [
+      { "name": "subject", "accepts": ["pronoun_subject", "noun_phrase"], "required": true,
+        "semantic_filter": ["subject_restriction"] },
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["frames:SV_PREP_O"] },
+      { "name": "preposition", "accepts": ["preposition_fixed"], "required": true,
+        "semantic_filter": ["fixed_preposition"] },
+      { "name": "prep_object", "accepts": ["pronoun_object", "noun_phrase", "bare_noun_uncountable"], "required": true }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple",
+                       "present_continuous", "past_continuous", "present_perfect"],
+    "allows_passive": false,
+    "allows_negation": true,
+    "allows_question": true,
+    "rejection_reasons": {
+      "no_candidate_verb": "词库中没有固定介词动词",
+      "missing_fixed_preposition": "动词条目缺少 fixed_preposition 字段，安全失败",
+      "stative_in_continuous": "belong 等静态动词不能用于进行时"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "there_be_existential",
+    "pattern": "THERE_BE",
+    "description": "存在句：There is a book on the desk. / There are two dogs.",
+    "slots": [
+      { "name": "existential_np", "accepts": ["noun_phrase", "bare_noun_uncountable", "plural_noun_phrase"], "required": true },
+      { "name": "location", "accepts": ["noun_phrase"], "required": false,
+        "semantic_filter": ["semantic_category:place"] }
+    ],
+    "allowed_tenses": ["present_simple", "past_simple", "future_simple", "present_perfect"],
+    "allows_passive": false,
+    "allows_negation": true,
+    "allows_question": true,
+    "conflicts_with": ["voice_passive", "tense_continuous"],
+    "rejection_reasons": {
+      "definite_np_rejected": "存在句要求非特指名词短语（*There is the book）",
+      "agreement_ambiguous": "并列主语的 be 一致性超出第一版范围，安全失败"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  },
+  {
+    "formula_id": "imperative_basic",
+    "pattern": "IMPERATIVE",
+    "description": "祈使句：动词原形开头，无主语。Open the door. / Please sit down.",
+    "slots": [
+      { "name": "verb", "accepts": ["verb_lemma"], "required": true,
+        "semantic_filter": ["subject_restriction:person_or_any"] },
+      { "name": "object", "accepts": ["noun_phrase"], "required": false },
+      { "name": "adverbial", "accepts": ["adverb"], "required": false }
+    ],
+    "allowed_tenses": ["present_simple"],
+    "allows_passive": false,
+    "allows_negation": true,
+    "allows_question": false,
+    "conflicts_with": ["tense_past_simple", "tense_future_simple", "tense_continuous", "tense_perfect", "question_yes_no"],
+    "rejection_reasons": {
+      "stative_imperative": "静态动词一般不用于祈使句（*Know the answer）",
+      "expletive_subject_verb": "天气动词无祈使用法（*Rain）"
+    },
+    "provenance": { "source": "curated_by_agent", "reviewed": true, "confidence": "high", "checked_at": "2026-07-30" }
+  }
+]

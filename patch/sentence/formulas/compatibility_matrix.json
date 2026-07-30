@@ -1,0 +1,162 @@
+{
+  "description": "UI 选项兼容矩阵（任务24）。维度名：pattern(句型) / tense(时态) / voice(语态) / polarity(肯否) / mood(语气) / question(疑问类型) / verb 属性(来自 verb_frames)。sentence.html 只是维度参考，合法组合以本表为准；未被 forbid 命中不代表一定合法，还须通过公式契约与词条属性检查（安全失败原则见 docs/generation_order.md）。",
+  "rules": [
+    {
+      "rule_id": "passive_requires_transitive_frame",
+      "kind": "require",
+      "when": { "voice": "passive" },
+      "then": { "verb_frames_any": ["SVO", "SVOO"], "verb_allows_passive": "yes" },
+      "message": "被动语态要求动词具有 SVO/SVOO 框架且 allows_passive=yes"
+    },
+    {
+      "rule_id": "forbid_passive_sv",
+      "kind": "forbid",
+      "when": { "pattern": "SV", "voice": "passive" },
+      "message": "纯不及物句型没有宾语可提升为主语，禁止被动"
+    },
+    {
+      "rule_id": "forbid_passive_svp",
+      "kind": "forbid",
+      "when": { "pattern": "SVP", "voice": "passive" },
+      "message": "系表结构无被动（*Good is tasted by the soup）"
+    },
+    {
+      "rule_id": "forbid_passive_there_be",
+      "kind": "forbid",
+      "when": { "pattern": "THERE_BE", "voice": "passive" },
+      "message": "存在句无被动语态"
+    },
+    {
+      "rule_id": "forbid_passive_imperative",
+      "kind": "forbid",
+      "when": { "pattern": "IMPERATIVE", "voice": "passive" },
+      "message": "第一版祈使句不支持被动（Be opened 属边缘用法）"
+    },
+    {
+      "rule_id": "forbid_stative_continuous",
+      "kind": "forbid",
+      "when": { "tense": ["present_continuous", "past_continuous"], "verb_stative_policy": "usually_stative" },
+      "message": "静态动词不进进行时（*I am knowing the answer）"
+    },
+    {
+      "rule_id": "forbid_imperative_nonpresent",
+      "kind": "forbid",
+      "when": { "pattern": "IMPERATIVE", "tense": ["past_simple", "future_simple", "present_continuous", "past_continuous", "present_perfect"] },
+      "message": "祈使句只有动词原形，无时态变化"
+    },
+    {
+      "rule_id": "forbid_imperative_question",
+      "kind": "forbid",
+      "when": { "pattern": "IMPERATIVE", "question": ["yes_no", "wh"] },
+      "message": "祈使句不构成疑问句"
+    },
+    {
+      "rule_id": "forbid_there_be_continuous",
+      "kind": "forbid",
+      "when": { "pattern": "THERE_BE", "tense": ["present_continuous", "past_continuous"] },
+      "message": "第一版存在句不支持进行时（There is being... 属边缘用法）"
+    },
+    {
+      "rule_id": "forbid_expletive_verb_nonweather_subject",
+      "kind": "forbid",
+      "when": { "verb_subject_restriction": "expletive_it", "subject_not": "it" },
+      "message": "天气动词只能用虚主语 it（*The dog rains）"
+    },
+    {
+      "rule_id": "require_do_support_negation",
+      "kind": "require",
+      "when": { "polarity": "negative", "tense": ["present_simple", "past_simple"], "verb_is_be": false },
+      "then": { "auxiliary": "do_support" },
+      "message": "一般现在/过去时否定需 do/does/did + not + 原形；be 动词直接加 not"
+    },
+    {
+      "rule_id": "require_do_support_question",
+      "kind": "require",
+      "when": { "question": "yes_no", "tense": ["present_simple", "past_simple"], "verb_is_be": false },
+      "then": { "auxiliary": "do_support", "word_order": "aux_subject_verb" },
+      "message": "一般现在/过去时疑问需 do/does/did 提前；be 动词直接倒装"
+    },
+    {
+      "rule_id": "require_passive_verb_form",
+      "kind": "require",
+      "when": { "voice": "passive" },
+      "then": { "verb_form": "past_participle", "auxiliary": "be_conjugated" },
+      "message": "被动语态 = be 变位 + 过去分词，动词条目必须有 past_participle"
+    },
+    {
+      "rule_id": "require_perfect_verb_form",
+      "kind": "require",
+      "when": { "tense": "present_perfect" },
+      "then": { "verb_form": "past_participle", "auxiliary": "have_conjugated" },
+      "message": "现在完成时 = have/has + 过去分词，动词条目必须有 past_participle"
+    },
+    {
+      "rule_id": "require_continuous_verb_form",
+      "kind": "require",
+      "when": { "tense": ["present_continuous", "past_continuous"] },
+      "then": { "verb_form": "gerund", "auxiliary": "be_conjugated" },
+      "message": "进行时 = be 变位 + 现在分词，动词条目必须有 gerund"
+    },
+    {
+      "rule_id": "constrain_mass_noun_article",
+      "kind": "forbid",
+      "when": { "noun_number_behavior": "mass", "determiner": ["a", "an"] },
+      "message": "不可数名词禁接不定冠词（*a water）；可用 some/the/零冠词"
+    },
+    {
+      "rule_id": "constrain_plural_only_numeral",
+      "kind": "forbid",
+      "when": { "noun_number_behavior": "plural_only", "determiner_numeral": true, "pair_construction_used": false },
+      "message": "plural_only 名词直接计数非法（*two scissors），须 a pair of / two pairs of"
+    },
+    {
+      "rule_id": "constrain_collective_agreement",
+      "kind": "require",
+      "when": { "noun_number_behavior": "collective", "noun_as_subject": true },
+      "then": { "verb_agreement": "per_lexicon_verb_agreement" },
+      "message": "集体名词谓语一致性以 noun_usage.verb_agreement 为准（police→plural，team→单数默认）"
+    },
+    {
+      "rule_id": "constrain_ungradable_degree",
+      "kind": "forbid",
+      "when": { "adjective_gradability": "usually_ungradable", "degree_modifier": ["very", "more", "most", "too", "so"] },
+      "message": "不可分级形容词禁入比较/程度公式（*more unique / *very dead）"
+    },
+    {
+      "rule_id": "constrain_attributive_only",
+      "kind": "forbid",
+      "when": { "adjective_attributive": "no", "position": "attributive" },
+      "message": "只作表语的形容词禁放名词前（*an afraid child）"
+    },
+    {
+      "rule_id": "constrain_predicative_only",
+      "kind": "forbid",
+      "when": { "adjective_predicative": "no", "position": "predicative" },
+      "message": "只作定语的形容词禁放系动词后（*The reason is main）"
+    },
+    {
+      "rule_id": "constrain_degree_adverb_verb",
+      "kind": "forbid",
+      "when": { "adverb_category": "degree", "modifies_target": "verb", "adverb_not": "almost" },
+      "message": "程度副词不直接修饰动词（*I very like it）；改 very much 句尾"
+    },
+    {
+      "rule_id": "constrain_never_with_not",
+      "kind": "forbid",
+      "when": { "adverb_negative_meaning": true, "polarity": "negative" },
+      "message": "never/rarely/seldom 自带否定义，不与 not 叠加（双重否定）"
+    },
+    {
+      "rule_id": "constrain_there_be_definite",
+      "kind": "forbid",
+      "when": { "pattern": "THERE_BE", "determiner": ["the", "this", "that", "my", "your"] },
+      "message": "存在句要求非特指名词短语（*There is the book）"
+    },
+    {
+      "rule_id": "constrain_yet_polarity",
+      "kind": "forbid",
+      "when": { "adverb": "yet", "polarity": "affirmative", "question": "none" },
+      "message": "yet 只用于否定句和疑问句"
+    }
+  ]
+}
