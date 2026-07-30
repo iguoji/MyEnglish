@@ -268,11 +268,11 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                     ),
                     // 名称与版号间距。
                     const SizedBox(height: 4),
-                    // 版号 Azure 浅色徽章：圆角 4、横向 8 纵向 3 内边距。
+                    // 版号 Azure 浅色徽章：圆角 4、横向 8 纵向 2 内边距（高度减小 2px）。
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
-                        vertical: 3,
+                        vertical: 2,
                       ),
                       decoration: BoxDecoration(
                         // Azure 主色按透明度叠加为浅底。
@@ -651,10 +651,10 @@ class _SettingsCardState extends State<_SettingsCard> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // Container 作为卡片：横向 20 边距（与学习设置标题左对齐）、纵向 4 内边距、tokens.expand 背景、8 圆角、无边框。
+    // Container 作为卡片：横向 10 边距、纵向 4 内边距、tokens.expand 背景、8 圆角、无边框。
     return Container(
-      // 横向 20 边距让卡片左右与"学习设置"标题对齐。
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      // 横向 10 边距。
+      margin: const EdgeInsets.symmetric(horizontal: 10),
       // 纵向 4 内边距避免设置行紧贴卡片上下边。
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
@@ -679,7 +679,7 @@ class _SettingsCardState extends State<_SettingsCard> {
                 // 卡片内行间分隔线。
                 showDivider: true,
                 // 卡片内横向 8 内边距（卡片已有 20 边距对齐标题）。
-                horizontalPadding: 8,
+                horizontalPadding: 10,
                 control: _AccentControl(
                   settings: widget.settings,
                   onTap: (accent) => unawaited(_setAccent(accent)),
@@ -690,7 +690,7 @@ class _SettingsCardState extends State<_SettingsCard> {
                 label: '单词分隔',
                 // 中间行画分隔线，与下方每日复习分隔。
                 showDivider: true,
-                horizontalPadding: 8,
+                horizontalPadding: 10,
                 control: _SeparatorControl(
                   settings: widget.settings,
                   onTap: (separator) =>
@@ -731,6 +731,8 @@ class _AccentControl extends StatelessWidget {
     return Container(
       // 固定宽度让三种控件视觉等宽。
       width: _kSettingControlWidth,
+      // 固定高度 38（padding 6*2 + 段钮 26），与单词分隔/每日复习统一。
+      height: 38,
       // padding 6（原 2 增大三倍），让段钮间隔更舒展。
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
@@ -798,6 +800,8 @@ class _SeparatorControl extends StatelessWidget {
     return Container(
       // 与口语发音等宽。
       width: _kSettingControlWidth,
+      // 固定高度 38，与口语发音/每日复习统一。
+      height: 38,
       // padding 6 与口语发音一致。
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
@@ -877,6 +881,8 @@ class _DailyGoalRow extends StatelessWidget {
           control: Container(
             // 与口语发音/单词分隔等宽。
             width: _kSettingControlWidth,
+            // 固定高度 38，与口语发音/单词分隔统一，避免占满整行。
+            height: 38,
             // padding 6 与其他两个控件一致。
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
@@ -909,6 +915,7 @@ class _DailyGoalRow extends StatelessWidget {
                 // 当前目标值。
                 Container(
                   constraints: const BoxConstraints(minWidth: 34),
+                  height: 26,
                   alignment: Alignment.center,
                   child: Text(
                     settings.dailyGoal.toString(),
