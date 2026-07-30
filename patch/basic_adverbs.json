@@ -577,37 +577,5 @@
     "difficulty": null,
     "created_at": "2026-07-29",
     "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100840,
-    "spelling": "thanks",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "int.",
-        "definitions": [
-          "谢谢（应答/语气词）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
-  },
-  {
-    "id": 100841,
-    "spelling": "okay",
-    "meanings": [
-      {
-        "index": 1,
-        "pos": "int.",
-        "definitions": [
-          "好的；行（应答词，亦作 OK）"
-        ]
-      }
-    ],
-    "difficulty": null,
-    "created_at": "2026-07-29",
-    "updated_at": "2026-07-29"
   }
 ]

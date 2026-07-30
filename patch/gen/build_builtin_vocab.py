@@ -55,7 +55,7 @@ IRREGULAR_VERBS = {
     "win": ["won", "won"], "spin": ["spun", "spun"], "swing": ["swung", "swung"],
     "hang": ["hung", "hung"], "shine": ["shone", "shone"], "hold": ["held", "held"],
     "tell": ["told", "told"], "sell": ["sold", "sold"], "find": ["found", "found"],
-    "get": ["got", "got"], "sit": ["sat", "sat"], "shit": ["shit", "shit"],
+    "get": ["got", ["got", "gotten"]], "sit": ["sat", "sat"], "shit": ["shit", "shit"],
     "light": ["lit", "lit"], "meet": ["met", "met"], "lead": ["led", "led"], "lie": ["lay", "lain"],
     "feed": ["fed", "fed"], "feel": ["felt", "felt"], "keep": ["kept", "kept"],
     "sleep": ["slept", "slept"], "sweep": ["swept", "swept"], "weep": ["wept", "wept"],
@@ -68,12 +68,12 @@ IRREGULAR_VERBS = {
     "teach": ["taught", "taught"], "catch": ["caught", "caught"], "seek": ["sought", "sought"],
     "buy": ["bought", "bought"], "fight": ["fought", "fought"], "fly": ["flew", "flown"],
     "blow": ["blew", "blown"], "grow": ["grew", "grown"], "know": ["knew", "known"],
-    "throw": ["threw", "thrown"], "draw": ["drew", "drawn"], "show": ["showed", "shown"],
+    "throw": ["threw", "thrown"], "draw": ["drew", "drawn"], "show": ["showed", ["shown", "showed"]],
     "drive": ["drove", "driven"], "ride": ["rode", "ridden"], "rise": ["rose", "risen"],
     "fall": ["fell", "fallen"], "take": ["took", "taken"], "mistake": ["mistook", "mistaken"],
     "break": ["broke", "broken"], "speak": ["spoke", "spoken"], "steal": ["stole", "stolen"],
-    "wake": ["woke", "woken"], "choose": ["chose", "chosen"], "freeze": ["froze", "frozen"],
-    "forget": ["forgot", "forgotten"], "hide": ["hid", "hidden"], "bite": ["bit", "bitten"],
+    "wake": [["woke", "waked"], ["woken", "waked"]], "choose": ["chose", "chosen"], "freeze": ["froze", "frozen"],
+    "forget": ["forgot", ["forgotten", "forgot"]], "hide": ["hid", "hidden"], "bite": ["bit", ["bitten", "bit"]],
     "write": ["wrote", "written"], "eat": ["ate", "eaten"], "give": ["gave", "given"],
     "forgive": ["forgave", "forgiven"], "shake": ["shook", "shaken"], "take": ["took", "taken"],
     "undertake": ["undertook", "undertaken"], "overtake": ["overtook", "overtaken"],
@@ -89,15 +89,15 @@ IRREGULAR_VERBS = {
     "find": ["found", "found"], "behind": ["behind", "behind"], "remind": ["reminded", "reminded"],
     "slide": ["slid", "slid"], "stride": ["strode", "stridden"], "ride": ["rode", "ridden"],
     "chide": ["chid", "chidden"], "slide": ["slid", "slid"], "glide": ["glided", "glided"],
-    "hide": ["hid", "hidden"], "provide": ["provided", "provided"], "divide": ["divided", "divided"],
+    "hide": ["hid", ["hidden", "hid"]], "provide": ["provided", "provided"], "divide": ["divided", "divided"],
     "decide": ["decided", "decided"], "ride": ["rode", "ridden"], "stride": ["strode", "stridden"],
     "arise": ["arose", "arisen"], "rise": ["rose", "risen"], "raise": ["raised", "raised"],
     "sew": ["sewed", "sewn"], "sow": ["sowed", "sown"], "mow": ["mowed", "mown"],
     "hew": ["hewed", "hewn"], "hew": ["hewed", "hewn"], "shew": ["shewed", "shewn"],
-    "awake": ["awoke", "awoken"], "wake": ["woke", "woken"], "bake": ["baked", "baked"],
+    "awake": ["awoke", "awoken"], "wake": [["woke", "waked"], ["woken", "waked"]], "bake": ["baked", "baked"],
     "shake": ["shook", "shaken"], "stake": ["staked", "staked"], "snake": ["snaked", "snaked"],
     "sneak": ["sneaked", "sneaked"], "speak": ["spoke", "spoken"], "break": ["broke", "broken"],
-    "steal": ["stole", "stolen"], "speak": ["spoke", "spoken"], "wake": ["woke", "woken"],
+    "steal": ["stole", "stolen"], "speak": ["spoke", "spoken"], "wake": [["woke", "waked"], ["woken", "waked"]],
     "freeze": ["froze", "frozen"], "flee": ["fled", "fled"], "fling": ["flung", "flung"],
     "string": ["strung", "strung"], "swing": ["swung", "swung"], "cling": ["clung", "clung"],
     "wring": ["wrung", "wrung"], "sting": ["stung", "stung"], "bang": ["banged", "banged"],
@@ -145,7 +145,7 @@ IRREGULAR_VERBS = {
     "signal": ["signalled", "signalled"], "control": ["controlled", "controlled"],
     "patrol": ["patrolled", "patrolled"], "counsel": ["counselled", "counselled"],
     "enrol": ["enrolled", "enrolled"], "fulfil": ["fulfilled", "fulfilled"],
-    "regret": ["regretted", "regretted"], "forget": ["forgot", "forgotten"],
+    "regret": ["regretted", "regretted"], "forget": ["forgot", ["forgotten", "forgot"]],
     "begin": ["began", "begun"], "shop": ["shopped", "shopped"], "stop": ["stopped", "stopped"],
     "drop": ["dropped", "dropped"], "nod": ["nodded", "nodded"], "rob": ["robbed", "robbed"],
     "rub": ["rubbed", "rubbed"], "snap": ["snapped", "snapped"], "wrap": ["wrapped", "wrapped"],
@@ -179,12 +179,21 @@ IRREGULAR_TPS = {
     "have": "has", "do": "does", "go": "goes",
 }
 
+# 现在分词/过去式需双写尾辅音的「重音在末音节」动词（规则无法自动判定重音，用特例表）
+# 例：prefer→preferring/preferred, occur→occurring/occurred, begin→beginning/began(不规则)
+GERUND_DOUBLE = {
+    "prefer", "refer", "occur", "admit", "omit", "begin", "forget", "regret",
+    "permit", "commit", "control", "travel", "cancel", "model", "label",
+    "quarrel", "equip", "kidnap", "defer", "deter", "transfer", "patrol",
+    "compel", "expel", "repel", "counsel", "parallel", "profit", "target",
+}
+
 # ============================================================================
 # 2. 不规则名词复数表
 #    结构：{ 原形: [复数形] }  多合法形用数组（如 octopus→["octopuses","octopi"]）
 # ============================================================================
 IRREGULAR_NOUNS = {
-    "child": ["children"], "man": ["men"], "woman": ["women"],
+    "bus": ["buses", "busses"], "child": ["children"], "man": ["men"], "woman": ["women"],
     "person": ["people", "persons"], "ox": ["oxen"], "goose": ["geese"],
     "mouse": ["mice"], "tooth": ["teeth"], "foot": ["feet"], "louse": ["lice"],
     "datum": ["data"], "criterion": ["criteria"], "phenomenon": ["phenomena"],
@@ -246,6 +255,11 @@ def _is_vowel(ch):
     return ch in "aeiou"
 
 
+def _count_vowels(sp):
+    """统计拼写中的元音字母个数（粗略判断音节数，用于单音节 CVC 双写判定）"""
+    return sum(1 for ch in sp if ch in "aeiou")
+
+
 def infer_verb_forms(spelling):
     """
     推导一个动词的「三单 / 现在分词 / 过去式 / 过去分词」。
@@ -268,32 +282,40 @@ def infer_verb_forms(spelling):
         tps = [sp + "s"]                  # run → runs
 
     # --- 现在分词 (gerund / present participle) ---
-    if len(sp) == 3 and not _is_vowel(sp[0]) and sp[1] in "aeiou" and not _is_vowel(sp[2]) and sp[2] not in "wx":
-        # 真 CVC 结构（首辅音+中元音+尾辅音，如 run/sit/stop）→ 双写尾辅音
-        # 注意：eat(e-a-t) 首字母是元音，不双写 → eating；故加 not _is_vowel(sp[0]) 排除
+    if sp in GERUND_DOUBLE:
+        # 多音节且重音在末音节（prefer→preferring, occur→occurring）
+        gerund = [sp + sp[-1] + "ing"]
+    elif (len(sp) <= 4 and sp[0] not in "aeiou" and _count_vowels(sp) == 1
+          and _is_vowel(sp[-2]) and not _is_vowel(sp[-1]) and sp[-1] not in "wyx"):
+        # 单音节 CVC 结构（stop/swim/run/plan/sit）→ 双写尾辅音
+        # 须满足：尾三字母辅-元-辅（sp[-3] 为辅，排除 read=e-a-d 的 VVC）、且整词仅 1 个元音（排除 keep/meet 等多音节）
         gerund = [sp + sp[-1] + "ing"]
     elif sp.endswith("ie"):
         gerund = [sp[:-2] + "ying"]      # lie → lying, die → dying
     elif sp.endswith("e") and not sp.endswith("ee"):
         gerund = [sp[:-1] + "ing"]       # make → making, take → taking
     else:
-        gerund = [sp + "ing"]            # eat → eating, go → going
+        gerund = [sp + "ing"]            # eat → eating, go → going, buy → buying
 
     # --- 过去式 / 过去分词 ---
     if sp in IRREGULAR_VERBS:
         past, pp = IRREGULAR_VERBS[sp]
-        past_tense = [past]
-        past_participle = [pp]
+        # past/pp 既可为字符串（单形），也可为列表（多合法形，如 get→got/gotten）
+        past_tense = past if isinstance(past, list) else [past]
+        past_participle = pp if isinstance(pp, list) else [pp]
     else:
         # 规则动词：过去式与过去分词同形，按拼写规则加 -ed
-        if sp.endswith(("s", "x", "z", "ch", "sh")):
-            ed = sp + "ed"
-        elif len(sp) == 3 and sp[1] in "aeiou" and not _is_vowel(sp[2]) and sp[2] not in "wx":
+        if sp in GERUND_DOUBLE:
+            ed = sp + sp[-1] + "ed"      # prefer → preferred, occur → occurred
+        elif sp.endswith(("s", "x", "z", "ch", "sh")):
+            ed = sp + "ed"               # watch → watched, mix → mixed
+        elif (len(sp) <= 4 and sp[0] not in "aeiou" and _count_vowels(sp) == 1
+              and _is_vowel(sp[-2]) and not _is_vowel(sp[-1]) and sp[-1] not in "wyx"):
             ed = sp + sp[-1] + "ed"      # stop → stopped, plan → planned
         elif sp.endswith("y") and not _is_vowel(sp[-2]):
             ed = sp[:-1] + "ied"         # study → studied, try → tried
         elif sp.endswith("e"):
-            ed = sp + "d"                # love → loved, make → made? (e+oed)
+            ed = sp + "d"                # love → loved, bake → baked
         else:
             ed = sp + "ed"               # walk → walked
         past_tense = [ed]
