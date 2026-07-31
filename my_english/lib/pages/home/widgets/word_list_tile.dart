@@ -609,8 +609,8 @@ class _MeaningRow extends StatelessWidget {
             style: TextStyle(
               color: tokens.textSecondary,
               fontSize: 13.5,
-              // 设计稿词性使用斜体。
-              fontStyle: FontStyle.italic,
+              // 词性使用正常字体（用户明确不想要斜体）。
+              fontStyle: FontStyle.normal,
               height: 1.5,
               letterSpacing: 0,
             ),

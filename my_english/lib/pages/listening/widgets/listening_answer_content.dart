@@ -148,7 +148,8 @@ class _MeaningAnswerBlock extends StatelessWidget {
           style: TextStyle(
             color: tokens.textSecondary,
             fontSize: 12.5,
-            fontStyle: FontStyle.italic,
+            // 词性使用正常字体（用户明确不想要斜体）。
+            fontStyle: FontStyle.normal,
           ),
         ),
         // 词性与释义之间固定保留 7 像素。
