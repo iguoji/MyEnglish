@@ -1,0 +1,290 @@
+{
+  "corpus_evaluation": {
+    "total_sentences": 2000,
+    "flagged_sentences": 105,
+    "false_positive_rate": 0.0525,
+    "per_category": {
+      "daily_routine": {
+        "total": 100,
+        "flagged": 2
+      },
+      "directions": {
+        "total": 100,
+        "flagged": 2
+      },
+      "emotions": {
+        "total": 100,
+        "flagged": 4
+      },
+      "family": {
+        "total": 100,
+        "flagged": 4
+      },
+      "food_dining": {
+        "total": 100,
+        "flagged": 4
+      },
+      "greetings": {
+        "total": 100,
+        "flagged": 3
+      },
+      "health": {
+        "total": 100,
+        "flagged": 6
+      },
+      "hobbies": {
+        "total": 100,
+        "flagged": 0
+      },
+      "home_housework": {
+        "total": 100,
+        "flagged": 2
+      },
+      "introductions": {
+        "total": 100,
+        "flagged": 2
+      },
+      "money_payment": {
+        "total": 100,
+        "flagged": 7
+      },
+      "phone_messages": {
+        "total": 100,
+        "flagged": 9
+      },
+      "requests_help": {
+        "total": 100,
+        "flagged": 10
+      },
+      "shopping": {
+        "total": 100,
+        "flagged": 7
+      },
+      "small_talk": {
+        "total": 100,
+        "flagged": 13
+      },
+      "time_schedule": {
+        "total": 100,
+        "flagged": 4
+      },
+      "transportation": {
+        "total": 100,
+        "flagged": 14
+      },
+      "travel": {
+        "total": 100,
+        "flagged": 5
+      },
+      "weather": {
+        "total": 100,
+        "flagged": 3
+      },
+      "work_study": {
+        "total": 100,
+        "flagged": 4
+      }
+    },
+    "code_distribution": [
+      {
+        "category": "grammar",
+        "code": "complement_type_mismatch",
+        "count": 34
+      },
+      {
+        "category": "grammar",
+        "code": "third_singular",
+        "count": 19
+      },
+      {
+        "category": "grammar",
+        "code": "missing_do_support",
+        "count": 19
+      },
+      {
+        "category": "grammar",
+        "code": "inflected_imperative",
+        "count": 12
+      },
+      {
+        "category": "grammar",
+        "code": "missing_fixed_preposition",
+        "count": 9
+      },
+      {
+        "category": "grammar",
+        "code": "be_agreement",
+        "count": 8
+      },
+      {
+        "category": "grammar",
+        "code": "uncountable_with_indefinite_article",
+        "count": 4
+      },
+      {
+        "category": "grammar",
+        "code": "subject_restriction_unmet",
+        "count": 3
+      },
+      {
+        "category": "grammar",
+        "code": "wrong_dative_preposition",
+        "count": 2
+      },
+      {
+        "category": "grammar",
+        "code": "degree_adverb_on_verb",
+        "count": 2
+      },
+      {
+        "category": "grammar",
+        "code": "missing_copula",
+        "count": 1
+      },
+      {
+        "category": "grammar",
+        "code": "mechanical_ed_on_irregular",
+        "count": 1
+      },
+      {
+        "category": "grammar",
+        "code": "uncountable_with_numeral",
+        "count": 1
+      },
+      {
+        "category": "grammar",
+        "code": "have_agreement",
+        "count": 1
+      }
+    ],
+    "samples": {
+      "third_singular": [
+        "Long time no see!",
+        "Time to sleep.",
+        "Good evening, I want to buy a few items.",
+        "Good evening, I want to check prices.",
+        "Good morning, I need something simple."
+      ],
+      "complement_type_mismatch": [
+        "Did you finish the report?",
+        "I've been looking forward to seeing you.",
+        "I start my work.",
+        "Can I get this to go?",
+        "I'd like a window seat."
+      ],
+      "missing_fixed_preposition": [
+        "I've been looking forward to seeing you.",
+        "I don't think we've been properly introduced.",
+        "I don't think we've met.",
+        "It looks like it might rain.",
+        "I think we got disconnected."
+      ],
+      "uncountable_with_indefinite_article": [
+        "I'd like a coffee.",
+        "Can you recommend a wine?",
+        "A coffee, please.",
+        "Can I have a coffee, please?"
+      ],
+      "missing_do_support": [
+        "Is this dish made fresh?",
+        "Is this locally made?",
+        "Is there free Wi-Fi here?",
+        "Is this the express train?",
+        "You look down in the dumps. What happened?"
+      ],
+      "be_agreement": [
+        "Good morning, are you open?",
+        "Good morning, I'm a first-time customer.",
+        "Good evening, I'm looking for quality items.",
+        "Summer days are hot and humid.",
+        "No, I'm not. I'm the second child in my family."
+      ],
+      "inflected_imperative": [
+        "Thanks for the ride.",
+        "Staying up is harmful to your health.",
+        "Drinking plenty of water helps me stay hydrated.",
+        "Spending time with friends lifts my mood.",
+        "Taking deep breaths helps me relax."
+      ],
+      "subject_restriction_unmet": [
+        "Buses run every 15 minutes during rush hour.",
+        "Good morning, Maria speaking.",
+        "Money can't buy happiness."
+      ],
+      "missing_copula": [
+        "A one-way ticket to Paris, please."
+      ],
+      "wrong_dative_preposition": [
+        "You buy your ticket and show it to the inspector.",
+        "We couldn't ask for a nicer day, could we?"
+      ],
+      "mechanical_ed_on_irregular": [
+        "We have clear skies with no clouds."
+      ],
+      "degree_adverb_on_verb": [
+        "I'm so excited for the weekend.",
+        "I feel so annoyed with this situation."
+      ],
+      "uncountable_with_numeral": [
+        "Two coffees, please."
+      ],
+      "have_agreement": [
+        "Have a great time at the movies!"
+      ]
+    }
+  },
+  "minimal_error_probe": {
+    "total": 6,
+    "hit": 6,
+    "rows": [
+      {
+        "corrupted": "He run.",
+        "expected": "third_singular",
+        "got": [
+          "third_singular"
+        ],
+        "hit": true
+      },
+      {
+        "corrupted": "She reads not books.",
+        "expected": "missing_do_support",
+        "got": [
+          "missing_do_support"
+        ],
+        "hit": true
+      },
+      {
+        "corrupted": "A water is cold.",
+        "expected": "uncountable_with_indefinite_article",
+        "got": [
+          "uncountable_with_indefinite_article"
+        ],
+        "hit": true
+      },
+      {
+        "corrupted": "A apple is red.",
+        "expected": "article_phonetic_exception",
+        "got": [
+          "article_phonetic_exception"
+        ],
+        "hit": true
+      },
+      {
+        "corrupted": "He are happy.",
+        "expected": "be_agreement",
+        "got": [
+          "be_agreement"
+        ],
+        "hit": true
+      },
+      {
+        "corrupted": "There is two books on the desk.",
+        "expected": "existential_agreement_violation",
+        "got": [
+          "existential_agreement_violation"
+        ],
+        "hit": true
+      }
+    ]
+  }
+}

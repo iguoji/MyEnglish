@@ -21,7 +21,26 @@
           "required": ["sentence", "reason"],
           "properties": {
             "sentence": { "type": "string" },
-            "reason": { "type": "string", "description": "错误原因，如 uncountable_with_indefinite_article" }
+            "reason": { "type": "string", "description": "错误原因，如 uncountable_with_indefinite_article" },
+            "check_info": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "可选。把该禁止句交给独立检查器时所需的结构化上下文；存在即必须在 golden 模式中命中 reason。",
+              "properties": {
+                "pattern": { "type": "string" },
+                "tense": { "type": "string" },
+                "polarity": { "type": "string", "enum": ["affirmative", "negative"] },
+                "question": { "type": "string", "enum": ["none", "yes_no"] },
+                "is_be": { "type": "boolean" },
+                "person": { "type": ["integer", "null"] },
+                "number": { "type": ["string", "null"] },
+                "verb": { "type": ["string", "null"] },
+                "object_noun": { "type": ["string", "null"] },
+                "mass_object": { "type": "boolean" },
+                "predicative": { "type": ["string", "null"] },
+                "semantic_unnatural": { "type": "boolean" }
+              }
+            }
           }
         }
       },
@@ -55,13 +74,14 @@
         "items": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["pattern", "tense", "polarity", "question", "expect_reject"],
+          "required": ["pattern", "tense", "polarity", "question", "expect_reject", "forbidden_sentence"],
           "properties": {
             "pattern": { "type": "string" },
             "tense": { "type": "string" },
             "polarity": { "type": "string", "enum": ["affirmative", "negative"] },
             "question": { "type": "string", "enum": ["none", "yes_no"] },
             "expect_reject": { "type": "string", "description": "期望的拒绝诊断码，如 stative_in_continuous / forbid_there_be_continuous" },
+            "forbidden_sentence": { "type": "string", "description": "必须逐字引用本测试组 forbidden 中的一条 sentence，用于按句统计执行率。" },
             "choice": { "type": "object" },
             "note": { "type": "string" }
           }

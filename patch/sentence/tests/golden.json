@@ -10,11 +10,29 @@
     "forbidden": [
       {
         "sentence": "The dog run.",
-        "reason": "third_person_singular_missing"
+        "reason": "third_singular",
+        "check_info": {
+          "pattern": "SV",
+          "tense": "present_simple",
+          "polarity": "affirmative",
+          "question": "none",
+          "person": 3,
+          "number": "singular",
+          "verb": "run"
+        }
       },
       {
         "sentence": "He gos.",
-        "reason": "mechanical_s_on_irregular"
+        "reason": "third_singular",
+        "check_info": {
+          "pattern": "SV",
+          "tense": "present_simple",
+          "polarity": "affirmative",
+          "question": "none",
+          "person": 3,
+          "number": "singular",
+          "verb": "go"
+        }
       }
     ],
     "formula_id": "sv_basic",
@@ -34,7 +52,17 @@
     "forbidden": [
       {
         "sentence": "The dog rains.",
-        "reason": "subject_restriction_unmet"
+        "reason": "subject_restriction_unmet",
+        "check_info": {
+          "pattern": "SV",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "rain",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "sv_basic",
@@ -71,6 +99,7 @@
         "tense": "present_simple",
         "polarity": "affirmative",
         "question": "none",
+        "forbidden_sentence": "The dog rains.",
         "choice": {
           "verb": "rain",
           "subject": "dog"
@@ -88,11 +117,29 @@
     "forbidden": [
       {
         "sentence": "She drinks a water.",
-        "reason": "uncountable_with_indefinite_article"
+        "reason": "uncountable_with_indefinite_article",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "verb": "drink",
+          "object_noun": "water",
+          "mass_object": true,
+          "person": 3,
+          "number": "singular"
+        }
       },
       {
         "sentence": "She drinks two waters.",
-        "reason": "uncountable_with_numeral"
+        "reason": "uncountable_with_numeral",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "verb": "drink",
+          "object_noun": "water",
+          "mass_object": true,
+          "person": 3,
+          "number": "singular"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -125,7 +172,17 @@
     "forbidden": [
       {
         "sentence": "The boy eats a desk.",
-        "reason": "object_restriction_unmet"
+        "reason": "object_restriction_unmet",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "eat",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -167,6 +224,7 @@
         "tense": "present_simple",
         "polarity": "affirmative",
         "question": "none",
+        "forbidden_sentence": "The boy eats a desk.",
         "choice": {
           "verb": "eat",
           "subject": "she",
@@ -185,11 +243,31 @@
     "forbidden": [
       {
         "sentence": "I am knowing the answer.",
-        "reason": "stative_in_continuous"
+        "reason": "stative_in_continuous",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_continuous",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "know",
+          "person": 1,
+          "number": "singular",
+          "is_be": true
+        }
       },
       {
         "sentence": "She is liking music.",
-        "reason": "stative_in_continuous"
+        "reason": "stative_in_continuous",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_continuous",
+          "polarity": "affirmative",
+          "question": "none",
+          "person": 3,
+          "number": "singular",
+          "verb": "like",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -206,6 +284,7 @@
         "tense": "present_continuous",
         "polarity": "affirmative",
         "question": "none",
+        "forbidden_sentence": "I am knowing the answer.",
         "choice": {
           "verb": "know",
           "subject": "I",
@@ -224,11 +303,29 @@
     "forbidden": [
       {
         "sentence": "She reads not books.",
-        "reason": "missing_do_support"
+        "reason": "missing_do_support",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "polarity": "negative",
+          "verb": "read",
+          "object_noun": "book",
+          "person": 3,
+          "number": "singular"
+        }
       },
       {
         "sentence": "She does not reads books.",
-        "reason": "double_inflection_after_do"
+        "reason": "double_inflection_after_do",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "polarity": "negative",
+          "verb": "read",
+          "object_noun": "book",
+          "person": 3,
+          "number": "singular"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -263,11 +360,29 @@
     "forbidden": [
       {
         "sentence": "Reads she books?",
-        "reason": "missing_do_support"
+        "reason": "missing_do_support",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "yes_no",
+          "verb": "read",
+          "object_noun": "book",
+          "person": 3,
+          "number": "singular"
+        }
       },
       {
         "sentence": "Does she reads books?",
-        "reason": "double_inflection_after_do"
+        "reason": "double_inflection_after_do",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "yes_no",
+          "verb": "read",
+          "object_noun": "book",
+          "person": 3,
+          "number": "singular"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -300,11 +415,27 @@
     "forbidden": [
       {
         "sentence": "She eated an apple.",
-        "reason": "mechanical_ed_on_irregular"
+        "reason": "mechanical_ed_on_irregular",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "past_simple",
+          "verb": "eat",
+          "object_noun": "apple",
+          "person": 3,
+          "number": "singular"
+        }
       },
       {
         "sentence": "He writed a letter.",
-        "reason": "mechanical_ed_on_irregular"
+        "reason": "mechanical_ed_on_irregular",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "past_simple",
+          "verb": "write",
+          "object_noun": "letter",
+          "person": 3,
+          "number": "singular"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -339,7 +470,17 @@
     "forbidden": [
       {
         "sentence": "The coat is fitted by me.",
-        "reason": "passive_not_allowed"
+        "reason": "passive_not_allowed",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "fit",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -359,11 +500,31 @@
     "forbidden": [
       {
         "sentence": "An afraid child smiles.",
-        "reason": "adjective_predicative_only"
+        "reason": "adjective_predicative_only",
+        "check_info": {
+          "pattern": "SV",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "smile",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       },
       {
         "sentence": "The reason is main.",
-        "reason": "adjective_attributive_only"
+        "reason": "adjective_attributive_only",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -383,7 +544,13 @@
     "forbidden": [
       {
         "sentence": "The soup tastes well.",
-        "reason": "adverb_as_predicative"
+        "reason": "adverb_as_predicative",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "verb": "taste",
+          "predicative": "well"
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -430,11 +597,25 @@
     "forbidden": [
       {
         "sentence": "The man is very dead.",
-        "reason": "ungradable_with_degree"
+        "reason": "ungradable_with_degree",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "is_be": true,
+          "verb": "be",
+          "predicative": "dead"
+        }
       },
       {
         "sentence": "The cat is more alive.",
-        "reason": "ungradable_with_comparative"
+        "reason": "ungradable_with_comparative",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "is_be": true,
+          "verb": "be",
+          "predicative": "alive"
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -468,11 +649,31 @@
     "forbidden": [
       {
         "sentence": "He gives a gift her.",
-        "reason": "dative_order_violation"
+        "reason": "dative_order_violation",
+        "check_info": {
+          "pattern": "SVOO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "give",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       },
       {
         "sentence": "She buys a book to him.",
-        "reason": "wrong_dative_preposition"
+        "reason": "wrong_dative_preposition",
+        "check_info": {
+          "pattern": "SVOO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "buy",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svoo_dative",
@@ -493,7 +694,17 @@
     "forbidden": [
       {
         "sentence": "She makes him to cry.",
-        "reason": "to_infinitive_after_causative"
+        "reason": "to_infinitive_after_causative",
+        "check_info": {
+          "pattern": "SVOC",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "make",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svoc_complement",
@@ -513,7 +724,17 @@
     "forbidden": [
       {
         "sentence": "She enjoys to read.",
-        "reason": "complement_type_mismatch"
+        "reason": "complement_type_mismatch",
+        "check_info": {
+          "pattern": "SV_COMP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "enjoy",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svoc_complement",
@@ -532,11 +753,31 @@
     "forbidden": [
       {
         "sentence": "She listens music.",
-        "reason": "missing_fixed_preposition"
+        "reason": "missing_fixed_preposition",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "listen",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       },
       {
         "sentence": "They wait to the bus.",
-        "reason": "wrong_fixed_preposition"
+        "reason": "wrong_fixed_preposition",
+        "check_info": {
+          "pattern": "SV",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "wait",
+          "person": 3,
+          "number": "plural",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "sv_prep_o",
@@ -558,11 +799,36 @@
     "forbidden": [
       {
         "sentence": "There are a book.",
-        "reason": "existential_agreement_violation"
+        "reason": "existential_agreement_violation",
+        "check_info": {
+          "pattern": "THERE_BE",
+          "tense": "present_simple",
+          "is_be": true,
+          "object_noun": "book"
+        }
       },
       {
         "sentence": "There is two dogs.",
-        "reason": "existential_agreement_violation"
+        "reason": "existential_agreement_violation",
+        "check_info": {
+          "pattern": "THERE_BE",
+          "tense": "present_simple",
+          "is_be": true,
+          "object_noun": "dog"
+        }
+      },
+      {
+        "sentence": "There is being a book on the desk.",
+        "reason": "forbid_there_be_continuous",
+        "check_info": {
+          "pattern": "THERE_BE",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "is_be": true
+        }
       }
     ],
     "formula_id": "there_be_existential",
@@ -616,6 +882,7 @@
         "tense": "present_continuous",
         "polarity": "affirmative",
         "question": "none",
+        "forbidden_sentence": "There is being a book on the desk.",
         "choice": {}
       }
     ]
@@ -629,7 +896,13 @@
     "forbidden": [
       {
         "sentence": "There is the cat in the garden.",
-        "reason": "definite_np_rejected"
+        "reason": "definite_np_rejected",
+        "check_info": {
+          "pattern": "THERE_BE",
+          "tense": "present_simple",
+          "is_be": true,
+          "object_noun": "cat"
+        }
       }
     ],
     "formula_id": "there_be_existential",
@@ -662,11 +935,27 @@
     "forbidden": [
       {
         "sentence": "Opens the door.",
-        "reason": "inflected_imperative"
+        "reason": "inflected_imperative",
+        "check_info": {
+          "pattern": "IMPERATIVE",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "open",
+          "person": 2,
+          "is_be": false
+        }
       },
       {
         "sentence": "Opened the door.",
-        "reason": "inflected_imperative"
+        "reason": "inflected_imperative",
+        "check_info": {
+          "pattern": "IMPERATIVE",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "open",
+          "person": 2,
+          "is_be": false
+        }
       }
     ],
     "formula_id": "imperative_basic",
@@ -686,11 +975,25 @@
     "forbidden": [
       {
         "sentence": "A hour is enough.",
-        "reason": "article_phonetic_exception"
+        "reason": "article_phonetic_exception",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "is_be": true,
+          "object_noun": "hour"
+        }
       },
       {
         "sentence": "She visits an university.",
-        "reason": "article_phonetic_exception"
+        "reason": "article_phonetic_exception",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "verb": "visit",
+          "object_noun": "university",
+          "person": 3,
+          "number": "singular"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -723,20 +1026,63 @@
     "forbidden": [
       {
         "sentence": "She buys a scissors.",
-        "reason": "plural_only_with_indefinite_article"
-      },
-      {
-        "sentence": "She buys two scissors.",
-        "reason": "plural_only_with_numeral"
+        "reason": "plural_only_with_indefinite_article",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "polarity": "affirmative",
+          "question": "none",
+          "is_be": false
+        }
       },
       {
         "sentence": "The scissors is sharp.",
-        "reason": "plural_only_agreement_violation"
+        "reason": "plural_only_agreement_violation",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "plural",
+          "is_be": true
+        }
+      },
+      {
+        "sentence": "The trousers is blue.",
+        "reason": "plural_only_agreement_violation",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "plural",
+          "is_be": true
+        }
+      },
+      {
+        "sentence": "The shorts is new.",
+        "reason": "plural_only_agreement_violation",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "plural",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svo_basic",
     "depends_on": [
       "noun_usage:scissors+n.",
+      "noun_usage:trousers+n.",
+      "noun_usage:shorts+n.",
       "verb_frames:buy+vt."
     ]
   },
@@ -750,11 +1096,31 @@
     "forbidden": [
       {
         "sentence": "The police is here.",
-        "reason": "collective_agreement_violation"
+        "reason": "collective_agreement_violation",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "plural",
+          "is_be": true
+        }
       },
       {
         "sentence": "The news are good.",
-        "reason": "false_plural_form"
+        "reason": "false_plural_form",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -773,7 +1139,14 @@
     "forbidden": [
       {
         "sentence": "Two sheeps eat grass.",
-        "reason": "mechanical_plural_on_invariant"
+        "reason": "mechanical_plural_on_invariant",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "polarity": "affirmative",
+          "question": "none",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -793,7 +1166,17 @@
     "forbidden": [
       {
         "sentence": "I very like it.",
-        "reason": "degree_adverb_on_verb"
+        "reason": "degree_adverb_on_verb",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "like",
+          "person": 1,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -813,11 +1196,31 @@
     "forbidden": [
       {
         "sentence": "Always she reads books.",
-        "reason": "frequency_adverb_front_disallowed"
+        "reason": "frequency_adverb_front_disallowed",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "read",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       },
       {
         "sentence": "She reads always books.",
-        "reason": "adverb_between_verb_object"
+        "reason": "adverb_between_verb_object",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "read",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -835,7 +1238,17 @@
     "forbidden": [
       {
         "sentence": "She does not never eat meat.",
-        "reason": "double_negative"
+        "reason": "double_negative",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "polarity": "negative",
+          "question": "none",
+          "is_be": false,
+          "verb": "eat",
+          "person": 3,
+          "number": "singular"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -854,7 +1267,17 @@
     "forbidden": [
       {
         "sentence": "The room is enough big.",
-        "reason": "enough_preposed"
+        "reason": "enough_preposed",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -873,11 +1296,31 @@
     "forbidden": [
       {
         "sentence": "This book is gooder.",
-        "reason": "mechanical_er_on_irregular"
+        "reason": "mechanical_er_on_irregular",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       },
       {
         "sentence": "This book is more good.",
-        "reason": "periphrastic_on_inflectional"
+        "reason": "periphrastic_on_inflectional",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -895,7 +1338,17 @@
     "forbidden": [
       {
         "sentence": "The dog is biger.",
-        "reason": "missing_consonant_doubling"
+        "reason": "missing_consonant_doubling",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "be",
+          "person": 3,
+          "number": "singular",
+          "is_be": true
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -914,11 +1367,26 @@
     "forbidden": [
       {
         "sentence": "She has ate an apple.",
-        "reason": "past_tense_as_participle"
+        "reason": "past_tense_as_participle",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_perfect",
+          "verb": "eat",
+          "object_noun": "apple",
+          "person": 3,
+          "number": "singular"
+        }
       },
       {
         "sentence": "They have goed.",
-        "reason": "mechanical_ed_on_irregular"
+        "reason": "mechanical_ed_on_irregular",
+        "check_info": {
+          "pattern": "SV",
+          "tense": "present_perfect",
+          "verb": "go",
+          "person": 3,
+          "number": "plural"
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -959,7 +1427,14 @@
     "forbidden": [
       {
         "sentence": "Am you happy.",
-        "reason": "be_agreement_person_number"
+        "reason": "be_agreement",
+        "check_info": {
+          "pattern": "SVP",
+          "tense": "present_simple",
+          "question": "yes_no",
+          "is_be": true,
+          "verb": "be"
+        }
       }
     ],
     "formula_id": "svp_copula",
@@ -1480,11 +1955,31 @@
     "forbidden": [
       {
         "sentence": "He reads a deer.",
-        "reason": "object_restriction_unmet"
+        "reason": "object_restriction_unmet",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "read",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       },
       {
         "sentence": "She asks a market.",
-        "reason": "object_restriction_unmet"
+        "reason": "object_restriction_unmet",
+        "check_info": {
+          "pattern": "SVO",
+          "tense": "present_simple",
+          "question": "none",
+          "polarity": "affirmative",
+          "verb": "ask",
+          "person": 3,
+          "number": "singular",
+          "is_be": false
+        }
       }
     ],
     "formula_id": "svo_basic",
@@ -1521,6 +2016,7 @@
         "tense": "present_simple",
         "polarity": "affirmative",
         "question": "none",
+        "forbidden_sentence": "He reads a deer.",
         "choice": {
           "verb": "read",
           "subject": "he",
@@ -1533,6 +2029,7 @@
         "tense": "present_simple",
         "polarity": "affirmative",
         "question": "none",
+        "forbidden_sentence": "She asks a market.",
         "choice": {
           "verb": "ask",
           "subject": "she",

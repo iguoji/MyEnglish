@@ -349,6 +349,12 @@ def main():
         if cok and isinstance(cdata, dict):
             verb_spellings = {sp for (sp, _) in lexicon_keys.get('verb_frames', set())}
             noun_spellings = {sp for (sp, _) in lexicon_keys.get('noun_usage', set())}
+            vf_path = os.path.join(SENT_DIR, 'lexicon', 'verb_frames.json')
+            vfdata, vfok = load_json_strict(vf_path)
+            svo_verbs = set()
+            if vfok and isinstance(vfdata, list):
+                svo_verbs = {i.get('spelling') for i in vfdata
+                             if isinstance(i, dict) and 'SVO' in i.get('frames', [])}
             # 名词表里真实出现过的语义类别（用于识别"死标签"）
             noun_cats = set()
             nu_path = os.path.join(SENT_DIR, 'lexicon', 'noun_usage.json')
@@ -370,12 +376,26 @@ def main():
                         err(f"lexicon/collocations.json: 动词 '{v}' 的标签 '{t}' "
                             f"既不是 noun_usage 的语义类别，也没有任何名词在 "
                             f"noun_tags 里登记该标签（死规则，永远匹配不到宾语）")
+            active_verbs = set(cdata.get('verb_restrictions') or {})
+            unresolved_verbs = set(cdata.get('unresolved_verbs') or [])
+            overlap = sorted(active_verbs & unresolved_verbs)
+            if overlap:
+                err("lexicon/collocations.json: 同一动词不能同时处于 active 与 "
+                    f"unresolved：{overlap}")
+            for v in sorted(unresolved_verbs):
+                if v not in verb_spellings:
+                    err(f"lexicon/collocations.json: unresolved_verbs 的 '{v}' "
+                        "未在 lexicon/verb_frames.json 登记")
+                elif v not in svo_verbs:
+                    err(f"lexicon/collocations.json: unresolved_verbs 的 '{v}' "
+                        "没有 SVO 框架")
             for n in (cdata.get('noun_tags') or {}):
                 if n not in noun_spellings:
                     err(f"lexicon/collocations.json: noun_tags 的 '{n}' "
                         f"未在 lexicon/noun_usage.json 登记")
             stats['patch/sentence/lexicon/collocations.json'] = {
-                'entries': len(cdata.get('verb_restrictions') or {})}
+                'entries': len(active_verbs),
+                'unresolved': len(unresolved_verbs)}
 
     # ---- 检查 6：跨表语义冲突（number_behavior 内部由值域保证互斥；
     #      跨表如 stative(动词表) 与 gradability(形容词表) 同词只警告，因跨词性同拼写合法）----
@@ -390,6 +410,8 @@ def main():
         if 'unknown' in s:
             extra = (f"，unknown={s['unknown']}"
                      f"，命中系统基线 {s['in_system']}/{s['entries']}")
+        if 'unresolved' in s:
+            extra += f"，待补可靠搭配={s['unresolved']}"
         print(f"  {rel}: {s['entries']} 条{extra}")
     print(f"\nunknown 总数: {unknown_count}")
 

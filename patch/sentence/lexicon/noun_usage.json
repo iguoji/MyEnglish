@@ -2662,5 +2662,41 @@
       "checked_at": "2026-07-30"
     },
     "location_preposition": "at"
+  },
+  {
+    "spelling": "trousers",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": true,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "裤子；计数须 a pair of trousers",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "shorts",
+    "countability": "countable",
+    "number_behavior": "plural_only",
+    "semantic_category": "object",
+    "default_number": "plural",
+    "pair_construction": true,
+    "indefinite_article_override": "none",
+    "verb_agreement": "plural",
+    "notes": "短裤；计数须 a pair of shorts",
+    "pos": "n.",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
   }
 ]

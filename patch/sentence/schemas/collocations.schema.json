@@ -12,7 +12,6 @@
         "animal",
         "drink",
         "food",
-        "object",
         "person",
         "place",
         "time",
@@ -47,8 +46,15 @@
       "description": "名词 -> 额外搭配标签（名词须在 noun_usage.json 登记；语义类别仍复用 noun_usage.semantic_category）",
       "propertyNames": { "$ref": "#/definitions/lemma_key" },
       "additionalProperties": { "$ref": "#/definitions/tag_list" }
+    },
+    "unresolved_verbs": {
+      "type": "array",
+      "description": "已知可进入 SVO、但尚无可靠宾语语义规则的动词。它们不得出现在 verb_restrictions，也不得进入随机生成池。",
+      "items": { "$ref": "#/definitions/lemma_key" },
+      "minItems": 1,
+      "uniqueItems": true
     }
   },
-  "required": ["verb_restrictions"],
+  "required": ["verb_restrictions", "unresolved_verbs"],
   "additionalProperties": false
 }

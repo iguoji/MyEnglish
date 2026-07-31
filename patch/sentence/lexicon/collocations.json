@@ -1,5 +1,5 @@
 {
-  "_comment": "搭配层（P1-4 新增，独立于 verb_frames / noun_usage）。动词→允许的宾语语义标签；名词→额外搭配标签。语义类别复用 noun_usage.semantic_category（object/person/place/food/drink/animal/abstract/time）。未登记的 SVO 动词在随机造句时被保守排除，仅允许通过 choice 显式指定（测试用）。所有学习阶段共用本规则，阶段只控制公式复杂度。",
+  "_comment": "所有学习阶段共用的动宾搭配层。verb_restrictions 只保存可运行的具体语义规则；unresolved_verbs 保存尚无可靠宾语规则的 SVO 动词，生成器对其保守拒绝。",
   "verb_restrictions": {
     "read": [
       "readable"
@@ -14,8 +14,7 @@
       "drink"
     ],
     "taste": [
-      "food",
-      "object"
+      "food"
     ],
     "visit": [
       "person",
@@ -25,273 +24,111 @@
       "person",
       "question"
     ],
-    "tell": [
-      "object"
-    ],
-    "give": [
-      "object"
-    ],
-    "send": [
-      "object"
-    ],
-    "show": [
-      "object"
-    ],
     "teach": [
-      "person",
-      "object"
+      "person"
     ],
     "pay": [
-      "person",
-      "object"
+      "person"
     ],
     "help": [
-      "person",
-      "object"
+      "person"
     ],
     "call": [
-      "person",
-      "object"
-    ],
-    "sell": [
-      "object"
-    ],
-    "buy": [
-      "object"
-    ],
-    "make": [
-      "object"
-    ],
-    "take": [
-      "object"
-    ],
-    "get": [
-      "object"
-    ],
-    "find": [
-      "object"
-    ],
-    "keep": [
-      "object"
-    ],
-    "need": [
-      "object"
-    ],
-    "want": [
-      "object"
-    ],
-    "like": [
-      "object"
-    ],
-    "love": [
-      "object"
-    ],
-    "see": [
-      "object"
-    ],
-    "hear": [
-      "object"
-    ],
-    "watch": [
-      "object"
-    ],
-    "use": [
-      "object"
-    ],
-    "open": [
-      "object"
-    ],
-    "close": [
-      "object"
-    ],
-    "clean": [
-      "object"
-    ],
-    "wash": [
-      "object"
-    ],
-    "carry": [
-      "object"
-    ],
-    "push": [
-      "object"
-    ],
-    "pull": [
-      "object"
-    ],
-    "drive": [
-      "object"
-    ],
-    "ride": [
-      "object"
-    ],
-    "play": [
-      "object"
-    ],
-    "sing": [
-      "object"
-    ],
-    "draw": [
-      "object"
-    ],
-    "build": [
-      "object"
-    ],
-    "cook": [
-      "object"
-    ],
-    "catch": [
-      "object"
-    ],
-    "throw": [
-      "object"
-    ],
-    "cut": [
-      "object"
-    ],
-    "hit": [
-      "object"
-    ],
-    "hold": [
-      "object"
-    ],
-    "move": [
-      "object"
-    ],
-    "turn": [
-      "object"
-    ],
-    "count": [
-      "object"
-    ],
-    "choose": [
-      "object"
-    ],
-    "pick": [
-      "object"
-    ],
-    "save": [
-      "object"
-    ],
-    "spend": [
-      "object"
-    ],
-    "lose": [
-      "object"
-    ],
-    "win": [
-      "object"
-    ],
-    "study": [
-      "object"
-    ],
-    "learn": [
-      "object"
-    ],
-    "understand": [
-      "object"
-    ],
-    "remember": [
-      "object"
-    ],
-    "forget": [
-      "object"
-    ],
-    "know": [
-      "object"
-    ],
-    "believe": [
-      "object"
-    ],
-    "think": [
-      "object"
-    ],
-    "say": [
-      "object"
-    ],
-    "speak": [
-      "object"
-    ],
-    "promise": [
-      "object"
-    ],
-    "plan": [
-      "object"
-    ],
-    "start": [
-      "object"
-    ],
-    "stop": [
-      "object"
-    ],
-    "try": [
-      "object"
-    ],
-    "enjoy": [
-      "object"
-    ],
-    "finish": [
-      "object"
-    ],
-    "prefer": [
-      "object"
-    ],
-    "smell": [
-      "object"
-    ],
-    "break": [
-      "object"
-    ],
-    "bring": [
-      "object"
-    ],
-    "leave": [
-      "object"
-    ],
-    "put": [
-      "object"
-    ],
-    "fix": [
-      "object"
-    ],
-    "repair": [
-      "object"
-    ],
-    "grow": [
-      "object"
-    ],
-    "paint": [
-      "object"
-    ],
-    "share": [
-      "object"
-    ],
-    "own": [
-      "object"
-    ],
-    "wear": [
-      "object"
-    ],
-    "borrow": [
-      "object"
+      "person"
     ]
   },
   "noun_tags": {
     "book": [
-      "readable",
-      "object"
+      "readable"
     ],
     "letter": [
-      "readable",
-      "object"
+      "readable"
     ],
     "question": [
       "question",
       "abstract"
     ],
     "story": [
-      "readable",
-      "object"
+      "readable"
     ]
-  }
+  },
+  "unresolved_verbs": [
+    "tell",
+    "give",
+    "send",
+    "show",
+    "sell",
+    "buy",
+    "make",
+    "take",
+    "get",
+    "find",
+    "keep",
+    "need",
+    "want",
+    "like",
+    "love",
+    "see",
+    "hear",
+    "watch",
+    "use",
+    "open",
+    "close",
+    "clean",
+    "wash",
+    "carry",
+    "push",
+    "pull",
+    "drive",
+    "ride",
+    "play",
+    "sing",
+    "draw",
+    "build",
+    "cook",
+    "catch",
+    "throw",
+    "cut",
+    "hit",
+    "hold",
+    "move",
+    "turn",
+    "count",
+    "choose",
+    "pick",
+    "save",
+    "spend",
+    "lose",
+    "win",
+    "study",
+    "learn",
+    "understand",
+    "remember",
+    "forget",
+    "know",
+    "believe",
+    "say",
+    "speak",
+    "promise",
+    "plan",
+    "start",
+    "stop",
+    "try",
+    "enjoy",
+    "finish",
+    "prefer",
+    "smell",
+    "break",
+    "bring",
+    "leave",
+    "put",
+    "fix",
+    "repair",
+    "grow",
+    "paint",
+    "share",
+    "own",
+    "wear",
+    "borrow"
+  ]
 }

@@ -73,7 +73,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "angrier"
+    ],
+    "superlative": [
+      "angriest"
+    ]
   },
   {
     "spelling": "asleep",
@@ -189,7 +195,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "brighter"
+    ],
+    "superlative": [
+      "brightest"
+    ]
   },
   {
     "spelling": "busy",
@@ -203,7 +215,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "busier"
+    ],
+    "superlative": [
+      "busiest"
+    ]
   },
   {
     "spelling": "careful",
@@ -231,7 +249,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "cheaper"
+    ],
+    "superlative": [
+      "cheapest"
+    ]
   },
   {
     "spelling": "clean",
@@ -245,7 +269,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "cleaner"
+    ],
+    "superlative": [
+      "cleanest"
+    ]
   },
   {
     "spelling": "clever",
@@ -259,7 +289,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "cleverer"
+    ],
+    "superlative": [
+      "cleverest"
+    ]
   },
   {
     "spelling": "cold",
@@ -273,7 +309,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "colder"
+    ],
+    "superlative": [
+      "coldest"
+    ]
   },
   {
     "spelling": "cool",
@@ -287,7 +329,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "cooler"
+    ],
+    "superlative": [
+      "coolest"
+    ]
   },
   {
     "spelling": "dangerous",
@@ -315,7 +363,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "darker"
+    ],
+    "superlative": [
+      "darkest"
+    ]
   },
   {
     "spelling": "dead",
@@ -391,7 +445,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "dirtier"
+    ],
+    "superlative": [
+      "dirtiest"
+    ]
   },
   {
     "spelling": "dry",
@@ -405,7 +465,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "drier"
+    ],
+    "superlative": [
+      "driest"
+    ]
   },
   {
     "spelling": "early",
@@ -419,7 +485,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "earlier"
+    ],
+    "superlative": [
+      "earliest"
+    ]
   },
   {
     "spelling": "easy",
@@ -433,7 +505,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "easier"
+    ],
+    "superlative": [
+      "easiest"
+    ]
   },
   {
     "spelling": "empty",
@@ -447,7 +525,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "emptier"
+    ],
+    "superlative": [
+      "emptiest"
+    ]
   },
   {
     "spelling": "expensive",
@@ -475,7 +559,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "faster"
+    ],
+    "superlative": [
+      "fastest"
+    ]
   },
   {
     "spelling": "favorite",
@@ -503,7 +593,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "fresher"
+    ],
+    "superlative": [
+      "freshest"
+    ]
   },
   {
     "spelling": "full",
@@ -523,7 +619,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "fuller"
+    ],
+    "superlative": [
+      "fullest"
+    ]
   },
   {
     "spelling": "glad",
@@ -547,7 +649,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "gladder"
+    ],
+    "superlative": [
+      "gladdest"
+    ]
   },
   {
     "spelling": "good",
@@ -597,7 +705,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "happier"
+    ],
+    "superlative": [
+      "happiest"
+    ]
   },
   {
     "spelling": "hard",
@@ -611,7 +725,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "harder"
+    ],
+    "superlative": [
+      "hardest"
+    ]
   },
   {
     "spelling": "healthy",
@@ -625,7 +745,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "healthier"
+    ],
+    "superlative": [
+      "healthiest"
+    ]
   },
   {
     "spelling": "heavy",
@@ -639,7 +765,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "heavier"
+    ],
+    "superlative": [
+      "heaviest"
+    ]
   },
   {
     "spelling": "high",
@@ -653,7 +785,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "higher"
+    ],
+    "superlative": [
+      "highest"
+    ]
   },
   {
     "spelling": "hot",
@@ -687,7 +825,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "hungrier"
+    ],
+    "superlative": [
+      "hungriest"
+    ]
   },
   {
     "spelling": "ill",
@@ -769,7 +913,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "kinder"
+    ],
+    "superlative": [
+      "kindest"
+    ]
   },
   {
     "spelling": "late",
@@ -783,7 +933,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "later"
+    ],
+    "superlative": [
+      "latest"
+    ]
   },
   {
     "spelling": "light",
@@ -797,7 +953,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "lighter"
+    ],
+    "superlative": [
+      "lightest"
+    ]
   },
   {
     "spelling": "long",
@@ -811,7 +973,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "longer"
+    ],
+    "superlative": [
+      "longest"
+    ]
   },
   {
     "spelling": "loud",
@@ -825,7 +993,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "louder"
+    ],
+    "superlative": [
+      "loudest"
+    ]
   },
   {
     "spelling": "low",
@@ -839,7 +1013,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "lower"
+    ],
+    "superlative": [
+      "lowest"
+    ]
   },
   {
     "spelling": "main",
@@ -867,7 +1047,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "newer"
+    ],
+    "superlative": [
+      "newest"
+    ]
   },
   {
     "spelling": "nice",
@@ -881,7 +1067,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "nicer"
+    ],
+    "superlative": [
+      "nicest"
+    ]
   },
   {
     "spelling": "old",
@@ -895,7 +1087,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "older"
+    ],
+    "superlative": [
+      "oldest"
+    ]
   },
   {
     "spelling": "open",
@@ -923,7 +1121,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "poorer"
+    ],
+    "superlative": [
+      "poorest"
+    ]
   },
   {
     "spelling": "quiet",
@@ -937,7 +1141,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "quieter"
+    ],
+    "superlative": [
+      "quietest"
+    ]
   },
   {
     "spelling": "ready",
@@ -975,7 +1185,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "richer"
+    ],
+    "superlative": [
+      "richest"
+    ]
   },
   {
     "spelling": "sad",
@@ -1009,7 +1225,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "safer"
+    ],
+    "superlative": [
+      "safest"
+    ]
   },
   {
     "spelling": "sharp",
@@ -1023,7 +1245,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "sharper"
+    ],
+    "superlative": [
+      "sharpest"
+    ]
   },
   {
     "spelling": "short",
@@ -1037,7 +1265,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "shorter"
+    ],
+    "superlative": [
+      "shortest"
+    ]
   },
   {
     "spelling": "sick",
@@ -1051,7 +1285,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "sicker"
+    ],
+    "superlative": [
+      "sickest"
+    ]
   },
   {
     "spelling": "slow",
@@ -1065,7 +1305,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "slower"
+    ],
+    "superlative": [
+      "slowest"
+    ]
   },
   {
     "spelling": "small",
@@ -1079,7 +1325,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "smaller"
+    ],
+    "superlative": [
+      "smallest"
+    ]
   },
   {
     "spelling": "smart",
@@ -1093,7 +1345,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "smarter"
+    ],
+    "superlative": [
+      "smartest"
+    ]
   },
   {
     "spelling": "sorry",
@@ -1121,7 +1379,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "sorrier"
+    ],
+    "superlative": [
+      "sorriest"
+    ]
   },
   {
     "spelling": "strong",
@@ -1135,7 +1399,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "stronger"
+    ],
+    "superlative": [
+      "strongest"
+    ]
   },
   {
     "spelling": "sure",
@@ -1163,7 +1433,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "surer"
+    ],
+    "superlative": [
+      "surest"
+    ]
   },
   {
     "spelling": "sweet",
@@ -1177,7 +1453,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "sweeter"
+    ],
+    "superlative": [
+      "sweetest"
+    ]
   },
   {
     "spelling": "tall",
@@ -1191,7 +1473,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "taller"
+    ],
+    "superlative": [
+      "tallest"
+    ]
   },
   {
     "spelling": "thirsty",
@@ -1205,7 +1493,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "thirstier"
+    ],
+    "superlative": [
+      "thirstiest"
+    ]
   },
   {
     "spelling": "tired",
@@ -1239,7 +1533,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "uglier"
+    ],
+    "superlative": [
+      "ugliest"
+    ]
   },
   {
     "spelling": "warm",
@@ -1253,7 +1553,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "warmer"
+    ],
+    "superlative": [
+      "warmest"
+    ]
   },
   {
     "spelling": "weak",
@@ -1267,7 +1573,13 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "weaker"
+    ],
+    "superlative": [
+      "weakest"
+    ]
   },
   {
     "spelling": "wet",
@@ -1315,6 +1627,12 @@
       "reviewed": true,
       "confidence": "high",
       "checked_at": "2026-07-30"
-    }
+    },
+    "comparative": [
+      "younger"
+    ],
+    "superlative": [
+      "youngest"
+    ]
   }
 ]

@@ -1,0 +1,722 @@
+{
+  "meta": {
+    "auditor": "codex_corpus_audit.py",
+    "independent_from": [
+      "analyzer.py",
+      "mini_generator.check_grammar",
+      "evaluate_corpus.py"
+    ],
+    "generated_at": "2026-07-30T13:16:32.418744+00:00",
+    "corpus": "/Users/iguoji/Desktop/Learn/MyEnglish/patch/sentence/corpus/daily_english_2000.json",
+    "network_check_enabled": true,
+    "scope": "结构、来源、重复、机械文本质量与覆盖信号；不宣称通用英语语法判定"
+  },
+  "summary": {
+    "records": 2000,
+    "categories": 20,
+    "sources": 53,
+    "source_urls": 52,
+    "domains": 32,
+    "severity_counts": {
+      "error": 21,
+      "info": 2,
+      "warning": 14
+    },
+    "result": "FAIL"
+  },
+  "distributions": {
+    "categories": {
+      "daily_routine": 100,
+      "directions": 100,
+      "emotions": 100,
+      "family": 100,
+      "food_dining": 100,
+      "greetings": 100,
+      "health": 100,
+      "hobbies": 100,
+      "home_housework": 100,
+      "introductions": 100,
+      "money_payment": 100,
+      "phone_messages": 100,
+      "requests_help": 100,
+      "shopping": 100,
+      "small_talk": 100,
+      "time_schedule": 100,
+      "transportation": 100,
+      "travel": 100,
+      "weather": 100,
+      "work_study": 100
+    },
+    "registers": {
+      "neutral": 2000
+    },
+    "sources": {
+      "learnenglishteam_100": 100,
+      "grammareco_shopping": 95,
+      "engrdu_travel": 95,
+      "englishalex_housework": 91,
+      "talk915_greetings": 80,
+      "englishthrive_hobbies": 80,
+      "easyenglearn_food": 72,
+      "trainwithsky_100": 64,
+      "engrdu_simple": 62,
+      "easyenglearn_family": 61,
+      "talk915_travel": 58,
+      "berlitz_time": 57,
+      "esl_directions": 55,
+      "englishkilearning_100": 51,
+      "unnaticlasses_emotions": 50,
+      "wordscoach_help": 50,
+      "learnenglishteam_1000": 49,
+      "loveyou_work_study": 49,
+      "engrdu_weather": 44,
+      "wordln_weather2": 44,
+      "masha_phone": 43,
+      "taaleem_beginners": 42,
+      "engrdu_routine_50": 42,
+      "loveyou_transport": 41,
+      "wordln_money1": 40,
+      "englishclub_smalltalk": 37,
+      "wordln_health": 28,
+      "eslinfo_requests": 27,
+      "wordln_money2": 26,
+      "wangenglish_living": 24,
+      "unnaticlasses_directions": 24,
+      "toutiao_intro": 23,
+      "eslgold_health": 23,
+      "unnaticlasses_health": 22,
+      "engrdu_kids_250": 22,
+      "englishthrive_emotions": 22,
+      "allenglish_phone": 21,
+      "engoo_intro": 20,
+      "britishcouncil_smalltalk": 19,
+      "jideqiao_family": 18,
+      "engrdu_classroom": 18,
+      "englishfornoobs_time": 18,
+      "esl_phrases": 14,
+      "loveyou_phone": 13,
+      "elsaspeak_intro": 11,
+      "sohu_time": 11,
+      "talk915_travel2": 10,
+      "kalpa_smalltalk": 10,
+      "englishfornoobs_weather": 9,
+      "loveyou_intro": 6,
+      "englishfact_time": 6,
+      "englishilm_50": 2,
+      "wordln_money3": 1
+    },
+    "domains": {
+      "engrdu.com": 283,
+      "www.learnenglishteam.com": 149,
+      "www.talk915.com": 148,
+      "wordln.com": 139,
+      "loveyouenglish.com": 109,
+      "englishthrive.com": 102,
+      "unnaticlasses.com": 96,
+      "grammareco.com": 95,
+      "www.englishalex.com": 91,
+      "easyenglearn.com": 72,
+      "7esl.com": 69,
+      "learnenglish.trainwithsky.com": 64,
+      "www.easyenglearn.com": 61,
+      "www.berlitz.com": 57,
+      "englishkilearning.in": 51,
+      "wordscoach.com": 50,
+      "www.mashaenglish.com": 43,
+      "taaleemonline.com": 42,
+      "englishclub.com": 37,
+      "englishfornoobs.com": 27,
+      "eslinfo.com": 27,
+      "www.wangenglish.com.tw": 24,
+      "www.toutiao.com": 23,
+      "eslgold.com": 23,
+      "www.all-english.com.tw": 21,
+      "englishonline.britishcouncil.org": 19,
+      "en.jideqiao.com": 18,
+      "tw.elsaspeak.com": 11,
+      "www.sohu.com": 11,
+      "kalpaenglishacademy.in": 10,
+      "englishfact.com": 6,
+      "englishilm.com": 2
+    },
+    "feature_signals": {
+      "short_utterance_or_fragment": 695,
+      "question": 636,
+      "contraction": 471,
+      "modal": 279,
+      "wh_opening": 166,
+      "coordination": 94,
+      "continuous_candidate": 90,
+      "multiple_utterances": 77,
+      "passive_candidate": 75,
+      "exclamation": 74,
+      "relative_or_content_clause_signal": 47,
+      "contains_number": 40,
+      "perfect_candidate": 27,
+      "subordination_signal": 11
+    }
+  },
+  "finding_code_counts": {
+    "invalid_source_url": 20,
+    "source_not_reachable_now": 7,
+    "punctuation_only_duplicate": 5,
+    "missing_terminal_punctuation": 1,
+    "missing_source_registry": 1,
+    "uniform_register": 1,
+    "all_notes_empty": 1,
+    "single_collection_timestamp": 1
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "code": "punctuation_only_duplicate",
+      "detail": "与第 5 条仅大小写或标点不同",
+      "index": 9,
+      "sentence": "Good morning."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 120,
+      "sentence": "Great to meet you."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 121,
+      "sentence": "Lovely to meet you."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 122,
+      "sentence": "I don't believe we've met before."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 123,
+      "sentence": "I don't think we've been properly introduced."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 124,
+      "sentence": "Don't I know you from somewhere?"
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 125,
+      "sentence": "It's so nice to finally meet you."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 126,
+      "sentence": "Nice to meet you, too."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 127,
+      "sentence": "You, too."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 128,
+      "sentence": "Likewise."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 129,
+      "sentence": "Same here."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 130,
+      "sentence": "Please call me Taka."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 131,
+      "sentence": "You can call me Amy."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 132,
+      "sentence": "I was born in America but I grew up in Singapore."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 133,
+      "sentence": "I'm from Hubei but I've lived in Guangdong."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 134,
+      "sentence": "I like watching movies."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 135,
+      "sentence": "What do you like to do in your free time?"
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 136,
+      "sentence": "I'm a huge movie buff."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 137,
+      "sentence": "It was nice meeting you."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 138,
+      "sentence": "It was nice talking to you."
+    },
+    {
+      "severity": "error",
+      "code": "invalid_source_url",
+      "detail": "来源 URL 含省略号或占位符，不是完整地址",
+      "index": 139,
+      "sentence": "I had a great time talking with you."
+    },
+    {
+      "severity": "warning",
+      "code": "punctuation_only_duplicate",
+      "detail": "与第 13 条仅大小写或标点不同",
+      "index": 162,
+      "sentence": "Good afternoon."
+    },
+    {
+      "severity": "warning",
+      "code": "missing_terminal_punctuation",
+      "detail": "句末缺少 . ? !",
+      "index": 692,
+      "sentence": "It's cloudy"
+    },
+    {
+      "severity": "warning",
+      "code": "punctuation_only_duplicate",
+      "detail": "与第 1200 条仅大小写或标点不同",
+      "index": 1209,
+      "sentence": "Could you help me out."
+    },
+    {
+      "severity": "warning",
+      "code": "punctuation_only_duplicate",
+      "detail": "与第 4 条仅大小写或标点不同",
+      "index": 1319,
+      "sentence": "Hello?"
+    },
+    {
+      "severity": "warning",
+      "code": "punctuation_only_duplicate",
+      "detail": "与第 1354 条仅大小写或标点不同",
+      "index": 1370,
+      "sentence": "One moment please."
+    },
+    {
+      "severity": "error",
+      "code": "missing_source_registry",
+      "detail": "缺少 corpus/sources.json，无法登记来源标题、发布者、许可和复核状态"
+    },
+    {
+      "severity": "warning",
+      "code": "uniform_register",
+      "detail": "全部句子均标为 neutral，语体字段明显尚未逐句标注"
+    },
+    {
+      "severity": "info",
+      "code": "all_notes_empty",
+      "detail": "全部 notes 为空，尚无人工复核留痕"
+    },
+    {
+      "severity": "info",
+      "code": "single_collection_timestamp",
+      "detail": "全部记录使用同一个导出时间，不能证明逐页采集时间"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://easyenglearn.com/phrase/food-and-dining (URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'easyenglearn.com'. (_ssl.c:1129)>)"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://englishclub.com/speaking/small-talk_conversation-starters.htm (HTTP 403)"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://englishthrive.com/sentences-for-expressing-emotions-and-feelings/ (URLError: <urlopen error [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:1129)>)"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://englishthrive.com/talking-about-hobbies-and-interests (URLError: <urlopen error [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:1129)>)"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://eslgold.com/lesson-body-and-health/ (timeout: The read operation timed out)"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://wordln.com/article/2005355.html (URLError: <urlopen error _ssl.c:1112: The handshake operation timed out>)"
+    },
+    {
+      "severity": "warning",
+      "code": "source_not_reachable_now",
+      "detail": "来源当前探测失败：https://www.easyenglearn.com/sentence/talking-about-family (URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.easyenglearn.com'. (_ssl.c:1129)>)"
+    }
+  ],
+  "network_sources": [
+    {
+      "url": "https://7esl.com/asking-for-and-giving-directions/",
+      "status": 200,
+      "final_url": "https://7esl.com/asking-for-and-giving-directions/",
+      "elapsed_ms": 3192
+    },
+    {
+      "url": "https://7esl.com/phrases-for-daily-use",
+      "status": 200,
+      "final_url": "https://7esl.com/phrases-for-daily-use/",
+      "elapsed_ms": 4970
+    },
+    {
+      "url": "https://easyenglearn.com/phrase/food-and-dining",
+      "status": null,
+      "error": "URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'easyenglearn.com'. (_ssl.c:1129)>",
+      "elapsed_ms": 441
+    },
+    {
+      "url": "https://en.jideqiao.com/listen/show-5500-family",
+      "status": 200,
+      "final_url": "https://en.jideqiao.com/listen/show-5500-family",
+      "elapsed_ms": 390
+    },
+    {
+      "url": "https://englishclub.com/speaking/small-talk_conversation-starters.htm",
+      "status": 403,
+      "error": "HTTP 403",
+      "elapsed_ms": 313
+    },
+    {
+      "url": "https://englishfact.com/learn-to-tell-time-in-english-for-beginners",
+      "status": 200,
+      "final_url": "https://englishfact.com/learn-to-tell-time-in-english-for-beginners/",
+      "elapsed_ms": 3690
+    },
+    {
+      "url": "https://englishfornoobs.com/how-to-talk-about-the-weather/",
+      "status": 200,
+      "final_url": "https://englishfornoobs.com/how-to-talk-about-the-weather-in-english/",
+      "elapsed_ms": 3575
+    },
+    {
+      "url": "https://englishfornoobs.com/wp-content/uploads/2018/11/How-to-tell-the-time-in-English.pdf",
+      "status": 200,
+      "final_url": "https://englishfornoobs.com/wp-content/uploads/2018/11/How-to-tell-the-time-in-English.pdf",
+      "elapsed_ms": 907
+    },
+    {
+      "url": "https://englishilm.com/english-sentences-for-daily-life-conversation-pdf",
+      "status": 200,
+      "final_url": "https://englishilm.com/english-sentences-for-daily-life-conversation-pdf/",
+      "elapsed_ms": 4255
+    },
+    {
+      "url": "https://englishkilearning.in/100-daily-routine-sentences/",
+      "status": 200,
+      "final_url": "https://englishkilearning.in/100-daily-routine-sentences/",
+      "elapsed_ms": 1439
+    },
+    {
+      "url": "https://englishonline.britishcouncil.org/blog/articles/your-guide-to-small-talk-topics-phrases-and-openers-in-english",
+      "status": 200,
+      "final_url": "https://englishonline.britishcouncil.org/blog/articles/your-guide-to-small-talk-topics-phrases-and-openers-in-english/",
+      "elapsed_ms": 5724
+    },
+    {
+      "url": "https://englishthrive.com/sentences-for-expressing-emotions-and-feelings/",
+      "status": null,
+      "error": "URLError: <urlopen error [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:1129)>",
+      "elapsed_ms": 186
+    },
+    {
+      "url": "https://englishthrive.com/talking-about-hobbies-and-interests",
+      "status": null,
+      "error": "URLError: <urlopen error [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:1129)>",
+      "elapsed_ms": 22
+    },
+    {
+      "url": "https://engrdu.com/basic-classroom-sentences-for-students/",
+      "status": 200,
+      "final_url": "https://engrdu.com/basic-classroom-sentences-for-students/",
+      "elapsed_ms": 921
+    },
+    {
+      "url": "https://engrdu.com/daily-routine-sentences/",
+      "status": 200,
+      "final_url": "https://engrdu.com/daily-routine-sentences/",
+      "elapsed_ms": 853
+    },
+    {
+      "url": "https://engrdu.com/english-sentences-for-kids/",
+      "status": 200,
+      "final_url": "https://engrdu.com/english-sentences-for-kids/",
+      "elapsed_ms": 997
+    },
+    {
+      "url": "https://engrdu.com/normal-vs-advanced-sentences-about-weather/",
+      "status": 200,
+      "final_url": "https://engrdu.com/normal-vs-advanced-sentences-about-weather/",
+      "elapsed_ms": 980
+    },
+    {
+      "url": "https://engrdu.com/simple-english-sentences-used-daily",
+      "status": 200,
+      "final_url": "https://engrdu.com/simple-english-sentences-used-daily/",
+      "elapsed_ms": 1937
+    },
+    {
+      "url": "https://engrdu.com/traveling-conversation-and-sentences/",
+      "status": 200,
+      "final_url": "https://engrdu.com/traveling-conversation-and-sentences/",
+      "elapsed_ms": 871
+    },
+    {
+      "url": "https://eslgold.com/lesson-body-and-health/",
+      "status": null,
+      "error": "timeout: The read operation timed out",
+      "elapsed_ms": 6178
+    },
+    {
+      "url": "https://eslinfo.com/making-polite-requests/",
+      "status": 200,
+      "final_url": "https://eslinfo.com/making-polite-requests/",
+      "elapsed_ms": 917
+    },
+    {
+      "url": "https://grammareco.com/useful-shopping-sentences",
+      "status": 200,
+      "final_url": "https://grammareco.com/useful-shopping-sentences/",
+      "elapsed_ms": 2288
+    },
+    {
+      "url": "https://kalpaenglishacademy.in/english-small-talk-examples-daily-life/",
+      "status": 200,
+      "final_url": "https://kalpaenglishacademy.in/english-small-talk-examples-daily-life/",
+      "elapsed_ms": 665
+    },
+    {
+      "url": "https://learnenglish.trainwithsky.com/english/daily-sentences/100-daily-sentences",
+      "status": 200,
+      "final_url": "https://learnenglish.trainwithsky.com/english/daily-sentences/100-daily-sentences/",
+      "elapsed_ms": 1252
+    },
+    {
+      "url": "https://loveyouenglish.com/english-sentences-for-talking-on-the-phone/",
+      "status": 200,
+      "final_url": "https://loveyouenglish.com/english-sentences-for-talking-on-the-phone/",
+      "elapsed_ms": 1354
+    },
+    {
+      "url": "https://loveyouenglish.com/english-sentences-related-to-public-transport/",
+      "status": 200,
+      "final_url": "https://loveyouenglish.com/english-sentences-related-to-public-transport/",
+      "elapsed_ms": 1810
+    },
+    {
+      "url": "https://loveyouenglish.com/english-sentences-talking-about-work-studies/",
+      "status": 200,
+      "final_url": "https://loveyouenglish.com/english-sentences-talking-about-work-studies/",
+      "elapsed_ms": 1924
+    },
+    {
+      "url": "https://loveyouenglish.com/simple-english-sentences-for-introducing-yourself/",
+      "status": 200,
+      "final_url": "https://loveyouenglish.com/simple-english-sentences-for-introducing-yourself/",
+      "elapsed_ms": 1157
+    },
+    {
+      "url": "https://taaleemonline.com/daily-use-english-sentences-for-beginners/",
+      "status": 200,
+      "final_url": "https://taaleemonline.com/daily-use-english-sentences-for-beginners/",
+      "elapsed_ms": 784
+    },
+    {
+      "url": "https://tw.elsaspeak.com/blog/introducing-in-english-4270",
+      "status": 200,
+      "final_url": "https://tw.elsaspeak.com/blog/introducing-in-english-4270/",
+      "elapsed_ms": 1239
+    },
+    {
+      "url": "https://unnaticlasses.com/23-describing-emotions-and-feelings/",
+      "status": 200,
+      "final_url": "https://unnaticlasses.com/23-describing-emotions-and-feelings/",
+      "elapsed_ms": 512
+    },
+    {
+      "url": "https://unnaticlasses.com/34-talking-about-health-and-visiting-a-doctor/",
+      "status": 200,
+      "final_url": "https://unnaticlasses.com/34-talking-about-health-and-visiting-a-doctor/",
+      "elapsed_ms": 416
+    },
+    {
+      "url": "https://unnaticlasses.com/35-giving-and-following-directions-in-detail",
+      "status": 200,
+      "final_url": "https://unnaticlasses.com/35-giving-and-following-directions-in-detail/",
+      "elapsed_ms": 791
+    },
+    {
+      "url": "https://wordln.com/article/2005355.html",
+      "status": null,
+      "error": "URLError: <urlopen error _ssl.c:1112: The handshake operation timed out>",
+      "elapsed_ms": 6221
+    },
+    {
+      "url": "https://wordln.com/article/2510453.html",
+      "status": 200,
+      "final_url": "https://wordln.com/article/2510453.html",
+      "elapsed_ms": 1520
+    },
+    {
+      "url": "https://wordln.com/article/5317558.html",
+      "status": 200,
+      "final_url": "https://wordln.com/article/5317558.html",
+      "elapsed_ms": 2702
+    },
+    {
+      "url": "https://wordln.com/article/5471022.html",
+      "status": 200,
+      "final_url": "https://wordln.com/article/5471022.html",
+      "elapsed_ms": 3447
+    },
+    {
+      "url": "https://wordln.com/article/9694999.html",
+      "status": 200,
+      "final_url": "https://wordln.com/article/9694999.html",
+      "elapsed_ms": 998
+    },
+    {
+      "url": "https://wordscoach.com/blog/simple-english-sentences-to-request-help-service/",
+      "status": 200,
+      "final_url": "https://www.wordscoach.com/blog/simple-english-sentences-to-request-help-service/",
+      "elapsed_ms": 1201
+    },
+    {
+      "url": "https://www.all-english.com.tw/tw/news/show.aspx?num=239",
+      "status": 200,
+      "final_url": "https://www.all-english.com.tw/tw/news/show.aspx?num=239",
+      "elapsed_ms": 281
+    },
+    {
+      "url": "https://www.berlitz.com/zh-hans-cn/blog/how-to-tell-time-english",
+      "status": 200,
+      "final_url": "https://www.berlitz.com/zh-hans-cn/blog/how-to-tell-time-english",
+      "elapsed_ms": 2059
+    },
+    {
+      "url": "https://www.easyenglearn.com/sentence/talking-about-family",
+      "status": null,
+      "error": "URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'www.easyenglearn.com'. (_ssl.c:1129)>",
+      "elapsed_ms": 359
+    },
+    {
+      "url": "https://www.englishalex.com/post/english-vocabulary-for-housework-120-words-and-phrases",
+      "status": 200,
+      "final_url": "https://www.englishalex.com/post/english-vocabulary-for-housework-120-words-and-phrases",
+      "elapsed_ms": 317
+    },
+    {
+      "url": "https://www.learnenglishteam.com/100-everyday-english-phrases/",
+      "status": 200,
+      "final_url": "https://www.learnenglishteam.com/100-everyday-english-phrases/",
+      "elapsed_ms": 4046
+    },
+    {
+      "url": "https://www.learnenglishteam.com/common-daily-english-phrases-for-beginners/",
+      "status": 200,
+      "final_url": "https://www.learnenglishteam.com/common-daily-english-phrases-for-beginners/",
+      "elapsed_ms": 4027
+    },
+    {
+      "url": "https://www.mashaenglish.com/courses/everyday-conversation/03-phone-conversations",
+      "status": 200,
+      "final_url": "https://www.mashaenglish.com/courses/everyday-conversation/03-phone-conversations",
+      "elapsed_ms": 510
+    },
+    {
+      "url": "https://www.sohu.com/a/990321879_122615094",
+      "status": 200,
+      "final_url": "https://www.sohu.com/a/990321879_122615094",
+      "elapsed_ms": 131
+    },
+    {
+      "url": "https://www.talk915.com/web/article-details/1143",
+      "status": 200,
+      "final_url": "https://www.talk915.com/article-details/1143",
+      "elapsed_ms": 605
+    },
+    {
+      "url": "https://www.talk915.com/web/article-details/2114",
+      "status": 200,
+      "final_url": "https://www.talk915.com/article-details/2114",
+      "elapsed_ms": 418
+    },
+    {
+      "url": "https://www.talk915.com/web/article-details/2426",
+      "status": 200,
+      "final_url": "https://www.talk915.com/article-details/2426",
+      "elapsed_ms": 404
+    },
+    {
+      "url": "https://www.toutiao.com/a7633266986016965130/",
+      "status": 200,
+      "final_url": "https://www.toutiao.com/article/7633266986016965130/",
+      "elapsed_ms": 237
+    },
+    {
+      "url": "https://www.wangenglish.com.tw/blog/data/living-English",
+      "status": 200,
+      "final_url": "https://www.wangenglish.com.tw/blog/data/living-English",
+      "elapsed_ms": 696
+    }
+  ]
+}

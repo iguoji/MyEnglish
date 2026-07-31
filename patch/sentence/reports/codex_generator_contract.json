@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "tester": "codex_generator_contract.py",
+    "under_test": "mini_generator.generate",
+    "not_used": [
+      "mini_generator.check_grammar",
+      "analyzer.py",
+      "evaluate_corpus.py"
+    ],
+    "purpose": "独立验证生成文本和安全拒绝契约，不代表通用英语语法覆盖"
+  },
+  "summary": {
+    "total": 19,
+    "passed": 19,
+    "failed": 0,
+    "positive_total": 13,
+    "positive_passed": 13,
+    "negative_total": 6,
+    "negative_passed": 6,
+    "result": "PASS"
+  },
+  "cases": [
+    {
+      "id": "sv_present_third",
+      "kind": "positive",
+      "passed": true,
+      "expected": "He runs.",
+      "actual": "He runs.",
+      "surface_problems": []
+    },
+    {
+      "id": "sv_past_irregular",
+      "kind": "positive",
+      "passed": true,
+      "expected": "She went.",
+      "actual": "She went.",
+      "surface_problems": []
+    },
+    {
+      "id": "svp_be",
+      "kind": "positive",
+      "passed": true,
+      "expected": "She is happy.",
+      "actual": "She is happy.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_mass_noun",
+      "kind": "positive",
+      "passed": true,
+      "expected": "She drinks some water.",
+      "actual": "She drinks some water.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_article_phonetics",
+      "kind": "positive",
+      "passed": true,
+      "expected": "She eats an apple.",
+      "actual": "She eats an apple.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_negative_do",
+      "kind": "positive",
+      "passed": true,
+      "expected": "She does not read a book.",
+      "actual": "She does not read a book.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_yes_no_do",
+      "kind": "positive",
+      "passed": true,
+      "expected": "Does she read a book?",
+      "actual": "Does she read a book?",
+      "surface_problems": []
+    },
+    {
+      "id": "sv_future",
+      "kind": "positive",
+      "passed": true,
+      "expected": "He will run.",
+      "actual": "He will run.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_present_continuous",
+      "kind": "positive",
+      "passed": true,
+      "expected": "I am eating an apple.",
+      "actual": "I am eating an apple.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_past_continuous",
+      "kind": "positive",
+      "passed": true,
+      "expected": "They were reading a book.",
+      "actual": "They were reading a book.",
+      "surface_problems": []
+    },
+    {
+      "id": "svo_present_perfect",
+      "kind": "positive",
+      "passed": true,
+      "expected": "She has eaten an apple.",
+      "actual": "She has eaten an apple.",
+      "surface_problems": []
+    },
+    {
+      "id": "there_be_singular",
+      "kind": "positive",
+      "passed": true,
+      "expected": "There is a book.",
+      "actual": "There is a book.",
+      "surface_problems": []
+    },
+    {
+      "id": "there_be_plural",
+      "kind": "positive",
+      "passed": true,
+      "expected": "There are two books.",
+      "actual": "There are two books.",
+      "surface_problems": []
+    },
+    {
+      "id": "stative_continuous",
+      "kind": "negative",
+      "passed": true,
+      "expected_code": "stative_in_continuous",
+      "actual_code": "stative_in_continuous"
+    },
+    {
+      "id": "weather_non_it",
+      "kind": "negative",
+      "passed": true,
+      "expected_code": "subject_restriction_unmet",
+      "actual_code": "subject_restriction_unmet"
+    },
+    {
+      "id": "bad_object",
+      "kind": "negative",
+      "passed": true,
+      "expected_code": "object_restriction_unmet",
+      "actual_code": "object_restriction_unmet"
+    },
+    {
+      "id": "bad_frame",
+      "kind": "negative",
+      "passed": true,
+      "expected_code": "verb_frame_unmet",
+      "actual_code": "verb_frame_unmet"
+    },
+    {
+      "id": "there_be_continuous",
+      "kind": "negative",
+      "passed": true,
+      "expected_code": "forbid_there_be_continuous",
+      "actual_code": "forbid_there_be_continuous"
+    },
+    {
+      "id": "mass_plural",
+      "kind": "negative",
+      "passed": true,
+      "expected_code": "there_be_number_unmet",
+      "actual_code": "there_be_number_unmet"
+    }
+  ]
+}

@@ -414,6 +414,66 @@
     }
   },
   {
+    "spelling": "more",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "notes": "迂说比较级标记；只用于 periphrastic 形容词，*more good / *more alive 非法",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "most",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "mid"
+    ],
+    "default_position": "mid",
+    "modifies": [
+      "adjective",
+      "adverb"
+    ],
+    "notes": "迂说最高级标记；*most good / *most dead 非法",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
+    "spelling": "much",
+    "pos": "adv.",
+    "category": "degree",
+    "positions": [
+      "end"
+    ],
+    "default_position": "end",
+    "modifies": [
+      "verb",
+      "adjective"
+    ],
+    "notes": "修饰动词时用 very much 置句尾（I like it very much），不可 *I very like it",
+    "provenance": {
+      "source": "curated_by_agent",
+      "reviewed": true,
+      "confidence": "high",
+      "checked_at": "2026-07-30"
+    }
+  },
+  {
     "spelling": "never",
     "pos": "adv.",
     "category": "frequency",

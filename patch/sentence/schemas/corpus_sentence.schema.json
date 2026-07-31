@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "corpus_sentence.schema.json",
+  "title": "Corpus Sentence",
+  "description": "一条真实日常英语语料的单元定义。用于 2000 句真实语料验证：每条句子必须来自真实网络来源、去重、按 20 类归类。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sentence", "category", "source_id"],
+  "properties": {
+    "sentence": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 200,
+      "description": "真实英语句子原文（保留大小写与标点，仅做去重与空白归一化）。"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "greetings",
+        "introductions",
+        "daily_routine",
+        "food_dining",
+        "shopping",
+        "transportation",
+        "weather",
+        "health",
+        "family",
+        "work_study",
+        "hobbies",
+        "emotions",
+        "requests_help",
+        "phone_messages",
+        "directions",
+        "time_schedule",
+        "home_housework",
+        "travel",
+        "money_payment",
+        "small_talk"
+      ],
+      "description": "20 个日常场景类别之一，每类目标 100 条。"
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "来源标识，须在 sources.json 中登记（≥3 个不同来源）。"
+    },
+    "source_url": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "句子抓取的原始网页/接口 URL，可追溯。"
+    },
+    "register": {
+      "type": "string",
+      "enum": ["neutral", "informal", "formal"],
+      "default": "neutral",
+      "description": "语体：中性/口语/正式。"
+    },
+    "collected_at": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "抓取时间戳（unix 秒）；由收集脚本自动填。"
+    },
+    "notes": {
+      "type": "string",
+      "default": "",
+      "description": "人工备注（如来源页声明、轻微修订说明）。"
+    }
+  }
+}
