@@ -253,11 +253,7 @@ class GroupFilterBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               // 文件夹 + 齿轮，直接表达"管理分组/分类"的语义，比原先的调节滑块更贴切。
-              child: Icon(
-                TablerIcons.folderCog,
-                size: 16,
-                color: tokens.muted,
-              ),
+              child: Icon(TablerIcons.folderCog, size: 16, color: tokens.muted),
             ),
           ),
         ),

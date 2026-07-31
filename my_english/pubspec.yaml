@@ -19,6 +19,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # 构建期同步脚本直接导入 package:path，必须声明为本项目的直接开发依赖。
+  path: ^1.9.1
 
 flutter:
   # Flutter 框架内部组件（TextField 清除按钮等）仍引用 MaterialIcons，

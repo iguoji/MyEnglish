@@ -37,9 +37,9 @@ class NativeFileIo {
     required String jsonText,
   }) {
     // 原生用 ACTION_CREATE_DOCUMENT 预填文件名，由系统把文本落盘到用户选的位置。
-    return _channel.invokeMethod<String?>(
-      'writeExportJson',
-      <String, Object?>{'fileName': fileName, 'jsonText': jsonText},
-    );
+    return _channel.invokeMethod<String?>('writeExportJson', <String, Object?>{
+      'fileName': fileName,
+      'jsonText': jsonText,
+    });
   }
 }

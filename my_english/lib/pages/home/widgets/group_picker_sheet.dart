@@ -76,9 +76,7 @@ Future<(int?,)?> showGroupPickerSheet(
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: tokens.rowBorder),
-                    ),
+                    border: Border(bottom: BorderSide(color: tokens.rowBorder)),
                   ),
                   child: Row(
                     children: [

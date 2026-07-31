@@ -100,10 +100,7 @@ class _ToastViewState extends State<_ToastView>
       duration: const Duration(milliseconds: 200),
     );
     // Curves.easeOut 让进场自然减速。
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     // 开始进场动画。
     _controller.forward();
     // 显示时长到期后执行退场动画再移除。

@@ -110,10 +110,10 @@ class GroupStore extends ChangeNotifier {
   /// 重命名指定分组；名称原样保存，是否为空由界面自行约束。
   Future<void> rename(int id, String name) async {
     // 先写入原生，保证持久化。
-    await _channel.invokeMethod<void>(
-      'renameGroup',
-      <String, Object?>{'id': id, 'name': name},
-    );
+    await _channel.invokeMethod<void>('renameGroup', <String, Object?>{
+      'id': id,
+      'name': name,
+    });
     // 找到目标位置。
     final index = _groups.indexWhere((group) => group.id == id);
     // 目标不存在时静默忽略，避免竞态点击造成异常。
@@ -159,10 +159,9 @@ class GroupStore extends ChangeNotifier {
   /// 删除分组；原生会同时清理其全部成员关联。
   Future<void> remove(int id) async {
     // 先删除原生记录（含成���级联）。
-    await _channel.invokeMethod<void>(
-      'deleteGroup',
-      <String, Object?>{'id': id},
-    );
+    await _channel.invokeMethod<void>('deleteGroup', <String, Object?>{
+      'id': id,
+    });
     // 过滤掉目标分组。
     _groups.removeWhere((group) => group.id == id);
     // 确实删除时才通知，避免无意义重建。
@@ -173,13 +172,10 @@ class GroupStore extends ChangeNotifier {
   Future<void> _persistOrder() async {
     // 列表下标即排序值；顺序遍历保证稳定。
     for (var index = 0; index < _groups.length; index += 1) {
-      await _channel.invokeMethod<void>(
-        'setGroupOrder',
-        <String, Object?>{
-          'id': _groups[index].id,
-          'sortOrder': index,
-        },
-      );
+      await _channel.invokeMethod<void>('setGroupOrder', <String, Object?>{
+        'id': _groups[index].id,
+        'sortOrder': index,
+      });
     }
   }
 

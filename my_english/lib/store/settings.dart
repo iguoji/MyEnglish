@@ -94,6 +94,7 @@ class SettingsStore extends ChangeNotifier {
     required this._accent,
     required this._theme,
     required this._definitionSeparator,
+    required this._dailyGoal,
   });
 
   /// 原生通道名必须与 MainActivity 注册值保持一致。
@@ -130,12 +131,15 @@ class SettingsStore extends ChangeNotifier {
       final definitionSeparator = _definitionSeparatorFromStorage(
         values?['definitionSeparator'],
       );
+      // 每日目标由原生以整数返回；旧版本缺失或损坏时回退为 100。
+      final dailyGoal = _dailyGoalFromStorage(values?['dailyGoal']);
       // 把已读取值和生产通道一起保存。
       return SettingsStore._(
         channel: channel,
         accent: accent,
         theme: theme,
         definitionSeparator: definitionSeparator,
+        dailyGoal: dailyGoal,
       );
     } on MissingPluginException catch (error, stackTrace) {
       // Hot Restart 只更新 Dart；旧 APK 没有重新编译 Kotlin 时会暂时找不到新通道。
@@ -148,6 +152,7 @@ class SettingsStore extends ChangeNotifier {
         accent: PronunciationAccent.american,
         theme: AppThemePreference.light,
         definitionSeparator: DefinitionSeparator.ideographicComma,
+        dailyGoal: 100,
       );
     } on PlatformException catch (error, stackTrace) {
       // 设置读取失败不应让 App 白屏；控制台保留原因并使用明确默认值启动。
@@ -160,6 +165,7 @@ class SettingsStore extends ChangeNotifier {
         accent: PronunciationAccent.american,
         theme: AppThemePreference.light,
         definitionSeparator: DefinitionSeparator.ideographicComma,
+        dailyGoal: 100,
       );
     }
   }
@@ -170,6 +176,7 @@ class SettingsStore extends ChangeNotifier {
     AppThemePreference theme = AppThemePreference.light,
     DefinitionSeparator definitionSeparator =
         DefinitionSeparator.ideographicComma,
+    int dailyGoal = 100,
   }) {
     // channel=null 时 setter 只更新内存并通知页面。
     return SettingsStore._(
@@ -177,6 +184,7 @@ class SettingsStore extends ChangeNotifier {
       accent: accent,
       theme: theme,
       definitionSeparator: definitionSeparator,
+      dailyGoal: dailyGoal < 0 ? 0 : dailyGoal,
     );
   }
 
@@ -189,19 +197,21 @@ class SettingsStore extends ChangeNotifier {
   /// 页面只读访问当前中文释义分隔符。
   DefinitionSeparator get definitionSeparator => _definitionSeparator;
 
-  /// 每日复习目标；本轮先保存在内存，原生持久化随分组一起在下一轮落地。
-  int _dailyGoal = 100;
+  /// 每日复习目标；启动时从 Android SharedPreferences 恢复。
+  int _dailyGoal;
 
   /// 页面只读访问每日复习目标。
   int get dailyGoal => _dailyGoal;
 
-  /// 修改每日复习目标；负数一律钳制为 0。
-  void setDailyGoal(int value) {
+  /// 修改并持久化每日复习目标；负数一律钳制为 0。
+  Future<void> setDailyGoal(int value) async {
     // 目标不允许是负数。
     final normalized = value < 0 ? 0 : value;
     // 值没有变化时不触发重建。
     if (_dailyGoal == normalized) return;
-    // 更新内存值。
+    // 先等待原生确认写入成功，避免页面显示与磁盘内容不一致。
+    await _channel?.invokeMethod<void>('setDailyGoal', normalized);
+    // 保存成功后更新内存值。
     _dailyGoal = normalized;
     // 通知设置面板与首页副标题刷新。
     notifyListeners();
@@ -289,5 +299,13 @@ class SettingsStore extends ChangeNotifier {
       'full_width_semicolon' => DefinitionSeparator.fullWidthSemicolon,
       _ => DefinitionSeparator.ideographicComma,
     };
+  }
+
+  /// 把原生动态值转换成合法的每日目标。
+  static int _dailyGoalFromStorage(Object? value) {
+    // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
+    final parsed = (value as num?)?.toInt();
+    // 旧版本没有该字段时使用产品默认值 100。
+    return parsed != null && parsed >= 0 ? parsed : 100;
   }
 }

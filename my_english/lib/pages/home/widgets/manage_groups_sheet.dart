@@ -268,9 +268,7 @@ class _GroupEditRow extends StatelessWidget {
       builder: (dialogContext) => Dialog(
         // 自绘圆角卡片，与删除单词对话框风格一致。
         backgroundColor: tokens.card,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(

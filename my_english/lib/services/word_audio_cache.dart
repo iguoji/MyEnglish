@@ -16,7 +16,14 @@ import 'package:flutter/services.dart';
 /// 已缓存 = 当前磁盘上已存在有效 MP3 的 (单词, 口音) 对数。
 class WordAudioCache extends ChangeNotifier {
   /// 私有构造器；外部统一通过 [instance] 访问同一份缓存状态。
-  WordAudioCache._(this._channel, this._eventChannel);
+  WordAudioCache._(this._channel, this._progressEvents);
+
+  /// 测试专用构造器：注入方法通道和进度流，不依赖 Android 插件。
+  @visibleForTesting
+  WordAudioCache.forTesting({
+    required MethodChannel channel,
+    required Stream<dynamic> progressEvents,
+  }) : this._(channel, progressEvents);
 
   /// 与方法通道对应的事件通道名；必须与 MainActivity 注册值完全一致。
   static const String _eventChannelName = 'my_english/audio_cache';
@@ -27,14 +34,14 @@ class WordAudioCache extends ChangeNotifier {
   /// App 级唯一实例；首页、抽屉与后台缓存任务共享同一份进度。
   static final WordAudioCache instance = WordAudioCache._(
     const MethodChannel(_methodChannelName),
-    const EventChannel(_eventChannelName),
+    const EventChannel(_eventChannelName).receiveBroadcastStream(),
   );
 
   /// 缓存控制方法通道。
   final MethodChannel _channel;
 
-  /// 进度事件通道：原生在预缓存过程中持续推送 {cached,total,done}。
-  final EventChannel _eventChannel;
+  /// 进度事件流：生产环境来自 EventChannel，测试可注入可控 Stream。
+  final Stream<dynamic> _progressEvents;
 
   /// 是否已订阅原生进度流；只订阅一次，避免重复监听导致重复计数。
   bool _subscribed = false;
@@ -118,13 +125,15 @@ class WordAudioCache extends ChangeNotifier {
     // 异步启动原生批量缓存；失败不影响界面，下次仍可在抽屉再次点击重试。
     unawaited(
       _channel
-          .invokeMethod<void>('precache', <String, Object?>{'spellings': _spellings})
+          .invokeMethod<void>('precache', <String, Object?>{
+            'spellings': _spellings,
+          })
           .catchError((Object error) {
-        // 通道异常时结束缓存状态，避免进度条永远卡在"进行中"。
-        _isCaching = false;
-        // 把状态变化告知界面。
-        notifyListeners();
-      }),
+            // 通道异常时结束缓存状态，避免进度条永远卡在"进行中"。
+            _isCaching = false;
+            // 把状态变化告知界面。
+            notifyListeners();
+          }),
     );
   }
 
@@ -158,7 +167,7 @@ class WordAudioCache extends ChangeNotifier {
     _subscribed = true;
     // 广播流在首次订阅后由原生 onListen 推送进度；由于本服务在 App 进程内长期
     // 持有该订阅、不会取消，所以即使用户关闭抽屉，后台进度仍持续回流。
-    _eventChannel.receiveBroadcastStream().listen(
+    _progressEvents.listen(
       (dynamic event) {
         // event 是 Kotlin 推送的 Map：{cached,total,done}。
         if (event is! Map) return;

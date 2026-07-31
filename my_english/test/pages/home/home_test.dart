@@ -117,10 +117,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     // 应弹出复制成功提示（Toast 文字居中对齐）。
-    expect(
-      find.text('已复制作者邮箱：asgeg@qq.com'),
-      findsOneWidget,
-    );
+    expect(find.text('已复制作者邮箱：asgeg@qq.com'), findsOneWidget);
     // 剪贴板中应已写入该邮箱。
     final clipboard = await Clipboard.getData('text/plain');
     expect(clipboard?.text, 'asgeg@qq.com');
@@ -134,52 +131,56 @@ void main() {
   });
 
   // 验证抽屉内直接内嵌的四项设置全部可用（不再弹出独立窗口）。
-  testWidgets('settings embedded in drawer update accent, separator, theme and goal', (
-    tester,
-  ) async {
-    // 首页持有这份可观察内存设置。
-    final settings = SettingsStore.inMemory();
-    // 注入首页。
-    await _pumpHome(tester, settings: settings);
+  testWidgets(
+    'settings embedded in drawer update accent, separator, theme and goal',
+    (tester) async {
+      // 首页持有这份可观察内存设置。
+      final settings = SettingsStore.inMemory();
+      // 注入首页。
+      await _pumpHome(tester, settings: settings);
 
-    // 打开抽屉，设置项已直接内嵌在抽屉内，无需再开独立窗口。
-    await tester.tap(find.byKey(const Key('open-menu')));
-    await tester.pumpAndSettle();
-    // 三项设置标题都存在（黑暗模式开关已移至顶部图标按钮）。
-    expect(find.text('口语发音'), findsOneWidget);
-    expect(find.text('单词分隔'), findsOneWidget);
-    expect(find.text('每日复习'), findsOneWidget);
-    // 默认值：美式、顿号、Light、100。
-    expect(settings.accent, PronunciationAccent.american);
-    expect(settings.definitionSeparator, DefinitionSeparator.ideographicComma);
-    expect(settings.theme, AppThemePreference.light);
-    expect(settings.dailyGoal, 100);
+      // 打开抽屉，设置项已直接内嵌在抽屉内，无需再开独立窗口。
+      await tester.tap(find.byKey(const Key('open-menu')));
+      await tester.pumpAndSettle();
+      // 三项设置标题都存在（黑暗模式开关已移至顶部图标按钮）。
+      expect(find.text('口语发音'), findsOneWidget);
+      expect(find.text('单词分隔'), findsOneWidget);
+      expect(find.text('每日复习'), findsOneWidget);
+      // 默认值：美式、顿号、Light、100。
+      expect(settings.accent, PronunciationAccent.american);
+      expect(
+        settings.definitionSeparator,
+        DefinitionSeparator.ideographicComma,
+      );
+      expect(settings.theme, AppThemePreference.light);
+      expect(settings.dailyGoal, 100);
 
-    // 切换到英式。
-    await tester.tap(find.byKey(const Key('accent-british')));
-    await tester.pump();
-    expect(settings.accent, PronunciationAccent.british);
-    // 切换为中文全角逗号。
-    await tester.tap(
-      find.byKey(const Key('definition-separator-full_width_comma')),
-    );
-    await tester.pump();
-    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
-    // 点击顶部主题切换图标，从 Light 切到 Dark。
-    await tester.tap(find.byKey(const Key('theme-toggle')));
-    await tester.pumpAndSettle();
-    expect(settings.theme, AppThemePreference.dark);
-    // 每日复习 +5（卡片内步进器，先滚动确保可见再点击）。
-    await tester.ensureVisible(find.byKey(const Key('goal-plus')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('goal-plus')));
-    await tester.pumpAndSettle();
-    expect(settings.dailyGoal, 105);
+      // 切换到英式。
+      await tester.tap(find.byKey(const Key('accent-british')));
+      await tester.pump();
+      expect(settings.accent, PronunciationAccent.british);
+      // 切换为中文全角逗号。
+      await tester.tap(
+        find.byKey(const Key('definition-separator-full_width_comma')),
+      );
+      await tester.pump();
+      expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
+      // 点击顶部主题切换图标，从 Light 切到 Dark。
+      await tester.tap(find.byKey(const Key('theme-toggle')));
+      await tester.pumpAndSettle();
+      expect(settings.theme, AppThemePreference.dark);
+      // 每日复习 +5（卡片内步进器，先滚动确保可见再点击）。
+      await tester.ensureVisible(find.byKey(const Key('goal-plus')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('goal-plus')));
+      await tester.pumpAndSettle();
+      expect(settings.dailyGoal, 105);
 
-    // 设置项内嵌在抽屉中，没有独立的"完成"按钮，直接收尾清理。
-    await tester.pumpWidget(const SizedBox.shrink());
-    settings.dispose();
-  });
+      // 设置项内嵌在抽屉中，没有独立的"完成"按钮，直接收尾清理。
+      await tester.pumpWidget(const SizedBox.shrink());
+      settings.dispose();
+    },
+  );
 
   // 验证抽屉"离线语音"入口显示初始百分比，点击安全启动后台预缓存。
   testWidgets('offline speech entry shows percentage and starts caching', (
@@ -265,7 +266,8 @@ void main() {
       const MethodChannel('my_english/word_audio'),
       (call) async {
         if (call.method == 'getCacheProgress') {
-          if (call.arguments is! Map || !call.arguments.containsKey('spellings')) {
+          if (call.arguments is! Map ||
+              !call.arguments.containsKey('spellings')) {
             return <String, Object?>{'cached': 0, 'total': 0};
           }
           // 已缓存 4 = 总数 4 → 100%。
@@ -577,7 +579,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证字母、难度、日期都有双向排序；null 难度按 0 参与，null 日期固定在末尾。
+  // 验证字母、难度、日期都有双向排序；null 难度按 0 参与，null 日期随方向落在边界。
   testWidgets('sort bar toggles all fields with the agreed null rules', (
     tester,
   ) async {
@@ -1338,7 +1340,9 @@ class _MemoryWordStore implements WordStore {
     // 按 id 过滤内存单词，保持与原生一致的语义。
     final idSet = ids.toSet();
     return List<Word>.unmodifiable(
-      _words.where((word) => word.id != null && idSet.contains(word.id)).toList(),
+      _words
+          .where((word) => word.id != null && idSet.contains(word.id))
+          .toList(),
     );
   }
 
@@ -1442,7 +1446,8 @@ class _ThrowingWordStore implements WordStore {
 
   /// 其余接口不属于本测试流程。
   @override
-  Future<List<Word>> getByIds(List<int> ids) async => throw UnimplementedError();
+  Future<List<Word>> getByIds(List<int> ids) async =>
+      throw UnimplementedError();
 
   /// 其余接口不属于本测试流程。
   @override

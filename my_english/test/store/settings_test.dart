@@ -36,6 +36,7 @@ void main() {
               'accent': 'british',
               'theme': 'dark',
               'definitionSeparator': 'full_width_semicolon',
+              'dailyGoal': 35,
             };
           }
           // setter 使用 null 表示保存成功。
@@ -51,10 +52,12 @@ void main() {
       settings.definitionSeparator,
       DefinitionSeparator.fullWidthSemicolon,
     );
-    // 修改回美式、Light 和全角逗号。
+    expect(settings.dailyGoal, 35);
+    // 修改回美式、Light、全角逗号和新的每日目标。
     await settings.setAccent(PronunciationAccent.american);
     await settings.setTheme(AppThemePreference.light);
     await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
+    await settings.setDailyGoal(40);
     // MethodCall 未实现相等运算符，必须使用 flutter_test 的 isMethodCall 匹配器。
     expect(calls[1], isMethodCall('setAccent', arguments: 'american'));
     expect(calls[2], isMethodCall('setTheme', arguments: 'light'));
@@ -62,10 +65,12 @@ void main() {
       calls[3],
       isMethodCall('setDefinitionSeparator', arguments: 'full_width_comma'),
     );
+    expect(calls[4], isMethodCall('setDailyGoal', arguments: 40));
     // Store 内存同步更新。
     expect(settings.accent, PronunciationAccent.american);
     expect(settings.theme, AppThemePreference.light);
     expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
+    expect(settings.dailyGoal, 40);
     // 释放 ChangeNotifier。
     settings.dispose();
   });
@@ -80,6 +85,7 @@ void main() {
             'accent': 'unknown',
             'theme': 'system',
             'definitionSeparator': 'half_width_comma',
+            'dailyGoal': -1,
           },
         );
 
@@ -91,6 +97,8 @@ void main() {
     expect(settings.theme, AppThemePreference.light);
     // 未知或旧版本缺失值默认使用中文顿号。
     expect(settings.definitionSeparator, DefinitionSeparator.ideographicComma);
+    // 损坏的负数目标回退产品默认值。
+    expect(settings.dailyGoal, 100);
     // 释放资源。
     settings.dispose();
   });
@@ -105,17 +113,17 @@ void main() {
     expect(DefinitionSeparator.fullWidthSemicolon.symbol, '；');
   });
 
-  // 每日复习目标当前为内存设置：默认 100，负数钳制为 0。
-  test('daily goal defaults to 100 and never goes negative', () {
+  // 每日复习目标的纯内存模式同样遵守默认值与非负约束。
+  test('daily goal defaults to 100 and never goes negative', () async {
     // 纯内存 Store 即可验证。
     final settings = SettingsStore.inMemory();
     // 产品默认目标为 100。
     expect(settings.dailyGoal, 100);
     // 正常步进 +5。
-    settings.setDailyGoal(105);
+    await settings.setDailyGoal(105);
     expect(settings.dailyGoal, 105);
     // 负数一律钳制为 0。
-    settings.setDailyGoal(-5);
+    await settings.setDailyGoal(-5);
     expect(settings.dailyGoal, 0);
     // 释放资源。
     settings.dispose();

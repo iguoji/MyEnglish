@@ -487,10 +487,7 @@ void _expectTiles(
     );
   }
   // 单词长度之外不允许多出额外字母瓷砖。
-  expect(
-    find.byKey(Key('dictation-tile-${spelling.length}')),
-    findsNothing,
-  );
+  expect(find.byKey(Key('dictation-tile-${spelling.length}')), findsNothing);
 }
 
 final _words = <Word>[

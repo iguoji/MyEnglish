@@ -141,7 +141,8 @@ void main() {
           body: WordListTile(
             item: sample,
             dateReference: reference,
-            displayDate: sample.reviewedAt ?? sample.createdAt ?? sample.updatedAt,
+            displayDate:
+                sample.reviewedAt ?? sample.createdAt ?? sample.updatedAt,
             isExpanded: true,
             definitionSeparator: '，',
             onTap: () {},

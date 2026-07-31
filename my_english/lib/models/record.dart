@@ -87,7 +87,8 @@ class Record {
       module: map['module']?.toString() ?? 'dictation',
       wordId: wordId.toInt(),
       // 原生用 0/1 存布尔，这里转回 Dart bool。
-      isCorrect: map['is_correct'] == true ||
+      isCorrect:
+          map['is_correct'] == true ||
           (map['is_correct'] is num && (map['is_correct'] as num).toInt() == 1),
       wrongCount: wrong is num ? wrong.toInt() : 0,
       hintCount: hint is num ? hint.toInt() : 0,

@@ -43,3 +43,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 纯 Kotlin/JVM 单元测试验证离线缓存计数，无需启动模拟器。
+    testImplementation("junit:junit:4.13.2")
+}

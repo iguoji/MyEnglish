@@ -604,8 +604,8 @@ class _VerticalStepItem extends StatelessWidget {
     final nodeColor = status == DictationStepStatus.done
         ? AppTokens.accent
         : status == DictationStepStatus.active
-            ? Colors.white
-            : tokens.card;
+        ? Colors.white
+        : tokens.card;
     // 未开始使用更淡的 check 灰描边，其余状态都用品牌蓝描边。
     final nodeBorder = status == DictationStepStatus.pending
         ? tokens.check
@@ -615,8 +615,8 @@ class _VerticalStepItem extends StatelessWidget {
     final iconColor = status == DictationStepStatus.done
         ? Colors.white
         : status == DictationStepStatus.pending
-            ? tokens.muted
-            : AppTokens.accent;
+        ? tokens.muted
+        : AppTokens.accent;
     return IntrinsicHeight(
       child: Row(
         key: stepKey,
@@ -638,7 +638,11 @@ class _VerticalStepItem extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: nodeBorder),
                   ),
-                  child: Icon(icon, size: DictationLayout.stepIconSize, color: iconColor),
+                  child: Icon(
+                    icon,
+                    size: DictationLayout.stepIconSize,
+                    color: iconColor,
+                  ),
                 ),
                 // 非末步从节点下缘向下一步骤绘制连续竖线。
                 if (!isLast)
@@ -747,7 +751,8 @@ class _StepContent extends StatelessWidget {
               ),
             ),
           ),
-        ] else if (step.definitions != null && step.definitions!.isNotEmpty) ...[
+        ] else if (step.definitions != null &&
+            step.definitions!.isNotEmpty) ...[
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -759,9 +764,7 @@ class _StepContent extends StatelessWidget {
                 definitionIndex += 1
               )
                 Container(
-                  key: Key(
-                    'dictation-definition-chip-$definitionIndex',
-                  ),
+                  key: Key('dictation-definition-chip-$definitionIndex'),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
@@ -772,20 +775,14 @@ class _StepContent extends StatelessWidget {
                   ),
                   child: Text(
                     step.definitions![definitionIndex],
-                    style: TextStyle(
-                      color: tokens.textMedium,
-                      fontSize: 12.5,
-                    ),
+                    style: TextStyle(color: tokens.textMedium, fontSize: 12.5),
                   ),
                 ),
             ],
           ),
         ] else if (step.status != DictationStepStatus.done) ...[
           const SizedBox(height: 6),
-          Text(
-            '待完成',
-            style: TextStyle(color: tokens.muted, fontSize: 12.5),
-          ),
+          Text('待完成', style: TextStyle(color: tokens.muted, fontSize: 12.5)),
         ],
       ],
     );
@@ -863,13 +860,13 @@ class _StatusTag extends StatelessWidget {
     final label = status == DictationStepStatus.done
         ? '已完成'
         : status == DictationStepStatus.active
-            ? '作答中'
-            : '待完成';
+        ? '作答中'
+        : '待完成';
     final backgroundColor = status == DictationStepStatus.done
         ? AppTokens.accent.withValues(alpha: 0.10)
         : status == DictationStepStatus.active
-            ? AppTokens.accent.withValues(alpha: 0.12)
-            : tokens.sub;
+        ? AppTokens.accent.withValues(alpha: 0.12)
+        : tokens.sub;
     final foregroundColor = status == DictationStepStatus.pending
         ? tokens.muted
         : AppTokens.accent;

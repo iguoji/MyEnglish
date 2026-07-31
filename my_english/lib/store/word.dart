@@ -85,25 +85,18 @@ class LocalWordStore implements WordStore {
     return _parseWordMaps(rawWords, sourceLabel: 'SQLite');
   }
 
-  /// 新增 Word；完整 Map 交给原生事务，返回自增主键。
+  /// 新增 Word；主体、释义和分组关系交给同一个原生事务，返回自增主键。
   @override
   Future<int> create(Word word) async {
     // 把模型字段转成原生通道可传输的 Map。
     final id = await _channel.invokeMethod<int>('createWord', word.toMap());
     // 原生必须返回自增主键，null 代表接口约定被破坏。
     if (id == null) throw StateError('SQLite 创建单词后没有返回主键');
-    // 新建单词若指定了分组，逐条写入 groupMember 关联表。
-    for (final groupId in word.groupIds) {
-      await _channel.invokeMethod<void>(
-        'addGroupMember',
-        <String, Object?>{'groupId': groupId, 'wordId': id},
-      );
-    }
     // 返回持久化主键。
     return id;
   }
 
-  /// 更新 Word；调用原生持久化事务。
+  /// 更新 Word；主体、释义和分组关系由原生在同一个事务内整体替换。
   @override
   Future<void> update(Word word) async {
     // 更新必须能定位已有记录。
@@ -112,20 +105,17 @@ class LocalWordStore implements WordStore {
     if (id == null) {
       throw ArgumentError.value(id, 'word.id', '更新单词必须提供 id');
     }
-    // 更新单词主体与释义。
+    // 一个调用同时更新单词主体、释义和分组关系，任何一步失败都会整体回滚。
     await _channel.invokeMethod<void>('updateWord', word.toMap());
-    // 同步该单词的全部所属分组（移动/编辑替换语义）。
-    await _channel.invokeMethod<void>(
-      'setWordGroups',
-      <String, Object?>{'wordId': id, 'groupIds': word.groupIds},
-    );
   }
 
   /// 删除 Word；通过 deleted_at 软删除。
   @override
   Future<void> delete(int id) async {
     // 调用原生软删除，参数只带主键。
-    await _channel.invokeMethod<void>('deleteWord', <String, Object?>{'id': id});
+    await _channel.invokeMethod<void>('deleteWord', <String, Object?>{
+      'id': id,
+    });
   }
 
   /// 批量导入：清空旧数据后整库替换写入。
@@ -177,10 +167,7 @@ List<Word> parseWordsFromJsonText(String jsonText) {
   }
   // 顶层对象且含 words 数组：本 App 导出备份形态。
   if (decoded is Map && decoded['words'] is List) {
-    return _parseWordMaps(
-      decoded['words'] as List,
-      sourceLabel: '导入文件',
-    );
+    return _parseWordMaps(decoded['words'] as List, sourceLabel: '导入文件');
   }
   // 既不是数组也不是含 words 的对象，明确报错。
   throw const FormatException('导入文件顶层必须是单词数组或包含 words 数组的对象');

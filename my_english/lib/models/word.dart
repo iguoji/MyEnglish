@@ -142,6 +142,8 @@ class Word {
       'spelling': spelling,
       // 把 Meaning 逐条转换成 Map。
       'meanings': meanings.map((meaning) => meaning.toMap()).toList(),
+      // 分组关系与单词主体一起交给原生事务，避免分多次 MethodChannel 保存。
+      'group_ids': groupIds,
       // null 会原样传给 SQLite。
       'difficulty': difficulty,
       // 时间统一传毫秒时间戳。

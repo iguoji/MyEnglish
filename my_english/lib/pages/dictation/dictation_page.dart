@@ -41,7 +41,7 @@ class DictationOption {
   final bool isCorrect;
 }
 
-/// 新版原型中的全屏默写页面。
+/// 全屏默写页面。
 class DictationPage extends StatefulWidget {
   const DictationPage({
     required this.words,
@@ -241,7 +241,7 @@ class _DictationPageState extends State<DictationPage> {
         _wrongOptions.contains(option.text)) {
       return;
     }
-      if (!option.isCorrect) {
+    if (!option.isCorrect) {
       // 重震动传达错误感，无需音效也能感知。
       HapticFeedback.heavyImpact();
       setState(() {
@@ -351,8 +351,8 @@ class _DictationPageState extends State<DictationPage> {
           )
           // 记录失败只打印，不影响界面与后续答题。
           .catchError((Object error) {
-        debugPrint('记录默写结果失败：$error');
-      }),
+            debugPrint('记录默写结果失败：$error');
+          }),
     );
   }
 
@@ -473,8 +473,8 @@ class _DictationPageState extends State<DictationPage> {
         status: _stage == DictationStage.definition || _isCurrentWordComplete
             ? DictationStepStatus.done
             : (_stage == DictationStage.word
-                ? DictationStepStatus.active
-                : DictationStepStatus.pending),
+                  ? DictationStepStatus.active
+                  : DictationStepStatus.pending),
       ),
     ];
     // 每个词性释义都对应一个独立步骤，进入新词时一次性全部列出。
@@ -488,7 +488,8 @@ class _DictationPageState extends State<DictationPage> {
       final isMeaningDone =
           _isCurrentWordComplete || meaningIndex < _meaningIndex;
       // 释义阶段且正停留在当前词性时，该步骤处于进行中。
-      final isMeaningActive = !_isCurrentWordComplete &&
+      final isMeaningActive =
+          !_isCurrentWordComplete &&
           _stage == DictationStage.definition &&
           meaningIndex == _meaningIndex;
       // 已答出的释义：完成步骤显示全部，进行中步骤只显示已答对的部分。
@@ -509,8 +510,8 @@ class _DictationPageState extends State<DictationPage> {
           status: isMeaningDone
               ? DictationStepStatus.done
               : (isMeaningActive
-                  ? DictationStepStatus.active
-                  : DictationStepStatus.pending),
+                    ? DictationStepStatus.active
+                    : DictationStepStatus.pending),
           pos: pos,
           definitions: definitions,
         ),
@@ -709,7 +710,9 @@ class _DictationPageState extends State<DictationPage> {
                   for (var index = 0; index < _options.length; index++) ...[
                     // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
                     _OptionCard(
-                      key: ValueKey('dictation-option-$index-${_options[index].text}'),
+                      key: ValueKey(
+                        'dictation-option-$index-${_options[index].text}',
+                      ),
                       option: _options[index],
                       index: index,
                       wrong: _wrongOptions.contains(_options[index].text),
@@ -1083,9 +1086,7 @@ class _OptionCardState extends State<_OptionCard>
         // 回到原位。
         TweenSequenceItem(tween: Tween(begin: 2, end: 0), weight: 15),
       ],
-    ).animate(
-      CurvedAnimation(parent: _shakeController, curve: Curves.easeOut),
-    );
+    ).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
   }
 
   @override

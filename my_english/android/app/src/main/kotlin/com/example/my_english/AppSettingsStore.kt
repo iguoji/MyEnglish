@@ -5,7 +5,7 @@ package com.example.my_english
 import android.content.Context
 
 /**
- * 口音、主题和中文释义分隔符的原生持久化 Store。
+ * 口音、主题、中文释义分隔符和每日复习目标的原生持久化 Store。
  *
  * Dart 只接触经过校验的稳定字符串，具体文件位置由 Android 管理，
  * 不申请外部存储权限，卸载 App 时系统会自动清理。
@@ -20,7 +20,7 @@ class AppSettingsStore(context: Context) {
     )
 
     /** 返回 Dart 启动阶段需要的一次性设置快照。 */
-    fun getSettings(): Map<String, String> {
+    fun getSettings(): Map<String, Any> {
         // mapOf 会通过 MethodChannel 转成 Dart Map。
         return mapOf(
             // 首次安装没有值时默认美式。
@@ -32,6 +32,8 @@ class AppSettingsStore(context: Context) {
                 DEFINITION_SEPARATOR_KEY,
                 IDEOGRAPHIC_COMMA,
             )!!,
+            // 旧版本没有保存目标时默认每天复习 100 个单词。
+            DAILY_GOAL_KEY to preferences.getInt(DAILY_GOAL_KEY, DEFAULT_DAILY_GOAL),
         )
     }
 
@@ -72,6 +74,17 @@ class AppSettingsStore(context: Context) {
         }
     }
 
+    /** 校验并持久化每日复习目标。 */
+    fun setDailyGoal(value: Int) {
+        // 与 Dart Store 保持一致，目标可以为 0，但不能为负数。
+        require(value >= 0) { "每日复习目标不能小于 0：$value" }
+        // 确认整数真正写入以后再让 Dart 更新页面状态。
+        check(preferences.edit().putInt(DAILY_GOAL_KEY, value).commit()) {
+            // false 表示磁盘写入失败。
+            "每日复习目标写入失败"
+        }
+    }
+
     /** 清空全部设置，恢复到首次安装的默认值（对应 App 内「清空数据」）。 */
     fun clearAll() {
         // edit().clear() 删除本 SharedPreferences 文件中的全部键值对。
@@ -92,6 +105,12 @@ class AppSettingsStore(context: Context) {
 
         // SharedPreferences 中文释义分隔符键。
         const val DEFINITION_SEPARATOR_KEY = "definitionSeparator"
+
+        // SharedPreferences 每日复习目标键。
+        const val DAILY_GOAL_KEY = "dailyGoal"
+
+        // 首次安装和旧版本升级后的默认每日目标。
+        const val DEFAULT_DAILY_GOAL = 100
 
         // 美式口音值。
         const val AMERICAN = "american"

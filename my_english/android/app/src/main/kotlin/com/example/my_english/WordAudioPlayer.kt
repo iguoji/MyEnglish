@@ -26,8 +26,8 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 // Executors 提供单独下载线程，避免阻塞 Flutter 页面。
 import java.util.concurrent.Executors
-// AtomicInteger 在多线程预缓存中安全统计"已完成"任务数量，用于实时进度。
-import java.util.concurrent.atomic.AtomicInteger
+// AtomicLong 让主线程与 I/O 线程递增批次/缓存纪元时不会发生丢更新。
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 单词音频下载、缓存和播放服务。
@@ -48,8 +48,13 @@ class WordAudioPlayer(context: Context) {
 
     // 预缓存批次编号；每次新的一轮预缓存会让上一批尚未完成的任务主动退出，
     // 避免重复下载同一批单词。
-    @Volatile
-    private var precacheGeneration = 0L
+    private val precacheGeneration = AtomicLong(0L)
+
+    // 每次清空缓存都会递增纪元；清空前启动的下载不能在删除完成后重新写回正式文件。
+    private val cacheEpoch = AtomicLong(0L)
+
+    // 正式缓存文件替换与目录清空共用短临界区，避免 rename/delete 在同一瞬间交错。
+    private val cacheMutationLock = Any()
 
     // MediaPlayer 的创建和回调都回到 Android 主线程。
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -135,7 +140,7 @@ class WordAudioPlayer(context: Context) {
         // 不再接收新下载任务；队列中任务结束后线程自动退出。
         downloadExecutor.shutdown()
         // 同样让进行中的离线预缓存尽快退出，并释放其线程池。
-        precacheGeneration += 1
+        precacheGeneration.incrementAndGet()
         precacheExecutor.shutdown()
     }
 
@@ -146,7 +151,7 @@ class WordAudioPlayer(context: Context) {
     }
 
     /** 仅下载并缓存、不触发播放；复用与播放相同的来源与校验（供离线预缓存使用）。 */
-    private fun precacheResolve(spelling: String, accent: String) {
+    private fun precacheResolve(spelling: String, accent: String, generation: Long) {
         val normalized = spelling.trim()
         // 空拼写不值得请求。
         if (normalized.isEmpty()) return
@@ -154,7 +159,7 @@ class WordAudioPlayer(context: Context) {
         if (accent != AMERICAN && accent != BRITISH) return
         // 预缓存任务不能被播放/停止的 requestGeneration 取消，因此关闭取消检查；
         // 用 precacheGeneration 作为临时文件命名空间即可避免并发写冲突。
-        resolveAudioFileInternal(normalized, accent, precacheGeneration, cancelEnabled = false)
+        resolveAudioFileInternal(normalized, accent, generation, cancelEnabled = false)
     }
 
     /** 计算某个 (spelling, accent) 的预期缓存文件位置，不触发下载。 */
@@ -201,6 +206,8 @@ class WordAudioPlayer(context: Context) {
 
         // README 的两个来源已按业务优先级生成。
         val sources = buildSources(spelling, accent)
+        // 记录下载开始时的缓存纪元；清空动作会改变它，使旧下载不能重新落正式文件。
+        val initialCacheEpoch = cacheEpoch.get()
         // 保存每个来源的简短失败原因，最终一起提供给用户排查。
         val failures = mutableListOf<String>()
         // 从不背单词开始逐个尝试。
@@ -209,7 +216,7 @@ class WordAudioPlayer(context: Context) {
                 // 用户已点击其他单词时立即停止当前旧任务，不继续占用下载队列。
                 if (cancelEnabled) ensureRequestIsActive(generation)
                 // 任一来源下载成功便立即返回缓存文件。
-                downloadToCache(url, target, generation, cancelEnabled)
+                downloadToCache(url, target, generation, cancelEnabled, initialCacheEpoch)
                 return target
             } catch (error: Throwable) {
                 // 被新请求替换时直接结束旧任务，不再尝试第二来源。
@@ -251,6 +258,7 @@ class WordAudioPlayer(context: Context) {
         target: File,
         generation: Long,
         cancelEnabled: Boolean,
+        initialCacheEpoch: Long,
     ) {
         // openConnection 返回通用连接，这里明确收窄为 HTTPS 所属的 HTTP API。
         val connection = java.net.URL(url).openConnection() as HttpURLConnection
@@ -306,17 +314,28 @@ class WordAudioPlayer(context: Context) {
             }
             // 响应必须具有标准 ID3 或 MPEG frame sync 文件头。
             check(isLikelyMp3(temporary)) { "返回内容没有有效 MP3 文件头" }
-            // 若其他任务已经生成正式文件，保留那个有效结果。
-            if (isLikelyMp3(target)) {
-                temporary.delete()
-                return
-            }
-            // 同目录 rename 通常是原子操作，不会暴露半文件。
-            if (!temporary.renameTo(target)) {
-                // 极少数文件系统不支持 rename 时使用覆盖复制兜底。
-                temporary.copyTo(target, overwrite = true)
-                // 复制成功后删除临时文件。
-                temporary.delete()
+            // 只锁住最终替换这段短操作，四个线程的网络下载仍可并发进行。
+            synchronized(cacheMutationLock) {
+                // 播放请求或预缓存批次失效后，旧下载不得生成正式缓存。
+                if (cancelEnabled) {
+                    ensureRequestIsActive(generation)
+                } else {
+                    check(generation == precacheGeneration.get()) { "预缓存批次已失效" }
+                }
+                // 清空动作发生过时，即使下载内容有效也只能丢弃临时文件。
+                check(initialCacheEpoch == cacheEpoch.get()) { "音频缓存已被清空" }
+                // 若其他任务已经生成正式文件，保留那个有效结果。
+                if (isLikelyMp3(target)) {
+                    temporary.delete()
+                    return
+                }
+                // 同目录 rename 通常是原子操作，不会暴露半文件。
+                if (!temporary.renameTo(target)) {
+                    // 极少数文件系统不支持 rename 时使用覆盖复制兜底。
+                    temporary.copyTo(target, overwrite = true)
+                    // 复制成功后删除临时文件。
+                    temporary.delete()
+                }
             }
         } finally {
             // 失败或成功都删除残留临时文件。
@@ -334,18 +353,17 @@ class WordAudioPlayer(context: Context) {
 
     /**
      * 离线预缓存全部单词的双口音音频：在新线程池中并发下载并写入缓存目录，
-     * 每完成一个（无论成功还是来源缺失）都通过 [onProgress] 把最新进度推回 Dart。
+     * 每完成一个任务都推进结束计数，但只有磁盘上形成有效 MP3 时才增加缓存成功数。
      *
      * 该任务只依赖 applicationContext 与独立的线程池，不持有任何 Flutter Widget，
      * 因此用户关闭抽屉或返回首页后仍在后台继续，直到全部完成或启动新一轮预缓存。
      */
     fun precacheAll(
         spellings: List<String>,
-        onProgress: (cached: Int, total: Int, done: Boolean) -> Unit,
+        onProgress: (batch: Long, cached: Int, total: Int, done: Boolean) -> Unit,
     ) {
         // 新一轮预缓存让上一批尚未执行的任务立即退出，避免重复下载。
-        precacheGeneration += 1
-        val myGeneration = precacheGeneration
+        val myGeneration = precacheGeneration.incrementAndGet()
         // 每个单词都要缓存美式与英式两份。
         val tasks = spellings.flatMap { spelling ->
             listOf(AMERICAN to spelling, BRITISH to spelling)
@@ -353,34 +371,48 @@ class WordAudioPlayer(context: Context) {
         val total = tasks.size
         // 没有单词时直接回报"已完成"，让 Dart 收起进度条。
         if (total == 0) {
-            onProgress(0, 0, true)
+            onProgress(myGeneration, 0, 0, true)
             return
         }
-        // 原子计数器统计已完成（成功 + 失败跳过）的任务数，用于实时比例。
-        val completed = AtomicInteger(0)
+        // 独立计数器严格区分“任务结束”和“缓存成功”，并可由 JVM 单元测试验证。
+        val progress = PrecacheProgress(total)
         for ((accent, spelling) in tasks) {
             // 线程池若已随 Activity 销毁被关闭，提交会被拒绝；此处静默吞掉，
             // 避免 RejectedExecutionException 冒泡到调用方导致无任何进度回调。
             try {
                 precacheExecutor.execute {
                     // 已有新一轮预缓存或用户重复点击时，旧任务直接退出。
-                    if (myGeneration != precacheGeneration) return@execute
-                    // 单个单词失败（音源缺失 / 网络错误）只跳过，不影响整体进度。
+                    if (myGeneration != precacheGeneration.get()) return@execute
+                    // 先假定本任务失败；只有解析得到有效缓存后才切换为成功。
+                    var cacheSucceeded = false
+                    // 单个单词失败（音源缺失 / 网络错误）只跳过，不影响其他任务。
                     try {
-                        precacheResolve(spelling, accent)
+                        precacheResolve(spelling, accent, myGeneration)
+                        // precacheResolve 正常返回说明磁盘上已有或刚写入了有效 MP3。
+                        cacheSucceeded = true
                     } catch (_: Throwable) {
                         // 离线预缓存以"尽量填满"为目标，单个失败无需中断整体。
                     }
-                    // 无论成功或失败都推进计数并上报进度。
-                    val done = completed.incrementAndGet()
-                    onProgress(done, total, done >= total)
+                    // 下载期间若已清空缓存或启动新批次，旧任务结果不再回写界面。
+                    if (myGeneration != precacheGeneration.get()) return@execute
+                    // 无论成功或失败都记录任务结束，但只有成功才增加 cached。
+                    val snapshot = progress.finish(cacheSucceeded)
+                    // 同时带上批次号，主线程发送事件前还会再次确认它没有过期。
+                    onProgress(myGeneration, snapshot.cached, snapshot.total, snapshot.done)
                 }
             } catch (_: java.util.concurrent.RejectedExecutionException) {
-                // 线程池已关闭：本批次剩余任务不再执行，直接按"已完成"收尾。
-                onProgress(total, total, true)
+                // 线程池已关闭：保留真实成功数，并把本批标记结束，绝不伪造 100%。
+                val snapshot = progress.stopped()
+                onProgress(myGeneration, snapshot.cached, snapshot.total, snapshot.done)
                 return
             }
         }
+    }
+
+    /** 判断准备发送到 Dart 的预缓存事件是否仍属于当前有效批次。 */
+    fun isCurrentPrecacheBatch(batch: Long): Boolean {
+        // clearAudioCache 与下一次 precacheAll 都会递增编号，使旧事件立即失效。
+        return batch == precacheGeneration.get()
     }
 
     /** 统计当前词库中已缓存的音频数量（美式 + 英式），用于在抽屉里显示初始百分比。 */
@@ -407,16 +439,21 @@ class WordAudioPlayer(context: Context) {
      */
     fun clearAudioCache() {
         // 让尚未执行的预缓存任务直接退出，不再往目录里写新文件。
-        precacheGeneration += 1
-        // 仅清空本服务负责的 word_audio 目录；其余缓存（如图片）不受影响。
-        val root = File(appContext.cacheDir, "word_audio")
-        // 防御：路径必须位于 cacheDir 之内，防止任何意外越界删除。
-        val cacheRoot = appContext.cacheDir
-        if (!root.absolutePath.startsWith(cacheRoot.absolutePath + File.separator)) {
-            return
+        precacheGeneration.incrementAndGet()
+        // 让所有已开始下载的任务在最终替换前发现缓存已被清空。
+        cacheEpoch.incrementAndGet()
+        // 与正式文件替换互斥，保证清空返回后没有旧下载重新写回。
+        synchronized(cacheMutationLock) {
+            // 仅清空本服务负责的 word_audio 目录；其余缓存（如图片）不受影响。
+            val root = File(appContext.cacheDir, "word_audio")
+            // 防御：路径必须位于 cacheDir 之内，防止任何意外越界删除。
+            val cacheRoot = appContext.cacheDir
+            if (!root.absolutePath.startsWith(cacheRoot.absolutePath + File.separator)) {
+                return
+            }
+            // deleteRecursively 会递归删除目录及其内容；失败返回 false，此处忽略。
+            runCatching { root.deleteRecursively() }
         }
-        // deleteRecursively 会递归删除目录及其内容；失败返回 false，此处忽略。
-        runCatching { root.deleteRecursively() }
     }
 
     /** 读取文件开头，快速排除 HTML、JSON、空文件和残缺缓存。 */

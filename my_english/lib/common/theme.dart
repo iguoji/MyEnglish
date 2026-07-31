@@ -194,7 +194,10 @@ abstract final class AppTheme {
       // 比深色 surface 略亮的深色底，仍保持黑底形态。
       backgroundColor: AppTheme.darkTableBorderColor,
       // 提示文字重用深色主文字色。
-      contentTextStyle: const TextStyle(color: AppTheme.darkTextColor, fontSize: 13.5),
+      contentTextStyle: const TextStyle(
+        color: AppTheme.darkTextColor,
+        fontSize: 13.5,
+      ),
       // 操作按钮使用深色 scheme 提亮后的品牌蓝。
       actionTextColor: const Color(0xFF6EA8E5),
     ),

@@ -25,72 +25,84 @@ void main() {
   });
 
   // 验证全部 CRUD 与导入/清空都正确路由到原生通道。
-  test('SQLite store routes CRUD, import and clear through the channel',
-      () async {
-    // 按实际发生顺序记录方法名。
-    final nativeCalls = <String>[];
-    // 模拟 Android MainActivity 的返回值。
-    messenger.setMockMethodCallHandler(channel, (MethodCall call) async {
-      // 保存调用顺序。
-      nativeCalls.add(call.method);
-      // 根据方法名返回对应原生结果。
-      switch (call.method) {
-        // 创建返回 SQLite 自增主键。
-        case 'createWord':
-          return 7;
-        // 查询返回普通 Map 数组。
-        case 'getAllWords':
-          return <Object?>[
-            <Object?, Object?>{
-              'id': 7,
-              'spelling': 'persisted',
-              'meanings': <Object?>[],
-              'created_at': DateTime(2026, 7, 26).millisecondsSinceEpoch,
-            },
-          ];
-        // 增删成员/同步分组/导入/清空等均返回 Future<void>，对应 null。
-        case 'addGroupMember':
-        case 'setWordGroups':
-        case 'updateWord':
-        case 'deleteWord':
-        case 'importWords':
-        case 'importData':
-        case 'clearAllWords':
-          return null;
-      }
-      // 未登记方法说明测试或接口出现错误。
-      throw StateError('unexpected method: ${call.method}');
-    });
+  test(
+    'SQLite store routes CRUD, import and clear through the channel',
+    () async {
+      // 按实际发生顺序记录完整调用，既检查方法名也检查事务参数。
+      final nativeCalls = <MethodCall>[];
+      // 模拟 Android MainActivity 的返回值。
+      messenger.setMockMethodCallHandler(channel, (MethodCall call) async {
+        // 保存调用顺序。
+        nativeCalls.add(call);
+        // 根据方法名返回对应原生结果。
+        switch (call.method) {
+          // 创建返回 SQLite 自增主键。
+          case 'createWord':
+            return 7;
+          // 查询返回普通 Map 数组。
+          case 'getAllWords':
+            return <Object?>[
+              <Object?, Object?>{
+                'id': 7,
+                'spelling': 'persisted',
+                'meanings': <Object?>[],
+                'created_at': DateTime(2026, 7, 26).millisecondsSinceEpoch,
+              },
+            ];
+          // 更新、删除、导入和清空均返回 Future<void>，对应 null。
+          case 'updateWord':
+          case 'deleteWord':
+          case 'importWords':
+          case 'importData':
+          case 'clearAllWords':
+            return null;
+        }
+        // 未登记方法说明测试或接口出现错误。
+        throw StateError('unexpected method: ${call.method}');
+      });
 
-    // 创建只使用原生通道的 Store。
-    final store = LocalWordStore(channel: channel);
+      // 创建只使用原生通道的 Store。
+      final store = LocalWordStore(channel: channel);
 
-    // 创建进入原生事务并返回主键（另会补写 groupMember）。
-    final createdId = await store.create(const Word(spelling: 'persisted'));
-    expect(createdId, 7);
-    // 查询从原生获取模型。
-    final words = await store.getAll();
-    expect(words.single.spelling, 'persisted');
-    // 更新进入原生事务（另会同步分组关系）。
-    await store.update(const Word(id: 7, spelling: 'persisted'));
-    // 删除进入原生软删除。
-    await store.delete(7);
-    // 导入批量写入（整库替换）。
-    await store.importWords(const [Word(spelling: 'a'), Word(spelling: 'b')]);
-    // 清空两张表。
-    await store.clearAll();
-    // 方法顺序证明六个核心操作都经过 SQLite；未带分组的单词不会调用
-    // addGroupMember，update 仍会同步分组关系（setWordGroups）。
-    expect(nativeCalls, <String>[
-      'createWord',
-      'getAllWords',
-      'updateWord',
-      'setWordGroups',
-      'deleteWord',
-      'importWords',
-      'clearAllWords',
-    ]);
-  });
+      // 创建时把分组一并放进同一个原生事务，并返回主键。
+      final createdId = await store.create(
+        const Word(spelling: 'persisted', groupIds: <int>[3]),
+      );
+      expect(createdId, 7);
+      // 查询从原生获取模型。
+      final words = await store.getAll();
+      expect(words.single.spelling, 'persisted');
+      // 更新同样用一次调用整体替换主体、释义和分组。
+      await store.update(
+        const Word(id: 7, spelling: 'persisted', groupIds: <int>[4]),
+      );
+      // 删除进入原生软删除。
+      await store.delete(7);
+      // 导入批量写入（整库替换）。
+      await store.importWords(const [Word(spelling: 'a'), Word(spelling: 'b')]);
+      // 清空两张表。
+      await store.clearAll();
+      // 方法顺序证明核心操作都经过 SQLite，并且创建、更新各只需要一次通道调用。
+      expect(nativeCalls.map((call) => call.method), <String>[
+        'createWord',
+        'getAllWords',
+        'updateWord',
+        'deleteWord',
+        'importWords',
+        'clearAllWords',
+      ]);
+      // 创建参数已经包含分组 id，不再另发 addGroupMember。
+      expect(
+        (nativeCalls[0].arguments as Map<Object?, Object?>)['group_ids'],
+        <int>[3],
+      );
+      // 更新参数同样包含完整新分组，不再另发 setWordGroups。
+      expect(
+        (nativeCalls[2].arguments as Map<Object?, Object?>)['group_ids'],
+        <int>[4],
+      );
+    },
+  );
 
   // 验证导入解析兼容「数组」与「{words:[...]}」两种形态。
   test('parseWordsFromJsonText handles array and object shapes', () {

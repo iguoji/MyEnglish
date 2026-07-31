@@ -26,11 +26,11 @@ import '../../services/word_audio.dart';
 import '../../services/word_audio_cache.dart';
 // 原生 SAF 文件读写服务：导入选 JSON、导出写文件，不依赖第三方 file_picker。
 import '../../services/file_io.dart';
-// 新版原型中的全屏默写页。
+// 全屏默写页。
 import '../dictation/dictation_page.dart';
-// 新版原型中的全屏随身听页。
+// 全屏随身听页。
 import '../listening/listening_page.dart';
-// 分组 Store 提供自定义分组数据（本轮为内存实现）。
+// 分组 Store 通过原生 SQLite 提供持久化的自定义分组数据。
 import '../../store/group.dart';
 // 设置 Store 提供持久化口音、主题与每日复习目标。
 import '../../store/settings.dart';
@@ -58,10 +58,12 @@ import 'widgets/word_list_tile.dart';
 import 'widgets/word_search_field.dart';
 // 排序行与选择模式工具行。
 import 'widgets/word_sort_bar.dart';
+// 纯排序服务负责搜索过滤和多级稳定排序，页面只提供当前交互参数。
+import 'services/home_word_sorter.dart';
 
 /// 首页组件，结构类似小程序一个 page 目录下的 Page 实例。
 class HomePage extends StatefulWidget {
-  /// store 允许测试注入假实现；真实 App 不传时使用"JSON 优先、SQLite 回退"Store。
+  /// store 允许测试注入假实现；真实 App 不传时使用原生 SQLite Store。
   const HomePage({
     super.key,
     this.store,
@@ -136,11 +138,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 默认走 Android 原生通道；测试可注入假通道避免真正弹出系统选择器。
   late final NativeFileIo _fileIo;
 
-  /// 自定义分组 Store；本轮为内存实现，重启后重置。
+  /// 自定义分组 Store；分组与成员关系均由原生 SQLite 持久化。
   final GroupStore _groups = GroupStore();
 
   /// Store 一次加载全部未删除单词；每组 SliverList 仍然只惰性构建可见行。
   List<Word> _allWords = const <Word>[];
+
   /// 今日复习已完成的单词数（去重），来自真实 record，用于副标题展示。
   int _reviewCount = 0;
 
@@ -171,7 +174,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 是否处于选择模式。
   bool _selectMode = false;
 
-  /// 当前使用的排序字段，默认保持 JSON 或 SQLite 返回顺序。
+  /// 当前使用的排序字段，默认保持 SQLite 返回顺序。
   WordSortField _sortField = WordSortField.original;
 
   /// 每个可排序字段各自记住方向；true 升序，false 降序。
@@ -187,7 +190,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 当前真正参与过滤的小写搜索词。
   String _query = '';
 
-  /// 页面是否仍在等待 JSON 或 SQLite 查询。
+  /// 页面是否仍在等待 SQLite 查询。
   bool _isLoading = true;
 
   /// 数据加载异常；null 表示没有错误。
@@ -203,7 +206,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     // 同一初始时刻供问候语和列表年份判断使用。
     final initialTime = DateTime.now();
-    // 有测试 Store 就使用注入值，否则使用全局本地 Store 自动选择 JSON 或 SQLite。
+    // 有测试 Store 就使用注入值，否则使用全局 SQLite Store。
     _store = widget.store ?? LocalWordStore.instance;
     // 记录设置 Store 是否由首页临时创建。
     _ownsSettings = widget.settings == null;
@@ -248,9 +251,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 收集所有仍然指向不存在分组的单词（理论上 deleteGroup 已清成员关系）。
     final orphans = _allWords
         .where(
-          (word) => word.groupIds.any(
-            (groupId) => _groups.byId(groupId) == null,
-          ),
+          (word) =>
+              word.groupIds.any((groupId) => _groups.byId(groupId) == null),
         )
         .toList(growable: false);
     // 没有孤儿时直接结束。
@@ -263,210 +265,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _refreshWords();
   }
 
-  /// 比较两个 Word；每种排序字段都执行固定的多级次序，最终由编号升序保底。
-  ///
-  /// "日期"层按当前分组模式取单字段（复习/更新/加入时间，见 _compareDate）。
-  /// 默认：编号升序 → 字母升序 → 难度降序 → 日期降序。
-  /// 字母：拼写(当前方向) → 难度降序 → 日期降序 → 编号升序。
-  /// 难度：难度(当前方向，null 视为 0) → 日期降序 → 拼写升序 → 编号升序。
-  /// 日期：日期(当前方向，空值固定末尾) → 难度降序 → 拼写升序 → 编号升序。
-  int _compareWords(Word first, Word second, bool isAscending) {
-    // switch 根据当前选中字段进入对应的多级比较链。
-    switch (_sortField) {
-      // 默认排序：编号升序 → 字母升序 → 难度降序 → 日期降序。
-      case WordSortField.original:
-        {
-          // 第一级：编号升序。
-          final byId = _compareId(first, second);
-          if (byId != 0) return byId;
-          // 第二级：字母升序。
-          final bySpelling = _compareSpelling(first, second, true);
-          if (bySpelling != 0) return bySpelling;
-          // 第三级：难度降序。
-          final byDifficulty = _compareDifficulty(first, second, false);
-          if (byDifficulty != 0) return byDifficulty;
-          // 第四级：日期降序。
-          return _compareDate(first, second, false);
-        }
+  /// 按当前页面状态创建纯排序服务；服务不持有 Widget，可独立测试。
+  HomeWordSorter get _wordSorter => HomeWordSorter(
+    // 分组视角决定日期字段取 reviewedAt、updatedAt 或 createdAt。
+    mode: _mode,
+    // 当前排序入口由工具栏维护。
+    field: _sortField,
+    // 各字段保留自己的升降序。
+    directions: _sortDirections,
+    // 搜索防抖完成后保存的小写查询词。
+    query: _query,
+  );
 
-      // 字母排序链。
-      case WordSortField.alphabet:
-        {
-          // 第一级：拼写按用户当前选择的升降序。
-          final bySpelling = _compareSpelling(first, second, isAscending);
-          // 拼写不同就直接得出结论。
-          if (bySpelling != 0) return bySpelling;
-          // 第二级：相同拼写按难度从高到低。
-          final byDifficulty = _compareDifficulty(first, second, false);
-          // 难度不同立即返回。
-          if (byDifficulty != 0) return byDifficulty;
-          // 第三级：仍然相同时按日期从新到旧。
-          final byDate = _compareDate(first, second, false);
-          // 日期不同立即返回。
-          if (byDate != 0) return byDate;
-          // 保底：编号升序。
-          return _compareId(first, second);
-        }
+  /// 返回当前分组视角下列表行应展示的日期。
+  DateTime? _listDateOf(Word word) => _wordSorter.dateOf(word);
 
-      // 难度排序链。
-      case WordSortField.difficulty:
-        {
-          // 第一级：难度按用户当前方向；null 难度按 0 参与，因此升序从 0/null 开始。
-          final byDifficulty = _compareDifficulty(first, second, isAscending);
-          // 难度不同就直接得出结论。
-          if (byDifficulty != 0) return byDifficulty;
-          // 第二级：难度相同按日期从新到旧。
-          final byDate = _compareDate(first, second, false);
-          // 日期不同立即返回。
-          if (byDate != 0) return byDate;
-          // 第三级：再按拼写 A 到 Z。
-          final bySpelling = _compareSpelling(first, second, true);
-          // 拼写不同立即返回。
-          if (bySpelling != 0) return bySpelling;
-          // 保底：编号升序。
-          return _compareId(first, second);
-        }
-
-      // 日期排序链。
-      case WordSortField.date:
-        {
-          // 第一级：日期按用户当前方向，空日期在任何方向都排在末尾。
-          final byDate = _compareDate(first, second, isAscending);
-          // 日期不同就直接得出结论。
-          if (byDate != 0) return byDate;
-          // 第二级：日期相同按难度从高到低。
-          final byDifficulty = _compareDifficulty(first, second, false);
-          // 难度不同立即返回。
-          if (byDifficulty != 0) return byDifficulty;
-          // 第三级：再按拼写 A 到 Z。
-          final bySpelling = _compareSpelling(first, second, true);
-          // 拼写不同立即返回。
-          if (bySpelling != 0) return bySpelling;
-          // 保底：编号升序。
-          return _compareId(first, second);
-        }
-    }
-  }
-
-  /// 给非空字段比较结果应用升序或降序。
-  int _applyDirection(int comparison, bool isAscending) {
-    // 升序保留原比较结果，降序翻转正负。
-    return isAscending ? comparison : -comparison;
-  }
-
-  /// 拼写层：忽略大小写比较，isAscending 决定 A→Z 还是 Z→A。
-  int _compareSpelling(Word first, Word second, bool isAscending) {
-    // 与搜索一致，先统一转小写再比较。
-    final comparison = first.spelling.toLowerCase().compareTo(
-      second.spelling.toLowerCase(),
-    );
-    // 应用当前方向。
-    return _applyDirection(comparison, isAscending);
-  }
-
-  /// 难度层：null 难度按业务约定视为 0，升序自然从 0/null 开始，降序把它们放到最后。
-  int _compareDifficulty(Word first, Word second, bool isAscending) {
-    // 第一个单词的参与值；?? 相当于 PHP 的 null 合并运算符。
-    final firstValue = first.difficulty ?? 0;
-    // 第二个单词同样把 null 归一成 0。
-    final secondValue = second.difficulty ?? 0;
-    // 数字比较后应用方向。
-    return _applyDirection(firstValue.compareTo(secondValue), isAscending);
-  }
-
-  /// 按当前分组模式返回列表行应显示/排序使用的日期。
-  ///
-  /// 需求约定：列表日期与"日期排序"的第一级字段都跟随分组模式——
-  /// - 默认 / 自定义 / 难度 / 复习时间视角 → reviewedAt（复习时间）
-  /// - 更新时间视角 → updatedAt（更新时间）
-  /// - 加入时间视角 → createdAt（加入时间）
-  /// 对应单词为空时返回 null，由调用方统一处理占位"00.00"与排序末尾。
-  DateTime? _listDateOf(Word word) => switch (_mode) {
-    // 更新时间视角取 updatedAt。
-    GroupMode.updated => word.updatedAt,
-    // 加入时间视角取 createdAt。
-    GroupMode.added => word.createdAt,
-    // 其余视角（custom/difficulty/reviewed）统一取复习时间。
-    _ => word.reviewedAt,
-  };
-
-  /// 日期层：按当前分组模式取单字段比较（复习/更新/加入时间其一）。
-  ///
-  /// 空值方向跟随升降序：升序时空值排最前（与难度升序 null=0 排前一致），
-  /// 降序时空值排最后。isAscending 决定升序还是降序。
-  int _compareDate(Word first, Word second, bool isAscending) {
-    // 按模式取出该单词的"列表日期"，再统一做可空比较。
-    // nullsLast = !isAscending：升序时 null 排前，降序时 null 排后。
-    return _compareNullable<DateTime>(
-      _listDateOf(first),
-      _listDateOf(second),
-      (firstValue, secondValue) => firstValue.compareTo(secondValue),
-      isAscending,
-      nullsLast: !isAscending,
-    );
-  }
-
-  /// 编号保底层：id 固定升序，没有 id 的数据排在有编号数据之后。
-  int _compareId(Word first, Word second) {
-    // 两个都缺 id 时返回 0，最终由原始下标维持稳定顺序。
-    return _compareNullable<int>(
-      first.id,
-      second.id,
-      (firstValue, secondValue) => firstValue.compareTo(secondValue),
-      true,
-    );
-  }
-
-  /// 比较可空值；nullsLast 控制空值排在末尾还是开头。
-  ///
-  /// 默认 nullsLast=true（空值排末尾），兼容编号保底等"空值永远在后"的场景。
-  /// 日期排序传入 nullsLast=!isAscending，使升序时空值排前、降序时空值排后，
-  /// 与难度升序（null 视为 0 排前）的行为保持一致。
-  int _compareNullable<T>(
-    T? first,
-    T? second,
-    int Function(T first, T second) compareValues,
-    bool isAscending, {
-    bool nullsLast = true,
-  }) {
-    // 两边都为空时业务字段相等。
-    if (first == null && second == null) return 0;
-    // 只有第一个为空：nullsLast=true 排后(1)，nullsLast=false 排前(-1)。
-    if (first == null) return nullsLast ? 1 : -1;
-    // 只有第二个为空：nullsLast=true 排前(-1)，nullsLast=false 排后(1)。
-    if (second == null) return nullsLast ? -1 : 1;
-    // 两边都有值时才应用升降序。
-    return _applyDirection(compareValues(first, second), isAscending);
-  }
-
-  /// 对区块内的单词执行搜索过滤与稳定排序。
+  /// 对一个区块执行搜索过滤与稳定排序。
   List<Word> _filterAndSort(List<Word> source) {
-    // 先按搜索词过滤 spelling。
-    final filtered = _query.isEmpty
-        ? List<Word>.of(source)
-        : source
-              .where((word) => word.spelling.toLowerCase().contains(_query))
-              .toList();
-    // 所有排序字段（含默认）都走多级比较链，不再对 original 早退。
-    // 记录原始下标，作为多级比较后的最终稳定兜底。
-    final originalIndexes = <Word, int>{};
-    for (var index = 0; index < filtered.length; index += 1) {
-      originalIndexes[filtered[index]] = index;
-    }
-    // 读取当前字段方向；缺失时安全采用升序。
-    final isAscending = _sortDirections[_sortField] ?? true;
-    // Dart sort 类似 PHP usort，比较器返回负数、0 或正数。
-    filtered.sort((first, second) {
-      // 先执行多级业务比较。
-      final result = _compareWords(first, second, isAscending);
-      // 业务字段全部打平时回到原始下标。
-      if (result != 0) return result;
-      return (originalIndexes[first] ?? 0).compareTo(
-        originalIndexes[second] ?? 0,
-      );
-    });
-    // 返回排序副本。
-    return filtered;
+    // 业务比较规则集中在独立服务，页面只负责提供当前交互状态。
+    return _wordSorter.filterAndSort(source);
   }
 
   /// 按当前分组视角把全部单词组织成区块列表。
@@ -1078,7 +895,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 没有主键的数据无法定位，直接提示。
       final id = word.id;
       if (id == null) throw StateError('该单词缺少 id，无法删除');
-      // JSON 模式移出内存，SQLite 模式软删除。
+      // 交给 SQLite Store 软删除；测试注入的 Store 遵守同一接口约定。
       await _store.delete(id);
       // 刷新列表。
       await _refreshWords();
@@ -1163,7 +980,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _refreshWords();
   }
 
-  /// 尚未在本轮原型中定义具体页面的菜单项使用统一提示。
+  /// 尚未实现具体页面的菜单项使用统一提示。
   void _showComingSoon(String feature) {
     Toast.show(context, '「$feature」功能正在整理中');
   }
@@ -1248,10 +1065,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final wordId = word.id;
         if (wordId == null) continue;
         for (final groupId in word.groupIds) {
-          members.add(<String, int>{
-            'group_id': groupId,
-            'word_id': wordId,
-          });
+          members.add(<String, int>{'group_id': groupId, 'word_id': wordId});
         }
       }
       // 分组列表：导出原生 group 表所需的 id/name/sort_order，
@@ -1942,14 +1756,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   key: const Key('learning-menu-backdrop'),
                   behavior: HitTestBehavior.opaque,
                   onTap: () => setState(() => _learningMenuOpen = false),
-                // 保留点击空白收起菜单的命中层，但颜色改为完全透明，
-                // 不再用半透明黑色遮挡，避免界面与手机顶部状态栏被视觉割裂。
-                child: const ColoredBox(
-                  color: Colors.transparent,
-                ),
+                  // 保留点击空白收起菜单的命中层，但颜色改为完全透明，
+                  // 不再用半透明黑色遮挡，避免界面与手机顶部状态栏被视觉割裂。
+                  child: const ColoredBox(color: Colors.transparent),
                 ),
               ),
-            // 新版原型仅常驻一个“学习”按钮，展开后向上显示两个具体入口。
+            // 页面仅常驻一个“学习”按钮，展开后向上显示两个具体入口。
             Positioned(
               key: const Key('learning-fab'),
               right: 20,
@@ -2003,13 +1815,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         // 默写返回后立即刷新；若带回本次复习的单词 id 则只回刷这些单词，
                         // 否则（如系统返回键）退回整库刷新。
                         .then((result) {
-                      if (result is List<int>) {
-                        unawaited(_mergeReviewedWords(result));
-                      } else {
-                        unawaited(_refreshWords());
-                      }
-                      unawaited(_loadReviewCount());
-                    }),
+                          if (result is List<int>) {
+                            unawaited(_mergeReviewedWords(result));
+                          } else {
+                            unawaited(_refreshWords());
+                          }
+                          unawaited(_loadReviewCount());
+                        }),
                   );
                 },
               ),

@@ -829,9 +829,7 @@ class _PosChip extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           // 选中项用浅主色背景，未选中用透明。
-          color: isSelected
-              ? const Color(0x1A206BC4)
-              : Colors.transparent,
+          color: isSelected ? const Color(0x1A206BC4) : Colors.transparent,
           // 选中项用主色描边，未选中用输入框边框色。
           border: Border.all(
             color: isSelected ? AppTokens.accent : tokens.inputBorder,

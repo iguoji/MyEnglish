@@ -143,10 +143,7 @@ class HomeDrawer extends StatelessWidget {
             // 页脚上方分隔线。
             Divider(height: 1, color: tokens.rowBorder),
             // 16. 页脚：Github + 邮箱，水平排列、居左、两项之间有间隔。
-            _DrawerFooter(
-              onOpenGithub: onOpenGithub,
-              onCopyEmail: onCopyEmail,
-            ),
+            _DrawerFooter(onOpenGithub: onOpenGithub, onCopyEmail: onCopyEmail),
           ],
         ),
       ),
@@ -218,7 +215,8 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
         // 当前是否为深色主题，决定显示太阳还是月亮。
         final isDark = widget.settings.theme == AppThemePreference.dark;
         // 当前亮度，决定 Azure 徽章在深浅色下的具体色值。
-        final isDarkBrightness = Theme.of(context).brightness == Brightness.dark;
+        final isDarkBrightness =
+            Theme.of(context).brightness == Brightness.dark;
         // Azure 徽章背景：浅色 10% 透明、深色 20% 透明（深色 surface 上更可见）。
         final badgeBg = isDarkBrightness
             ? const Color(0x3345AAF2)
@@ -435,7 +433,11 @@ class _DrawerOfflineSpeech extends StatelessWidget {
                 child: Row(
                   children: <Widget>[
                     // 17 像素灰色描边图标，与 _DrawerItem 视觉一致。
-                    Icon(TablerIcons.cloudDownload, size: 17, color: tokens.muted),
+                    Icon(
+                      TablerIcons.cloudDownload,
+                      size: 17,
+                      color: tokens.muted,
+                    ),
                     // 图标与文字间距。
                     const SizedBox(width: 12),
                     // 入口文案使用主文字色。
@@ -807,9 +809,7 @@ class _SeparatorControl extends StatelessWidget {
             Expanded(
               child: InkWell(
                 // key 供 Widget 测试和自动化准确选择标点。
-                key: Key(
-                  'definition-separator-${separator.storageValue}',
-                ),
+                key: Key('definition-separator-${separator.storageValue}'),
                 onTap: () => onTap(separator),
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
@@ -845,12 +845,40 @@ class _SeparatorControl extends StatelessWidget {
 ///
 /// 容器样式（tokens.sub 背景、8 圆角、无边框、固定宽度 [_kSettingControlWidth]）
 /// 与口语发音/单词分隔完全一致；加减按钮去掉边框，仅保留图标。
-class _DailyGoalRow extends StatelessWidget {
+class _DailyGoalRow extends StatefulWidget {
   /// 接收全局设置 Store。
   const _DailyGoalRow({required this.settings});
 
   /// 全局设置 Store，读取与修改每日复习目标。
   final SettingsStore settings;
+
+  /// 创建局部状态，避免连续点击造成多个 SharedPreferences 写入交错。
+  @override
+  State<_DailyGoalRow> createState() => _DailyGoalRowState();
+}
+
+/// 管理每日目标步进按钮的异步保存状态。
+class _DailyGoalRowState extends State<_DailyGoalRow> {
+  /// true 表示正在等待 Android 确认磁盘写入。
+  bool _isSaving = false;
+
+  /// 把目标增加或减少一个步长，并统一处理保存失败。
+  Future<void> _changeGoal(int delta) async {
+    // 保存期间忽略重复点击，避免较慢设备上发生写入顺序倒置。
+    if (_isSaving) return;
+    // 禁用两个按钮，直到本次写入结束。
+    setState(() => _isSaving = true);
+    try {
+      // 基于当前已确认的目标计算新值；Store 会把负数钳制为 0。
+      await widget.settings.setDailyGoal(widget.settings.dailyGoal + delta);
+    } catch (error) {
+      // 写入失败时 Store 不改变内存值，并向用户说明原因。
+      if (mounted) Toast.show(context, '每日目标保存失败：$error');
+    } finally {
+      // 抽屉仍在组件树中时恢复按钮。
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   /// 输出 52 高的步进器行。
   @override
@@ -860,7 +888,7 @@ class _DailyGoalRow extends StatelessWidget {
     // ListenableBuilder 让目标值变化后只刷新本行。
     return ListenableBuilder(
       // 监听同一个全局 SettingsStore。
-      listenable: settings,
+      listenable: widget.settings,
       // 根据最新目标值重新构建。
       builder: (context, child) {
         return _SettingRow(
@@ -890,9 +918,7 @@ class _DailyGoalRow extends StatelessWidget {
                 Expanded(
                   child: InkWell(
                     key: const Key('goal-minus'),
-                    onTap: () => settings.setDailyGoal(
-                      settings.dailyGoal - 5,
-                    ),
+                    onTap: _isSaving ? null : () => unawaited(_changeGoal(-5)),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
                       height: 26,
@@ -911,7 +937,7 @@ class _DailyGoalRow extends StatelessWidget {
                   height: 26,
                   alignment: Alignment.center,
                   child: Text(
-                    settings.dailyGoal.toString(),
+                    widget.settings.dailyGoal.toString(),
                     style: TextStyle(
                       color: tokens.text,
                       fontSize: 14,
@@ -925,9 +951,7 @@ class _DailyGoalRow extends StatelessWidget {
                 Expanded(
                   child: InkWell(
                     key: const Key('goal-plus'),
-                    onTap: () => settings.setDailyGoal(
-                      settings.dailyGoal + 5,
-                    ),
+                    onTap: _isSaving ? null : () => unawaited(_changeGoal(5)),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
                       height: 26,

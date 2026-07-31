@@ -59,15 +59,20 @@ class _LearningFabState extends State<LearningFab>
     duration: const Duration(milliseconds: 300),
   );
   // 缓出曲线，让位移/淡入在尾段更柔和、过渡更自然。
-  late final Animation<double> _expand =
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+  late final Animation<double> _expand = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOut,
+  );
   // 叉叉图标进入时从 -90° 旋转归位到 0°，实现“叉叉旋转出现”。
-  late final Animation<double> _rotation =
-      Tween<double>(begin: -0.25, end: 0).animate(_expand);
+  late final Animation<double> _rotation = Tween<double>(
+    begin: -0.25,
+    end: 0,
+  ).animate(_expand);
   // 入口从自身高度 40% 的下方滑入，对应原型“从下面位移并淡入”。
-  late final Animation<Offset> _slideUp =
-      Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero)
-          .animate(_expand);
+  late final Animation<Offset> _slideUp = Tween<Offset>(
+    begin: const Offset(0, 0.4),
+    end: Offset.zero,
+  ).animate(_expand);
 
   @override
   void initState() {
@@ -109,10 +114,8 @@ class _LearningFabState extends State<LearningFab>
         // Offstage 仅在“完全收起”时隐藏，既保证收起动画完整播放，又让测试在关闭态找不到入口文字。
         AnimatedBuilder(
           animation: _controller,
-          builder: (context, child) => Offstage(
-            offstage: _controller.isDismissed,
-            child: child,
-          ),
+          builder: (context, child) =>
+              Offstage(offstage: _controller.isDismissed, child: child),
           child: SizeTransition(
             sizeFactor: _expand,
             // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
@@ -174,10 +177,7 @@ class _LearningFabState extends State<LearningFab>
                     const SizedBox(width: 9),
                     // 文字随状态切换；原型动画焦点在“图标淡出/叉叉旋转/入口上滑”，
                     // 文字不做交叉淡入以免关闭态仍残留“收起”节点（影响测试与可访问性）。
-                    Text(
-                      widget.isOpen ? '收起' : '学习',
-                      style: _labelStyle,
-                    ),
+                    Text(widget.isOpen ? '收起' : '学习', style: _labelStyle),
                   ],
                 ),
               ),
@@ -190,26 +190,26 @@ class _LearningFabState extends State<LearningFab>
 
   /// 展开菜单中的两个白色胶囊入口（随身听 / 默写）。
   Widget _buildActions(AppTokens tokens) => Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _LearningAction(
-            key: const Key('open-player'),
-            icon: TablerIcons.headphones,
-            label: '随身听 · ${widget.targetCount}',
-            onTap: widget.onOpenPlayer,
-            tokens: tokens,
-          ),
-          const SizedBox(height: 10),
-          _LearningAction(
-            key: const Key('open-dict'),
-            icon: TablerIcons.pencil,
-            label: '默写 · ${widget.targetCount}',
-            onTap: widget.onOpenDictation,
-            tokens: tokens,
-          ),
-          const SizedBox(height: 10),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      _LearningAction(
+        key: const Key('open-player'),
+        icon: TablerIcons.headphones,
+        label: '随身听 · ${widget.targetCount}',
+        onTap: widget.onOpenPlayer,
+        tokens: tokens,
+      ),
+      const SizedBox(height: 10),
+      _LearningAction(
+        key: const Key('open-dict'),
+        icon: TablerIcons.pencil,
+        label: '默写 · ${widget.targetCount}',
+        onTap: widget.onOpenDictation,
+        tokens: tokens,
+      ),
+      const SizedBox(height: 10),
+    ],
+  );
 }
 
 /// 展开菜单中的单个白色胶囊入口。

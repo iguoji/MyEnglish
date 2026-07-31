@@ -9,8 +9,10 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 // EventChannel 用于把离线预缓存的实时进度持续推回 Dart。
 import io.flutter.plugin.common.EventChannel
-// Executors 提供单独数据库线程，避免 SQLite 和 JSON 导入阻塞 Flutter UI。
+// ExecutorService/Executors 提供数据库与普通文件 I/O 队列，避免阻塞 Flutter UI。
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 // Activity 提供 RESULT_OK 等标准返回码，用于判断 SAF 选择结果。
 import android.app.Activity
@@ -28,8 +30,8 @@ import java.nio.charset.StandardCharsets
 /**
  * Android 原生入口，相当于 Flutter 页面背后的原生 Controller。
  *
- * JSON 是否存在由 Dart Store 先判断；只有没有 JSON 时，Dart 才通过 MethodChannel
- * 调用这里访问 SQLite。所有数据库工作都在单线程队列中顺序执行，不阻塞 Android 主线程。
+ * Dart Store 通过 MethodChannel 调用这里访问 SQLite。数据库与普通文件 I/O 分别在
+ * 独立单线程队列中顺序执行，避免事务、缓存扫描或大文件读写阻塞 Android 主线程。
  */
 class MainActivity : FlutterActivity() {
     // 通道名相当于接口路由，必须与 Dart LocalWordStore 中的字符串完全一致。
@@ -47,11 +49,18 @@ class MainActivity : FlutterActivity() {
     // 当前 Dart 端对进度流的订阅接收器；null 表示还没有任何页面在监听。
     private var audioCacheSink: EventChannel.EventSink? = null
 
+    // 后台任务只在 FlutterEngine 仍绑定时回传 MethodChannel 结果。
+    @Volatile
+    private var acceptsChannelResults = false
+
     // 文件通道负责 SAF 选 JSON 与导出写文件，与 word_store 同风格的原生桥接。
     private val fileIoChannelName = "my_english/file_io"
 
     // 单线程执行器保证导入、读取、写入不会并发破坏事务顺序。
     private val databaseExecutor = Executors.newSingleThreadExecutor()
+
+    // 独立 I/O 队列处理缓存扫描、SharedPreferences 和 SAF 文件，避免占用数据库队列。
+    private val ioExecutor = Executors.newSingleThreadExecutor()
 
     // lateinit 表示 Activity 创建后再初始化，类似 PHP 类中稍后注入 Store 属性。
     private lateinit var wordsDatabase: WordsDatabase
@@ -83,6 +92,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         // 先保留 FlutterActivity 自己的标准初始化流程。
         super.configureFlutterEngine(flutterEngine)
+        // 从这里开始当前引擎可以安全接收异步通道结果。
+        acceptsChannelResults = true
         // 创建 SQLite helper；applicationContext 可避免持有 Activity 导致内存泄漏。
         wordsDatabase = WordsDatabase(applicationContext)
         // 创建 App 私有设置 Store。
@@ -96,13 +107,13 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 // when 类似 PHP 8 match，根据方法名路由到不同数据库操作。
                 when (call.method) {
-                    // Dart 已确认 JSON 不存在后，才会调用这里读取全部 SQLite Word/Meaning。
+                    // Dart Store 调用这里读取全部 SQLite Word/Meaning。
                     "getAllWords" -> runDatabaseCall(result) {
                         // 只查询 SQLite，不读取 JSON，也不会执行任何导入或写入。
                         wordsDatabase.getAllWords()
                     }
 
-                    // 为未来新增单词页面预留创建接口。
+                    // 新增单词接口。
                     "createWord" -> runDatabaseCall(result) {
                         // arguments 对应 Dart 传来的 Map；类型不符时主动抛出清晰错误。
                         val payload = call.arguments as? Map<*, *>
@@ -111,7 +122,7 @@ class MainActivity : FlutterActivity() {
                         wordsDatabase.createWord(payload)
                     }
 
-                    // 为未来编辑页面预留更新接口。
+                    // 编辑单词接口。
                     "updateWord" -> runDatabaseCall(result) {
                         // 读取 Dart Word.toMap 生成的数据。
                         val payload = call.arguments as? Map<*, *>
@@ -121,7 +132,7 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 为未来删除操作预留软删除接口。
+                    // 删除操作使用软删除接口。
                     "deleteWord" -> runDatabaseCall(result) {
                         // 删除参数使用 Map，便于以后扩展其他字段。
                         val payload = call.arguments as? Map<*, *>
@@ -317,67 +328,71 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        // 注册全局设置通道；读取发生在 Dart runApp 之前。
+        // 注册全局设置通道；磁盘读取与写入统一进入 I/O 队列。
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, settingsChannelName)
-            // 根据方法名读取或写入两个设置字段。
+            // 根据方法名读取或写入设置字段。
             .setMethodCallHandler { call, result ->
-                try {
-                    // when 类似 PHP match。
-                    when (call.method) {
-                        // 返回当前口音和主题快照。
-                        "getSettings" -> result.success(appSettingsStore.getSettings())
+                // when 类似 PHP match；每个磁盘动作都由 runIoCall 切到后台执行。
+                when (call.method) {
+                    // 返回当前设置快照。
+                    "getSettings" -> runIoCall(result, "SETTINGS_ERROR") {
+                        appSettingsStore.getSettings()
+                    }
 
-                        // 保存新的口音字符串。
-                        "setAccent" -> {
-                            // 参数必须是 Dart 传来的 String。
-                            val value = call.arguments as? String
-                                ?: error("setAccent 缺少字符串参数")
-                            // Store 内部继续校验允许值并同步持久化。
-                            appSettingsStore.setAccent(value)
-                            // void 方法使用 null 表示成功。
-                            result.success(null)
-                        }
+                    // 保存新的口音字符串。
+                    "setAccent" -> runIoCall(result, "SETTINGS_ERROR") {
+                        // 参数必须是 Dart 传来的 String。
+                        val value = call.arguments as? String
+                            ?: error("setAccent 缺少字符串参数")
+                        // Store 内部继续校验允许值并同步持久化。
+                        appSettingsStore.setAccent(value)
+                        // void 方法使用 null 表示成功返回值。
+                        null
+                    }
 
-                        // 保存新的主题字符串。
-                        "setTheme" -> {
-                            // 参数必须是 Dart 传来的 String。
-                            val value = call.arguments as? String
-                                ?: error("setTheme 缺少字符串参数")
-                            // Store 内部继续校验允许值并同步持久化。
-                            appSettingsStore.setTheme(value)
-                            // 通知 Dart 持久化完成。
-                            result.success(null)
-                        }
+                    // 保存新的主题字符串。
+                    "setTheme" -> runIoCall(result, "SETTINGS_ERROR") {
+                        // 参数必须是 Dart 传来的 String。
+                        val value = call.arguments as? String
+                            ?: error("setTheme 缺少字符串参数")
+                        // Store 内部继续校验允许值并同步持久化。
+                        appSettingsStore.setTheme(value)
+                        // 返回 null 通知 Dart 持久化完成。
+                        null
+                    }
 
-                        // 保存新的中文释义分隔符。
-                        "setDefinitionSeparator" -> {
-                            // 参数必须是 Dart 枚举转换后的稳定字符串。
-                            val value = call.arguments as? String
-                                ?: error("setDefinitionSeparator 缺少字符串参数")
-                            // Store 继续校验值是否属于顿号、逗号或分号三者之一。
-                            appSettingsStore.setDefinitionSeparator(value)
-                        // 通知 Dart 持久化完成，可以刷新全部中文释义。
-                        result.success(null)
+                    // 保存新的中文释义分隔符。
+                    "setDefinitionSeparator" -> runIoCall(result, "SETTINGS_ERROR") {
+                        // 参数必须是 Dart 枚举转换后的稳定字符串。
+                        val value = call.arguments as? String
+                            ?: error("setDefinitionSeparator 缺少字符串参数")
+                        // Store 继续校验值是否属于顿号、逗号或分号三者之一。
+                        appSettingsStore.setDefinitionSeparator(value)
+                        // 返回 null 通知 Dart 刷新全部中文释义。
+                        null
+                    }
+
+                    // 保存每日复习目标整数。
+                    "setDailyGoal" -> runIoCall(result, "SETTINGS_ERROR") {
+                        // MethodChannel 可能把 Dart int 映射成 Int 或 Long，因此统一按 Number 读取。
+                        val value = (call.arguments as? Number)?.toInt()
+                            ?: error("setDailyGoal 缺少整数参数")
+                        // Store 校验非负数并同步写入 SharedPreferences。
+                        appSettingsStore.setDailyGoal(value)
+                        // 返回 null 通知 Dart 刷新目标数字。
+                        null
                     }
 
                     // 清空全部设置，恢复到首次安装默认值。
-                    "clearAllSettings" -> {
+                    "clearAllSettings" -> runIoCall(result, "SETTINGS_ERROR") {
                         // 删除 SharedPreferences 中的全部键值。
                         appSettingsStore.clearAll()
-                        // 通知 Dart 清空完成，可以刷新主题与口音。
-                        result.success(null)
+                        // 返回 null 通知 Dart 清空完成。
+                        null
                     }
 
                     // 未登记方法按 Flutter 规范返回 notImplemented。
                     else -> result.notImplemented()
-                    }
-                } catch (exception: Throwable) {
-                    // 参数或磁盘错误返回 Dart，设置面板会显示 SnackBar。
-                    result.error(
-                        "SETTINGS_ERROR",
-                        exception.message ?: exception.javaClass.simpleName,
-                        null,
-                    )
                 }
             }
 
@@ -410,9 +425,11 @@ class MainActivity : FlutterActivity() {
                         val spellings = (payload?.get("spellings") as? List<*>)
                             ?.mapNotNull { it as? String } ?: emptyList()
                         // 启动后台批量缓存；进度通过已注册的 EventSink 推回 Dart。
-                        wordAudioPlayer.precacheAll(spellings) { cached, total, done ->
+                        wordAudioPlayer.precacheAll(spellings) { batch, cached, total, done ->
                             // EventSink 必须在主线程调用；后台线程池的回调切到 UI 线程。
                             runOnUiThread {
+                                // 清空缓存或新批次启动后，排队中的旧事件不能覆盖最新状态。
+                                if (!wordAudioPlayer.isCurrentPrecacheBatch(batch)) return@runOnUiThread
                                 try {
                                     // 没有订阅者（页面未打开抽屉）或引擎正在销毁时静默丢弃。
                                     // try 防止引擎已解绑后仍调用 success 抛 IllegalStateException。
@@ -438,25 +455,26 @@ class MainActivity : FlutterActivity() {
                         val payload = call.arguments as? Map<*, *>
                         val spellings = (payload?.get("spellings") as? List<*>)
                             ?.mapNotNull { it as? String } ?: emptyList()
-                        // 返回 {cached, total} 二元组供 Dart 计算百分比。
-                        val progress = wordAudioPlayer.getCacheProgress(spellings)
-                        result.success(
+                        // 遍历并读取 MP3 文件头属于磁盘 I/O，放到后台后再回传二元组。
+                        runIoCall(result, "AUDIO_CACHE_ERROR") {
+                            val progress = wordAudioPlayer.getCacheProgress(spellings)
                             mapOf(
                                 "cached" to progress.first,
                                 "total" to progress.second,
-                            ),
-                        )
+                            )
+                        }
                     }
 
                     // 清空全部离线语音缓存文件：删除 word_audio 目录（美式/英式子目录与 mp3）。
                     // 由"清空数据"入口调用，确保删除本地单词时一并移除已下载的音频。
                     "clearAudioCache" -> {
-                        // 删除失败（如个别文件被占用）不影响主流程，Dart 侧也自行重置进度。
-                        wordAudioPlayer.clearAudioCache()
-                        // 同步清空进度接收器引用，避免残留回传指向已删除文件结构。
-                        audioCacheSink = null
-                        // 方法本身无返回值。
-                        result.success(null)
+                        // 递归删除目录放入 I/O 队列，避免大缓存目录让 Flutter 丢帧。
+                        runIoCall(result, "AUDIO_CACHE_ERROR") {
+                            // 删除失败（如个别文件被占用）不影响主流程。
+                            wordAudioPlayer.clearAudioCache()
+                            // EventSink 属于长期 Dart 订阅，清空后仍需保留供下一批复用。
+                            null
+                        }
                     }
 
                     // 未登记方法按 Flutter 规范返回 notImplemented。
@@ -546,6 +564,8 @@ class MainActivity : FlutterActivity() {
 
     /** 引擎与 Activity 解绑时清空进度接收器，避免向已销毁的引擎投递事件。 */
     override fun cleanUpFlutterEngine(engine: FlutterEngine) {
+        // 先关闭异步结果出口，排队中的后台动作完成后将静默丢弃回调。
+        acceptsChannelResults = false
         // 置空接收器，后续任何后台回调都不会再向它 success，杜绝悬空引用崩溃。
         audioCacheSink = null
         // 走父类标准清理流程。
@@ -554,26 +574,64 @@ class MainActivity : FlutterActivity() {
 
     /** 把数据库动作放入单线程队列，并把结果安全送回 Android 主线程。 */
     private fun runDatabaseCall(result: MethodChannel.Result, action: () -> Any?) {
-        // executor.execute 类似把耗时任务投递到后台 worker。
-        databaseExecutor.execute {
-            try {
-                // 在数据库线程执行真正动作。
-                val value = action()
-                // MethodChannel 结果回到主线程发送，保持 Android UI 调用约定。
-                runOnUiThread { result.success(value) }
-            } catch (exception: Throwable) {
-                // 将原生异常转换成 Dart 可捕获的 PlatformException。
-                runOnUiThread {
-                    // errorCode 便于未来在 Dart UI 中区分本地数据错误。
-                    result.error(
-                        "WORD_DATABASE_ERROR",
-                        // 优先返回具体异常信息，没有信息时返回类名。
-                        exception.message ?: exception.javaClass.simpleName,
-                        // 当前不把原生堆栈发送到业务层。
-                        null,
-                    )
+        // 复用统一后台桥接，仅替换执行器和业务错误码。
+        runBackgroundCall(databaseExecutor, result, "WORD_DATABASE_ERROR", action)
+    }
+
+    /** 把普通磁盘动作放入独立单线程队列，并把结果安全送回 Android 主线程。 */
+    private fun runIoCall(
+        result: MethodChannel.Result,
+        errorCode: String,
+        action: () -> Any?,
+    ) {
+        // 缓存、设置和 SAF 文件共用顺序 I/O 队列，但不会阻塞 SQLite 事务。
+        runBackgroundCall(ioExecutor, result, errorCode, action)
+    }
+
+    /** 统一执行后台动作，确保 MethodChannel 结果只在仍存活的主线程返回。 */
+    private fun runBackgroundCall(
+        executor: ExecutorService,
+        result: MethodChannel.Result,
+        errorCode: String,
+        action: () -> Any?,
+    ) {
+        try {
+            // executor.execute 类似把耗时任务投递到后台 worker。
+            executor.execute {
+                try {
+                    // 在指定后台线程执行真正动作。
+                    val value = action()
+                    // MethodChannel 结果回到主线程发送，保持 Android UI 调用约定。
+                    postChannelResult { result.success(value) }
+                } catch (exception: Throwable) {
+                    // 将原生异常转换成 Dart 可捕获的 PlatformException。
+                    postChannelResult {
+                        // errorCode 让 Dart UI 可以区分数据库、文件或缓存错误。
+                        result.error(
+                            errorCode,
+                            // 优先返回具体异常信息，没有信息时返回类名。
+                            exception.message ?: exception.javaClass.simpleName,
+                            // 当前不把原生堆栈发送到业务层。
+                            null,
+                        )
+                    }
                 }
             }
+        } catch (exception: RejectedExecutionException) {
+            // Activity 销毁期间执行器可能已经关闭；只在页面仍存活时返回明确错误。
+            postChannelResult {
+                result.error(errorCode, "后台执行器已关闭", null)
+            }
+        }
+    }
+
+    /** 在 Activity 仍存活时把一次通道结果切回主线程。 */
+    private fun postChannelResult(callback: () -> Unit) {
+        // 已销毁的 FlutterEngine 没有合法接收端，此时丢弃回调比触发悬空调用更安全。
+        if (isDestroyed || !acceptsChannelResults) return
+        runOnUiThread {
+            // 排队期间 Activity 也可能被关闭，因此发送前再次检查。
+            if (!isDestroyed && acceptsChannelResults) callback()
         }
     }
 
@@ -601,40 +659,32 @@ class MainActivity : FlutterActivity() {
         // 读取选择器返回的数据与 Uri。
         val uri: Uri? = data?.data
 
-        try {
-            when (action) {
-                // 选文件：用户确认且有 Uri 才读取文本。
-                "pick" -> {
-                    if (resultCode != Activity.RESULT_OK || uri == null) {
-                        // 取消或异常都返回 null，Dart 据此不做任何改动。
-                        pending.success(null)
-                        return
-                    }
-                    // 把 Uri 内容读成 UTF-8 文本回传 Dart。
-                    pending.success(readUriText(uri))
+        when (action) {
+            // 选文件：用户确认且有 Uri 才读取文本。
+            "pick" -> {
+                if (resultCode != Activity.RESULT_OK || uri == null) {
+                    // 取消或异常都返回 null，Dart 据此不做任何改动。
+                    pending.success(null)
+                    return
                 }
-                // 写文件：用户确认且有 Uri 才落盘。
-                "write" -> {
-                    if (resultCode != Activity.RESULT_OK || uri == null) {
-                        // 取消保存返回 null，Dart 据此不提示。
-                        pending.success(null)
-                        return
-                    }
-                    // 把暂存的 JSON 文本写入 Uri。
-                    writeUriText(uri, exportText ?: "")
-                    // 返回真实保存位置（Uri 字符串）供 Dart 提示。
-                    pending.success(uri.toString())
-                }
-                // 未知动作直接返回 null，不抛异常。
-                else -> pending.success(null)
+                // 大文件读取放入 I/O 队列，完成后由统一桥接回到主线程。
+                runIoCall(pending, "FILE_IO_ERROR") { readUriText(uri) }
             }
-        } catch (exception: Throwable) {
-            // 读取或写入失败，转换成 Dart 可捕获的 PlatformException。
-            pending.error(
-                "FILE_IO_ERROR",
-                exception.message ?: exception.javaClass.simpleName,
-                null,
-            )
+            // 写文件：用户确认且有 Uri 才落盘。
+            "write" -> {
+                if (resultCode != Activity.RESULT_OK || uri == null) {
+                    // 取消保存返回 null，Dart 据此不提示。
+                    pending.success(null)
+                    return
+                }
+                // 大文件写入放入 I/O 队列，完成后返回真实保存位置供 Dart 提示。
+                runIoCall(pending, "FILE_IO_ERROR") {
+                    writeUriText(uri, exportText ?: "")
+                    uri.toString()
+                }
+            }
+            // 未知动作直接返回 null，不抛异常。
+            else -> pending.success(null)
         }
     }
 
@@ -671,12 +721,16 @@ class MainActivity : FlutterActivity() {
 
     // Activity 销毁时释放数据库和线程资源，对应小程序 onUnload 的清理阶段。
     override fun onDestroy() {
+        // Activity 销毁后禁止任何后台任务再回传到 FlutterEngine。
+        acceptsChannelResults = false
         // 先停止下载回调并释放 MediaPlayer。
         if (::wordAudioPlayer.isInitialized) wordAudioPlayer.dispose()
         // 先关闭 SQLite 连接。
         if (::wordsDatabase.isInitialized) wordsDatabase.close()
         // 停止后台执行器，不再接收新任务。
         databaseExecutor.shutdown()
+        // 同时停止普通文件 I/O 队列。
+        ioExecutor.shutdown()
         // 最后执行 FlutterActivity 自己的销毁流程。
         super.onDestroy()
     }

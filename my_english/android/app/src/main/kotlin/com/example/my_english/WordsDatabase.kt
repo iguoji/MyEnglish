@@ -21,8 +21,8 @@ import java.util.Locale
 /**
  * word/meaning 本地 SQLite 数据库。
  *
- * 这相当于 PHP 项目中的 Migration + Store：onCreate 建表，公开方法只负责 SQLite
- * 查询和 CRUD。JSON 读取及内存模式完全由 Dart Store 管理，不会进入本数据库。
+ * 这相当于 PHP 项目中的 Migration + Store：onCreate 建表，公开方法负责 SQLite
+ * 查询、事务与 CRUD；导入/导出的 JSON 文本由 Dart 解析后再以结构化参数传入。
  */
 class WordsDatabase(context: Context) :
     SQLiteOpenHelper(context, databaseName, null, databaseVersion) {
@@ -56,7 +56,7 @@ class WordsDatabase(context: Context) :
         createGroupsTable(db)
         // 创建单词-分组关联表（多对多）。
         createGroupMembersTable(db)
-        // 创建单词默写记录表（每天每条单词一条，驱动难度变化）。
+        // 创建单词默写记录表（每次默写一条，允许同一天重复复习并驱动难度变化）。
         createRecordTable(db)
         // 最后建立查询索引。
         createIndexes(db)
@@ -374,7 +374,7 @@ class WordsDatabase(context: Context) :
         return words
     }
 
-    /** 创建一个 Word 及其全部 Meaning，并返回自增主键。 */
+    /** 创建一个 Word、全部 Meaning 与分组关系，并返回自增主键。 */
     fun createWord(payload: Map<*, *>): Long {
         // 获取可写连接。
         val db = writableDatabase
@@ -389,6 +389,8 @@ class WordsDatabase(context: Context) :
             val wordId = db.insertOrThrow("words", null, values)
             // 写入所有嵌套 Meaning。
             replaceMeanings(db, wordId, payload["meanings"])
+            // 在同一事务写入全部分组关系，任一外键错误都会让主体与释义一起回滚。
+            replaceWordGroups(db, wordId, payload["group_ids"])
             // 标记事务成功。
             db.setTransactionSuccessful()
             // 把 id 返回 Dart Store。
@@ -399,7 +401,7 @@ class WordsDatabase(context: Context) :
         }
     }
 
-    /** 更新 Word，并用提交的 Meaning 列表替换旧关系数据。 */
+    /** 更新 Word，并用提交的 Meaning 与分组列表替换旧关系数据。 */
     fun updateWord(payload: Map<*, *>) {
         // 更新必须携带主键。
         val id = (payload["id"] as? Number)?.toLong() ?: error("updateWord 缺少有效 id")
@@ -420,6 +422,8 @@ class WordsDatabase(context: Context) :
             // 删除旧 Meaning 后按新提交列表重建，保持操作简单且原子。
             db.delete("meanings", "word_id = ?", arrayOf(id.toString()))
             replaceMeanings(db, id, payload["meanings"])
+            // 分组关系也属于本次保存；失败时主体和 Meaning 同时回滚。
+            replaceWordGroups(db, id, payload["group_ids"])
             // 标记整个更新成功。
             db.setTransactionSuccessful()
         } finally {
@@ -640,31 +644,39 @@ class WordsDatabase(context: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            // 清掉旧关系。
-            db.delete("group_members", "word_id = ?", arrayOf(wordId.toString()))
-            // 按新列表重建；跳过非法元素避免崩溃。
-            for (rawGroupId in groupIds) {
-                // 类型不正确时跳过该元素。
-                val groupId = (rawGroupId as? Number)?.toLong() ?: continue
-                // 组装新建关联行。
-                val values = ContentValues().apply {
-                    put("group_id", groupId)
-                    put("word_id", wordId)
-                    put("created_at", System.currentTimeMillis())
-                }
-                // 冲突忽略，保证幂等。
-                db.insertWithOnConflict(
-                    "group_members",
-                    null,
-                    values,
-                    SQLiteDatabase.CONFLICT_IGNORE,
-                )
-            }
+            // 复用无嵌套事务的内部实现，保持单独分组操作与单词保存规则一致。
+            replaceWordGroups(db, wordId, groupIds)
             // 标记成功。
             db.setTransactionSuccessful()
         } finally {
             // 异常回滚。
             db.endTransaction()
+        }
+    }
+
+    /** 在调用方现有事务中整体替换一个单词的分组关系。 */
+    private fun replaceWordGroups(db: SQLiteDatabase, wordId: Long, rawGroupIds: Any?) {
+        // MethodChannel 应传 List；缺失或类型不符时按空列表处理，即移动到“未分组”。
+        val groupIds = rawGroupIds as? List<*> ?: emptyList<Any?>()
+        // 先清掉旧关系，后续任一插入失败会由外层事务恢复原状。
+        db.delete("group_members", "word_id = ?", arrayOf(wordId.toString()))
+        // 按新列表重建；非法元素直接跳过，不让动态通道类型导致崩溃。
+        for (rawGroupId in groupIds) {
+            // 数字类型统一转换为 SQLite Long 主键。
+            val groupId = (rawGroupId as? Number)?.toLong() ?: continue
+            // 组装关联行及创建时间。
+            val values = ContentValues().apply {
+                put("group_id", groupId)
+                put("word_id", wordId)
+                put("created_at", System.currentTimeMillis())
+            }
+            // 重复 id 使用联合唯一约束忽略；不存在的外键仍会抛错并回滚事务。
+            db.insertWithOnConflict(
+                "group_members",
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_IGNORE,
+            )
         }
     }
 
