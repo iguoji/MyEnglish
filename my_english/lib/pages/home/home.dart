@@ -20,6 +20,8 @@ import '../../common/toast.dart';
 import '../../common/date.dart';
 // Word 是全应用共享模型，不属于首页私有文件。
 import '../../models/word.dart';
+// 学习会话模型用于判断随身听和默写是否存在未完成历史。
+import '../../models/learning_session.dart';
 // 音频服务由首页、随身听和默写共同复用。
 import '../../services/word_audio.dart';
 // 离线语音缓存进度服务：首页加载词库后把单词列表交给它，供抽屉"离线语音"使用。
@@ -38,6 +40,8 @@ import '../../store/settings.dart';
 import '../../store/word.dart';
 // 默写记录 Store：今日复习数量从真实 record 读取，而非写死 0。
 import '../../store/record.dart';
+// 学习会话 Store 负责读取和删除本地恢复点。
+import '../../store/learning_session.dart';
 // 分组行：模式切换、筛选 chips 与分组管理入口。
 import 'widgets/group_filter_bar.dart';
 // 右侧抽屉菜单。
@@ -70,6 +74,7 @@ class HomePage extends StatefulWidget {
     this.settings,
     this.audioPlayer,
     this.fileIo,
+    this.sessionStore,
   });
 
   /// 接口类型类似 PHP 构造器依赖注入，页面不关心数据具体来自 SQLite 还是测试内存。
@@ -83,6 +88,9 @@ class HomePage extends StatefulWidget {
 
   /// 文件读写接口允许测试注入，不依赖真实系统选择器与 Android SAF。
   final NativeFileIo? fileIo;
+
+  /// 学习会话接口允许测试注入内存实现；正式 App 使用 SQLite。
+  final LearningSessionStore? sessionStore;
 
   /// 为页面创建保存 data 和生命周期的 State。
   @override
@@ -138,6 +146,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 默认走 Android 原生通道；测试可注入假通道避免真正弹出系统选择器。
   late final NativeFileIo _fileIo;
 
+  /// 随身听和默写共用的学习会话持久化接口。
+  late final LearningSessionStore _sessionStore;
+
   /// 自定义分组 Store；分组与成员关系均由原生 SQLite 持久化。
   final GroupStore _groups = GroupStore();
 
@@ -155,6 +166,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 新版学习悬浮按钮是否已经展开。
   bool _learningMenuOpen = false;
+
+  /// 本地尚未完成的学习会话；两种类型各自最多一条。
+  Map<LearningSessionType, LearningSession> _learningSessions =
+      const <LearningSessionType, LearningSession>{};
 
   /// 当前处于下载或播放状态的具体 Word 对象。
   Word? _playingWord;
@@ -216,6 +231,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _audioPlayer = widget.audioPlayer ?? const NativeWordAudioPlayer();
     // 生产环境默认走 Android 原生 SAF 通道，测试可以注入假文件服务。
     _fileIo = widget.fileIo ?? const NativeFileIo();
+    // 生产环境复用 SQLite 单例，测试可用内存 Store 精确控制“继续”入口。
+    _sessionStore = widget.sessionStore ?? LocalLearningSessionStore.instance;
     // 初始化列表年份参考。
     _dateReference = initialTime;
     // 注册 App 前后台观察者。
@@ -230,6 +247,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_loadWords());
     // 读取今日复习数量，让副标题的「今日复习 X/目标」显示真实数据而非写死的 0。
     unawaited(_loadReviewCount());
+    // 独立读取未完成会话，不让辅助数据阻塞首页单词列表首屏。
+    unawaited(_loadLearningSessions());
   }
 
   /// 设置或分组内容变化时触发整页重建。
@@ -549,6 +568,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         words.map((word) => word.spelling).toList(),
       ),
     );
+    // 编辑或删除单词可能由原生同步作废学习会话，刷新后立即同步继续入口。
+    await _loadLearningSessions();
   }
 
   /// 读取今日复习的单词数（按词去重），用于副标题「今日复习 X/目标」刷新。
@@ -573,6 +594,125 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       // 通道异常时回退为 0，副标题仍可正常显示。
       setState(() => _reviewCount = 0);
+    }
+  }
+
+  /// 读取随身听与默写的未完成会话，失败时只隐藏“继续”按钮，不影响首页主体。
+  Future<void> _loadLearningSessions() async {
+    try {
+      // 原生最多返回两条记录，转成按类型索引的 Map 供 build 常数时间读取。
+      final sessions = await _sessionStore.getAll();
+      if (!mounted) return;
+      setState(() {
+        _learningSessions = <LearningSessionType, LearningSession>{
+          for (final session in sessions) session.type: session,
+        };
+      });
+    } catch (error, stackTrace) {
+      // 辅助能力异常只写调试日志，不能让首页进入整页错误状态。
+      debugPrint('读取学习进度失败：$error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _learningSessions = const <LearningSessionType, LearningSession>{};
+      });
+    }
+  }
+
+  /// 按会话中的 id 顺序，从当前最新词库重新组装学习列表。
+  List<Word> _wordsForSession(LearningSession session) {
+    // 当前词库按主键建立索引，编辑后的拼写、释义和难度会自然使用最新值。
+    final wordsById = <int, Word>{
+      for (final word in _allWords)
+        if (word.id != null) word.id!: word,
+    };
+    // 任一单词已不存在就不能完整恢复旧状态，返回空列表交给点击流程清理。
+    if (session.wordIds.any((id) => !wordsById.containsKey(id))) {
+      return const <Word>[];
+    }
+    // for 按持久化 id 数组原顺序取值，不受首页当前筛选和排序影响。
+    return List<Word>.unmodifiable(session.wordIds.map((id) => wordsById[id]!));
+  }
+
+  /// 打开一轮随身听；[session] 非空时从历史状态继续，否则覆盖为新会话。
+  Future<void> _openListening(
+    List<Word> words, {
+    LearningSession? session,
+  }) async {
+    // 路由打开前收起学习菜单，返回首页时保持界面整洁。
+    setState(() => _learningMenuOpen = false);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ListeningPage(
+          words: words,
+          audioPlayer: _audioPlayer,
+          accent: _settings.accent,
+          definitionSeparator: _settings.definitionSeparator.symbol,
+          initialSession: session,
+          sessionStore: _sessionStore,
+        ),
+      ),
+    );
+    // 页面退出时会补写最终快照；返回后重新读取，让“继续”按钮立即反映结果。
+    if (mounted) await _loadLearningSessions();
+  }
+
+  /// 打开一轮默写，并保留原有的复习数据定向回刷逻辑。
+  Future<void> _openDictation(
+    List<Word> words, {
+    LearningSession? session,
+  }) async {
+    // 与随身听一致，进入全屏页前先收起悬浮菜单。
+    setState(() => _learningMenuOpen = false);
+    final result = await Navigator.of(context).push<dynamic>(
+      MaterialPageRoute<dynamic>(
+        builder: (_) => DictationPage(
+          words: words,
+          audioPlayer: _audioPlayer,
+          accent: _settings.accent,
+          definitionSeparator: _settings.definitionSeparator.symbol,
+          initialSession: session,
+          sessionStore: _sessionStore,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    // 带回 id 时只回刷本轮已提交单词；系统返回等其他情况沿用整库刷新。
+    if (result is List<int>) {
+      unawaited(_mergeReviewedWords(result));
+    } else {
+      unawaited(_refreshWords());
+    }
+    // 今日复习数与继续入口都可能在默写过程中改变。
+    unawaited(_loadReviewCount());
+    await _loadLearningSessions();
+  }
+
+  /// 点击“继续”后校验会话列表并进入对应页面；坏快照会被立即删除。
+  Future<void> _continueLearning(LearningSessionType type) async {
+    // 按按钮所属类型读取会话；异步回刷期间记录可能已经被完成流程删除。
+    final session = _learningSessions[type];
+    if (session == null) return;
+    final words = _wordsForSession(session);
+    if (words.isEmpty) {
+      // 无法完整组装说明词库已经变化，保留按钮只会让用户反复进入失败。
+      await _sessionStore.delete(type);
+      if (!mounted) return;
+      setState(() {
+        final next = Map<LearningSessionType, LearningSession>.from(
+          _learningSessions,
+        );
+        next.remove(type);
+        _learningSessions = next;
+      });
+      Toast.show(context, '上次学习列表已失效，请重新开始');
+      return;
+    }
+    // 类型决定目标页；传入 session 后页面会在首帧恢复自己的详细状态。
+    if (type == LearningSessionType.listening) {
+      await _openListening(words, session: session);
+    } else {
+      await _openDictation(words, session: session);
     }
   }
 
@@ -1032,6 +1172,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 数量取自解析出的单词数。
         importedCount = words.length;
       }
+      // 原生整库导入会同步清除学习会话，首页立即移除两个“继续”按钮。
+      if (mounted) {
+        setState(() {
+          _learningSessions = const <LearningSessionType, LearningSession>{};
+        });
+      }
       // 重新加载首页列表，让新数据立即显示。
       unawaited(_loadWords());
       // 提示成功导入的数量。
@@ -1129,7 +1275,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 用户取消则什么都不做。
     if (!confirmed) return;
     try {
-      // 清空 SQLite 全部业务数据，包含单词、释义、分组、记录和默写候选缓存。
+      // 清空 SQLite 全部业务数据，包含单词、释义、分组、记录、候选缓存和学习会话。
       await _store.clearAll();
       // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
       await _settings.clearAll();
@@ -1137,6 +1283,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await WordAudioCache.instance.clearCacheFiles();
       // 清空内存分组；原生 group 表已由 WordStore.clearAll 在 SQLite 侧一并清空。
       _groups.clear();
+      // 与原生删除保持同步，让继续入口无需等待下一次读取就立即消失。
+      setState(() {
+        _learningSessions = const <LearningSessionType, LearningSession>{};
+      });
       // 重新加载空列表。
       unawaited(_loadWords());
       // 提示已清空。
@@ -1581,6 +1731,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ? visibleWordSnapshot.where(_selectedWords.contains)
           : visibleWordSnapshot,
     );
+    // 只有本地确实存在未完成记录时才让对应“继续”按钮参与布局与动画。
+    final hasListeningSession = _learningSessions.containsKey(
+      LearningSessionType.listening,
+    );
+    final hasDictationSession = _learningSessions.containsKey(
+      LearningSessionType.dictation,
+    );
     // 全部可见分组是否都已折叠，决定按钮文案。
     final allCollapsed =
         shownSections.isNotEmpty &&
@@ -1769,28 +1926,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               child: LearningFab(
                 isOpen: _learningMenuOpen,
                 targetCount: targetCount,
+                showPlayerResume: hasListeningSession,
+                showDictationResume: hasDictationSession,
                 onToggle: () =>
                     setState(() => _learningMenuOpen = !_learningMenuOpen),
+                onContinuePlayer: () =>
+                    unawaited(_continueLearning(LearningSessionType.listening)),
+                onContinueDictation: () =>
+                    unawaited(_continueLearning(LearningSessionType.dictation)),
                 onOpenPlayer: () {
                   // 没有可学习单词时不打开空页面。
                   if (learningWords.isEmpty) {
                     _showComingSoon('当前列表没有可学习单词');
                     return;
                   }
-                  setState(() => _learningMenuOpen = false);
-                  unawaited(
-                    Navigator.of(context).push<void>(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ListeningPage(
-                          words: learningWords,
-                          audioPlayer: _audioPlayer,
-                          accent: _settings.accent,
-                          definitionSeparator:
-                              _settings.definitionSeparator.symbol,
-                        ),
-                      ),
-                    ),
-                  );
+                  // 普通入口明确开始新一轮，并覆盖旧的同类型恢复点。
+                  unawaited(_openListening(learningWords));
                 },
                 onOpenDictation: () {
                   // 默写同样遵循“已选择优先，否则当前可见”的范围规则。
@@ -1798,31 +1949,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     _showComingSoon('当前列表没有可学习单词');
                     return;
                   }
-                  setState(() => _learningMenuOpen = false);
-                  unawaited(
-                    Navigator.of(context)
-                        .push<dynamic>(
-                          MaterialPageRoute<dynamic>(
-                            builder: (_) => DictationPage(
-                              words: learningWords,
-                              audioPlayer: _audioPlayer,
-                              accent: _settings.accent,
-                              definitionSeparator:
-                                  _settings.definitionSeparator.symbol,
-                            ),
-                          ),
-                        )
-                        // 默写返回后立即刷新；若带回本次复习的单词 id 则只回刷这些单词，
-                        // 否则（如系统返回键）退回整库刷新。
-                        .then((result) {
-                          if (result is List<int>) {
-                            unawaited(_mergeReviewedWords(result));
-                          } else {
-                            unawaited(_refreshWords());
-                          }
-                          unawaited(_loadReviewCount());
-                        }),
-                  );
+                  // 普通入口明确开始新一轮，并覆盖旧的同类型恢复点。
+                  unawaited(_openDictation(learningWords));
                 },
               ),
             ),

@@ -12,6 +12,7 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
+import 'package:my_english/models/learning_session.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入两个学习页，核对它们收到的单词快照与首页完全一致。
@@ -26,6 +27,7 @@ import 'package:my_english/services/word_audio_cache.dart';
 // 引入口音与设置 Store，验证播放参数和设置面板。
 import 'package:my_english/store/settings.dart';
 // 引入 Store 接口，测试会提供不依赖 Android 的内存实现。
+import 'package:my_english/store/learning_session.dart';
 import 'package:my_english/store/word.dart';
 
 /// 注册首页 Widget 测试。
@@ -1034,6 +1036,9 @@ void main() {
     expect(find.text('收起'), findsOneWidget);
     expect(find.text('随身听 · 2'), findsOneWidget);
     expect(find.text('默写 · 2'), findsOneWidget);
+    // 没有本地未完成会话时，右侧不能预留空的继续按钮或间距。
+    expect(find.byKey(const Key('continue-player')), findsNothing);
+    expect(find.byKey(const Key('continue-dictation')), findsNothing);
 
     // 点击遮罩应收起菜单。
     await tester.tap(find.byKey(const Key('learning-menu-backdrop')));
@@ -1042,6 +1047,56 @@ void main() {
     expect(find.text('随身听 · 2'), findsNothing);
 
     // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('learning fab shows spaced resume buttons and restores history', (
+    tester,
+  ) async {
+    // 两种学习方式都准备一条未完成记录；随身听列表故意使用与首页相反的顺序。
+    final sessionStore = _MemoryLearningSessionStore(<LearningSession>[
+      const LearningSession(
+        type: LearningSessionType.listening,
+        wordIds: <int>[2, 1],
+        state: <String, Object?>{
+          'index': 1,
+          'isPlaying': false,
+          'repeat': 2,
+          'interval': 2,
+          'loop': true,
+        },
+      ),
+      const LearningSession(
+        type: LearningSessionType.dictation,
+        wordIds: <int>[1, 2],
+        state: <String, Object?>{'wordIndex': 0, 'stage': 'word'},
+      ),
+    ]);
+    await _pumpHome(tester, sessionStore: sessionStore);
+
+    // 展开菜单后，两行右侧都动画显示继续按钮。
+    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
+    await tester.pumpAndSettle();
+    final playerAction = tester.getRect(find.byKey(const Key('open-player')));
+    final playerContinue = tester.getRect(
+      find.byKey(const Key('continue-player')),
+    );
+    expect(find.byKey(const Key('continue-dictation')), findsOneWidget);
+    // 继续按钮严格位于主入口右侧，并保留至少 8 像素防误触间距。
+    expect(playerContinue.left - playerAction.right, greaterThanOrEqualTo(8));
+
+    // 点击随身听继续后，恢复列表必须使用历史顺序，而非首页当前顺序。
+    await tester.tap(find.byKey(const Key('continue-player')));
+    await tester.pumpAndSettle();
+    final listeningPage = tester.widget<ListeningPage>(
+      find.byType(ListeningPage),
+    );
+    expect(
+      listeningPage.words.map((word) => word.id).toList(growable: false),
+      <int?>[2, 1],
+    );
+    expect(find.text('2 / 2'), findsOneWidget);
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1252,6 +1307,7 @@ Future<void> _pumpHome(
   List<Word>? words,
   SettingsStore? settings,
   WordAudioPlayer? audioPlayer,
+  LearningSessionStore? sessionStore,
 }) async {
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
@@ -1265,6 +1321,8 @@ Future<void> _pumpHome(
         settings: settings,
         // 默认注入静音播放器，避免点击行时访问不存在的原生通道。
         audioPlayer: audioPlayer ?? _SilentAudioPlayer(),
+        // 默认使用空内存会话，避免 Widget 测试依赖 Android MethodChannel。
+        sessionStore: sessionStore ?? _MemoryLearningSessionStore(const []),
       ),
     ),
   );
@@ -1320,6 +1378,33 @@ List<Word> _sampleWords() {
     // 第二条没有难度。
     Word(id: 2, spelling: 'abandon', createdAt: DateTime(2026, 7, 26)),
   ];
+}
+
+/// 首页测试使用的学习会话内存 Store，模拟 SQLite 的按类型覆盖语义。
+class _MemoryLearningSessionStore implements LearningSessionStore {
+  /// 复制初始会话，避免页面保存时修改调用方数组。
+  _MemoryLearningSessionStore(List<LearningSession> initial)
+    : sessions = List<LearningSession>.of(initial);
+
+  /// 当前两种学习方式的未完成记录。
+  final List<LearningSession> sessions;
+
+  @override
+  Future<List<LearningSession>> getAll() async =>
+      List<LearningSession>.unmodifiable(sessions);
+
+  @override
+  Future<void> save(LearningSession session) async {
+    // 同类型只保留最后一次保存快照。
+    sessions.removeWhere((item) => item.type == session.type);
+    sessions.add(session);
+  }
+
+  @override
+  Future<void> delete(LearningSessionType type) async {
+    // 完成或失效时精确删除一种历史，不影响另一种。
+    sessions.removeWhere((item) => item.type == type);
+  }
 }
 
 /// 支持增删改的内存 Store，让选择/复制/删除/表单用例真实生效。

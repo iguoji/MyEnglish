@@ -36,7 +36,8 @@ class WordsDatabase(context: Context) :
         // 版本 5 不再新建表，仅补强 record 表的创建时机（onOpen 兜底建表），
         // 解决「库已升到某版本，但 record 表因历史升级路径缺失」导致写入静默失败的问题。
         // 版本 6 新增默写候选项缓存表，让每道拼写/释义题长期复用相同干扰项。
-        private const val databaseVersion = 6
+        // 版本 7 新增学习会话表，保存随身听和默写尚未完成的列表与页面进度。
+        private const val databaseVersion = 7
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -61,6 +62,8 @@ class WordsDatabase(context: Context) :
         createRecordTable(db)
         // 创建默写候选项缓存表。
         createDictationOptionCacheTable(db)
+        // 创建未完成学习会话表。
+        createLearningSessionTable(db)
         // 最后建立查询索引。
         createIndexes(db)
     }
@@ -91,6 +94,10 @@ class WordsDatabase(context: Context) :
         if (oldVersion < 6 && newVersion >= 6) {
             createDictationOptionCacheTable(db)
         }
+        // 从版本 6 升到 7：新增学习会话表，不触碰现有词库、记录和候选缓存。
+        if (oldVersion < 7 && newVersion >= 7) {
+            createLearningSessionTable(db)
+        }
     }
 
     /**
@@ -107,6 +114,8 @@ class WordsDatabase(context: Context) :
         createRecordTable(db)
         // 同样兜底补建候选缓存表，覆盖任何历史升级遗漏。
         createDictationOptionCacheTable(db)
+        // 学习会话属于辅助数据，幂等补建可覆盖跨版本升级遗漏。
+        createLearningSessionTable(db)
     }
 
     /** 创建 words 表；spelling 只要求非空，不再带 UNIQUE。 */
@@ -432,6 +441,8 @@ class WordsDatabase(context: Context) :
             db.delete("meanings", "word_id = ?", arrayOf(id.toString()))
             // 拼写或释义可能已经变化，旧候选项不能继续复用。
             db.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
+            // 会话中的当前题状态也可能引用旧拼写或释义，编辑后统一作废最稳妥。
+            db.delete("learning_sessions", null, null)
             replaceMeanings(db, id, payload["meanings"])
             // 分组关系也属于本次保存；失败时主体和 Meaning 同时回滚。
             replaceWordGroups(db, id, payload["group_ids"])
@@ -465,6 +476,8 @@ class WordsDatabase(context: Context) :
         writableDatabase.delete("group_members", "word_id = ?", arrayOf(id.toString()))
         // 软删除不会触发外键级联，因此显式删除该词全部候选缓存。
         writableDatabase.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
+        // 会话列表可能包含这个单词；删除后无法完整恢复，因此清掉未完成会话。
+        writableDatabase.delete("learning_sessions", null, null)
     }
 
     /** 清空全部本地数据，用于「清空数据」与「导入前整库替换」。 */
@@ -474,8 +487,9 @@ class WordsDatabase(context: Context) :
         // 事务保证全部业务表与候选缓存要么都被清空，要么都不动。
         db.beginTransaction()
         try {
-            // 先清空候选缓存与其他子表，再清空父表，避免外键约束报错。
+            // 先清空候选缓存、学习会话与其他子表，再清空父表，避免遗留失效快照。
             db.delete("dictation_option_cache", null, null)
+            db.delete("learning_sessions", null, null)
             db.delete("group_members", null, null)
             db.delete("groups", null, null)
             db.delete("meanings", null, null)
@@ -503,6 +517,7 @@ class WordsDatabase(context: Context) :
             // 原始 words.json 没有分组信息，导入后单词都应回到「未分组」，
             // 因此一并清空 group_members；分组列表本身保留，方便用户重新归类。
             db.delete("dictation_option_cache", null, null)
+            db.delete("learning_sessions", null, null)
             db.delete("group_members", null, null)
             db.delete("meanings", null, null)
             db.delete("words", null, null)
@@ -707,8 +722,9 @@ class WordsDatabase(context: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            // 整库替换前清空词库、分组关系与候选缓存。
+            // 整库替换前清空词库、分组关系、候选缓存与未完成学习会话。
             db.delete("dictation_option_cache", null, null)
+            db.delete("learning_sessions", null, null)
             db.delete("group_members", null, null)
             db.delete("groups", null, null)
             db.delete("meanings", null, null)
@@ -842,6 +858,21 @@ class WordsDatabase(context: Context) :
         )
     }
 
+    /** 创建学习会话表；随身听和默写各自最多保存一条未完成记录。 */
+    private fun createLearningSessionTable(db: SQLiteDatabase) {
+        // 单词 id 列表和页面状态都使用 JSON 文本，既保留顺序，也允许两种页面保存不同字段。
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS learning_sessions (
+                session_type TEXT PRIMARY KEY,
+                word_ids_json TEXT NOT NULL,
+                state_json TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+
     /** 按小题 key 读取干扰项；没有缓存时返回 null。 */
     fun getDictationOptionCache(cacheKey: String): List<String>? {
         // 精确查询主键，最多只会返回一行。
@@ -879,6 +910,74 @@ class WordsDatabase(context: Context) :
             null,
             values,
             SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    /** 读取全部未完成学习会话；当前最多返回随身听和默写两行。 */
+    fun getLearningSessions(): List<Map<String, Any?>> {
+        // 返回顺序按最近更新时间排列，未来首页若展示时间可直接复用。
+        val sessions = ArrayList<Map<String, Any?>>()
+        readableDatabase.query(
+            "learning_sessions",
+            arrayOf("session_type", "word_ids_json", "state_json", "updated_at"),
+            null,
+            null,
+            null,
+            null,
+            "updated_at DESC",
+        ).use { cursor ->
+            // 每一行都保持 JSON 原文，交给 Dart 强类型模型统一解析。
+            while (cursor.moveToNext()) {
+                sessions.add(
+                    linkedMapOf(
+                        "session_type" to cursor.getString(
+                            cursor.getColumnIndexOrThrow("session_type"),
+                        ),
+                        "word_ids_json" to cursor.getString(
+                            cursor.getColumnIndexOrThrow("word_ids_json"),
+                        ),
+                        "state_json" to cursor.getString(
+                            cursor.getColumnIndexOrThrow("state_json"),
+                        ),
+                        "updated_at" to cursor.getLong(
+                            cursor.getColumnIndexOrThrow("updated_at"),
+                        ),
+                    ),
+                )
+            }
+        }
+        return sessions
+    }
+
+    /** 新增或覆盖一个学习会话；session_type 主键保证同类型永远只有最新一条。 */
+    fun saveLearningSession(sessionType: String, wordIdsJson: String, stateJson: String) {
+        // 空类型或空 JSON 没有恢复价值，原生层也执行最后一道参数校验。
+        if (sessionType.isBlank()) error("学习会话类型不能为空")
+        if (wordIdsJson.isBlank()) error("学习会话单词列表不能为空")
+        if (stateJson.isBlank()) error("学习会话状态不能为空")
+        // ContentValues 对应 SQLite 中的一整行。
+        val values = ContentValues().apply {
+            put("session_type", sessionType)
+            put("word_ids_json", wordIdsJson)
+            put("state_json", stateJson)
+            put("updated_at", System.currentTimeMillis())
+        }
+        // REPLACE 让“重新开始”或每次进度推进都原子覆盖旧快照。
+        writableDatabase.insertWithOnConflict(
+            "learning_sessions",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    /** 删除一种已完成或失效的学习会话。 */
+    fun deleteLearningSession(sessionType: String) {
+        // 精确匹配主键，不影响另一种学习方式的恢复记录。
+        writableDatabase.delete(
+            "learning_sessions",
+            "session_type = ?",
+            arrayOf(sessionType),
         )
     }
 

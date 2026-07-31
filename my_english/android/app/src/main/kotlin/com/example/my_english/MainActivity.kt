@@ -282,6 +282,41 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 读取随身听和默写尚未完成的学习会话。
+                    "getLearningSessions" -> runDatabaseCall(result) {
+                        // 最多返回两条结构化记录，Dart 首页据此显示“继续”按钮。
+                        wordsDatabase.getLearningSessions()
+                    }
+
+                    // 新增或覆盖一种学习方式的进度与单词列表。
+                    "saveLearningSession" -> runDatabaseCall(result) {
+                        // Dart 已把数组和页面状态编码为 JSON 字符串，原生只负责可靠落盘。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("saveLearningSession 缺少参数")
+                        val sessionType = payload["session_type"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("saveLearningSession 缺少有效 session_type")
+                        val wordIdsJson = payload["word_ids_json"]?.toString()
+                            ?: error("saveLearningSession 缺少 word_ids_json")
+                        val stateJson = payload["state_json"]?.toString()
+                            ?: error("saveLearningSession 缺少 state_json")
+                        // 主键冲突时覆盖，返回 null 对应 Dart Future<void>。
+                        wordsDatabase.saveLearningSession(sessionType, wordIdsJson, stateJson)
+                        null
+                    }
+
+                    // 删除已经完成或无法恢复的一种学习会话。
+                    "deleteLearningSession" -> runDatabaseCall(result) {
+                        // 参数只需要稳定类型键。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("deleteLearningSession 缺少参数")
+                        val sessionType = payload["session_type"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("deleteLearningSession 缺少有效 session_type")
+                        wordsDatabase.deleteLearningSession(sessionType)
+                        null
+                    }
+
                     // 读取一道默写题已经持久化的三个干扰项。
                     "getDictationOptionCache" -> runDatabaseCall(result) {
                         // 缓存 key 必须是非空字符串。

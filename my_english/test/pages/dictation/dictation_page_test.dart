@@ -12,6 +12,7 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计令牌，核对播放和下一题的蓝色背景。
 import 'package:my_english/common/theme.dart';
 // 引入数据模型。
+import 'package:my_english/models/learning_session.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入默写页面与音频接口。
@@ -21,6 +22,8 @@ import 'package:my_english/pages/dictation/widgets/dictation_layout.dart';
 import 'package:my_english/services/word_audio.dart';
 // 引入可注入测试通道的候选缓存 Store。
 import 'package:my_english/store/dictation_option_cache.dart';
+// 引入学习会话接口，测试用内存实现观察保存和完成删除。
+import 'package:my_english/store/learning_session.dart';
 // 引入可注入测试通道的记录 Store。
 import 'package:my_english/store/record.dart';
 import 'package:my_english/store/settings.dart';
@@ -787,6 +790,65 @@ void main() {
     // 销毁页面以触发 dispose，使自动发音相关资源在用例结束前被停止。
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'dictation restores completed word and clears session at finish',
+    (tester) async {
+      // 历史停在最后一个单词的“本词完成、等待提交”状态；此时记录尚未写入。
+      const session = LearningSession(
+        type: LearningSessionType.dictation,
+        wordIds: <int>[1, 2],
+        state: <String, Object?>{
+          'wordIndex': 1,
+          'stage': 'word',
+          'meaningIndex': 0,
+          'definitionIndex': 0,
+          'hintLevel': 0,
+          'errors': 2,
+          'currentWrong': 1,
+          'currentHints': 0,
+          'isCurrentWordComplete': true,
+          'wrongOptions': <String>[],
+          'options': <Object?>[],
+        },
+      );
+      // 内存 Store 让测试能直接确认最后一题提交后会话被删除。
+      final sessionStore = _MemoryLearningSessionStore(<LearningSession>[
+        session,
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DictationPage(
+            words: _words,
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            initialSession: session,
+            sessionStore: sessionStore,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 页面首帧直接恢复到第二题完成态，不重新要求选择拼写。
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(find.text('当前单词已完成'), findsOneWidget);
+      expect(find.text('完成'), findsOneWidget);
+      expect(find.byKey(const Key('dictation-option-0')), findsNothing);
+
+      // 点击完成才写记录并进入整轮完成页，同时删除未完成会话。
+      await tester.tap(find.byKey(const Key('next-dictation-word')));
+      await tester.pumpAndSettle();
+      expect(find.text('默写完成'), findsOneWidget);
+      expect(
+        sessionStore.sessions.where(
+          (item) => item.type == LearningSessionType.dictation,
+        ),
+        isEmpty,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }
 
 /// 断言当前小题始终存在精确四个候选项。
@@ -851,6 +913,31 @@ class _ImmediateAudioPlayer implements WordAudioPlayer {
 
   @override
   Future<void> stop() async {}
+}
+
+/// 学习会话的测试内存实现，模拟 SQLite 按类型覆盖与删除。
+class _MemoryLearningSessionStore implements LearningSessionStore {
+  /// 复制初始历史，避免测试修改传入常量数组。
+  _MemoryLearningSessionStore(List<LearningSession> initial)
+    : sessions = List<LearningSession>.of(initial);
+
+  /// 当前尚未完成的会话。
+  final List<LearningSession> sessions;
+
+  @override
+  Future<List<LearningSession>> getAll() async =>
+      List<LearningSession>.unmodifiable(sessions);
+
+  @override
+  Future<void> save(LearningSession session) async {
+    sessions.removeWhere((item) => item.type == session.type);
+    sessions.add(session);
+  }
+
+  @override
+  Future<void> delete(LearningSessionType type) async {
+    sessions.removeWhere((item) => item.type == type);
+  }
 }
 
 /// 记录每次播放请求并立即结束，适合验证多个点击热区复用同一播放事件。

@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入单词与释义模型。
+import 'package:my_english/models/learning_session.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入随身听页面。
@@ -17,6 +18,7 @@ import 'package:my_english/pages/listening/listening_page.dart';
 import 'package:my_english/pages/listening/widgets/listening_layout.dart';
 // 引入音频接口与口音枚举。
 import 'package:my_english/services/word_audio.dart';
+import 'package:my_english/store/learning_session.dart';
 import 'package:my_english/store/settings.dart';
 
 void main() {
@@ -250,6 +252,58 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+    'listening restores and updates the persisted playback position',
+    (tester) async {
+      // 历史会话停在第二个词，并且离开前处于暂停状态。
+      const session = LearningSession(
+        type: LearningSessionType.listening,
+        wordIds: <int>[1, 2],
+        state: <String, Object?>{
+          'index': 1,
+          'completedRepeats': 1,
+          'isPlaying': false,
+          'revealAll': true,
+          'repeat': 3,
+          'interval': 4,
+          'loop': false,
+        },
+      );
+      // 内存 Store 用于观察页面进入和跳词后写出的最新快照。
+      final sessionStore = _MemoryLearningSessionStore(<LearningSession>[
+        session,
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ListeningPage(
+            words: _words,
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            initialSession: session,
+            sessionStore: sessionStore,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 首帧直接停在第二个词；暂停状态和显示答案偏好也完整恢复。
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(find.byIcon(TablerIcons.playerPlay), findsOneWidget);
+      expect(find.byIcon(TablerIcons.eye), findsOneWidget);
+      expect(sessionStore.sessions.single.state['index'], 1);
+
+      // 主动回到上一个词后，页面立即把新下标覆盖进同一条会话。
+      await tester.tap(find.text('上一个'));
+      await tester.pump();
+      expect(find.text('1 / 2'), findsOneWidget);
+      expect(sessionStore.sessions.single.state['index'], 0);
+      expect(sessionStore.sessions.single.wordIds, <int>[1, 2]);
+
+      // 销毁页面并释放控制器。
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   test('listening directory rejects negative visual positioning', () {
     // 递归读取随身听页面和 widgets 子目录，避免拆分文件后绕过布局规则。
     final sourceFiles = Directory('lib/pages/listening')
@@ -287,4 +341,30 @@ class _ImmediateAudioPlayer implements WordAudioPlayer {
 
   @override
   Future<void> stop() async {}
+}
+
+/// 学习会话的测试内存实现，行为与 SQLite 的“同类型覆盖”一致。
+class _MemoryLearningSessionStore implements LearningSessionStore {
+  /// 接收初始历史并复制为可变列表。
+  _MemoryLearningSessionStore(List<LearningSession> initial)
+    : sessions = List<LearningSession>.of(initial);
+
+  /// 当前内存记录。
+  final List<LearningSession> sessions;
+
+  @override
+  Future<List<LearningSession>> getAll() async =>
+      List<LearningSession>.unmodifiable(sessions);
+
+  @override
+  Future<void> save(LearningSession session) async {
+    // PRIMARY KEY REPLACE 语义：先移除同类型，再追加最新快照。
+    sessions.removeWhere((item) => item.type == session.type);
+    sessions.add(session);
+  }
+
+  @override
+  Future<void> delete(LearningSessionType type) async {
+    sessions.removeWhere((item) => item.type == type);
+  }
 }

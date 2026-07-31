@@ -127,7 +127,7 @@ class LocalWordStore implements WordStore {
     await _channel.invokeMethod<void>('importWords', payload);
   }
 
-  /// 清空本地全部单词、释义、分组、记录与默写候选缓存。
+  /// 清空本地全部单词、释义、分组、记录、默写候选缓存与学习会话。
   @override
   Future<void> clearAll() async {
     // 原生统一删除全部业务表记录，候选缓存也在同一清理入口中删除。

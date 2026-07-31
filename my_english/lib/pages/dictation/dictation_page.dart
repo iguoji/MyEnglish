@@ -19,6 +19,8 @@ import '../../common/toast.dart';
 import '../../models/meaning.dart';
 // 引入单词模型。
 import '../../models/word.dart';
+// 引入可恢复的学习会话模型。
+import '../../models/learning_session.dart';
 // 引入音频播放接口。
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
@@ -29,6 +31,8 @@ import 'services/dictation_option_generator.dart';
 import '../../store/record.dart';
 // 引入默写候选项缓存 Store，让每道题长期复用相同干扰项。
 import '../../store/dictation_option_cache.dart';
+// 引入学习会话 Store，持续保存本轮单词顺序与答题进度。
+import '../../store/learning_session.dart';
 // 引入默写页面集中管理的布局尺寸。
 import 'widgets/dictation_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
@@ -53,6 +57,8 @@ class DictationPage extends StatefulWidget {
     required this.accent,
     this.recordStore,
     this.optionCacheStore,
+    this.initialSession,
+    this.sessionStore,
     this.definitionSeparator = '、',
     super.key,
   }) : assert(words.length > 0, '默写页至少需要一个学习单词');
@@ -71,6 +77,12 @@ class DictationPage extends StatefulWidget {
 
   /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
   final DictationOptionCacheStore? optionCacheStore;
+
+  /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新默写。
+  final LearningSession? initialSession;
+
+  /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
+  final LearningSessionStore? sessionStore;
 
   /// 已答出的同词性中文释义之间使用的全角分隔符。
   final String definitionSeparator;
@@ -126,6 +138,8 @@ class _DictationPageState extends State<DictationPage> {
   final Set<String> _wrongOptions = <String>{};
   // 候选缓存读取代次号；切换小题后，较早返回的异步结果不得覆盖新题。
   int _optionLoadGeneration = 0;
+  // true 表示当前四个候选直接来自会话快照，首帧无需重新打乱缓存候选。
+  bool _restoredExactOptions = false;
 
   Word get _currentWord => widget.words[_wordIndex];
 
@@ -135,6 +149,10 @@ class _DictationPageState extends State<DictationPage> {
   /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
   DictationOptionCacheStore get _optionCacheStore =>
       widget.optionCacheStore ?? DictationOptionCacheStore.instance;
+
+  /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
+  LearningSessionStore get _sessionStore =>
+      widget.sessionStore ?? LocalLearningSessionStore.instance;
 
   List<Meaning> get _availableMeanings => _currentWord.meanings
       .where((meaning) => meaning.definitions.isNotEmpty)
@@ -149,15 +167,169 @@ class _DictationPageState extends State<DictationPage> {
   @override
   void initState() {
     super.initState();
-    _options = _buildOptions();
-    // 每个新词的错误/提示计数从 0 开始。
-    _currentWrong = 0;
-    _currentHints = 0;
+    // 继续模式先恢复小题下标、错误和候选顺序；新开始则保留默认字段。
+    _restoreInitialSession();
+    // 完成待提交态没有候选；普通状态若快照无合法候选则同步生成标准四选一。
+    if (_isCurrentWordComplete) {
+      _options = const <DictationOption>[];
+    } else if (!_restoredExactOptions) {
+      _options = _buildOptions();
+    }
+    // 每次进入都覆盖同类型旧会话；新开始会保存本次新的单词列表。
+    unawaited(_persistSession());
     // 首帧后并行读取候选缓存和自动发音；同步生成的选项保证等待 SQLite 时页面不空白。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_restoreOrCreateCurrentOptionCache());
-      unawaited(_playAudio());
+      // 精确恢复的候选已经包含顺序；新题才从长期干扰项缓存恢复或创建。
+      if (!_isCurrentWordComplete && !_restoredExactOptions) {
+        unawaited(_restoreOrCreateCurrentOptionCache());
+      }
+      // 完成待提交态不自动重播，普通小题进入后保持原有自动发音体验。
+      if (!_isCurrentWordComplete) unawaited(_playAudio());
     });
+  }
+
+  /// 从历史会话恢复当前默写状态；所有动态字段都经过边界校验。
+  void _restoreInitialSession() {
+    // 没有会话就是一次全新的默写。
+    final session = widget.initialSession;
+    if (session == null || session.type != LearningSessionType.dictation) {
+      return;
+    }
+    // 先恢复单词下标，后续释义边界都依赖当前单词。
+    final state = session.state;
+    _wordIndex = _readSessionInt(
+      state['wordIndex'],
+      fallback: 0,
+    ).clamp(0, widget.words.length - 1);
+    // 只有明确的 definition 才进入释义阶段，其余坏值安全回到拼写阶段。
+    _stage = state['stage'] == DictationStage.definition.name
+        ? DictationStage.definition
+        : DictationStage.word;
+    // 当前单词没有可答释义时不能恢复到 definition，否则 getter 会越界。
+    if (_availableMeanings.isEmpty) _stage = DictationStage.word;
+    if (_stage == DictationStage.definition) {
+      _meaningIndex = _readSessionInt(
+        state['meaningIndex'],
+        fallback: 0,
+      ).clamp(0, _availableMeanings.length - 1);
+      _definitionIndex = _readSessionInt(
+        state['definitionIndex'],
+        fallback: 0,
+      ).clamp(0, _availableMeanings[_meaningIndex].definitions.length - 1);
+    }
+    // 计数都不能为负数；提示级别额外受当前单词字母数约束。
+    _hintLevel = _readSessionInt(
+      state['hintLevel'],
+      fallback: 0,
+    ).clamp(0, _currentWordLetterCount);
+    _errors = max(0, _readSessionInt(state['errors'], fallback: 0));
+    _currentWrong = max(0, _readSessionInt(state['currentWrong'], fallback: 0));
+    _currentHints = max(0, _readSessionInt(state['currentHints'], fallback: 0));
+    _isCurrentWordComplete = state['isCurrentWordComplete'] is bool
+        ? state['isCurrentWordComplete']! as bool
+        : false;
+    // 错误项文本恢复后仍保持红色禁用，避免退出页面就能重新点同一个错项。
+    final rawWrongOptions = state['wrongOptions'];
+    if (rawWrongOptions is List) {
+      _wrongOptions.addAll(rawWrongOptions.whereType<String>());
+    }
+    // 优先恢复快照中的提示文字，让释义首字提示和“正确”反馈也保持离开前状态。
+    final savedFeedback = state['feedback'];
+    final savedFeedbackTone = state['feedbackTone'];
+    if (savedFeedback is String) {
+      _feedback = savedFeedback;
+      _feedbackColor = switch (savedFeedbackTone) {
+        'danger' => AppTokens.danger,
+        'success' => const Color(0xFF2FB344),
+        _ => null,
+      };
+    } else if (_isCurrentWordComplete) {
+      // 兼容尚未保存 feedback 字段的早期快照。
+      _feedback = '本词完成！';
+      _feedbackColor = const Color(0xFF2FB344);
+    } else if (_wrongOptions.isNotEmpty) {
+      _feedback = '不对，再试试';
+      _feedbackColor = AppTokens.danger;
+    }
+    // 候选快照必须恰好四项、只有一个正确项且文本仍匹配当前正确答案。
+    final rawOptions = state['options'];
+    if (!_isCurrentWordComplete && rawOptions is List) {
+      final restored = <DictationOption>[];
+      for (final rawOption in rawOptions) {
+        if (rawOption is! Map ||
+            rawOption['text'] is! String ||
+            rawOption['isCorrect'] is! bool) {
+          restored.clear();
+          break;
+        }
+        restored.add(
+          DictationOption(
+            text: rawOption['text']! as String,
+            isCorrect: rawOption['isCorrect']! as bool,
+          ),
+        );
+      }
+      final correctOptions = restored
+          .where((option) => option.isCorrect)
+          .toList();
+      if (restored.length == 4 &&
+          correctOptions.length == 1 &&
+          correctOptions.single.text == _currentCorrectAnswer) {
+        _options = List<DictationOption>.unmodifiable(restored);
+        _restoredExactOptions = true;
+      }
+    }
+  }
+
+  /// 把当前答题状态写入 SQLite；页面交互先完成，持久化失败不阻断答题。
+  Future<void> _persistSession() async {
+    // 正式词库单词都有主键；临时测试对象缺少 id 时不制造无法恢复的记录。
+    final wordIds = widget.words.map((word) => word.id).toList(growable: false);
+    if (wordIds.any((id) => id == null) || _isDone) return;
+    try {
+      await _sessionStore.save(
+        LearningSession(
+          type: LearningSessionType.dictation,
+          wordIds: wordIds.cast<int>(),
+          state: <String, Object?>{
+            'wordIndex': _wordIndex,
+            'stage': _stage.name,
+            'meaningIndex': _meaningIndex,
+            'definitionIndex': _definitionIndex,
+            'hintLevel': _hintLevel,
+            'errors': _errors,
+            'currentWrong': _currentWrong,
+            'currentHints': _currentHints,
+            'isCurrentWordComplete': _isCurrentWordComplete,
+            'feedback': _feedback,
+            'feedbackTone': _feedbackColor == AppTokens.danger
+                ? 'danger'
+                : (_feedbackColor == const Color(0xFF2FB344)
+                      ? 'success'
+                      : 'neutral'),
+            'wrongOptions': _wrongOptions.toList(growable: false),
+            'options': <Map<String, Object?>>[
+              for (final option in _options)
+                <String, Object?>{
+                  'text': option.text,
+                  'isCorrect': option.isCorrect,
+                },
+            ],
+          },
+        ),
+      );
+    } catch (error) {
+      debugPrint('保存默写进度失败：$error');
+    }
+  }
+
+  /// 整轮完成后删除默写会话，首页随即隐藏对应“继续”入口。
+  Future<void> _deleteSession() async {
+    try {
+      await _sessionStore.delete(LearningSessionType.dictation);
+    } catch (error) {
+      debugPrint('删除默写进度失败：$error');
+    }
   }
 
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
@@ -261,6 +433,8 @@ class _DictationPageState extends State<DictationPage> {
           // 正确答案继续取最新模型，仅把三个干扰项换成缓存值。
           _options = _buildOptions(distractors: cachedDistractors);
         });
+        // 候选顺序属于可恢复状态，缓存替换后同步保存当前页面快照。
+        unawaited(_persistSession());
         return;
       }
       // 没有缓存或缓存损坏时，保存首帧已经显示的三个生成结果。
@@ -328,6 +502,8 @@ class _DictationPageState extends State<DictationPage> {
         _feedback = '已显示开头字母';
         _feedbackColor = null;
       });
+      // 提示级别和点击次数会影响当前题展示与最终记录，必须立即保存。
+      unawaited(_persistSession());
       return;
     }
     final definition =
@@ -338,6 +514,8 @@ class _DictationPageState extends State<DictationPage> {
       _feedback = definition.isEmpty ? '当前释义为空' : '提示：以「${definition[0]}」开头';
       _feedbackColor = null;
     });
+    // 释义提示次数同样进入当前会话快照。
+    unawaited(_persistSession());
   }
 
   /// 选择答案：错项变红并禁用；正确时推进到下一小题。
@@ -364,6 +542,8 @@ class _DictationPageState extends State<DictationPage> {
         _feedback = '不对，再试试';
         _feedbackColor = AppTokens.danger;
       });
+      // 保存错项文本与错误计数，重新进入后不能通过退出页面清除错误。
+      unawaited(_persistSession());
       return;
     }
 
@@ -385,6 +565,8 @@ class _DictationPageState extends State<DictationPage> {
         _feedbackColor = const Color(0xFF2FB344);
         _options = _buildOptions();
       });
+      // 拼写答对并进入释义阶段后立即保存新的小题下标和候选顺序。
+      unawaited(_persistSession());
       // 当前小题已经切到第一条释义，异步恢复或创建它自己的稳定候选缓存。
       unawaited(_restoreOrCreateCurrentOptionCache());
       return;
@@ -409,6 +591,8 @@ class _DictationPageState extends State<DictationPage> {
       _feedbackColor = const Color(0xFF2FB344);
       _options = _buildOptions();
     });
+    // 每推进一条释义都更新恢复点。
+    unawaited(_persistSession());
     // 下一条释义拥有独立缓存，不能沿用上一条释义的三个干扰项。
     unawaited(_restoreOrCreateCurrentOptionCache());
   }
@@ -488,6 +672,8 @@ class _DictationPageState extends State<DictationPage> {
       // 冻结新列表，保持页面状态只能整体更新。
       _options = List<DictationOption>.unmodifiable(updatedOptions);
     });
+    // 长按刷新改变了当前可见候选，也要同步进会话快照。
+    unawaited(_persistSession());
     // UI 已立即替换；SQLite 写入在后台完成，不让本地 I/O 拖慢手感。
     unawaited(
       _persistRefreshedOptions(
@@ -635,6 +821,8 @@ class _DictationPageState extends State<DictationPage> {
       // 绿色只用于正确完成反馈。
       _feedbackColor = const Color(0xFF2FB344);
     });
+    // “本词完成、等待下一题”是重要恢复点；此时仍不能提前写默写记录。
+    unawaited(_persistSession());
     // 自动重播一次发音作为答对奖励：既有听觉反馈，又强化单词记忆。
     // interrupt: true —— 若用户刚好手动点了播放，奖励发音直接接管，不会被忽略。
     unawaited(_playAudio(interrupt: true));
@@ -719,6 +907,8 @@ class _DictationPageState extends State<DictationPage> {
         _isPlaying = false;
         _feedback = '';
       });
+      // 最后一题记录已经成功提交，整轮不再属于未完成历史。
+      unawaited(_deleteSession());
       // 停止可能仍在播放的答对奖励音频。
       unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
       return;
@@ -751,6 +941,8 @@ class _DictationPageState extends State<DictationPage> {
       // 根据新的 _wordIndex 生成四个拼写候选项。
       _options = _buildOptions();
     });
+    // 新单词从拼写阶段开始，保存推进后的下标与全新题面。
+    unawaited(_persistSession());
     // 新单词的拼写题使用自己的持久化候选缓存。
     unawaited(_restoreOrCreateCurrentOptionCache());
     // 与首次进入页面一致，新题自动发音一次。
@@ -794,6 +986,8 @@ class _DictationPageState extends State<DictationPage> {
       // 重新生成当前单词的四个拼写候选项。
       _options = _buildOptions();
     });
+    // 重做会清空本词旧状态，立即覆盖会话，避免下次恢复到已完成态。
+    unawaited(_persistSession());
     // 重做回到当前单词拼写题，重新读取它此前缓存的三个干扰项。
     unawaited(_restoreOrCreateCurrentOptionCache());
     // 与进入新题一致自动发音；同样要打断可能仍在播放的奖励音频。
@@ -876,6 +1070,8 @@ class _DictationPageState extends State<DictationPage> {
 
   @override
   void dispose() {
+    // 系统返回或路由销毁前补写最终答题状态；完成页已经删除会话，不能重新创建。
+    if (!_isDone) unawaited(_persistSession());
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
     super.dispose();
   }
@@ -1604,4 +1800,12 @@ class _OptionCardState extends State<_OptionCard>
       ),
     );
   }
+}
+
+/// 从动态 JSON 状态读取整数；类型不符时使用明确默认值。
+int _readSessionInt(Object? value, {required int fallback}) {
+  // jsonDecode 的整数属于 num，统一转成 Dart int。
+  if (value is num) return value.toInt();
+  // 旧版本或坏数据缺失字段时保持页面可用。
+  return fallback;
 }

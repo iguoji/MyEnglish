@@ -18,9 +18,13 @@ class LearningFab extends StatefulWidget {
   const LearningFab({
     required this.isOpen,
     required this.targetCount,
+    required this.showPlayerResume,
+    required this.showDictationResume,
     required this.onToggle,
     required this.onOpenPlayer,
     required this.onOpenDictation,
+    required this.onContinuePlayer,
+    required this.onContinueDictation,
     super.key,
   });
 
@@ -30,6 +34,12 @@ class LearningFab extends StatefulWidget {
   /// 当前学习范围的单词数。
   final int targetCount;
 
+  /// 是否存在未完成的随身听会话。
+  final bool showPlayerResume;
+
+  /// 是否存在未完成的默写会话。
+  final bool showDictationResume;
+
   /// 点击“学习/收起”主按钮时执行。
   final VoidCallback onToggle;
 
@@ -38,6 +48,12 @@ class LearningFab extends StatefulWidget {
 
   /// 点击默写时执行。
   final VoidCallback onOpenDictation;
+
+  /// 点击随身听右侧“继续”时执行。
+  final VoidCallback onContinuePlayer;
+
+  /// 点击默写右侧“继续”时执行。
+  final VoidCallback onContinueDictation;
 
   @override
   State<LearningFab> createState() => _LearningFabState();
@@ -192,24 +208,117 @@ class _LearningFabState extends State<LearningFab>
   Widget _buildActions(AppTokens tokens) => Column(
     crossAxisAlignment: CrossAxisAlignment.end,
     children: [
-      _LearningAction(
-        key: const Key('open-player'),
+      _LearningActionRow(
+        actionKey: const Key('open-player'),
+        continueKey: const Key('continue-player'),
         icon: TablerIcons.headphones,
         label: '随身听 · ${widget.targetCount}',
         onTap: widget.onOpenPlayer,
+        showContinue: widget.showPlayerResume,
+        onContinue: widget.onContinuePlayer,
         tokens: tokens,
       ),
       const SizedBox(height: 10),
-      _LearningAction(
-        key: const Key('open-dict'),
+      _LearningActionRow(
+        actionKey: const Key('open-dict'),
+        continueKey: const Key('continue-dictation'),
         icon: TablerIcons.pencil,
         label: '默写 · ${widget.targetCount}',
         onTap: widget.onOpenDictation,
+        showContinue: widget.showDictationResume,
+        onContinue: widget.onContinueDictation,
         tokens: tokens,
       ),
       const SizedBox(height: 10),
     ],
   );
+}
+
+/// 一行学习入口：左侧开始新一轮，存在历史时在右侧动画显示“继续”。
+class _LearningActionRow extends StatelessWidget {
+  /// 创建一行按钮，并由 [showContinue] 决定右侧历史入口是否占位。
+  const _LearningActionRow({
+    required this.actionKey,
+    required this.continueKey,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.showContinue,
+    required this.onContinue,
+    required this.tokens,
+  });
+
+  /// 左侧主入口测试标识。
+  final Key actionKey;
+
+  /// 右侧继续入口测试标识。
+  final Key continueKey;
+
+  /// 左侧入口的 Tabler 图标。
+  final IconData icon;
+
+  /// 左侧入口文案与目标单词数。
+  final String label;
+
+  /// 开始新一轮的点击事件。
+  final VoidCallback onTap;
+
+  /// true 时显示继续按钮，false 时动画收回并且不保留间距。
+  final bool showContinue;
+
+  /// 恢复历史会话的点击事件。
+  final VoidCallback onContinue;
+
+  /// 当前明暗主题设计令牌。
+  final AppTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 左侧按钮始终存在，点击后开始一轮全新的学习。
+        _LearningAction(
+          key: actionKey,
+          icon: icon,
+          label: label,
+          onTap: onTap,
+          tokens: tokens,
+        ),
+        // AnimatedSwitcher 同时处理淡入与横向展开；无历史时 child 真正缩成 0 宽。
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          reverseDuration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SizeTransition(
+              sizeFactor: animation,
+              axis: Axis.horizontal,
+              alignment: Alignment.centerRight,
+              child: child,
+            ),
+          ),
+          child: showContinue
+              ? Row(
+                  key: const ValueKey<String>('learning-resume-visible'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 两个独立按钮之间保留清晰间隔，避免单手点击时误触主入口。
+                    const SizedBox(width: 8),
+                    _LearningContinueAction(
+                      key: continueKey,
+                      onTap: onContinue,
+                      tokens: tokens,
+                    ),
+                  ],
+                )
+              : const SizedBox(key: ValueKey<String>('learning-resume-hidden')),
+        ),
+      ],
+    );
+  }
 }
 
 /// 展开菜单中的单个白色胶囊入口。
@@ -254,6 +363,60 @@ class _LearningAction extends StatelessWidget {
                 style: TextStyle(
                   color: tokens.text,
                   fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 学习主入口右侧的“继续”按钮，视觉上保持 Tabler 的轻量次要操作层级。
+class _LearningContinueAction extends StatelessWidget {
+  /// 创建继续按钮。
+  const _LearningContinueAction({
+    required this.onTap,
+    required this.tokens,
+    super.key,
+  });
+
+  /// 点击后恢复对应学习会话。
+  final VoidCallback onTap;
+
+  /// 当前主题颜色。
+  final AppTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTokens.accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(20),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTokens.accent.withValues(alpha: 0.28)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 所有图标都来自 Tabler；playerPlay 明确表达“从进度继续”。
+              Icon(TablerIcons.playerPlay, size: 15, color: AppTokens.accent),
+              SizedBox(width: 6),
+              Text(
+                '继续',
+                style: TextStyle(
+                  color: AppTokens.accent,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),

@@ -12,10 +12,14 @@ import '../../common/theme.dart';
 import '../../common/toast.dart';
 // 引入单词数据模型。
 import '../../models/word.dart';
+// 引入可恢复的学习会话模型。
+import '../../models/learning_session.dart';
 // 引入可替换的单词发音服务。
 import '../../services/word_audio.dart';
 // 引入口音设置。
 import '../../store/settings.dart';
+// 引入学习会话 Store，把当前播放列表与进度持久化到 SQLite。
+import '../../store/learning_session.dart';
 // 引入答案卡正文组件。
 import 'widgets/listening_answer_content.dart';
 // 引入搜索框、图标按钮、设置行和播放控制按钮。
@@ -33,6 +37,8 @@ class ListeningPage extends StatefulWidget {
     required this.words,
     required this.audioPlayer,
     required this.accent,
+    this.initialSession,
+    this.sessionStore,
     this.definitionSeparator = '、',
     super.key,
   }) : assert(words.length > 0, '随身听至少需要一个单词');
@@ -45,6 +51,12 @@ class ListeningPage extends StatefulWidget {
 
   /// 当前设置中的美式或英式口音。
   final PronunciationAccent accent;
+
+  /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新随身听。
+  final LearningSession? initialSession;
+
+  /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
+  final LearningSessionStore? sessionStore;
 
   /// 同一词性下多条中文释义之间使用的全角分隔符。
   final String definitionSeparator;
@@ -90,6 +102,10 @@ class _ListeningPageState extends State<ListeningPage> {
   // 当前一秒等待的完成器，取消时主动完成以唤醒旧循环。
   Completer<void>? _countdownCompleter;
 
+  /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
+  LearningSessionStore get _sessionStore =>
+      widget.sessionStore ?? LocalLearningSessionStore.instance;
+
   /// 根据当前下标读取正在播放的单词，类似 PHP 数组 `$words[$index]`。
   Word get _currentWord => widget.words[_index];
 
@@ -98,15 +114,92 @@ class _ListeningPageState extends State<ListeningPage> {
   void initState() {
     // 先让 Flutter 完成 State 基础初始化。
     super.initState();
+    // “继续”进入时先同步恢复字段，首帧就会直接展示上次停留的单词与设置。
+    _restoreInitialSession();
+    // 新开始会创建记录，继续进入则刷新保存时间；失败不会阻止页面使用。
+    unawaited(_persistSession());
     // 第一帧完成后再开始播放，避免初始化阶段直接调用原生通道。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 页面可能在第一帧回调前已退出，mounted=false 时不能再更新界面。
       if (!mounted) return;
-      // 启动第一个单词的播放循环。
-      _startPlaybackLoop();
+      // 上次处于播放状态才自动继续；暂停状态保持暂停，尊重用户离开前的选择。
+      if (_isPlaying) _startPlaybackLoop();
       // 首次进入不等待普通滚动动画，较快地把当前行移到列表中间。
       _centerCurrentWord(force: true);
     });
+  }
+
+  /// 从构造参数恢复上次状态；每个字段都限制在当前页面的合法范围内。
+  void _restoreInitialSession() {
+    // 新开始没有历史状态，保留字段默认值。
+    final session = widget.initialSession;
+    if (session == null || session.type != LearningSessionType.listening) {
+      return;
+    }
+    // state 对应小程序持久化后的 Page.data。
+    final state = session.state;
+    // 当前下标不能超过恢复后的实际列表长度。
+    _index = _readSessionInt(
+      state['index'],
+      fallback: 0,
+    ).clamp(0, widget.words.length - 1);
+    // 播放次数与间隔继续遵守设置面板原有边界。
+    _repeat = _readSessionInt(state['repeat'], fallback: 2).clamp(1, 9);
+    _interval = _readSessionInt(state['interval'], fallback: 2).clamp(1, 10);
+    // 已完成重复次数不能达到 repeat，否则恢复时应直接推进到下一词。
+    _completedRepeats = _readSessionInt(
+      state['completedRepeats'],
+      fallback: 0,
+    ).clamp(0, _repeat - 1);
+    // 倒计时属于瞬时状态，恢复时从完整间隔重新开始，避免显示过期秒数。
+    _remainingSeconds = _interval;
+    // 布尔设置只有类型正确时才采用，坏数据回退到页面默认值。
+    _isPlaying = state['isPlaying'] is bool
+        ? state['isPlaying']! as bool
+        : true;
+    _revealAll = state['revealAll'] is bool
+        ? state['revealAll']! as bool
+        : false;
+    _loop = state['loop'] is bool ? state['loop']! as bool : true;
+    // 已完成会话在完成时已经删除，因此恢复页始终属于未完成状态。
+    _isFinished = false;
+  }
+
+  /// 把当前页面状态写入本地；没有完整数据库主键的测试数据不创建无效历史。
+  Future<void> _persistSession() async {
+    // 真实 SQLite 单词都有 id；任一缺失时说明这只是尚未落库的临时对象。
+    final wordIds = widget.words.map((word) => word.id).toList(growable: false);
+    if (wordIds.any((id) => id == null)) return;
+    try {
+      // 同类型主键覆盖写入，因此频繁推进只会保留最新快照，不会无限新增记录。
+      await _sessionStore.save(
+        LearningSession(
+          type: LearningSessionType.listening,
+          wordIds: wordIds.cast<int>(),
+          state: <String, Object?>{
+            'index': _index,
+            'completedRepeats': _completedRepeats,
+            'isPlaying': _isPlaying,
+            'revealAll': _revealAll,
+            'repeat': _repeat,
+            'interval': _interval,
+            'loop': _loop,
+          },
+        ),
+      );
+    } catch (error) {
+      // 会话是辅助能力，写入失败不能中断正在进行的音频学习。
+      debugPrint('保存随身听进度失败：$error');
+    }
+  }
+
+  /// 正常播完后删除会话；删除失败只影响首页入口，不影响完成状态。
+  Future<void> _deleteSession() async {
+    try {
+      await _sessionStore.delete(LearningSessionType.listening);
+    } catch (error) {
+      debugPrint('删除随身听进度失败：$error');
+    }
   }
 
   /// 启动一个新的异步播放循环。
@@ -132,6 +225,8 @@ class _ListeningPageState extends State<ListeningPage> {
         if (!mounted || serial != _playSerial) return;
         // setState 类似小程序 setData，修改后会重绘播放按钮和状态文字。
         setState(() => _isPlaying = false);
+        // 保存暂停状态，用户下次继续时不会立刻再次触发失败音频。
+        unawaited(_persistSession());
         // Toast 以非阻塞方式显示具体失败原因，层级高于 BottomSheet。
         Toast.show(context, '播放失败：$error');
         // 当前循环已经失败，不能继续倒计时或推进单词。
@@ -182,6 +277,8 @@ class _ListeningPageState extends State<ListeningPage> {
             _isFinished = true;
             _remainingSeconds = 0;
           });
+          // 非循环模式正常播完即不再属于“未完成”，首页继续入口应立即失效。
+          unawaited(_deleteSession());
           // 已播完且不循环，结束异步任务。
           return;
         }
@@ -189,6 +286,8 @@ class _ListeningPageState extends State<ListeningPage> {
         // 同一个词继续下一轮播放。
         setState(() => _remainingSeconds = _interval);
       }
+      // 每完成一轮发音就保存重复次数或新下标，应用被系统结束时也能从最近位置恢复。
+      unawaited(_persistSession());
     }
   }
 
@@ -236,6 +335,8 @@ class _ListeningPageState extends State<ListeningPage> {
     _cancelCountdown();
     // 先更新按钮和状态文字，让用户立即看到暂停结果。
     setState(() => _isPlaying = false);
+    // 暂停属于用户明确选择，立即写入会话。
+    unawaited(_persistSession());
     // 原生 stop 可能失败，因此使用 try/catch 隔离底层异常。
     try {
       // 等待原生播放器真正停止。
@@ -260,6 +361,8 @@ class _ListeningPageState extends State<ListeningPage> {
       });
       // 把首词滚到中间。
       _centerCurrentWord(force: true);
+      // “重新播放”创建一条新的未完成会话。
+      unawaited(_persistSession());
       // 创建新的异步播放任务。
       _startPlaybackLoop();
       // 重播分支结束，避免继续执行普通暂停/播放判断。
@@ -271,6 +374,8 @@ class _ListeningPageState extends State<ListeningPage> {
     } else {
       // 暂停状态点击后先切回播放图标状态。
       setState(() => _isPlaying = true);
+      // 恢复播放状态同步写入本地。
+      unawaited(_persistSession());
       // 再启动新的播放循环。
       _startPlaybackLoop();
     }
@@ -301,6 +406,8 @@ class _ListeningPageState extends State<ListeningPage> {
     });
     // 把新单词滚动到列表中部。
     _centerCurrentWord(force: true);
+    // 主动跳词后立即保存目标下标。
+    unawaited(_persistSession());
     // 原本处于播放状态时才自动续播，暂停状态保持暂停。
     if (_isPlaying) _startPlaybackLoop();
   }
@@ -350,6 +457,8 @@ class _ListeningPageState extends State<ListeningPage> {
           void update(VoidCallback change) {
             // 更新页面长期保存的播放设置。
             setState(change);
+            // 播放次数、间隔和循环开关都属于恢复状态，调整后立即持久化。
+            unawaited(_persistSession());
             // 再通知当前弹层路由立即重绘控件值。
             setSheetState(() {});
           }
@@ -484,6 +593,8 @@ class _ListeningPageState extends State<ListeningPage> {
   /// 页面退出时释放所有计时器、原生播放任务和输入控制器。
   @override
   void dispose() {
+    // 系统返回或路由销毁前补写最终状态；正常播完已经删会话，不能在这里重新创建。
+    if (!_isFinished) unawaited(_persistSession());
     // 结束所有旧循环并停止仍在播放的原生音频。
     ++_playSerial;
     // 取消当前一秒等待。
@@ -834,7 +945,12 @@ class _ListeningPageState extends State<ListeningPage> {
                   color: tokens.muted,
                   // 图标画布在按钮内部贴右上角，不再依赖任何负数偏移。
                   alignment: Alignment.topRight,
-                  onTap: () => setState(() => _revealAll = !_revealAll),
+                  onTap: () {
+                    // 切换长期显示答案。
+                    setState(() => _revealAll = !_revealAll);
+                    // 下次继续时保持用户当前的答案显示偏好。
+                    unawaited(_persistSession());
+                  },
                 ),
               ),
             ],
@@ -904,4 +1020,12 @@ class _ListeningPageState extends State<ListeningPage> {
     // 圆点至少两个、最多 32 个，避免极短和极长单词造成视觉异常。
     return '${spelling[0]}${List.filled((spelling.length - 1).clamp(2, 32), '•').join()}';
   }
+}
+
+/// 从动态 JSON 状态读取整数；类型不符时使用明确默认值。
+int _readSessionInt(Object? value, {required int fallback}) {
+  // jsonDecode 的整数属于 num，统一转成 Dart int。
+  if (value is num) return value.toInt();
+  // 旧版本或坏数据缺失字段时保持页面可用。
+  return fallback;
 }
