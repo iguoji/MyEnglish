@@ -1,7 +1,18 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// 读取 android/key.properties（已被 .gitignore 忽略，不会提交到版本控制）
+// 类似 PHP 读取 .env 配置文件：先加载文件，再按 key 取值
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -25,11 +36,22 @@ android {
         versionName = flutter.versionName
     }
 
+    // 正式签名配置：从 key.properties 读取 keystore 路径、密码和别名
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { file(it as String) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 使用正式签名配置（替代原来的 debug 签名）
+            signingConfig = signingConfigs.getByName("release")
+            // debuggable 临时通过 AndroidManifest.xml 的 android:debuggable="true" 控制
+            // 不在这里设 isDebuggable，否则 Flutter 会误判为 debug 模式而崩溃
         }
     }
 }

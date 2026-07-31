@@ -1,7 +1,7 @@
 name: my_english
 description: "MyEnglish: a personal English vocabulary app with built-in word library, pronunciation settings, and daily review goals."
 publish_to: 'none'
-version: 0.22.2+6
+version: 0.22.8
 
 environment:
   sdk: ^3.12.2
