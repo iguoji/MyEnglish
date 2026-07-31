@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_english/models/model_value_parser.dart';
 
+/// 验证模型公共字段解析器的合法格式、默认值与异常边界。
+///
+/// @return `void`
 void main() {
   test('optional integer accepts numbers and rejects implicit strings', () {
     expect(readOptionalInt(null, 'value'), isNull);

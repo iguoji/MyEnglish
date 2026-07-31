@@ -14,6 +14,16 @@ import '../../../common/theme.dart';
 /// 避免 StatelessWidget 重建时 AnimatedSwitcher 偶发“瞬间切换不播放”的问题。
 class LearningFab extends StatefulWidget {
   /// 所有状态由首页统一管理，组件本身只负责显示与转发点击。
+  ///
+  /// @param `bool` isOpen 学习菜单是否展开。
+  /// @param `int` targetCount 当前学习范围的单词数。
+  /// @param `bool` showPlayerResume 是否显示随身听继续入口。
+  /// @param `bool` showDictationResume 是否显示默写继续入口。
+  /// @param `VoidCallback` onToggle 展开或收起菜单的回调。
+  /// @param `VoidCallback` onOpenPlayer 开始新随身听的回调。
+  /// @param `VoidCallback` onOpenDictation 开始新默写的回调。
+  /// @param `VoidCallback` onContinuePlayer 继续随身听的回调。
+  /// @param `VoidCallback` onContinueDictation 继续默写的回调。
   const LearningFab({
     required this.isOpen,
     required this.targetCount,
@@ -28,32 +38,53 @@ class LearningFab extends StatefulWidget {
   });
 
   /// 是否已经展开两个学习入口。
+  ///
+  /// @var `bool`
   final bool isOpen;
 
   /// 当前学习范围的单词数。
+  ///
+  /// @var `int`
   final int targetCount;
 
   /// 是否存在未完成的随身听会话。
+  ///
+  /// @var `bool`
   final bool showPlayerResume;
 
   /// 是否存在未完成的默写会话。
+  ///
+  /// @var `bool`
   final bool showDictationResume;
 
   /// 点击“学习/收起”主按钮时执行。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onToggle;
 
   /// 点击随身听时执行。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onOpenPlayer;
 
   /// 点击默写时执行。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onOpenDictation;
 
   /// 点击随身听右侧“继续”时执行。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onContinuePlayer;
 
   /// 点击默写右侧“继续”时执行。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onContinueDictation;
 
+  /// 创建悬浮学习菜单状态。
+  ///
+  /// @return `State<LearningFab>` 管理展开和收起动画的状态对象。
   @override
   State<LearningFab> createState() => _LearningFabState();
 }
@@ -89,6 +120,9 @@ class _LearningFabState extends State<LearningFab>
     end: Offset.zero,
   ).animate(_expand);
 
+  /// 初始化悬浮菜单动画。
+  ///
+  /// @return `void`
   @override
   void initState() {
     super.initState();
@@ -96,6 +130,10 @@ class _LearningFabState extends State<LearningFab>
     if (widget.isOpen) _controller.value = 1;
   }
 
+  /// 响应父页面传入的展开状态变化。
+  ///
+  /// @param `LearningFab` oldWidget 更新前的组件配置。
+  /// @return `void`
   @override
   void didUpdateWidget(covariant LearningFab oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -109,6 +147,9 @@ class _LearningFabState extends State<LearningFab>
     }
   }
 
+  /// 释放菜单动画控制器。
+  ///
+  /// @return `void`
   @override
   void dispose() {
     // 计时器必须释放，否则会泄漏并持续占用帧回调。
@@ -116,6 +157,10 @@ class _LearningFabState extends State<LearningFab>
     super.dispose();
   }
 
+  /// 构建悬浮学习菜单和主按钮。
+  ///
+  /// @param `BuildContext` context 当前 Widget 树上下文。
+  /// @return `Widget` 可展开的学习操作区。
   @override
   Widget build(BuildContext context) {
     // 读取当前主题下的卡片、边框与文字颜色。
@@ -133,7 +178,6 @@ class _LearningFabState extends State<LearningFab>
               Offstage(offstage: _controller.isDismissed, child: child),
           child: SizeTransition(
             sizeFactor: _expand,
-            // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
             // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
             alignment: Alignment.bottomCenter,
             child: FadeTransition(
@@ -204,6 +248,9 @@ class _LearningFabState extends State<LearningFab>
   }
 
   /// 展开菜单中的两个白色胶囊入口（随身听 / 默写）。
+  ///
+  /// @param `AppTokens` tokens 当前主题设计令牌。
+  /// @return `Widget` 随身听和默写两行操作入口。
   Widget _buildActions(AppTokens tokens) => Column(
     crossAxisAlignment: CrossAxisAlignment.end,
     children: [
@@ -236,6 +283,15 @@ class _LearningFabState extends State<LearningFab>
 /// 一行学习入口：左侧开始新一轮，存在历史时在右侧动画显示“继续”。
 class _LearningActionRow extends StatelessWidget {
   /// 创建一行按钮，并由 [showContinue] 决定右侧历史入口是否占位。
+  ///
+  /// @param `Key` actionKey 新建入口的测试标识。
+  /// @param `Key` continueKey 继续入口的测试标识。
+  /// @param `IconData` icon 新建入口的 Tabler 图标。
+  /// @param `String` label 新建入口文案。
+  /// @param `VoidCallback` onTap 开始新学习的回调。
+  /// @param `bool` showContinue 是否显示继续入口。
+  /// @param `VoidCallback` onContinue 恢复历史会话的回调。
+  /// @param `AppTokens` tokens 当前主题设计令牌。
   const _LearningActionRow({
     required this.actionKey,
     required this.continueKey,
@@ -248,29 +304,49 @@ class _LearningActionRow extends StatelessWidget {
   });
 
   /// 左侧主入口测试标识。
+  ///
+  /// @var `Key`
   final Key actionKey;
 
   /// 右侧继续入口测试标识。
+  ///
+  /// @var `Key`
   final Key continueKey;
 
   /// 左侧入口的 Tabler 图标。
+  ///
+  /// @var `IconData`
   final IconData icon;
 
   /// 左侧入口文案与目标单词数。
+  ///
+  /// @var `String`
   final String label;
 
   /// 开始新一轮的点击事件。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onTap;
 
   /// true 时显示继续按钮，false 时动画收回并且不保留间距。
+  ///
+  /// @var `bool`
   final bool showContinue;
 
   /// 恢复历史会话的点击事件。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onContinue;
 
   /// 当前明暗主题设计令牌。
+  ///
+  /// @var `AppTokens`
   final AppTokens tokens;
 
+  /// 构建一行学习入口及可选的继续按钮。
+  ///
+  /// @param `BuildContext` context 当前 Widget 树上下文。
+  /// @return `Widget` 水平排列并带切换动画的操作行。
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -322,6 +398,12 @@ class _LearningActionRow extends StatelessWidget {
 
 /// 展开菜单中的单个白色胶囊入口。
 class _LearningAction extends StatelessWidget {
+  /// 创建开始新学习的胶囊按钮。
+  ///
+  /// @param `IconData` icon Tabler 图标。
+  /// @param `String` label 按钮文案。
+  /// @param `VoidCallback` onTap 点击回调。
+  /// @param `AppTokens` tokens 当前主题设计令牌。
   const _LearningAction({
     required this.icon,
     required this.label,
@@ -330,11 +412,30 @@ class _LearningAction extends StatelessWidget {
     super.key,
   });
 
+  /// 按钮使用的 Tabler 图标。
+  ///
+  /// @var `IconData`
   final IconData icon;
+
+  /// 按钮文案。
+  ///
+  /// @var `String`
   final String label;
+
+  /// 点击后开始新学习。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onTap;
+
+  /// 当前主题设计令牌。
+  ///
+  /// @var `AppTokens`
   final AppTokens tokens;
 
+  /// 构建开始新学习的胶囊按钮。
+  ///
+  /// @param `BuildContext` context 当前 Widget 树上下文。
+  /// @return `Widget` 带阴影和边框的主入口。
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -376,6 +477,9 @@ class _LearningAction extends StatelessWidget {
 /// 学习主入口右侧的“继续”按钮，视觉上保持 Tabler 的轻量次要操作层级。
 class _LearningContinueAction extends StatelessWidget {
   /// 创建继续按钮。
+  ///
+  /// @param `VoidCallback` onTap 恢复历史会话的回调。
+  /// @param `AppTokens` tokens 当前主题设计令牌。
   const _LearningContinueAction({
     required this.onTap,
     required this.tokens,
@@ -383,11 +487,19 @@ class _LearningContinueAction extends StatelessWidget {
   });
 
   /// 点击后恢复对应学习会话。
+  ///
+  /// @var `VoidCallback`
   final VoidCallback onTap;
 
   /// 当前主题颜色。
+  ///
+  /// @var `AppTokens`
   final AppTokens tokens;
 
+  /// 构建轻量的继续按钮。
+  ///
+  /// @param `BuildContext` context 当前 Widget 树上下文。
+  /// @return `Widget` 带 Tabler 播放图标的继续入口。
   @override
   Widget build(BuildContext context) {
     return Material(

@@ -811,6 +811,9 @@ class WordsDatabase(context: Context) :
      *
      * 每次默写提交都新增一条记录，同一单词同一天可以有多条。`created_date`
      * 使用本机时区的 'YYYY-MM-DD' 字符串，供今日记录查询和去重统计使用。
+     *
+     * @param db 需要创建记录表和索引的 SQLite 连接。
+     * @return Unit
      */
     private fun createRecordTable(db: SQLiteDatabase) {
         // execSQL 执行固定结构 SQL，不拼接任何用户输入；IF NOT EXISTS 保证重复建表不报错。
@@ -997,6 +1000,12 @@ class WordsDatabase(context: Context) :
      *      只有「连续完美总数 > 1 且为 5 的倍数」时才难度 -1（即第 5、10、15…次连续正确才降），
      *      其余情况不动。遇到一次有错误的记录即终止计数，链条被错误打断就不再累加。
      *    - 难度有下限 0（words 表的 CHECK 约束不允许负数）。
+     *
+     * @param wordId 本次完成默写的单词主键。
+     * @param isCorrect 本次是否没有选错候选项。
+     * @param wrongCount 本次选错候选项的次数。
+     * @param hintCount 本次点击提示的次数。
+     * @return Unit
      */
     fun addDictationRecord(
         wordId: Long,
@@ -1088,6 +1097,10 @@ class WordsDatabase(context: Context) :
      *
      * 查询不加 LIMIT：必须数到第一条错误才停，截断会漏掉打断点导致计数偏多、
      * 进而误判"又是 5 的倍数"重复减难度。由于遇到错误即停，正常数据量下返回不会很大。
+     *
+     * @param db 当前默写事务使用的 SQLite 连接。
+     * @param wordId 需要统计连续正确次数的单词主键。
+     * @return 本次记录写入前连续完美的历史记录数量。
      */
     private fun countConsecutivePerfect(
         db: SQLiteDatabase,
@@ -1126,6 +1139,8 @@ class WordsDatabase(context: Context) :
      * 首页副标题「今日复习 X/目标」用的就是它。由于同一个词一天可能有多条记录
      * （重复默写、再试一次），必须用 COUNT(DISTINCT word_id) 去重，
      * 否则同一个词练两遍会被算成两个词。
+     *
+     * @return 今日完成过默写的不同单词数量。
      */
     fun getTodayReviewWordCount(): Int {
         // 只读连接即可。
@@ -1148,6 +1163,8 @@ class WordsDatabase(context: Context) :
      * 读取今日全部默写记录，供"今日复习"展示。
      *
      * 返回完整记录 Map 列表（每条含 word_id 等），Dart 端再去重出单词列表。
+     *
+     * @return 今日全部默写记录，按写入时间升序排列。
      */
     fun getTodayReviewWords(): List<Map<String, Any?>> {
         // 只读连接即可。
