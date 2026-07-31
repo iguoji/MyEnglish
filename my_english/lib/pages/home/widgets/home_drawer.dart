@@ -8,6 +8,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+// 引入应用元信息常量（pubspec.yaml 单一数据源同步生成的版本号与展示名）。
+import '../../../common/app_info.dart';
 // 引入全局 Toast 工具，层级高于 Drawer/BottomSheet。
 import '../../../common/toast.dart';
 // 设置 Store 与口音/分隔符/主题枚举；抽屉内直接复用全局设置。
@@ -231,21 +233,19 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
           child: Row(
             children: [
-              // 左：42×42 圆角方块 logo，内嵌 Tabler 书本图标。
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  // 主色填充。
-                  color: AppTokens.accent,
-                  // 10 像素圆角，与设计稿一致。
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  TablerIcons.book2,
-                  color: Colors.white,
-                  size: 23,
+              // 左：42×42 品牌 logo（来自 assets/logo/app_logo.png，
+              // 即 logo/_source/master_1024.png 的 C3 翻页书页方案）。
+              // 不再使用 TablerIcons.book2 占位，因为 App Logo 必须原创几何、
+              // 不能搬用任何图标库现成图形（参考项目约定）。
+              ClipRRect(
+                // PNG 本身已含圆角，ClipRRect 仅作边缘抗锯齿兜底。
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/logo/app_logo.png',
+                  width: 42,
+                  height: 42,
+                  // 强制 42×42 缩放，PNG 源 1024×1024。
+                  fit: BoxFit.cover,
                 ),
               ),
               // 图标与文字间距。
@@ -255,9 +255,9 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 应用名称（普通文字）。
+                    // 应用名称（从 pubspec.yaml 同步，单一数据源）。
                     Text(
-                      'MyEnglish',
+                      AppInfo.displayName,
                       style: TextStyle(
                         color: tokens.text,
                         fontSize: 14,
@@ -278,8 +278,10 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                         // Tabler badge 默认 4 像素圆角。
                         borderRadius: BorderRadius.circular(4),
                       ),
+                      // 版本号前加 v 前缀，与历史样式保持一致；
+                      // AppInfo.version 由 pubspec.yaml 同步生成，不再硬编码。
                       child: Text(
-                        'v0.11.8',
+                        'v${AppInfo.version}',
                         style: TextStyle(
                           // Azure 加深色文字。
                           color: badgeText,
@@ -865,8 +867,9 @@ class _DailyGoalRow extends StatelessWidget {
           label: '每日复习',
           // 卡片内最后一行，不画分隔线。
           showDivider: false,
-          // 卡片内横向 8 内边距（卡片已有 20 边距对齐标题）。
-          horizontalPadding: 8,
+          // 卡片内横向 10 内边距，与口语发音/单词分隔两行完全一致，
+          // 保证三行右侧控件左右边缘对齐（此前误传 8 导致本行整体偏左 2px）。
+          horizontalPadding: 10,
           // 右侧容器：与口语发音/单词分隔同样的 switch 风格轨道。
           control: Container(
             // 与口语发音/单词分隔等宽。
@@ -948,7 +951,7 @@ class _DailyGoalRow extends StatelessWidget {
 
 /// 设置项的通用一行：左标签、右控件、可选底部分隔线。
 ///
-/// [horizontalPadding] 默认 20（卡片外菜单项对齐），卡片内传 16。
+/// [horizontalPadding] 默认 20（卡片外菜单项对齐），卡片内统一传 10。
 class _SettingRow extends StatelessWidget {
   /// label 是左侧字段名，control 是右侧控件。
   const _SettingRow({

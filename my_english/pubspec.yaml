@@ -1,7 +1,7 @@
 name: my_english
-description: "A new Flutter project."
+description: "MyEnglish: a personal English vocabulary app with built-in word library, pronunciation settings, and daily review goals."
 publish_to: 'none'
-version: 0.12.0+2
+version: 0.22.2+6
 
 environment:
   sdk: ^3.12.2
@@ -21,5 +21,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 flutter:
-  # 页面图标全部来自 tabler_icons_plus，因此不再打包 Flutter 内置 Material Icons 字体。
-  uses-material-design: false
+  # Flutter 框架内部组件（TextField 清除按钮等）仍引用 MaterialIcons，
+  # 设为 true 让 tree-shaker 只裁剪实际用到的字形，体积影响可忽略。
+  uses-material-design: true
+  # 抽屉顶部品牌 logo（来自 logo/_source/master_1024.png，C3 翻页书页方案）。
+  # 修改 logo 后只需替换文件，无需改代码。
+  assets:
+    - assets/logo/app_logo.png

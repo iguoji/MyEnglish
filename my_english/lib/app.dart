@@ -1,6 +1,8 @@
 // material.dart 提供 MaterialApp 和 StatelessWidget 等应用级组件。
 import 'package:flutter/material.dart';
 
+// 引入应用元信息（版本号、展示名来自 pubspec.yaml）。
+import 'common/app_info.dart';
 // 引入全局主题，类似 PHP 模板加载公共 CSS 或小程序加载 app.wxss。
 import 'common/theme.dart';
 // 引入首页，类似在小程序 app.json 中把首页登记为第一个页面。
@@ -27,8 +29,9 @@ class MainApp extends StatelessWidget {
       builder: (context, child) {
         // MaterialApp 管理主题、页面导航和应用标题。
         return MaterialApp(
-          // title 是系统任务列表等位置可能使用的应用名称。
-          title: 'My English',
+          // title 是系统任务列表等位置可能使用的应用名称，
+          // 单一数据源是 pubspec.yaml 的 name 字段。
+          title: AppInfo.displayName,
           // 关闭右上角 DEBUG 横幅；只影响显示，不影响调试能力。
           debugShowCheckedModeBanner: false,
           // 浅色完整使用 Material 3 配置。
