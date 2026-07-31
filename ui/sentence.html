@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+    <title>SentenceForge - 11级无极全能版 v3.2</title>
+    <!-- 引入 Tabler 官方核心 CSS (内含 Bootstrap 5 样式) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <style>
+        body {
+            background-color: #2c3338;
+            display: flex;
+            justify-content: center;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+        }
+        .app-shell {
+            width: 100%;
+            max-width: 430px; /* 模拟移动端 iPhone Pro Max */
+            min-height: 100vh;
+            background-color: #f4f6fa;
+            position: relative;
+            box-shadow: 0 0 24px rgba(0,0,0,0.8);
+            padding-top: 56px;
+            padding-bottom: 90px;
+            overflow-x: hidden;
+        }
+        .app-navbar {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 56px;
+            background: #ffffff;
+            border-bottom: 1px solid #e6e8e9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 10;
+        }
+        .app-footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            max-width: 430px;
+            background: #ffffff;
+            padding: 12px 16px;
+            border-top: 1px solid #e6e8e9;
+            z-index: 10;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.03);
+        }
+        .disabled-layer {
+            opacity: 0.4;
+            pointer-events: none;
+            filter: grayscale(100%);
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+        .section-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-top: 12px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        /* 布局模式：单行占据 */
+        .option-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            margin-bottom: 4px;
+            background: #ffffff;
+            border: 1px solid #edf0f2;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        .option-row:hover {
+            border-color: #206bc4;
+            background-color: #f8fafc;
+        }
+        .option-row .form-check {
+            margin-bottom: 0;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+        }
+        .option-row .form-check-label {
+            font-size: 0.83rem;
+            cursor: pointer;
+            margin-left: 6px;
+            color: #1e293b;
+        }
+        .mastery-tag {
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+            margin-left: 8px;
+            font-family: monospace;
+        }
+        /* 级别选择器专用面板 - 11级平铺 */
+        .level-card {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #ffffff;
+            border-radius: 10px;
+        }
+        .level-card .form-selectgroup-item {
+            margin: 2px;
+            flex: 1 0 22%; /* 4列响应式分布 */
+        }
+        .level-card .form-selectgroup-label {
+            background: rgba(255,255,255,0.08);
+            color: #f8fafc;
+            border: 1px solid rgba(255,255,255,0.15);
+            font-size: 0.72rem;
+            padding: 5px 2px;
+        }
+        .level-card .form-selectgroup-input:checked + .form-selectgroup-label {
+            background: #206bc4;
+            color: #ffffff;
+            border-color: #206bc4;
+            font-weight: 700;
+            box-shadow: 0 0 8px rgba(32,107,196,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-shell">
+    
+    <!-- 顶部导航栏 -->
+    <header class="app-navbar">
+        <div class="d-flex align-items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="#206bc4" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 5h7"/><path d="M9 3v2c0 4.418 -2.239 8 -5 8"/><path d="M5 9c0 2.144 2.952 3.908 6.7 4"/><path d="M12 20l4 -9l4 9"/><path d="M19.1 18h-6.2"/></svg>
+            <h1 class="m-0" style="font-size: 1.05rem; font-weight: 700; color: #182433;">SentenceForge <span class="badge bg-blue-lt ms-1">v3.2 细分版</span></h1>
+        </div>
+    </header>
+
+    <div class="p-3">
+
+        <!-- 步骤 0：能力级别选择 (完整 11 级展现) -->
+        <div class="card mb-3 level-card shadow-sm">
+            <div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <span class="fw-bold" style="font-size: 0.82rem;">🎯 选择能力阶段 (解禁对应语法)：</span>
+                    <span class="badge bg-blue text-white" id="current-level-badge">初成 (300分)</span>
+                </div>
+                <div class="form-selectgroup d-flex flex-wrap w-100">
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="0" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">启蒙</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="100" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">入门</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="200" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">筑基</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="300" class="form-selectgroup-input" checked><span class="form-selectgroup-label text-center">初成</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="400" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">小成</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="500" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">进阶</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="600" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">大成</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="700" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">精深</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="800" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">化境</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="900" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">登峰</span></label>
+                    <label class="form-selectgroup-item"><input type="radio" name="user_level" value="1000" class="form-selectgroup-input"><span class="form-selectgroup-label text-center">无极</span></label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 维度 1：基本句型与主宾组件 -->
+        <div class="card mb-3">
+            <div class="card-header py-2 px-3"><h3 class="card-title text-primary" style="font-size: 0.95rem;">1. 基本句型 (骨架与组件)</h3></div>
+            <div class="card-body p-2">
+                <div class="section-title text-muted px-2">基本句法 / 存在句：</div>
+                
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="pattern" id="pat_sv" value="sv" checked><label class="form-check-label fw-bold" for="pat_sv">主+谓 (S+V)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="pattern" id="pat_svp" value="svp"><label class="form-check-label fw-bold" for="pat_svp">主+系+表 (S+V+P)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="pattern" id="pat_svo" value="svo"><label class="form-check-label fw-bold" for="pat_svo">主+谓+宾 (S+V+O)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="pattern" id="pat_svoo" value="svoo"><label class="form-check-label fw-bold" for="pat_svoo">主+谓+双宾 (S+V+O+O)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="pattern" id="pat_svoc" value="svoc"><label class="form-check-label fw-bold" for="pat_svoc">主+谓+宾+补 (S+V+O+C)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="pattern" id="pat_therebe" value="therebe"><label class="form-check-label fw-bold" for="pat_therebe">存在句 (There be)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <div class="section-title text-muted px-2">主语构成：</div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="subj_type" id="subj_noun" value="noun" checked><label class="form-check-label" for="subj_noun">普通名词/代词</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="subj_type" id="subj_nonfinite" value="non_finite"><label class="form-check-label" for="subj_nonfinite">非谓语 (V-ing / To do)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="subj_type" id="subj_clause" value="clause"><label class="form-check-label" for="subj_clause">主语从句 (What/That...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="subj_type" id="subj_dummy" value="dummy_it"><label class="form-check-label text-azure" for="subj_dummy">形式主语 (It...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <div class="section-title text-muted px-2">宾语 / 表语 / 补语构成：</div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="obj_type" id="obj_noun" value="noun" checked><label class="form-check-label" for="obj_noun">普通名词/形容词</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="obj_type" id="obj_prep" value="prep_obj"><label class="form-check-label text-azure" for="obj_prep">介词宾语 (Prep.+N)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="obj_type" id="obj_nonfinite" value="non_finite"><label class="form-check-label" for="obj_nonfinite">非谓语/Wh-+To do</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="obj_type" id="obj_clause" value="clause"><label class="form-check-label" for="obj_clause">宾/表语从句</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="obj_type" id="obj_dummy" value="dummy_it"><label class="form-check-label text-azure" for="obj_dummy">形式宾语 (It...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="obj_type" id="obj_causative" value="causative"><label class="form-check-label text-azure" for="obj_causative">使役感官 (do/doing/done)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 维度 2：语态与极性 -->
+        <div class="card mb-3" id="voice-card">
+            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                <h3 class="card-title text-primary" style="font-size: 0.95rem;">2. 语态与极性</h3>
+                <span class="badge bg-red-lt d-none" id="voice-warning">当前句型无被动</span>
+            </div>
+            <div class="card-body p-2">
+                <div class="section-title text-muted px-2">语态 (Voice)：</div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="voice" id="voice_act" value="active" checked><label class="form-check-label" for="voice_act">主动语态 (Active)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200" id="voice-passive-row">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="voice" id="voice_pas" value="passive"><label class="form-check-label text-red" for="voice_pas">被动语态 (Passive)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <div class="section-title text-muted px-2" id="polarity-title">极性 (Polarity)：</div>
+                <div id="polarity-group">
+                    <div class="option-row" data-level="0">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="polarity" id="pol_aff" value="affirmative" checked><label class="form-check-label" for="pol_aff">肯定句 (Affirmative)</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                    <div class="option-row" data-level="0">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="polarity" id="pol_neg" value="negative"><label class="form-check-label text-red" for="pol_neg">否定句 (Negative)</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 维度 3：句式 (沟通目的) -->
+        <div class="card mb-3">
+            <div class="card-header py-2 px-3"><h3 class="card-title text-primary" style="font-size: 0.95rem;">3. 句式 (沟通目的)</h3></div>
+            <div class="card-body p-2">
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="sentType" id="st_dec" value="declarative" checked><label class="form-check-label fw-bold" for="st_dec">陈述句</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="sentType" id="st_int" value="interrogative"><label class="form-check-label fw-bold" for="st_int">疑问句</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="sentType" id="st_imp" value="imperative"><label class="form-check-label fw-bold" for="st_imp">祈使句</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="sentType" id="st_exc" value="exclamatory"><label class="form-check-label fw-bold" for="st_exc">感叹句</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <!-- 疑问句面板 -->
+                <div class="d-none bg-light p-2 border-start border-3 border-primary rounded-end my-2" id="interrogative-options">
+                    <div class="text-dark fw-bold mb-1 px-1" style="font-size: 0.8rem;">疑问句分类：</div>
+                    <div class="option-row" data-level="0">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="intType" id="it_gen" value="general" checked><label class="form-check-label" for="it_gen">一般疑问 (Yes/No)</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                    <div class="option-row" data-level="100">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="intType" id="it_spe" value="special"><label class="form-check-label" for="it_spe">特殊疑问 (Wh-)</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                    <div class="option-row" data-level="300">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="intType" id="it_alt" value="alternative"><label class="form-check-label" for="it_alt">选择疑问 (A or B)</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                    <div class="option-row" data-level="400">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="intType" id="it_tag" value="tag"><label class="form-check-label" for="it_tag">反意疑问 (附加)</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                    
+                    <!-- 特殊疑问词全量拆分（逐行展示） -->
+                    <div class="d-none mt-2 pt-2 border-top" id="wh-words-box">
+                        <div class="text-dark fw-bold mb-1 px-1" style="font-size: 0.8rem;">特殊疑问词：</div>
+                        <div class="option-row" data-level="100">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_what" value="what" checked><label class="form-check-label" for="wh_what">What (什么)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="100">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_who" value="who"><label class="form-check-label" for="wh_who">Who (谁)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="200">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_whom" value="whom"><label class="form-check-label" for="wh_whom">Whom (谁-宾格)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="200">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_whose" value="whose"><label class="form-check-label" for="wh_whose">Whose (谁的)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="200">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_which" value="which"><label class="form-check-label" for="wh_which">Which (哪一个)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="100">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_when" value="when"><label class="form-check-label" for="wh_when">When (何时)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="100">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_where" value="where"><label class="form-check-label" for="wh_where">Where (何地)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="100">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_why" value="why"><label class="form-check-label" for="wh_why">Why (为何)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="100">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_how" value="how"><label class="form-check-label" for="wh_how">How (如何)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="300">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_how_many" value="how_many"><label class="form-check-label" for="wh_how_many">How many (多少可数)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="300">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_how_much" value="how_much"><label class="form-check-label" for="wh_how_much">How much (多少不可数/价格)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="300">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_how_long" value="how_long"><label class="form-check-label" for="wh_how_long">How long (多久/多长)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="300">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_how_often" value="how_often"><label class="form-check-label" for="wh_how_often">How often (多久一次)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                        <div class="option-row" data-level="300">
+                            <div class="form-check"><input class="form-check-input" type="radio" name="whWord" id="wh_how_far" value="how_far"><label class="form-check-label" for="wh_how_far">How far (多远)</label></div>
+                            <div class="mastery-tag"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 感叹句面板 -->
+                <div class="d-none bg-light p-2 border-start border-3 border-warning rounded-end my-2" id="exclamatory-options">
+                    <div class="text-dark fw-bold mb-1 px-1" style="font-size: 0.8rem;">感叹句结构分类：</div>
+                    <div class="option-row" data-level="200">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="exclType" id="ex_what" value="what_n" checked><label class="form-check-label" for="ex_what">What (+a/an) + adj. + n.</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                    <div class="option-row" data-level="200">
+                        <div class="form-check"><input class="form-check-input" type="radio" name="exclType" id="ex_how" value="how_adj"><label class="form-check-label" for="ex_how">How + adj. / adv.</label></div>
+                        <div class="mastery-tag"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 维度 4：时态 -->
+        <div class="card mb-3" id="tense-card">
+            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                <h3 class="card-title text-primary" style="font-size: 0.95rem;">4. 时态 (16 态)</h3>
+                <span class="badge bg-red-lt d-none" id="tense-warning">祈使句无时态</span>
+                <span class="badge bg-yellow-lt d-none" id="subjunctive-warning">虚拟语气覆盖常规时态</span>
+            </div>
+            <div class="card-body p-2" id="tense-body">
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_ps" value="p_s" checked><label class="form-check-label" for="t_ps">一般现在时 (Present Simple)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pas" value="pa_s"><label class="form-check-label" for="t_pas">一般过去时 (Past Simple)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_fs" value="f_s"><label class="form-check-label" for="t_fs">一般将来时 (Future Simple)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pc" value="p_c"><label class="form-check-label" for="t_pc">现在进行时 (Present Continuous)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pp" value="p_p"><label class="form-check-label" for="t_pp">现在完成时 (Present Perfect)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pac" value="pa_c"><label class="form-check-label" for="t_pac">过去进行时 (Past Continuous)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pap" value="pa_p"><label class="form-check-label" for="t_pap">过去完成时 (Past Perfect)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pfs" value="pf_s"><label class="form-check-label" for="t_pfs">过去将来时 (Past-Future Simple)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_fc" value="f_c"><label class="form-check-label" for="t_fc">将来进行时 (Future Continuous)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_ppc" value="p_pc"><label class="form-check-label" for="t_ppc">现在完成进行时 (Pres. Perf. Cont.)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_fp" value="f_p"><label class="form-check-label" for="t_fp">将来完成时 (Future Perfect)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_papc" value="pa_pc"><label class="form-check-label" for="t_papc">过去完成进行时 (Past Perf. Cont.)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="500">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pfc" value="pf_c"><label class="form-check-label" for="t_pfc">过去将来进行时 (Past-Fut. Cont.)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="500">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_fpc" value="f_pc"><label class="form-check-label" for="t_fpc">将来完成进行时 (Fut. Perf. Cont.)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="600">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pfp" value="pf_p"><label class="form-check-label" for="t_pfp">过去将来完成时 (Past-Fut. Perf.)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="600">
+                    <div class="form-check"><input class="form-check-input" type="radio" name="tense" id="t_pfpc" value="pf_pc"><label class="form-check-label" for="t_pfpc">过去将来完成进行 (Past-Fut. Perf. Cont.)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 维度 5：修饰与高阶句法 -->
+        <div class="card mb-4">
+            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                <h3 class="card-title text-primary" style="font-size: 0.95rem;">5. 修饰与高阶句法</h3>
+                <button type="button" class="btn btn-sm btn-ghost-secondary" id="reset-ext-btn" style="font-size: 0.7rem; padding: 2px 6px;">清空修饰</button>
+            </div>
+            <div class="card-body p-2">
+                
+                <!-- A: 情态动词 -->
+                <div class="section-title text-purple px-2">A. 情绪与语气 (情态动词)</div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_can" value="can"><label class="form-check-label" for="m_can">Can / Could (能力/许可)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_will" value="will"><label class="form-check-label" for="m_will">Will / Would (意愿/请求)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_must" value="must"><label class="form-check-label" for="m_must">Must (必须/肯定推测)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_shall" value="shall"><label class="form-check-label" for="m_shall">Shall / Should (建议/义务)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_may" value="may"><label class="form-check-label" for="m_may">May / Might (推测/许可)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_semi" value="semi_modals"><label class="form-check-label" for="m_semi">Have to / Used to / Be able to</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_ought" value="ought"><label class="form-check-label" for="m_ought">Ought to (应当)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_need" value="need"><label class="form-check-label" for="m_need">Need / Dare (情态用法)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="500">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_modals" id="m_have_done" value="modal_have_done"><label class="form-check-label text-purple" for="m_have_done">推测/遗憾 (Modal + have done)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <!-- B: 定语结构 -->
+                <div class="section-title text-teal px-2">B. 装饰名词 (定语结构)</div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_adj" value="adj"><label class="form-check-label" for="att_adj">形容词前置修饰</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_prep" value="prep"><label class="form-check-label" for="att_prep">介词短语后置 (in/on/at)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_clause" value="clause"><label class="form-check-label" for="att_clause">限制性定语从句 (who/which/that)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_doing" value="doing"><label class="form-check-label" for="att_doing">V-ing / V-ed 分词短语修饰</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_todo" value="todo"><label class="form-check-label" for="att_todo">To do 不定式短语修饰</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="500">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_non_res" value="non_restrictive"><label class="form-check-label text-teal" for="att_non_res">非限制性定语从句 (, which)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="500">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_attr" id="att_prep_rel" value="prep_rel"><label class="form-check-label text-teal" for="att_prep_rel">介词+关系词 (in which / with whom)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <!-- C: 状语结构 (按要求 12 项完全保留，平滑分布) -->
+                <div class="section-title text-blue px-2">C. 装饰背景 (状语类型)</div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_time" value="time"><label class="form-check-label" for="adv_time">时间状语 (Time)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="0">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_place" value="place"><label class="form-check-label" for="adv_place">地点状语 (Place)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_manner" value="manner"><label class="form-check-label" for="adv_manner">方式状语 (Manner)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_reason" value="reason"><label class="form-check-label" for="adv_reason">原因状语 (Because/Since)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="100">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_frequency" value="frequency"><label class="form-check-label" for="adv_frequency">频率状语 (Often/Never)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_condition" value="condition"><label class="form-check-label" for="adv_condition">条件状语 (If/Unless)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_purpose" value="purpose"><label class="form-check-label" for="adv_purpose">目的状语 (In order that)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="200">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_comparison" value="comparison"><label class="form-check-label" for="adv_comparison">比较状语 (Than/As...as)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_degree" value="degree"><label class="form-check-label text-blue" for="adv_degree">程度状语 (Extremely...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_concession" value="concession"><label class="form-check-label" for="adv_concession">让步状语 (Although/Even if)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="300">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_result" value="result"><label class="form-check-label" for="adv_result">结果状语 (So...that)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv" id="adv_comment" value="comment"><label class="form-check-label text-blue" for="adv_comment">观点/评注状语 (Frankly...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <!-- D: 名词性从句与并列 -->
+                <div class="section-title text-green px-2">D. 名词性从句与并列</div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_noun_clause" id="nc_pred" value="predicative"><label class="form-check-label" for="nc_pred">表语从句 (That is why...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="400">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_noun_clause" id="nc_app" value="appositive"><label class="form-check-label" for="nc_app">同位语从句 (The news that...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="500">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_coord" id="co_correlative" value="correlative"><label class="form-check-label" for="co_correlative">关联连词 (Not only...but also)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+                <!-- E: 高阶与特殊句法 (600 - 1000 分严密解锁) -->
+                <div class="section-title text-orange px-2">E. 高阶与特殊句法</div>
+                <div class="option-row" data-level="600">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_cond" value="subj_cond"><label class="form-check-label" for="as_cond">If 条件虚拟语气 (If I were...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="600">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_req" value="subj_req"><label class="form-check-label" for="as_req">命令建议虚拟 ((should) do)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="700">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_wish" value="subj_wish"><label class="form-check-label" for="as_wish">Wish / As if 虚拟语气</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="700">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_inv_part" value="inv_part"><label class="form-check-label" for="as_inv_part">部分倒装 (Never have I...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="700">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_inv_full" value="inv_full"><label class="form-check-label" for="as_inv_full">完全倒装 (Here comes...)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="800">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_emphatic" value="emphatic"><label class="form-check-label" for="as_emphatic">强调句型 (It is...that)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="800">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_non_finite_asp" value="non_finite_aspect"><label class="form-check-label text-orange" for="as_non_finite_asp">非谓语完成态/被动态 (Having done)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="900">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_absolute" value="absolute"><label class="form-check-label" for="as_absolute">独立主格 (Absolute Structure)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="900">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_ellipsis" value="ellipsis"><label class="form-check-label" for="as_ellipsis">省略句 (Ellipsis)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+                <div class="option-row" data-level="1000">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ext_adv_struc" id="as_parenthetical" value="parenthetical"><label class="form-check-label" for="as_parenthetical">插入语 (Parenthetical)</label></div>
+                    <div class="mastery-tag"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部生成按钮 -->
+    <div class="app-footer">
+        <button class="btn btn-primary w-100 rounded-3" id="generate-btn" style="height: 48px; font-size: 1.05rem; font-weight: 700; box-shadow: 0 4px 12px rgba(32,107,196,0.3);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-wand" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 21l15 -15l-3 -3l-15 15l3 3"/><path d="M15 6l3 3"/><path d="M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"/><path d="M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"/></svg>
+            生成句子语法配方
+        </button>
+    </div>
+
+</div>
+
+<!-- 语法配方展示 Modal -->
+<div class="modal modal-blur fade" id="recipe-modal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2 px-3">
+        <h5 class="modal-title">当前句型配方架构 (Syntactic Recipe)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-3">
+        <div class="text-muted mb-2" style="font-size: 0.8rem;">已为你构建如下语法组合架构：</div>
+        <div class="p-3 bg-dark text-white rounded font-monospace" id="recipe-output" style="font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap;"></div>
+      </div>
+      <div class="modal-footer py-2 px-3">
+        <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">确定并返回</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabler Core JS -->
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+<!-- 原生交互与分级过滤逻辑 -->
+<script>
+    // 初始化模拟“掌握度”假数据生成
+    function initMockMasteryData() {
+        const rows = document.querySelectorAll('.option-row');
+        rows.forEach(row => {
+            const masteryTag = row.querySelector('.mastery-tag');
+            if (!masteryTag) return;
+
+            const pct = Math.floor(Math.random() * 101);
+            let symbol = '○';
+            let colorClass = 'text-secondary';
+
+            if (pct > 95) { symbol = '●'; colorClass = 'text-success'; }
+            else if (pct > 75) { symbol = '◕'; colorClass = 'text-primary'; }
+            else if (pct > 50) { symbol = '◑'; colorClass = 'text-warning'; }
+            else if (pct > 20) { symbol = '◔'; colorClass = 'text-info'; }
+
+            masteryTag.className = `mastery-tag ${colorClass}`;
+            masteryTag.innerHTML = `${symbol} ${pct}%`;
+        });
+    }
+
+    // 双字阶段映射字典（全量 11 级映射）
+    const levelNamesMap = { 
+        0: '启蒙 (0分)', 
+        100: '入门 (100分)', 
+        200: '筑基 (200分)', 
+        300: '初成 (300分)', 
+        400: '小成 (400分)', 
+        500: '进阶 (500分)', 
+        600: '大成 (600分)',
+        700: '精深 (700分)',
+        800: '化境 (800分)',
+        900: '登峰 (900分)',
+        1000: '无极 (1000分)'
+    };
+
+    // 监听级别切换事件
+    const levelInputs = document.querySelectorAll('input[name="user_level"]');
+    levelInputs.forEach(input => input.addEventListener('change', filterByLevel));
+
+    function filterByLevel() {
+        const selectedLevel = parseInt(document.querySelector('input[name="user_level"]:checked').value, 10);
+        
+        // 更新顶部 Badge 标识
+        document.getElementById('current-level-badge').innerText = levelNamesMap[selectedLevel] || `${selectedLevel}分`;
+
+        // 包含式过滤所有包含 data-level 属性的行
+        const rows = document.querySelectorAll('.option-row[data-level]');
+        rows.forEach(row => {
+            const itemLevel = parseInt(row.getAttribute('data-level'), 10);
+            const rowInput = row.querySelector('input');
+
+            if (itemLevel <= selectedLevel) {
+                row.classList.remove('d-none');
+            } else {
+                row.classList.add('d-none');
+                if (rowInput && rowInput.checked) {
+                    rowInput.checked = false;
+                    
+                    if (rowInput.type === 'radio') {
+                        const name = rowInput.name;
+                        const visibleFirst = document.querySelector(`.option-row:not(.d-none) input[name="${name}"]`);
+                        if (visibleFirst) visibleFirst.checked = true;
+                    }
+                }
+            }
+        });
+
+        updateMobileLogic();
+    }
+
+    // 核心 UI 逻辑联动
+    const allInputs = document.querySelectorAll('input:not([name="user_level"])');
+    allInputs.forEach(input => input.addEventListener('change', updateMobileLogic));
+
+    // 一键清空修饰
+    document.getElementById('reset-ext-btn').addEventListener('click', function() {
+        const extCheckboxes = document.querySelectorAll('input[name^="ext_"]');
+        extCheckboxes.forEach(cb => cb.checked = false);
+        updateMobileLogic();
+    });
+
+    function updateMobileLogic() {
+        const patternRadio = document.querySelector('input[name="pattern"]:checked');
+        const pattern = patternRadio ? patternRadio.value : 'sv';
+
+        const sentTypeRadio = document.querySelector('input[name="sentType"]:checked');
+        const sentType = sentTypeRadio ? sentTypeRadio.value : 'declarative';
+
+        // 逻辑 1：S+V, S+V+P, There Be 不适用被动语态
+        const passiveRadio = document.getElementById('voice_pas');
+        const activeRadio = document.getElementById('voice_act');
+        const passiveRow = document.getElementById('voice-passive-row');
+        const voiceWarning = document.getElementById('voice-warning');
+
+        if (['sv', 'svp', 'therebe'].includes(pattern)) {
+            passiveRow.classList.add('disabled-layer');
+            passiveRadio.disabled = true;
+            activeRadio.checked = true;
+            voiceWarning.classList.remove('d-none');
+        } else {
+            passiveRow.classList.remove('disabled-layer');
+            passiveRadio.disabled = false;
+            voiceWarning.classList.add('d-none');
+        }
+
+        // 逻辑 2：疑问句与感叹句面板联动
+        const interBox = document.getElementById('interrogative-options');
+        const exclBox = document.getElementById('exclamatory-options');
+        const whBox = document.getElementById('wh-words-box');
+        const polarityGroup = document.getElementById('polarity-group');
+        const polarityTitle = document.getElementById('polarity-title');
+
+        interBox.classList.add('d-none');
+        exclBox.classList.add('d-none');
+        whBox.classList.add('d-none');
+
+        if (sentType === 'interrogative') {
+            interBox.classList.remove('d-none');
+            const intType = document.querySelector('input[name="intType"]:checked');
+            if (intType && intType.value === 'special') {
+                whBox.classList.remove('d-none');
+            }
+        } else if (sentType === 'exclamatory') {
+            exclBox.classList.remove('d-none');
+        }
+
+        if (sentType === 'exclamatory') {
+            polarityGroup.classList.add('disabled-layer');
+            polarityTitle.classList.add('text-muted');
+        } else {
+            polarityGroup.classList.remove('disabled-layer');
+            polarityTitle.classList.remove('text-muted');
+        }
+
+        // 逻辑 3：祈使句无时态，虚拟语气提示
+        const tenseBody = document.getElementById('tense-body');
+        const tenseWarning = document.getElementById('tense-warning');
+        const subjWarning = document.getElementById('subjunctive-warning');
+        
+        const isSubjunctiveCond = document.getElementById('as_cond') && document.getElementById('as_cond').checked;
+        const isSubjunctiveReq = document.getElementById('as_req') && document.getElementById('as_req').checked;
+        const isSubjunctiveWish = document.getElementById('as_wish') && document.getElementById('as_wish').checked;
+
+        if (sentType === 'imperative') {
+            tenseBody.classList.add('disabled-layer');
+            tenseWarning.classList.remove('d-none');
+            subjWarning.classList.add('d-none');
+        } else {
+            tenseBody.classList.remove('disabled-layer');
+            tenseWarning.classList.add('d-none');
+            if (isSubjunctiveCond || isSubjunctiveReq || isSubjunctiveWish) {
+                subjWarning.classList.remove('d-none');
+            } else {
+                subjWarning.classList.add('d-none');
+            }
+        }
+    }
+
+    // 生成配方按钮逻辑
+    document.getElementById('generate-btn').addEventListener('click', function() {
+        const getRadioText = (name) => {
+            const checked = document.querySelector(`input[name="${name}"]:checked`);
+            if (!checked) return '无';
+            const row = checked.closest('.option-row');
+            const label = row ? row.querySelector('.form-check-label') : null;
+            return label ? label.innerText.trim() : '无';
+        };
+
+        const getCheckboxesText = (name) => {
+            const checked = document.querySelectorAll(`input[name="${name}"]:checked`);
+            if (checked.length === 0) return null;
+            return Array.from(checked).map(c => {
+                const row = c.closest('.option-row');
+                const label = row ? row.querySelector('.form-check-label') : null;
+                return label ? label.innerText.trim() : '';
+            }).filter(Boolean).join(', ');
+        };
+
+        let summary = [];
+        const levelName = document.getElementById('current-level-badge').innerText;
+        summary.push(`【能力阶段】: ${levelName}`);
+        summary.push(`【基本骨架】: ${getRadioText('pattern')}`);
+        summary.push(`【主宾构成】: 主语(${getRadioText('subj_type')}) | 宾/补语(${getRadioText('obj_type')})`);
+        summary.push(`【语态极性】: ${getRadioText('voice')} | ${getRadioText('polarity')}`);
+        
+        const currentSentType = document.querySelector('input[name="sentType"]:checked').value;
+        let sentTypeStr = getRadioText('sentType');
+        if (currentSentType === 'interrogative') {
+            sentTypeStr += ` -> ${getRadioText('intType')}`;
+            const intTypeChecked = document.querySelector('input[name="intType"]:checked');
+            if (intTypeChecked && intTypeChecked.value === 'special') {
+                sentTypeStr += ` (${getRadioText('whWord')})`;
+            }
+        } else if (currentSentType === 'exclamatory') {
+            sentTypeStr += ` -> ${getRadioText('exclType')}`;
+        }
+        summary.push(`【沟通句式】: ${sentTypeStr}`);
+        
+        if (currentSentType !== 'imperative') {
+            summary.push(`【时态选择】: ${getRadioText('tense')}`);
+        } else {
+            summary.push(`【时态选择】: 无 (祈使句动词原形)`);
+        }
+
+        let extDetails = [];
+        if (getCheckboxesText('ext_modals')) extDetails.push(`情绪/情态: ${getCheckboxesText('ext_modals')}`);
+        if (getCheckboxesText('ext_attr')) extDetails.push(`名词定语: ${getCheckboxesText('ext_attr')}`);
+        if (getCheckboxesText('ext_adv')) extDetails.push(`背景状语: ${getCheckboxesText('ext_adv')}`);
+        if (getCheckboxesText('ext_noun_clause')) extDetails.push(`名词从句: ${getCheckboxesText('ext_noun_clause')}`);
+        if (getCheckboxesText('ext_coord')) extDetails.push(`并列复合: ${getCheckboxesText('ext_coord')}`);
+        if (getCheckboxesText('ext_adv_struc')) extDetails.push(`高阶句法: ${getCheckboxesText('ext_adv_struc')}`);
+
+        if (extDetails.length > 0) {
+            summary.push(`\n【高阶修饰层】:\n - ` + extDetails.join('\n - '));
+        } else {
+            summary.push(`\n【高阶修饰层】: 未叠加额外修饰`);
+        }
+
+        document.getElementById('recipe-output').innerText = summary.join('\n');
+        
+        const modalEl = document.getElementById('recipe-modal');
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modalInstance.show();
+    });
+
+    // 初始化运行
+    initMockMasteryData();
+    filterByLevel();
+</script>
+</body>
+</html>
