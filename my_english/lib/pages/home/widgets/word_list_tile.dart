@@ -603,8 +603,8 @@ class _MeaningRow extends StatelessWidget {
         SizedBox(
           width: 36,
           child: Text(
-            // 词性为空时仍保留列宽。
-            meaning.pos,
+            // 词性大写显示，空词性显示 '*'。
+            meaning.displayPos,
             textAlign: TextAlign.right,
             style: TextStyle(
               color: tokens.textSecondary,

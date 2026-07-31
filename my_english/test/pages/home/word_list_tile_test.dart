@@ -118,10 +118,10 @@ void main() {
     // 等待展开动画。
     await tester.pumpAndSettle();
 
-    // 两条 Meaning 全部可见。
-    expect(find.text('n.'), findsOneWidget);
+    // 两条 Meaning 全部可见（词性大写显示）。
+    expect(find.text('N.'), findsOneWidget);
     expect(find.text('能力、才能'), findsOneWidget);
-    expect(find.text('adj.'), findsOneWidget);
+    expect(find.text('ADJ.'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整体高度超过标题行。
     expect(

@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
+// 引入全局 ScaffoldMessenger Key，测试需注入同一 key 才能找到根级 SnackBar。
+import 'package:my_english/app.dart';
 // 引入全局 Meaning 与 Word 模型。
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
@@ -1240,6 +1242,8 @@ Future<void> _pumpHome(
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
     MaterialApp(
+      // 注入全局 ScaffoldMessenger Key，让根级 SnackBar 可被测试找到。
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       // HomePage 通过构造器注入测试 Store 与静音播放器。
       home: HomePage(
         // UniqueKey 强制每次 pump 创建全新 State；否则同一用例内换数据重

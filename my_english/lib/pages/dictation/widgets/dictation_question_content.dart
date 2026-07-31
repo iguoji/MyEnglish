@@ -795,7 +795,7 @@ class _StepContent extends StatelessWidget {
             step.status == DictationStepStatus.done)) {
       final label = step.kind == DictationStepKind.word
           ? '正确单词 ${step.word ?? ''}'
-          : '词性 ${step.pos ?? '释义'}，含义 ${step.definitions!.join(definitionSeparator)}';
+          : '词性 ${step.pos?.toUpperCase() ?? '释义'}，含义 ${step.definitions!.join(definitionSeparator)}';
       return Semantics(
         label: label,
         container: true,
@@ -832,7 +832,8 @@ class _PosBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        pos,
+        // 词性大写显示。
+        pos.toUpperCase(),
         style: TextStyle(
           // 文字直接用眼色，不再套边框；保持正体，不斜体。
           color: AppTokens.accent,

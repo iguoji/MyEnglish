@@ -142,7 +142,7 @@ class _MeaningAnswerBlock extends StatelessWidget {
       children: [
         // 词性始终可见，不参与答案遮挡。
         Text(
-          meaning.pos,
+          meaning.displayPos,
           // 稳定 key 让测试可以读取按住前后的绝对坐标。
           key: Key('listening-pos-${meaning.index}'),
           style: TextStyle(

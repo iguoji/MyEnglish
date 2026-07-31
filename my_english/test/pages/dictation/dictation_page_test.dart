@@ -69,11 +69,11 @@ void main() {
     // 正确拼写进入第一个词义的第一条释义。
     await tester.tap(find.text('ability'));
     await tester.pump();
-    expect(find.text('n. · 选择释义 1/2'), findsOneWidget);
+    expect(find.text('N. · 选择释义 1/2'), findsOneWidget);
     _expectFourOptions(tester);
     await tester.tap(find.text('能力'));
     await tester.pump();
-    expect(find.text('n. · 选择释义 2/2'), findsOneWidget);
+    expect(find.text('N. · 选择释义 2/2'), findsOneWidget);
     _expectFourOptions(tester);
     await tester.tap(find.text('才能'));
     await tester.pump();
@@ -85,8 +85,8 @@ void main() {
     // 步骤一次性列出：第一步“听音选词”已完成，第二条是该词性的释义。
     expect(find.byKey(const Key('dictation-step-word')), findsOneWidget);
     expect(find.byKey(const Key('dictation-step-meaning-0')), findsOneWidget);
-    // 释义步骤展示词性小标签与已答出的两条释义 chips。
-    expect(find.text('n.'), findsOneWidget);
+    // 释义步骤展示词性小标签与已答出的两条释义 chips（词性大写显示）。
+    expect(find.text('N.'), findsOneWidget);
     expect(find.text('能力'), findsOneWidget);
     expect(find.text('才能'), findsOneWidget);
     // 四个候选、提示和播放整组隐藏。

@@ -8,9 +8,11 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+// 引入全局 ScaffoldMessenger Key，让 SnackBar 在根级显示，不被 Drawer 遮挡。
+import '../../../app.dart';
 // 设置 Store 与口音/分隔符/主题枚举；抽屉内直接复用全局设置。
 import '../../../store/settings.dart';
-// 离线语音缓存进度服务：抽屉内的“离线语音”入口实时读取与驱动后台预缓存。
+// 离线语音缓存进度服务：抽屉内的"离线语音"入口实时读取与驱动后台预缓存。
 import '../../../services/word_audio_cache.dart';
 
 /// 右侧抽屉菜单：顶部品牌区 + Primary 添加按钮 + 数据入口 + 内嵌设置卡片 + 页脚联系。
@@ -281,7 +283,7 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'v0.11.6',
+                        'v0.11.7',
                         style: TextStyle(
                           // Azure 加深色文字。
                           color: badgeText,
@@ -423,10 +425,18 @@ class _DrawerOfflineSpeech extends StatelessWidget {
                 // 已经全部缓存完毕时不再重复下载，直接给一句提示即可。
                 if (cache.percent >= 100) {
                   // 先移除上一条提示，避免快速重复点击时堆叠。
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  // 轻提示“已完整”，不打断用户。
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('离线语音已缓存完整')),
+                  rootScaffoldMessengerKey.currentState?.hideCurrentSnackBar();
+                  // 轻提示"已完整"，用全局 key 让 SnackBar 在根级显示，不被 Drawer 遮挡。
+                  rootScaffoldMessengerKey.currentState?.showSnackBar(
+                    const SnackBar(
+                      content: SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          '离线语音已缓存完整',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
                   );
                   return;
                 }

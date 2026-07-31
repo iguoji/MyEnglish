@@ -501,7 +501,7 @@ class _DictationPageState extends State<DictationPage> {
         );
       }
       // 没有词性的旧数据用“释义”兜底，避免步骤出现空标题。
-      final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.pos.trim();
+      final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.displayPos;
       steps.add(
         DictationStep(
           kind: DictationStepKind.meaning,
@@ -526,7 +526,7 @@ class _DictationPageState extends State<DictationPage> {
     // 拼写阶段引导用户通过发音选出单词。
     if (_stage == DictationStage.word) return '听音，选出正确的单词';
     final meaning = _availableMeanings[_meaningIndex];
-    final pos = meaning.pos.isEmpty ? '释义' : meaning.pos;
+    final pos = meaning.pos.isEmpty ? '释义' : meaning.displayPos;
     return '$pos · 选择释义 ${_definitionIndex + 1}/${meaning.definitions.length}';
   }
 

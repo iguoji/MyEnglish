@@ -35,6 +35,12 @@ class Meaning {
   /// 不可变释义列表，类型相当于 PHPDoc 的 `string[]`。
   final List<String> definitions;
 
+  /// 展示用词性：全部大写，空词性返回 '*'。
+  ///
+  /// 原始 [pos] 保持原样存储（如 "n."、"vt."）；UI 展示时调用此 getter
+  /// 得到 "N."、"VT."，保持数据层与展示层解耦。
+  String get displayPos => pos.isEmpty ? '*' : pos.toUpperCase();
+
   /// 创建、更新和软删除时间。
   final DateTime? createdAt;
   final DateTime? updatedAt;
