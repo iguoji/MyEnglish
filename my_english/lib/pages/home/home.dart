@@ -14,6 +14,8 @@ import 'package:flutter/services.dart';
 
 // 引入公共主题与设计令牌。
 import '../../common/theme.dart';
+// 引入全局 Toast 工具，替代 ScaffoldMessenger，层级高于 Drawer/BottomSheet。
+import '../../common/toast.dart';
 // 日期 helper 负责列表与分组标题的日期格式。
 import '../../common/date.dart';
 // Word 是全应用共享模型，不属于首页私有文件。
@@ -880,12 +882,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       debugPrintStack(stackTrace: stackTrace);
       // 只有当前请求仍对应这行时才提示；旧请求失败不能干扰新播放。
       if (mounted && identical(_playingWord, word)) {
-        // 先移除上一条提示，避免快速点击造成 SnackBar 排队。
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        // 向用户显示明确失败，并保留原生汇总的双音源原因。
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法播放"${word.spelling}"：$error')),
-        );
+        // Toast 基于根 Overlay，层级高于 Drawer/BottomSheet。
+        Toast.show(context, '无法播放"${word.spelling}"：$error');
       }
     } finally {
       // 只有当前行仍是这次请求时才隐藏喇叭；旧 Future 不能清掉新行状态。
@@ -958,10 +956,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (error) {
       // 失败时保留面板并提示原因。
       if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('保存单词失败：$error')));
+      Toast.show(context, '保存单词失败：$error');
     }
   }
 
@@ -1090,10 +1085,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (error) {
       // 删除失败提示原因。
       if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('删除失败：$error')));
+      Toast.show(context, '删除失败：$error');
     }
   }
 
@@ -1150,10 +1142,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 批量操作中途失败：仅把错误原因提示给用户，
       // 收尾（清选择+刷新）交给下方 finally 统一执行。
       if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('操作失败：$error')));
+      Toast.show(context, '操作失败：$error');
     } finally {
       // 抽成独立 async 函数，避免 finally 里用 return 提前退出引发 lint；
       // 同时集中处理「组件已卸载」的情况，让 finally 只做纯粹的收尾。
@@ -1176,20 +1165,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 尚未在本轮原型中定义具体页面的菜单项使用统一提示。
   void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('「$feature」功能正在整理中')));
+    Toast.show(context, '「$feature」功能正在整理中');
   }
 
-  /// 统一的轻提示，避免每个分支重复写 ScaffoldMessenger。
+  /// 统一的轻提示，全系统使用同一 Toast 接口，层级高于 Drawer/BottomSheet。
   void _showSnackBar(String message) {
-    // 先收起上一条，避免提示堆叠。
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    // 弹出新的提示条。
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    // Toast 基于根 Overlay，不被任何 modal route 遮挡。
+    Toast.show(context, message);
   }
 
   /// 数据导入：打开系统文件选择器读取 JSON，解析后整库替换写入本地。
@@ -1288,7 +1270,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 标识来源 App。
         'app': 'MyEnglish',
         // 与 pubspec 版本保持一致。
-        'version': '0.11.7',
+        'version': '0.11.8',
         // 导出时间，便于区分多份备份。
         'exportedAt': DateTime.now().toIso8601String(),
         // 分组列表，导入时整库重建。
@@ -1727,12 +1709,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await Clipboard.setData(const ClipboardData(text: email));
     // 组件可能已被销毁（如快速返回），先确认仍挂载再弹提示。
     if (!mounted) return;
-    // 收起抽屉，让底部提示完整可见。
+    // 收起抽屉，让底部 Toast 完整可见。
     _scaffoldKey.currentState?.closeEndDrawer();
-    // ScaffoldMessenger 在页面底部滑出一条轻提示。
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已复制作者邮箱：$email')),
-    );
+    // Toast 基于根 Overlay，层级高于 Drawer。
+    Toast.show(context, '已复制作者邮箱：$email');
   }
 
   /// build 对应小程序 WXML：把当前 State 转成界面树。

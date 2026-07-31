@@ -8,8 +8,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
-// 引入全局 ScaffoldMessenger Key，让 SnackBar 在根级显示，不被 Drawer 遮挡。
-import '../../../app.dart';
+// 引入全局 Toast 工具，层级高于 Drawer/BottomSheet。
+import '../../../common/toast.dart';
 // 设置 Store 与口音/分隔符/主题枚举；抽屉内直接复用全局设置。
 import '../../../store/settings.dart';
 // 离线语音缓存进度服务：抽屉内的"离线语音"入口实时读取与驱动后台预缓存。
@@ -198,12 +198,8 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
 
   /// 统一显示主题切换失败。
   void _showSaveError(Object error) {
-    // 先移除上一条提示，避免快速失败时叠加队列。
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    // SnackBar 不打断用户当前操作。
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('主题切换失败：$error')));
+    // Toast 基于根 Overlay，层级高于 Drawer。
+    Toast.show(context, '主题切换失败：$error');
   }
 
   /// 输出三栏横向布局。
@@ -283,7 +279,7 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'v0.11.7',
+                        'v0.11.8',
                         style: TextStyle(
                           // Azure 加深色文字。
                           color: badgeText,
@@ -424,20 +420,8 @@ class _DrawerOfflineSpeech extends StatelessWidget {
               onTap: () {
                 // 已经全部缓存完毕时不再重复下载，直接给一句提示即可。
                 if (cache.percent >= 100) {
-                  // 先移除上一条提示，避免快速重复点击时堆叠。
-                  rootScaffoldMessengerKey.currentState?.hideCurrentSnackBar();
-                  // 轻提示"已完整"，用全局 key 让 SnackBar 在根级显示，不被 Drawer 遮挡。
-                  rootScaffoldMessengerKey.currentState?.showSnackBar(
-                    const SnackBar(
-                      content: SizedBox(
-                        width: double.infinity,
-                        child: Text(
-                          '离线语音已缓存完整',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  );
+                  // Toast 基于根 Overlay，层级高于 Drawer，不被遮挡。
+                  Toast.show(context, '离线语音已缓存完整');
                   return;
                 }
                 // 否则进入缓存（进行中时内部自动忽略重复点击）。
@@ -648,12 +632,8 @@ class _SettingsCardState extends State<_SettingsCard> {
 
   /// 统一显示设置保存错误。
   void _showSaveError(Object error) {
-    // 先移除上一条提示，避免快速失败时叠加队列。
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    // SnackBar 不打断用户当前设置操作。
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('设置保存失败：$error')));
+    // Toast 基于根 Overlay，层级高于 Drawer。
+    Toast.show(context, '设置保存失败：$error');
   }
 
   /// 输出卡片容器 + 两行设置（口语发音 / 单词分隔）。

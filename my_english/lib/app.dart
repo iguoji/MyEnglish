@@ -8,11 +8,6 @@ import 'pages/home/home.dart';
 // 引入全局设置 Store，MaterialApp 会监听其中的主题变化。
 import 'store/settings.dart';
 
-/// 全局 ScaffoldMessenger Key，让 SnackBar 挂在根级 Scaffold 之上，
-/// 不被 Drawer/BottomSheet 等高 zIndex 层级遮挡。
-final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
-    GlobalKey<ScaffoldMessengerState>();
-
 /// 应用根组件；它负责全局配置，不处理首页内部业务。
 class MainApp extends StatelessWidget {
   /// App 启动前必须传入已经读取本地数据的设置 Store。
@@ -36,8 +31,6 @@ class MainApp extends StatelessWidget {
           title: 'My English',
           // 关闭右上角 DEBUG 横幅；只影响显示，不影响调试能力。
           debugShowCheckedModeBanner: false,
-          // 注入全局 ScaffoldMessenger Key，让 SnackBar 在最顶层显示。
-          scaffoldMessengerKey: rootScaffoldMessengerKey,
           // 浅色完整使用 Material 3 配置。
           theme: AppTheme.light,
           // 深色完整使用 Material 3 配置。

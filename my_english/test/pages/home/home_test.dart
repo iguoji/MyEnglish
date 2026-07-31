@@ -11,8 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
-// 引入全局 ScaffoldMessenger Key，测试需注入同一 key 才能找到根级 SnackBar。
-import 'package:my_english/app.dart';
 // 引入全局 Meaning 与 Word 模型。
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
@@ -113,9 +111,12 @@ void main() {
 
     // 点击页脚邮箱图标（页脚已改为仅图标）。
     await tester.tap(find.byIcon(TablerIcons.mail));
-    await tester.pumpAndSettle();
+    // Toast 基于 Overlay + Future.delayed，pump 一帧让 Overlay 插入，
+    // 再 pump 进场动画完成。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
-    // 应弹出复制成功提示。
+    // 应弹出复制成功提示（Toast 文字居中对齐）。
     expect(
       find.text('已复制作者邮箱：asgeg@qq.com'),
       findsOneWidget,
@@ -123,6 +124,10 @@ void main() {
     // 剪贴板中应已写入该邮箱。
     final clipboard = await Clipboard.getData('text/plain');
     expect(clipboard?.text, 'asgeg@qq.com');
+
+    // 等待 Toast 定时器到期并完成退场动画，避免 pending timer。
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -290,10 +295,17 @@ void main() {
 
     // 点击入口：应给提示且不再发起预缓存。
     await tester.tap(find.byKey(const Key('offline-speech')));
-    await tester.pumpAndSettle();
+    // Toast 基于 Overlay + Future.delayed，pump 一帧让 Overlay 插入，
+    // 再 pump 进场动画完成。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
     expect(precacheCalled, isFalse);
-    // 提示文案出现。
+    // 提示文案出现（Toast 文字居中对齐）。
     expect(find.text('离线语音已缓存完整'), findsOneWidget);
+
+    // 等待 Toast 定时器到期并完成退场动画，避免 pending timer。
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1242,8 +1254,6 @@ Future<void> _pumpHome(
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
     MaterialApp(
-      // 注入全局 ScaffoldMessenger Key，让根级 SnackBar 可被测试找到。
-      scaffoldMessengerKey: rootScaffoldMessengerKey,
       // HomePage 通过构造器注入测试 Store 与静音播放器。
       home: HomePage(
         // UniqueKey 强制每次 pump 创建全新 State；否则同一用例内换数据重

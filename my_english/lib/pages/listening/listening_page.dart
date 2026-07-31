@@ -8,6 +8,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局设计令牌。
 import '../../common/theme.dart';
+// 引入全局 Toast 工具，层级高于 BottomSheet。
+import '../../common/toast.dart';
 // 引入单词数据模型。
 import '../../models/word.dart';
 // 引入可替换的单词发音服务。
@@ -130,10 +132,8 @@ class _ListeningPageState extends State<ListeningPage> {
         if (!mounted || serial != _playSerial) return;
         // setState 类似小程序 setData，修改后会重绘播放按钮和状态文字。
         setState(() => _isPlaying = false);
-        // SnackBar 以非阻塞方式显示具体失败原因。
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('播放失败：$error')));
+        // Toast 以非阻塞方式显示具体失败原因，层级高于 BottomSheet。
+        Toast.show(context, '播放失败：$error');
         // 当前循环已经失败，不能继续倒计时或推进单词。
         return;
       }

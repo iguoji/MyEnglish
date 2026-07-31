@@ -11,6 +11,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入应用设计令牌。
 import '../../common/theme.dart';
+// 引入全局 Toast 工具，层级高于 BottomSheet。
+import '../../common/toast.dart';
 // 引入词义模型。
 import '../../models/meaning.dart';
 // 引入单词模型。
@@ -189,9 +191,7 @@ class _DictationPageState extends State<DictationPage> {
     } catch (error) {
       // 只有仍是"最新一次播放"时才提示失败，过期的旧请求不打扰用户。
       if (mounted && generation == _playGeneration) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('播放失败：$error')));
+        Toast.show(context, '播放失败：$error');
       }
     } finally {
       // 同理：号码牌过期说明已有更新的播放在跑，绝不能由旧请求清掉播放中状态。
