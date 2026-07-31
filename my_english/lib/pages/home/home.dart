@@ -1129,7 +1129,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 用户取消则什么都不做。
     if (!confirmed) return;
     try {
-      // 清空本地单词与释义（原生 SQLite 两张表）。
+      // 清空 SQLite 全部业务数据，包含单词、释义、分组、记录和默写候选缓存。
       await _store.clearAll();
       // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
       await _settings.clearAll();

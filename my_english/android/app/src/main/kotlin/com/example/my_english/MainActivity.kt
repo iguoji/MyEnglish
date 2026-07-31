@@ -155,9 +155,9 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 清空全部单词与释义，对应「清空数据」入口。
+                    // 清空全部 SQLite 业务数据与默写候选缓存，对应「清空数据」入口。
                     "clearAllWords" -> runDatabaseCall(result) {
-                        // 删除四张表全部记录（含分组与成员）。
+                        // 原生事务会删除词库、分组、记录及候选缓存。
                         wordsDatabase.clearAllWords()
                         null
                     }
@@ -279,6 +279,36 @@ class MainActivity : FlutterActivity() {
                             ?: error("importData 缺少备份数据")
                         // 在事务内重建四张表，返回 null 对应 Dart Future<void>。
                         wordsDatabase.importData(payload)
+                        null
+                    }
+
+                    // 读取一道默写题已经持久化的三个干扰项。
+                    "getDictationOptionCache" -> runDatabaseCall(result) {
+                        // 缓存 key 必须是非空字符串。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("getDictationOptionCache 缺少参数")
+                        val cacheKey = payload["cacheKey"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("getDictationOptionCache 缺少有效 cacheKey")
+                        // null 表示首次生成，List<String> 表示命中缓存。
+                        wordsDatabase.getDictationOptionCache(cacheKey)
+                    }
+
+                    // 新增或覆盖一道默写题的干扰项缓存。
+                    "saveDictationOptionCache" -> runDatabaseCall(result) {
+                        // 读取 Dart Store 提交的 key、可空单词外键与文本数组。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("saveDictationOptionCache 缺少参数")
+                        val cacheKey = payload["cacheKey"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("saveDictationOptionCache 缺少有效 cacheKey")
+                        val wordId = (payload["wordId"] as? Number)?.toLong()
+                        val distractors = (payload["distractors"] as? List<*>)
+                            ?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotEmpty) }
+                            ?: error("saveDictationOptionCache 缺少 distractors")
+                        // 缓存至少要有一项；Dart 页面会进一步保证标准数量为三项。
+                        if (distractors.isEmpty()) error("saveDictationOptionCache 的 distractors 不能为空")
+                        wordsDatabase.saveDictationOptionCache(cacheKey, wordId, distractors)
                         null
                     }
 

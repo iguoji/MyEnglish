@@ -163,6 +163,52 @@ abstract final class DictationOptionGenerator {
     return List<String>.unmodifiable(distractors.take(count));
   }
 
+  /// 为长按刷新寻找一个尚未出现在当前四选一中的新英文干扰项。
+  static String? findReplacementWordDistractor({
+    required String correct,
+    required List<Word> sourceWords,
+    required Iterable<String> excluded,
+  }) {
+    // 英文比较忽略大小写，避免用 Ability 替换 ability 形成视觉重复。
+    final normalizedExcluded = excluded
+        .map((value) => value.trim().toLowerCase())
+        .toSet();
+    // 请求较大的候选池；生成器仍按相似度顺序返回，因此替换项不会突然变得离谱。
+    final candidates = buildWordDistractors(
+      correct: correct,
+      sourceWords: sourceWords,
+      count: 64,
+    );
+    // 返回第一个未在当前选项中的候选；候选池耗尽时返回 null 交给 UI 提示。
+    for (final candidate in candidates) {
+      if (!normalizedExcluded.contains(candidate.trim().toLowerCase())) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /// 为长按刷新寻找一个尚未出现在当前四选一中的新中文释义干扰项。
+  static String? findReplacementDefinitionDistractor({
+    required String correct,
+    required List<Word> sourceWords,
+    required Iterable<String> excluded,
+  }) {
+    // 中文释义按去除首尾空格后的完整文本判重。
+    final normalizedExcluded = excluded.map((value) => value.trim()).toSet();
+    // 与初次生成共用相似度规则，只扩大候选池以便找到第四个以后的备选项。
+    final candidates = buildDefinitionDistractors(
+      correct: correct,
+      sourceWords: sourceWords,
+      count: 64,
+    );
+    // 找到第一条未显示的释义就返回。
+    for (final candidate in candidates) {
+      if (!normalizedExcluded.contains(candidate.trim())) return candidate;
+    }
+    return null;
+  }
+
   /// 按“中心交换、元音替换、相近辅音替换”生成同长度英文变体。
   static List<String> _syntheticWordVariants(String word) {
     // 非纯英文单词不做人工改字母，会直接进入真实词库回退。

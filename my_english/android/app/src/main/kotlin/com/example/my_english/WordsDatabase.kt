@@ -35,7 +35,8 @@ class WordsDatabase(context: Context) :
         // 版本 4 新增 record 表，记录单词默写结果并驱动难度变化。
         // 版本 5 不再新建表，仅补强 record 表的创建时机（onOpen 兜底建表），
         // 解决「库已升到某版本，但 record 表因历史升级路径缺失」导致写入静默失败的问题。
-        private const val databaseVersion = 5
+        // 版本 6 新增默写候选项缓存表，让每道拼写/释义题长期复用相同干扰项。
+        private const val databaseVersion = 6
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -58,6 +59,8 @@ class WordsDatabase(context: Context) :
         createGroupMembersTable(db)
         // 创建单词默写记录表（每次默写一条，允许同一天重复复习并驱动难度变化）。
         createRecordTable(db)
+        // 创建默写候选项缓存表。
+        createDictationOptionCacheTable(db)
         // 最后建立查询索引。
         createIndexes(db)
     }
@@ -84,6 +87,10 @@ class WordsDatabase(context: Context) :
         if (oldVersion < 5 && newVersion >= 5) {
             createRecordTable(db)
         }
+        // 从版本 5 升到 6：只补充候选项缓存表，不迁移现有单词与记录。
+        if (oldVersion < 6 && newVersion >= 6) {
+            createDictationOptionCacheTable(db)
+        }
     }
 
     /**
@@ -98,6 +105,8 @@ class WordsDatabase(context: Context) :
         super.onOpen(db)
         // 兜底补建 record 表（建表语句已用 IF NOT EXISTS，存在则无操作）。
         createRecordTable(db)
+        // 同样兜底补建候选缓存表，覆盖任何历史升级遗漏。
+        createDictationOptionCacheTable(db)
     }
 
     /** 创建 words 表；spelling 只要求非空，不再带 UNIQUE。 */
@@ -421,6 +430,8 @@ class WordsDatabase(context: Context) :
             if (changed == 0) error("找不到要更新的单词 id=$id")
             // 删除旧 Meaning 后按新提交列表重建，保持操作简单且原子。
             db.delete("meanings", "word_id = ?", arrayOf(id.toString()))
+            // 拼写或释义可能已经变化，旧候选项不能继续复用。
+            db.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
             replaceMeanings(db, id, payload["meanings"])
             // 分组关系也属于本次保存；失败时主体和 Meaning 同时回滚。
             replaceWordGroups(db, id, payload["group_ids"])
@@ -452,16 +463,19 @@ class WordsDatabase(context: Context) :
         if (changed == 0) error("找不到要删除的单词 id=$id")
         // 单词软删除后不再属于任何分组，直接清理其全部关联行。
         writableDatabase.delete("group_members", "word_id = ?", arrayOf(id.toString()))
+        // 软删除不会触发外键级联，因此显式删除该词全部候选缓存。
+        writableDatabase.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
     }
 
     /** 清空全部本地数据，用于「清空数据」与「导入前整库替换」。 */
     fun clearAllWords() {
         // 获取可写连接。
         val db = writableDatabase
-        // 事务保证四张表要么都被清空，要么都不动。
+        // 事务保证全部业务表与候选缓存要么都被清空，要么都不动。
         db.beginTransaction()
         try {
-            // 先清空子表，再清空父表，避免外键约束报错。
+            // 先清空候选缓存与其他子表，再清空父表，避免外键约束报错。
+            db.delete("dictation_option_cache", null, null)
             db.delete("group_members", null, null)
             db.delete("groups", null, null)
             db.delete("meanings", null, null)
@@ -488,6 +502,7 @@ class WordsDatabase(context: Context) :
             // 先清空历史数据，导入即整库替换。
             // 原始 words.json 没有分组信息，导入后单词都应回到「未分组」，
             // 因此一并清空 group_members；分组列表本身保留，方便用户重新归类。
+            db.delete("dictation_option_cache", null, null)
             db.delete("group_members", null, null)
             db.delete("meanings", null, null)
             db.delete("words", null, null)
@@ -692,7 +707,8 @@ class WordsDatabase(context: Context) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            // 整库清空四张表。
+            // 整库替换前清空词库、分组关系与候选缓存。
+            db.delete("dictation_option_cache", null, null)
             db.delete("group_members", null, null)
             db.delete("groups", null, null)
             db.delete("meanings", null, null)
@@ -808,6 +824,62 @@ class WordsDatabase(context: Context) :
         // 难度判定要按单词取"最近 N 条"记录，一天多条后这类查询会变频繁，
         // 用 (word_id, id) 复合索引让"某词最近几条"可以直接走索引倒序扫描。
         db.execSQL("CREATE INDEX IF NOT EXISTS record_word_id_seq ON record(word_id, id)")
+    }
+
+    /** 创建默写候选项缓存表；一个 cache_key 对应一道具体拼写题或释义题。 */
+    private fun createDictationOptionCacheTable(db: SQLiteDatabase) {
+        // 干扰项使用 JSON 数组保存，保持三个文本的顺序且无需拆成额外子表。
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS dictation_option_cache (
+                cache_key TEXT PRIMARY KEY,
+                word_id INTEGER NULL,
+                distractors_json TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /** 按小题 key 读取干扰项；没有缓存时返回 null。 */
+    fun getDictationOptionCache(cacheKey: String): List<String>? {
+        // 精确查询主键，最多只会返回一行。
+        readableDatabase.query(
+            "dictation_option_cache",
+            arrayOf("distractors_json"),
+            "cache_key = ?",
+            arrayOf(cacheKey),
+            null,
+            null,
+            null,
+            "1",
+        ).use { cursor ->
+            // 没有行表示第一次遇到这道题。
+            if (!cursor.moveToFirst()) return null
+            // 把 JSON 数组还原成 MethodChannel 可直接传输的字符串列表。
+            val json = JSONArray(cursor.getString(cursor.getColumnIndexOrThrow("distractors_json")))
+            return List(json.length()) { index -> json.getString(index) }
+        }
+    }
+
+    /** 新增或覆盖一道题的干扰项缓存。 */
+    fun saveDictationOptionCache(cacheKey: String, wordId: Long?, distractors: List<String>) {
+        // ContentValues 对应缓存表的一整行。
+        val values = ContentValues().apply {
+            put("cache_key", cacheKey)
+            // putNull 与可空外键匹配，主要兼容尚未落库的开发测试数据。
+            if (wordId == null) putNull("word_id") else put("word_id", wordId)
+            put("distractors_json", JSONArray(distractors).toString())
+            put("updated_at", System.currentTimeMillis())
+        }
+        // PRIMARY KEY 冲突时整体替换，长按刷新可用一次写入覆盖旧数组。
+        writableDatabase.insertWithOnConflict(
+            "dictation_option_cache",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
     }
 
     /** 取设备本机时区下的 'yyyy-MM-dd' 日期字符串，作为 created_date 与"今日"判定基准。 */

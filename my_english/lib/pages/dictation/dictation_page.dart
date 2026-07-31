@@ -1,5 +1,7 @@
 // dart:async 提供 unawaited，播放音频时不阻塞按钮响应。
 import 'dart:async';
+// dart:convert 提供 jsonEncode，用结构化数组生成不会碰撞的候选缓存 key。
+import 'dart:convert';
 // dart:math 用于打乱答案顺序和生成干扰项。
 import 'dart:math';
 // material.dart 提供全屏页面、进度条、卡片与按钮。
@@ -25,6 +27,8 @@ import '../../store/settings.dart';
 import 'services/dictation_option_generator.dart';
 // 引入默写记录 Store：点击下一题时写入结果并驱动难度变化。
 import '../../store/record.dart';
+// 引入默写候选项缓存 Store，让每道题长期复用相同干扰项。
+import '../../store/dictation_option_cache.dart';
 // 引入默写页面集中管理的布局尺寸。
 import 'widgets/dictation_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
@@ -48,6 +52,7 @@ class DictationPage extends StatefulWidget {
     required this.audioPlayer,
     required this.accent,
     this.recordStore,
+    this.optionCacheStore,
     this.definitionSeparator = '、',
     super.key,
   }) : assert(words.length > 0, '默写页至少需要一个学习单词');
@@ -63,6 +68,9 @@ class DictationPage extends StatefulWidget {
 
   /// 默写记录存储；正式环境使用全局实例，测试可注入独立通道。
   final RecordStore? recordStore;
+
+  /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
+  final DictationOptionCacheStore? optionCacheStore;
 
   /// 已答出的同词性中文释义之间使用的全角分隔符。
   final String definitionSeparator;
@@ -116,11 +124,17 @@ class _DictationPageState extends State<DictationPage> {
   List<DictationOption> _options = const [];
   // 已选错的文案集合，错误选项会红色并禁用。
   final Set<String> _wrongOptions = <String>{};
+  // 候选缓存读取代次号；切换小题后，较早返回的异步结果不得覆盖新题。
+  int _optionLoadGeneration = 0;
 
   Word get _currentWord => widget.words[_wordIndex];
 
   /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
   RecordStore get _recordStore => widget.recordStore ?? RecordStore.instance;
+
+  /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
+  DictationOptionCacheStore get _optionCacheStore =>
+      widget.optionCacheStore ?? DictationOptionCacheStore.instance;
 
   List<Meaning> get _availableMeanings => _currentWord.meanings
       .where((meaning) => meaning.definitions.isNotEmpty)
@@ -139,38 +153,126 @@ class _DictationPageState extends State<DictationPage> {
     // 每个新词的错误/提示计数从 0 开始。
     _currentWrong = 0;
     _currentHints = 0;
-    // 与原型一致，进入每个新词后自动播放一次。
-    WidgetsBinding.instance.addPostFrameCallback((_) => _playAudio());
+    // 首帧后并行读取候选缓存和自动发音；同步生成的选项保证等待 SQLite 时页面不空白。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_restoreOrCreateCurrentOptionCache());
+      unawaited(_playAudio());
+    });
   }
 
-  /// 生成当前阶段的一个正确答案和三个干扰答案。
-  List<DictationOption> _buildOptions() {
-    // 拼写阶段的正确值是当前单词，含义阶段则是当前释义。
-    final correct = _stage == DictationStage.word
-        ? _currentWord.spelling
-        : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
-    // 候选生成器固定返回三个唯一干扰项，并优先使用同长度与相似度规则。
-    final distractors = _stage == DictationStage.word
+  /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
+  String get _currentCorrectAnswer => _stage == DictationStage.word
+      ? _currentWord.spelling
+      : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
+
+  /// 当前小题的稳定缓存 key；内容字段参与 key，数据被编辑后会自然切换到新缓存。
+  String get _currentOptionCacheKey {
+    // 拼写题由版本、类型、单词主键和当前拼写共同确定。
+    if (_stage == DictationStage.word) {
+      return jsonEncode(<Object?>[
+        'v1',
+        'word',
+        _currentWord.id,
+        _currentWord.spelling,
+      ]);
+    }
+    // 释义题还要区分 Meaning 与其中的第几条定义，避免同词多义互相覆盖。
+    final meaning = _availableMeanings[_meaningIndex];
+    return jsonEncode(<Object?>[
+      'v1',
+      'definition',
+      _currentWord.id,
+      _currentWord.spelling,
+      meaning.id,
+      meaning.index,
+      meaning.pos,
+      _definitionIndex,
+      _currentCorrectAnswer,
+    ]);
+  }
+
+  /// 按当前阶段生成指定数量的干扰项。
+  List<String> _generateCurrentDistractors({int count = 3}) {
+    // 拼写题与释义题分别复用原有生成规则，来源仍严格限制在本轮学习列表。
+    return _stage == DictationStage.word
         ? DictationOptionGenerator.buildWordDistractors(
-            correct: correct,
-            // 候选项严格从与随身听相同的学习列表中回退，不越过自选范围。
+            correct: _currentCorrectAnswer,
             sourceWords: widget.words,
+            count: count,
           )
         : DictationOptionGenerator.buildDefinitionDistractors(
-            correct: correct,
-            // 含义检索同样只展平本轮学习列表的释义。
+            correct: _currentCorrectAnswer,
             sourceWords: widget.words,
+            count: count,
           );
+  }
+
+  /// 用指定干扰项组装一个正确答案和三个干扰答案，并打乱显示位置。
+  List<DictationOption> _buildOptions({List<String>? distractors}) {
+    // 未传缓存时同步生成，确保页面首帧已经有完整四选一。
+    final resolvedDistractors = distractors ?? _generateCurrentDistractors();
+    // 候选生成器固定返回三个唯一干扰项，并优先使用同长度与相似度规则。
     // 正确项与三个干扰项组成始终固定的四选一列表。
     final options = <DictationOption>[
-      DictationOption(text: correct, isCorrect: true),
-      for (final distractor in distractors)
+      DictationOption(text: _currentCorrectAnswer, isCorrect: true),
+      for (final distractor in resolvedDistractors.take(3))
         DictationOption(text: distractor, isCorrect: false),
     ];
     // 使用页面内的固定种子随机源打乱位置，同一正确答案不会总出现在同一行。
     options.shuffle(_random);
     // 再次冻结列表，状态层只在进入下一小题时整体替换它。
     return List<DictationOption>.unmodifiable(options);
+  }
+
+  /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
+  bool _isValidCachedDistractors(List<String> distractors, String correct) {
+    // 必须精确三项，否则继续使用页面已经同步生成的标准结果。
+    if (distractors.length != 3) return false;
+    // 英文忽略大小写，中文转换后不受影响；同时排除正确答案与重复项。
+    final normalizedCorrect = correct.trim().toLowerCase();
+    final normalized = distractors
+        .map((value) => value.trim().toLowerCase())
+        .toSet();
+    return normalized.length == 3 && !normalized.contains(normalizedCorrect);
+  }
+
+  /// 命中缓存就替换同步结果；首次遇到该题则把当前生成结果保存到 SQLite。
+  Future<void> _restoreOrCreateCurrentOptionCache() async {
+    // 每次进入新小题先领取一个代次号，用来识别晚到的旧请求。
+    final generation = ++_optionLoadGeneration;
+    // 在 await 前抓取当前题身份与数据，后续切题不会改变这些局部变量。
+    final cacheKey = _currentOptionCacheKey;
+    final correct = _currentCorrectAnswer;
+    final wordId = _currentWord.id;
+    final generatedDistractors = _options
+        .where((option) => !option.isCorrect)
+        .map((option) => option.text)
+        .toList(growable: false);
+    try {
+      // 从原生 SQLite 查询这道题以前使用过的干扰项。
+      final cachedDistractors = await _optionCacheStore.getDistractors(
+        cacheKey,
+      );
+      // 命中合法缓存时，只允许仍处于同一小题的请求更新页面。
+      if (cachedDistractors != null &&
+          _isValidCachedDistractors(cachedDistractors, correct)) {
+        if (!mounted || generation != _optionLoadGeneration) return;
+        setState(() {
+          // 正确答案继续取最新模型，仅把三个干扰项换成缓存值。
+          _options = _buildOptions(distractors: cachedDistractors);
+        });
+        return;
+      }
+      // 没有缓存或缓存损坏时，保存首帧已经显示的三个生成结果。
+      await _optionCacheStore.saveDistractors(
+        cacheKey: cacheKey,
+        wordId: wordId,
+        distractors: generatedDistractors,
+      );
+    } catch (error) {
+      // 缓存是体验增强，不应因原生通道异常阻断答题；保留同步生成结果即可。
+      debugPrint('读取或保存默写候选缓存失败：$error');
+    }
   }
 
   /// 调用真实发音服务，并在播放期间显示 Tabler 音量图标。
@@ -283,6 +385,8 @@ class _DictationPageState extends State<DictationPage> {
         _feedbackColor = const Color(0xFF2FB344);
         _options = _buildOptions();
       });
+      // 当前小题已经切到第一条释义，异步恢复或创建它自己的稳定候选缓存。
+      unawaited(_restoreOrCreateCurrentOptionCache());
       return;
     }
 
@@ -305,12 +409,219 @@ class _DictationPageState extends State<DictationPage> {
       _feedbackColor = const Color(0xFF2FB344);
       _options = _buildOptions();
     });
+    // 下一条释义拥有独立缓存，不能沿用上一条释义的三个干扰项。
+    unawaited(_restoreOrCreateCurrentOptionCache());
+  }
+
+  /// 长按候选项后询问是否刷新；确认后保持四选一结构并立即替换当前文本。
+  Future<void> _requestOptionRefresh(int optionIndex) async {
+    // 完成态没有候选项；下标越界说明长按事件来自已经卸载的旧组件。
+    if (_isDone ||
+        _isCurrentWordComplete ||
+        optionIndex < 0 ||
+        optionIndex >= _options.length) {
+      return;
+    }
+    // 在弹窗前抓取当前选项；Modal 会阻止用户同时切换题目。
+    final selectedOption = _options[optionIndex];
+    // 长按使用中等震动，让单手操作时即使没盯着屏幕也能确认手势已识别。
+    HapticFeedback.mediumImpact();
+    // 所有选项显示完全一致的确认框，避免用交互差异泄露哪一个是正确答案。
+    final confirmed = await _showOptionRefreshDialog(selectedOption.text);
+    // 用户取消、页面关闭或当前题已经完成时不做任何修改。
+    if (!confirmed || !mounted || _isCurrentWordComplete || _isDone) return;
+
+    // 新候选必须排除当前四项，确保用户能立刻看出确实发生了替换。
+    final excluded = _options.map((option) => option.text);
+    final replacement = _stage == DictationStage.word
+        ? DictationOptionGenerator.findReplacementWordDistractor(
+            correct: _currentCorrectAnswer,
+            sourceWords: widget.words,
+            excluded: excluded,
+          )
+        : DictationOptionGenerator.findReplacementDefinitionDistractor(
+            correct: _currentCorrectAnswer,
+            sourceWords: widget.words,
+            excluded: excluded,
+          );
+    // 极小或异常词库可能耗尽所有可用变体，此时保留原候选并给出说明。
+    if (replacement == null) {
+      Toast.show(context, '暂时没有可用的新候选词');
+      return;
+    }
+
+    // 保存当前题身份，页面更新后异步覆盖同一条 SQLite 缓存。
+    final cacheKey = _currentOptionCacheKey;
+    final wordId = _currentWord.id;
+    // 复制只读列表，下面只修改这份临时数组。
+    final updatedOptions = List<DictationOption>.from(_options);
+    // 记录所有被移除的旧干扰项，避免它们继续保持“已答错”的红色状态。
+    final removedWrongOptions = <String>{selectedOption.text};
+    if (selectedOption.isCorrect) {
+      // 正确答案本身不能消失：从另外三个位置随机选一个，把正确答案移动过去。
+      final targetIndices = <int>[
+        for (var index = 0; index < updatedOptions.length; index += 1)
+          if (index != optionIndex && !updatedOptions[index].isCorrect) index,
+      ];
+      // 标准四选一一定存在三个可用目标位置。
+      final correctTarget =
+          targetIndices[_random.nextInt(targetIndices.length)];
+      // 目标位置原来的干扰项会被移除，因此一并清理错误标记。
+      removedWrongOptions.add(updatedOptions[correctTarget].text);
+      // 被长按位置立即显示全新干扰项。
+      updatedOptions[optionIndex] = DictationOption(
+        text: replacement,
+        isCorrect: false,
+      );
+      // 正确答案移动到随机目标位置，交互不会暴露它的身份。
+      updatedOptions[correctTarget] = selectedOption;
+    } else {
+      // 普通干扰项只替换自身位置，其余三个按钮完全不动。
+      updatedOptions[optionIndex] = DictationOption(
+        text: replacement,
+        isCorrect: false,
+      );
+    }
+    setState(() {
+      // 移除已消失文本的红色禁用状态，新候选可以正常点击。
+      _wrongOptions.removeAll(removedWrongOptions);
+      // 冻结新列表，保持页面状态只能整体更新。
+      _options = List<DictationOption>.unmodifiable(updatedOptions);
+    });
+    // UI 已立即替换；SQLite 写入在后台完成，不让本地 I/O 拖慢手感。
+    unawaited(
+      _persistRefreshedOptions(
+        cacheKey: cacheKey,
+        wordId: wordId,
+        options: updatedOptions,
+      ),
+    );
+  }
+
+  /// 显示刷新确认框；返回 true 表示用户确认替换当前候选词。
+  Future<bool> _showOptionRefreshDialog(String optionText) async {
+    // showDialog 的 null 表示点遮罩或系统返回，统一按取消处理。
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        // 对话框跟随当前明暗主题。
+        final tokens = AppTokens.of(dialogContext);
+        return Dialog(
+          backgroundColor: tokens.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 标题用 Tabler 刷新图标，不使用文字字符代替图标。
+                Row(
+                  children: [
+                    const Icon(
+                      TablerIcons.refresh,
+                      size: 20,
+                      color: AppTokens.accent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '刷新候选词',
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // 明确指出用户刚才长按的文本，避免误操作。
+                Text(
+                  '是否将“$optionText”更换为新的候选词？',
+                  style: TextStyle(
+                    color: tokens.textSecondary,
+                    fontSize: 13.5,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    // 取消是次要命令，使用 Tabler X 图标和描边按钮。
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: const Key('cancel-option-refresh'),
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        icon: const Icon(TablerIcons.x, size: 16),
+                        label: const Text('取消'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: tokens.textMedium,
+                          side: BorderSide(color: tokens.inputBorder),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // 确认是主命令，使用品牌蓝与 Tabler 刷新图标。
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const Key('confirm-option-refresh'),
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        icon: const Icon(TablerIcons.refresh, size: 16),
+                        label: const Text('刷新'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTokens.accent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    // 只有显式点“刷新”才返回 true。
+    return confirmed ?? false;
+  }
+
+  /// 把长按刷新后的三个干扰项覆盖进当前小题缓存。
+  Future<void> _persistRefreshedOptions({
+    required String cacheKey,
+    required int? wordId,
+    required List<DictationOption> options,
+  }) async {
+    try {
+      // 正确答案不写缓存，只提取三个干扰项。
+      final distractors = options
+          .where((option) => !option.isCorrect)
+          .map((option) => option.text)
+          .toList(growable: false);
+      await _optionCacheStore.saveDistractors(
+        cacheKey: cacheKey,
+        wordId: wordId,
+        distractors: distractors,
+      );
+    } catch (error) {
+      // 页面替换已经完成；记录错误并提示缓存失败，下次进入仍可继续正常答题。
+      debugPrint('保存刷新后的默写候选缓存失败：$error');
+      if (mounted) Toast.show(context, '候选词已刷新，但缓存保存失败');
+    }
   }
 
   /// 标记当前单词的拼写和全部释义均已答对。
   void _completeCurrentWord() {
     // 单词完成给予中等震动，作为里程碑反馈。
     HapticFeedback.mediumImpact();
+    // 当前题已经结束，作废尚未返回的候选缓存读取。
+    _optionLoadGeneration++;
     // 只更新当前题状态，不在正确答案点击中立即跳走。
     setState(() {
       // 底部会根据这个字段从候选区切换为长条按钮。
@@ -440,6 +751,8 @@ class _DictationPageState extends State<DictationPage> {
       // 根据新的 _wordIndex 生成四个拼写候选项。
       _options = _buildOptions();
     });
+    // 新单词的拼写题使用自己的持久化候选缓存。
+    unawaited(_restoreOrCreateCurrentOptionCache());
     // 与首次进入页面一致，新题自动发音一次。
     // interrupt: true 是本次 bug 的修复点：上一题答对后的"奖励发音"可能仍在播放，
     // 必须允许新单词直接把它打断，否则新题的发音会被旧音频挡住而完全听不到。
@@ -481,6 +794,8 @@ class _DictationPageState extends State<DictationPage> {
       // 重新生成当前单词的四个拼写候选项。
       _options = _buildOptions();
     });
+    // 重做回到当前单词拼写题，重新读取它此前缓存的三个干扰项。
+    unawaited(_restoreOrCreateCurrentOptionCache());
     // 与进入新题一致自动发音；同样要打断可能仍在播放的奖励音频。
     unawaited(_playAudio(interrupt: true));
   }
@@ -754,6 +1069,8 @@ class _DictationPageState extends State<DictationPage> {
                       index: index,
                       wrong: _wrongOptions.contains(_options[index].text),
                       onTap: () => _pickOption(_options[index]),
+                      // 长按任意候选都进入同一刷新确认流程，不暴露正确答案身份。
+                      onLongPress: () => _requestOptionRefresh(index),
                     ),
                     // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
                     if (index < _options.length - 1)
@@ -1127,6 +1444,7 @@ class _OptionCard extends StatefulWidget {
     required this.index,
     required this.wrong,
     required this.onTap,
+    required this.onLongPress,
     super.key,
   });
 
@@ -1141,6 +1459,9 @@ class _OptionCard extends StatefulWidget {
 
   /// 点击回调；错选后由调用方传入 null 禁用。
   final VoidCallback onTap;
+
+  /// 长按回调；即使该项已经选错，仍允许用户把它刷新成新候选。
+  final VoidCallback onLongPress;
 
   @override
   State<_OptionCard> createState() => _OptionCardState();
@@ -1214,6 +1535,8 @@ class _OptionCardState extends State<_OptionCard>
         borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
         child: InkWell(
           onTap: wrong ? null : widget.onTap,
+          // 长按不参与答题判定，只打开刷新候选词确认框。
+          onLongPress: widget.onLongPress,
           borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
           child: Container(
             height: DictationLayout.optionHeight,

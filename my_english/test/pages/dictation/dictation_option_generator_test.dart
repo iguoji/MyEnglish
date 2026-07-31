@@ -114,4 +114,52 @@ void main() {
     // 优先的人工回退仍保持和正确释义相同的字数。
     expect(distractors.every((item) => item.runes.length == 2), isTrue);
   });
+
+  test('replacement helpers skip every currently visible candidate', () {
+    // 先取得初始英文四选一中的三个干扰项。
+    final initialWords = DictationOptionGenerator.buildWordDistractors(
+      correct: 'ability',
+      sourceWords: const <Word>[Word(spelling: 'ability')],
+    );
+    // 刷新必须从更大的候选池里寻找未显示项。
+    final replacementWord =
+        DictationOptionGenerator.findReplacementWordDistractor(
+          correct: 'ability',
+          sourceWords: const <Word>[Word(spelling: 'ability')],
+          excluded: <String>['ability', ...initialWords],
+        );
+    expect(replacementWord, isNotNull);
+    expect(initialWords, isNot(contains(replacementWord)));
+    expect(replacementWord, isNot('ability'));
+
+    // 中文释义同样排除正确答案与当前三个干扰项。
+    final initialDefinitions =
+        DictationOptionGenerator.buildDefinitionDistractors(
+          correct: '能力',
+          sourceWords: const <Word>[
+            Word(
+              spelling: 'ability',
+              meanings: <Meaning>[
+                Meaning(index: 1, pos: 'n.', definitions: <String>['能力']),
+              ],
+            ),
+          ],
+        );
+    final replacementDefinition =
+        DictationOptionGenerator.findReplacementDefinitionDistractor(
+          correct: '能力',
+          sourceWords: const <Word>[
+            Word(
+              spelling: 'ability',
+              meanings: <Meaning>[
+                Meaning(index: 1, pos: 'n.', definitions: <String>['能力']),
+              ],
+            ),
+          ],
+          excluded: <String>['能力', ...initialDefinitions],
+        );
+    expect(replacementDefinition, isNotNull);
+    expect(initialDefinitions, isNot(contains(replacementDefinition)));
+    expect(replacementDefinition, isNot('能力'));
+  });
 }

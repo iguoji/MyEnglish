@@ -19,6 +19,8 @@ import 'package:my_english/pages/dictation/dictation_page.dart';
 // 引入默写布局尺寸，使测试与真实页面共用同一组对齐标准。
 import 'package:my_english/pages/dictation/widgets/dictation_layout.dart';
 import 'package:my_english/services/word_audio.dart';
+// 引入可注入测试通道的候选缓存 Store。
+import 'package:my_english/store/dictation_option_cache.dart';
 // 引入可注入测试通道的记录 Store。
 import 'package:my_english/store/record.dart';
 import 'package:my_english/store/settings.dart';
@@ -462,6 +464,147 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('prompt and steps both replay the current word', (tester) async {
+    // 使用真实手机比例，避免测试框架默认矮屏把 Steps 中点压到底部候选区后面。
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // 立即完成的记录播放器可以精确统计每一次播放请求。
+    final player = _RecordingAudioPlayer();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words,
+          audioPlayer: player,
+          accent: PronunciationAccent.american,
+        ),
+      ),
+    );
+    await tester.pump();
+    // 进入页面会先自动播放一次。
+    expect(player.requested, <String>['ability']);
+
+    // 点击提示横幅中心，事件应由外层中部播放热区接收。
+    final promptCenter = tester
+        .getRect(find.byKey(const Key('dictation-prompt-information')))
+        .center;
+    await tester.tapAt(promptCenter);
+    await tester.pump();
+    expect(player.requested, <String>['ability', 'ability']);
+    // 点击 Steps 轨道中心同样重播，不必伸手去够右下角按钮。
+    final stepsCenter = tester
+        .getRect(find.byKey(const Key('dictation-vertical-steps')))
+        .center;
+    await tester.tapAt(stepsCenter);
+    await tester.pump();
+    expect(player.requested, <String>['ability', 'ability', 'ability']);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('cached word and definition distractors can be refreshed', (
+    tester,
+  ) async {
+    // 独立通道用内存 Map 模拟 SQLite，每个 JSON key 对应一道小题。
+    const channel = MethodChannel('test/dictation_option_cache_page');
+    final savedCalls = <MethodCall>[];
+    final cachedDistractors = <String, List<String>>{};
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      final arguments = Map<Object?, Object?>.from(call.arguments as Map);
+      final cacheKey = arguments['cacheKey']! as String;
+      if (call.method == 'getDictationOptionCache') {
+        // 首次读取按题型生成固定值，之后返回最近一次保存的内容，模拟真实 SQLite。
+        return cachedDistractors.putIfAbsent(
+          cacheKey,
+          () => cacheKey.contains('"definition"')
+              ? <String>['释义甲', '释义乙', '释义丙']
+              : <String>['abality', 'abiliti', 'abiloty'],
+        );
+      }
+      if (call.method == 'saveDictationOptionCache') {
+        savedCalls.add(call);
+        // 覆盖内存中的同一行，下次重新进入页面会读到刷新后的三项。
+        cachedDistractors[cacheKey] = List<String>.from(
+          arguments['distractors']! as List,
+        );
+        return null;
+      }
+      throw StateError('unexpected method: ${call.method}');
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words,
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          optionCacheStore: const DictationOptionCacheStore(channel: channel),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 拼写题必须使用 SQLite 命中的三个稳定干扰项。
+    expect(find.text('abality'), findsOneWidget);
+    expect(find.text('abiliti'), findsOneWidget);
+    expect(find.text('abiloty'), findsOneWidget);
+    // 长按其中一个干扰项后显示统一刷新确认框。
+    await tester.longPress(find.text('abality'));
+    await tester.pumpAndSettle();
+    expect(find.text('刷新候选词'), findsOneWidget);
+    expect(find.text('是否将“abality”更换为新的候选词？'), findsOneWidget);
+    // 确认后原文本立即消失，并覆盖保存同一道拼写题的三个干扰项。
+    await tester.tap(find.byKey(const Key('confirm-option-refresh')));
+    await tester.pumpAndSettle();
+    expect(find.text('abality'), findsNothing);
+    expect(savedCalls, hasLength(1));
+    final savedArguments = Map<Object?, Object?>.from(
+      savedCalls.single.arguments as Map,
+    );
+    final savedDistractors = List<String>.from(
+      savedArguments['distractors']! as List,
+    );
+    expect(savedDistractors, hasLength(3));
+    expect(savedDistractors, isNot(contains('abality')));
+
+    // 重建页面模拟用户下次进入默写；三个刷新后候选必须从缓存完整恢复。
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words,
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          optionCacheStore: const DictationOptionCacheStore(channel: channel),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('abality'), findsNothing);
+    for (final distractor in savedDistractors) {
+      expect(find.text(distractor), findsOneWidget);
+    }
+
+    // 长按正确项也显示同一确认框；确认后正确答案只移动位置，四选一结构不能丢失。
+    await tester.longPress(find.text('ability'));
+    await tester.pumpAndSettle();
+    expect(find.text('刷新候选词'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-option-refresh')));
+    await tester.pumpAndSettle();
+    _expectFourOptions(tester);
+    expect(find.text('ability'), findsOneWidget);
+    expect(savedCalls, hasLength(2));
+
+    // 选择正确拼写进入释义题，第二个缓存 key 应命中稳定中文干扰项。
+    await tester.tap(find.text('ability'));
+    await tester.pumpAndSettle();
+    expect(find.text('释义甲'), findsOneWidget);
+    expect(find.text('释义乙'), findsOneWidget);
+    expect(find.text('释义丙'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('dictation mirrors listening header and anchors split controls', (
     tester,
   ) async {
@@ -705,6 +848,21 @@ final _words = <Word>[
 class _ImmediateAudioPlayer implements WordAudioPlayer {
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {}
+
+  @override
+  Future<void> stop() async {}
+}
+
+/// 记录每次播放请求并立即结束，适合验证多个点击热区复用同一播放事件。
+class _RecordingAudioPlayer implements WordAudioPlayer {
+  /// 按发生顺序保存被请求播放的单词。
+  final List<String> requested = <String>[];
+
+  @override
+  Future<void> play(String spelling, PronunciationAccent accent) async {
+    // 每次调用都追加一次，不做去重。
+    requested.add(spelling);
+  }
 
   @override
   Future<void> stop() async {}

@@ -135,20 +135,38 @@ class DictationQuestionContent extends StatelessWidget {
         ),
         // 单词卡和提示横幅之间使用正常间距，不通过位移调整视觉位置。
         const SizedBox(height: DictationLayout.questionModuleGap),
-        // 提示单独成卡，不再占用 Steps 的第一步。
-        _PromptBanner(
-          prompt: prompt,
-          feedback: feedback,
-          feedbackColor: feedbackColor,
-          tokens: tokens,
-        ),
-        // 提示横幅与步骤轨道之间同样使用统一间距。
-        const SizedBox(height: DictationLayout.questionModuleGap),
-        // Tabler 风格 Steps 把全部步骤（听音选词 + 每条释义）一次性列出。
-        _QuestionSteps(
-          steps: steps,
-          definitionSeparator: definitionSeparator,
-          tokens: tokens,
+        // GestureDetector 把提示横幅与 Steps 合并成大面积播放热区；轻点任意空白或正文
+        // 都会复用播放按钮事件，竖向拖动仍交给外层 SingleChildScrollView 处理。
+        GestureDetector(
+          key: const Key('dictation-middle-audio-target'),
+          behavior: HitTestBehavior.translucent,
+          onTap: onSpeakerTap,
+          child: Semantics(
+            // 读屏用户会知道这块展示区域也可以触发发音。
+            button: true,
+            label: '播放当前单词发音',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 提示单独成卡，不再占用 Steps 的第一步。
+                _PromptBanner(
+                  prompt: prompt,
+                  feedback: feedback,
+                  feedbackColor: feedbackColor,
+                  tokens: tokens,
+                ),
+                // 提示横幅与步骤轨道之间同样使用统一间距。
+                const SizedBox(height: DictationLayout.questionModuleGap),
+                // Tabler 风格 Steps 把全部步骤（听音选词 + 每条释义）一次性列出。
+                _QuestionSteps(
+                  steps: steps,
+                  definitionSeparator: definitionSeparator,
+                  tokens: tokens,
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
