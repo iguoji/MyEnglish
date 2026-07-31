@@ -8,12 +8,12 @@ from PIL import Image
 # 路径配置
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent
-EXPORTS = ROOT / "_exports"
+EXPORTS = ROOT / "_source"
 OUT = ROOT
 
-MASTER = EXPORTS / "2_1.png"          # 1024x1024 主图标
-ADAPT_BG = EXPORTS / "2_15.png"       # 1080x1080 Android 自适应背景
-ADAPT_FG = EXPORTS / "2_16.png"       # 1080x1080 Android 自适应前景
+MASTER = EXPORTS / "master_1024.png"                    # 1024x1024 主图标
+ADAPT_BG = EXPORTS / "adaptive_background_1080.png"     # 1080x1080 Android 自适应背景
+ADAPT_FG = EXPORTS / "adaptive_foreground_1080.png"     # 1080x1080 Android 自适应前景
 
 # ---------------------------------------------------------------------------
 # 工具函数
