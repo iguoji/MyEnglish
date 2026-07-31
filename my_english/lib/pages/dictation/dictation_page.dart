@@ -38,43 +38,73 @@ import 'widgets/dictation_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
 import 'widgets/dictation_question_content.dart';
 
+///
 /// 默写的两个答题阶段：先辨认拼写，再逐条辨认释义。
-enum DictationStage { word, definition }
+///
+enum DictationStage {
+  ///
+  /// 根据发音选择正确英文拼写的阶段。
+  ///
+  /// @var DictationStage
+  ///
+  word,
 
+  ///
+  /// 按顺序选择每条中文释义的阶段。
+  ///
+  /// @var DictationStage
+  ///
+  definition,
+}
+
+///
 /// 一个可点击的默写候选答案。
 ///
-/// @property `String` text 用户看到的候选文本。
-/// @property `bool` isCorrect 是否为当前小题正确答案。
+/// @property String text 用户看到的候选文本。
+/// @property bool isCorrect 是否为当前小题正确答案。
+///
 class DictationOption {
+  ///
   /// 创建默写候选答案。
   ///
-  /// @param `String` text 用户看到的候选文本。
-  /// @param `bool` isCorrect 是否为当前小题正确答案。
+  /// @param  String  text 用户看到的候选文本。
+  /// @param  bool  isCorrect 是否为当前小题正确答案。
+  ///
   const DictationOption({required this.text, required this.isCorrect});
 
+  ///
   /// 用户看到的候选文本。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String text;
 
+  ///
   /// 是否为当前小题正确答案。
   ///
-  /// @var `bool`
+  /// @var bool
+  ///
   final bool isCorrect;
 }
 
+///
 /// 全屏默写页面。
+///
 class DictationPage extends StatefulWidget {
+  ///
   /// 创建单词默写页面。
   ///
-  /// @param `List<Word>` words 本轮固定顺序的学习列表。
-  /// @param `WordAudioPlayer` audioPlayer 单词发音服务。
-  /// @param `PronunciationAccent` accent 当前发音口音。
-  /// @param `RecordStore?` recordStore 可替换的默写记录 Store。
-  /// @param `DictationOptionCacheStore?` optionCacheStore 可替换的候选缓存 Store。
-  /// @param `LearningSession?` initialSession 需要恢复的历史会话。
-  /// @param `LearningSessionStore?` sessionStore 可替换的学习会话 Store。
-  /// @param `String` definitionSeparator 多条释义之间的分隔符。
+  /// @param  `List<Word>`  words 本轮固定顺序的学习列表。
+  /// @param  WordAudioPlayer  audioPlayer 单词发音服务。
+  /// @param  PronunciationAccent  accent 当前发音口音。
+  /// @param  RecordStore?  recordStore 可替换的默写记录 Store。
+  /// @param  DictationOptionCacheStore?  optionCacheStore 可替换的候选缓存 Store。
+  /// @param  LearningSession?  initialSession 需要恢复的历史会话。
+  /// @param  LearningSessionStore?  sessionStore 可替换的学习会话 Store。
+  /// @param  String  definitionSeparator 多条释义之间的分隔符。
+  ///
+  /// @param  Key?  key
+  ///
   const DictationPage({
     required this.words,
     required this.audioPlayer,
@@ -87,146 +117,287 @@ class DictationPage extends StatefulWidget {
     super.key,
   }) : assert(words.length > 0, '默写页至少需要一个学习单词');
 
+  ///
   /// 本轮参与默写的单词。
   ///
   /// @var `List<Word>`
+  ///
   final List<Word> words;
 
+  ///
   /// 与首页、随身听共用的发音服务。
   ///
-  /// @var `WordAudioPlayer`
+  /// @var WordAudioPlayer
+  ///
   final WordAudioPlayer audioPlayer;
 
+  ///
   /// 当前发音口音。
   ///
-  /// @var `PronunciationAccent`
+  /// @var PronunciationAccent
+  ///
   final PronunciationAccent accent;
 
+  ///
   /// 默写记录存储；正式环境使用全局实例，测试可注入独立通道。
   ///
-  /// @var `RecordStore?`
+  /// @var RecordStore?
+  ///
   final RecordStore? recordStore;
 
+  ///
   /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
   ///
-  /// @var `DictationOptionCacheStore?`
+  /// @var DictationOptionCacheStore?
+  ///
   final DictationOptionCacheStore? optionCacheStore;
 
+  ///
   /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新默写。
   ///
-  /// @var `LearningSession?`
+  /// @var LearningSession?
+  ///
   final LearningSession? initialSession;
 
+  ///
   /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
   ///
-  /// @var `LearningSessionStore?`
+  /// @var LearningSessionStore?
+  ///
   final LearningSessionStore? sessionStore;
 
+  ///
   /// 已答出的同词性中文释义之间使用的全角分隔符。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String definitionSeparator;
 
+  ///
   /// 创建默写页面状态。
   ///
   /// @return `State<DictationPage>` 管理答题、播放和恢复流程的状态对象。
+  ///
   @override
   State<DictationPage> createState() => _DictationPageState();
 }
 
+///
+/// 管理默写页面的题目进度、候选项、播放状态和会话持久化。
+///
 class _DictationPageState extends State<DictationPage> {
-  // 固定种子使测试和界面复现更稳定，同时每题仍会有不同顺序。
+  ///
+  /// 使用固定种子生成稳定且可复现的候选顺序。
+  ///
+  /// @var Random
+  ///
   final Random _random = Random(20260727);
-  // 当前单词下标。
+
+  ///
+  /// 当前单词在本轮固定列表中的下标。
+  ///
+  /// @var int
+  ///
   int _wordIndex = 0;
-  // 当前答题阶段。
+
+  ///
+  /// 当前正在进行拼写选择还是释义选择。
+  ///
+  /// @var DictationStage
+  ///
   DictationStage _stage = DictationStage.word;
-  // 当前词义块下标。
+
+  ///
+  /// 当前词性组在有效释义列表中的下标。
+  ///
+  /// @var int
+  ///
   int _meaningIndex = 0;
-  // 当前词义块中的释义下标。
+
+  ///
+  /// 当前中文释义在词性组内部的下标。
+  ///
+  /// @var int
+  ///
   int _definitionIndex = 0;
-  // 单词阶段已经公开的开头字母数。
+
+  ///
+  /// 拼写阶段已经通过提示公开的开头字母数量。
+  ///
+  /// @var int
+  ///
   int _hintLevel = 0;
-  // 整轮累计答错次数，完成状态页用它展示本轮统计。
+
+  ///
+  /// 整轮累计答错次数，供完成状态页展示。
+  ///
+  /// @var int
+  ///
   int _errors = 0;
-  // 当前单词本次默写累计选错候选词的次数（每个新词重置）。
+
+  ///
+  /// 当前单词累计选错候选项的次数，每个新词都会重置。
+  ///
+  /// @var int
+  ///
   int _currentWrong = 0;
-  // 当前单词本次默写累计点击提示的次数（每个新词重置）。
+
+  ///
+  /// 当前单词累计使用提示的次数，每个新词都会重置。
+  ///
+  /// @var int
+  ///
   int _currentHints = 0;
-  // 本轮复习完成过的单词主键集合，退出时带回首页用于定向回刷。
+
+  ///
+  /// 本轮已经完成的单词主键，退出时交给首页定向刷新。
+  ///
+  /// @var `Set<int>`
+  ///
   final Set<int> _reviewedWordIds = <int>{};
-  // 是否已经提交最后一个单词并进入整轮完成状态页。
+
+  ///
+  /// 是否已经提交最后一个单词并进入完成状态页。
+  ///
+  /// @var bool
+  ///
   bool _isDone = false;
-  // 当前单词的拼写和全部含义是否均已答对，完成后等待用户点击下一题。
+
+  ///
+  /// 当前单词是否已经完成全部拼写和释义步骤。
+  ///
+  /// @var bool
+  ///
   bool _isCurrentWordComplete = false;
-  // 是否正在把当前题提交给原生事务；用于阻止连续点击产生重复记录。
+
+  ///
+  /// 是否正在提交当前题，用于阻止连续点击产生重复记录。
+  ///
+  /// @var bool
+  ///
   bool _isSavingCompletion = false;
-  // 发音图标是否显示。
+
+  ///
+  /// 当前单词的发音是否仍在播放。
+  ///
+  /// @var bool
+  ///
   bool _isPlaying = false;
-  // 只允许最新音频请求更新播放状态，避免被已中断请求的 finally 覆盖。
+
+  ///
+  /// 当前音频请求代次，只允许最新请求更新播放状态。
+  ///
+  /// @var int
+  ///
   int _playGeneration = 0;
-  // 中间信息面板中的反馈文案。
+
+  ///
+  /// 中间信息面板当前展示的反馈文案。
+  ///
+  /// @var String
+  ///
   String _feedback = '';
-  // 反馈颜色；null 时使用次要文字色。
+
+  ///
+  /// 反馈语义颜色，null 表示使用普通次要文字色。
+  ///
+  /// @var Color?
+  ///
   Color? _feedbackColor;
-  // 当前选项列表。
+
+  ///
+  /// 当前拼写或释义步骤展示的四个候选项。
+  ///
+  /// @var `List<DictationOption>`
+  ///
   List<DictationOption> _options = const [];
-  // 已选错的文案集合，错误选项会红色并禁用。
+
+  ///
+  /// 已经选错的候选文本集合，界面会标红并禁用这些项。
+  ///
+  /// @var `Set<String>`
+  ///
   final Set<String> _wrongOptions = <String>{};
-  // 候选缓存读取代次号；切换小题后，较早返回的异步结果不得覆盖新题。
+
+  ///
+  /// 候选缓存读取代次，阻止旧异步结果覆盖已经切换的新题。
+  ///
+  /// @var int
+  ///
   int _optionLoadGeneration = 0;
-  // true 表示当前四个候选直接来自会话快照，首帧无需重新打乱缓存候选。
+
+  ///
+  /// 当前候选是否直接来自恢复快照，避免首帧重新打乱顺序。
+  ///
+  /// @var bool
+  ///
   bool _restoredExactOptions = false;
 
+  ///
   /// 当前正在默写的单词。
   ///
-  /// @return `Word` 默写列表当前下标对应的单词。
+  /// @return Word 默写列表当前下标对应的单词。
+  ///
   Word get _currentWord => widget.words[_wordIndex];
 
+  ///
   /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
   ///
-  /// @return `RecordStore` 当前页面实际使用的默写记录 Store。
+  /// @return RecordStore 当前页面实际使用的默写记录 Store。
+  ///
   RecordStore get _recordStore => widget.recordStore ?? RecordStore.instance;
 
+  ///
   /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
   ///
-  /// @return `DictationOptionCacheStore` 当前页面实际使用的候选缓存 Store。
+  /// @return DictationOptionCacheStore 当前页面实际使用的候选缓存 Store。
+  ///
   DictationOptionCacheStore get _optionCacheStore =>
       widget.optionCacheStore ?? DictationOptionCacheStore.instance;
 
+  ///
   /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
   ///
-  /// @return `LearningSessionStore` 当前页面实际使用的学习会话 Store。
+  /// @return LearningSessionStore 当前页面实际使用的学习会话 Store。
+  ///
   LearningSessionStore get _sessionStore =>
       widget.sessionStore ?? LocalLearningSessionStore.instance;
 
+  ///
   /// 当前页面的会话持久化入口。
   ///
-  /// @return `LearningSessionPersistence` 已绑定默写类型的持久化门面。
+  /// @return LearningSessionPersistence 已绑定默写类型的持久化门面。
+  ///
   LearningSessionPersistence get _sessionPersistence =>
       LearningSessionPersistence(
         store: _sessionStore,
         type: LearningSessionType.dictation,
       );
 
+  ///
   /// 获取当前单词中包含有效释义的词性组。
   ///
   /// @return `List<Meaning>` 至少包含一条释义的 Meaning 列表。
+  ///
   List<Meaning> get _availableMeanings => _currentWord.meanings
       .where((meaning) => meaning.definitions.isNotEmpty)
       .toList(growable: false);
 
+  ///
   /// 当前拼写中的真实英文字母数量；空格和连字符不会生成占位槽。
   ///
-  /// @return `int` 当前拼写中的英文字母数量。
+  /// @return int 当前拼写中的英文字母数量。
+  ///
   int get _currentWordLetterCount => _currentWord.spelling.runes
       .map((codePoint) => String.fromCharCode(codePoint))
       .where((character) => RegExp(r'^[A-Za-z]$').hasMatch(character))
       .length;
 
+  ///
   /// 初始化默写页面并恢复可用的历史状态。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   @override
   void initState() {
     super.initState();
@@ -251,9 +422,11 @@ class _DictationPageState extends State<DictationPage> {
     });
   }
 
+  ///
   /// 从历史会话恢复当前默写状态；所有动态字段都经过边界校验。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _restoreInitialSession() {
     // 没有会话就是一次全新的默写。
     final session = widget.initialSession;
@@ -352,9 +525,11 @@ class _DictationPageState extends State<DictationPage> {
     }
   }
 
+  ///
   /// 把当前答题状态写入 SQLite；页面交互先完成，持久化失败不阻断答题。
   ///
   /// @return `Future<void>` 会话保存完成后的异步结果。
+  ///
   Future<void> _persistSession() => _sessionPersistence.save(
     // 只保存主键，恢复时首页会使用最新词库重新组装 Word。
     wordIds: widget.words.map((word) => word.id),
@@ -397,21 +572,27 @@ class _DictationPageState extends State<DictationPage> {
     },
   );
 
+  ///
   /// 整轮完成后删除默写会话，首页随即隐藏对应“继续”入口。
   ///
   /// @return `Future<void>` 会话删除完成后的异步结果。
+  ///
   Future<void> _deleteSession() => _sessionPersistence.delete();
 
+  ///
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
   ///
-  /// @return `String` 当前候选列表唯一的正确文本。
+  /// @return String 当前候选列表唯一的正确文本。
+  ///
   String get _currentCorrectAnswer => _stage == DictationStage.word
       ? _currentWord.spelling
       : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
 
+  ///
   /// 当前小题的稳定缓存 key；内容字段参与 key，数据被编辑后会自然切换到新缓存。
   ///
-  /// @return `String` 可唯一标识当前拼写题或释义题的缓存键。
+  /// @return String 可唯一标识当前拼写题或释义题的缓存键。
+  ///
   String get _currentOptionCacheKey {
     // 拼写题由版本、类型、单词主键和当前拼写共同确定。
     if (_stage == DictationStage.word) {
@@ -437,10 +618,12 @@ class _DictationPageState extends State<DictationPage> {
     ]);
   }
 
+  ///
   /// 按当前阶段生成指定数量的干扰项。
   ///
-  /// @param `int` count 需要生成的干扰项数量。
+  /// @param  int  count 需要生成的干扰项数量。
   /// @return `List<String>` 与当前正确答案不同的候选文本。
+  ///
   List<String> _generateCurrentDistractors({int count = 3}) {
     // 拼写题与释义题分别复用原有生成规则，来源仍严格限制在本轮学习列表。
     return _stage == DictationStage.word
@@ -456,10 +639,12 @@ class _DictationPageState extends State<DictationPage> {
           );
   }
 
+  ///
   /// 用指定干扰项组装一个正确答案和三个干扰答案，并打乱显示位置。
   ///
-  /// @param `List<String>?` distractors 可复用的固定干扰项；为空时现场生成。
+  /// @param  `List<String>?`  distractors 可复用的固定干扰项；为空时现场生成。
   /// @return `List<DictationOption>` 一个正确项加三个干扰项的只读列表。
+  ///
   List<DictationOption> _buildOptions({List<String>? distractors}) {
     // 未传缓存时同步生成，确保页面首帧已经有完整四选一。
     final resolvedDistractors = distractors ?? _generateCurrentDistractors();
@@ -476,11 +661,13 @@ class _DictationPageState extends State<DictationPage> {
     return List<DictationOption>.unmodifiable(options);
   }
 
+  ///
   /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
   ///
-  /// @param `List<String>` distractors 缓存中的三个干扰项。
-  /// @param `String` correct 当前小题正确答案。
-  /// @return `bool` 候选数量、唯一性和排除正确答案是否全部有效。
+  /// @param  `List<String>`  distractors 缓存中的三个干扰项。
+  /// @param  String  correct 当前小题正确答案。
+  /// @return bool 候选数量、唯一性和排除正确答案是否全部有效。
+  ///
   bool _isValidCachedDistractors(List<String> distractors, String correct) {
     // 必须精确三项，否则继续使用页面已经同步生成的标准结果。
     if (distractors.length != 3) return false;
@@ -492,9 +679,11 @@ class _DictationPageState extends State<DictationPage> {
     return normalized.length == 3 && !normalized.contains(normalizedCorrect);
   }
 
+  ///
   /// 命中缓存就替换同步结果；首次遇到该题则把当前生成结果保存到 SQLite。
   ///
   /// @return `Future<void>` 缓存读取或创建完成后的异步结果。
+  ///
   Future<void> _restoreOrCreateCurrentOptionCache() async {
     // 每次进入新小题先领取一个代次号，用来识别晚到的旧请求。
     final generation = ++_optionLoadGeneration;
@@ -535,6 +724,7 @@ class _DictationPageState extends State<DictationPage> {
     }
   }
 
+  ///
   /// 调用真实发音服务，并在播放期间显示 Tabler 音量图标。
   ///
   /// [interrupt] 为 false 时忽略播放中的重复点击；为 true 时允许自动播放
@@ -543,8 +733,9 @@ class _DictationPageState extends State<DictationPage> {
   /// 底层原生播放器本身就支持"后来的请求替换先前请求"（旧请求会收到
   /// AUDIO_INTERRUPTED），所以这里只要不在 Dart 层把请求拦下来即可。
   ///
-  /// @param `bool` interrupt 是否允许当前请求打断正在播放的旧音频。
+  /// @param  bool  interrupt 是否允许当前请求打断正在播放的旧音频。
   /// @return `Future<void>` 当前音频播放结束或被打断后的异步结果。
+  ///
   Future<void> _playAudio({bool interrupt = false}) async {
     // 整轮已完成时不再发声。
     if (_isDone) return;
@@ -572,9 +763,11 @@ class _DictationPageState extends State<DictationPage> {
     }
   }
 
+  ///
   /// 点击提示：拼写阶段逐字公开，释义阶段公开首字。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _showHint() {
     // 整轮或当前单词已经完成时，不再改变提示状态。
     if (_isDone || _isCurrentWordComplete) return;
@@ -606,14 +799,16 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(_persistSession());
   }
 
+  ///
   /// 选择答案：错项变红并禁用；正确时推进到下一小题。
   ///
   /// 触觉反馈策略：
   /// - 选错：heavyImpact（重震），配合选项抖动动画，错误感强烈。
   /// - 选对：lightImpact（轻触），页面立即切换为新题，视觉变化即反馈。
   ///
-  /// @param `DictationOption` option 用户点击的候选项。
-  /// @return `void`
+  /// @param  DictationOption  option 用户点击的候选项。
+  /// @return void
+  ///
   void _pickOption(DictationOption option) {
     // 当前单词完成后已经只能点击"下一题"，旧选项不再响应。
     if (_isDone ||
@@ -688,10 +883,12 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(_restoreOrCreateCurrentOptionCache());
   }
 
+  ///
   /// 长按候选项后询问是否刷新；确认后保持四选一结构并立即替换当前文本。
   ///
-  /// @param `int` optionIndex 用户长按的候选项下标。
+  /// @param  int  optionIndex 用户长按的候选项下标。
   /// @return `Future<void>` 确认、替换和缓存写入启动后的异步结果。
+  ///
   Future<void> _requestOptionRefresh(int optionIndex) async {
     // 完成态没有候选项；下标越界说明长按事件来自已经卸载的旧组件。
     if (_isDone ||
@@ -778,10 +975,12 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  ///
   /// 显示刷新确认框；返回 true 表示用户确认替换当前候选词。
   ///
-  /// @param `String` optionText 当前候选项文本。
+  /// @param  String  optionText 当前候选项文本。
   /// @return `Future<bool>` 用户是否确认刷新。
+  ///
   Future<bool> _showOptionRefreshDialog(String optionText) async {
     // showDialog 的 null 表示点遮罩或系统返回，统一按取消处理。
     final confirmed = await showDialog<bool>(
@@ -875,12 +1074,16 @@ class _DictationPageState extends State<DictationPage> {
     return confirmed ?? false;
   }
 
+  ///
   /// 把长按刷新后的三个干扰项覆盖进当前小题缓存。
   ///
-  /// @param `String` cacheKey 当前小题的稳定缓存键。
-  /// @param `int?` wordId 当前单词主键。
-  /// @param `List<String>` distractors 刷新后的三个干扰项。
+  /// @param  String  cacheKey 当前小题的稳定缓存键。
+  /// @param  int?  wordId 当前单词主键。
+  /// @param  `List<String>`  distractors 刷新后的三个干扰项。
   /// @return `Future<void>` 缓存覆盖完成后的异步结果。
+  ///
+  /// @param  `List<DictationOption>`  options
+  ///
   Future<void> _persistRefreshedOptions({
     required String cacheKey,
     required int? wordId,
@@ -904,9 +1107,11 @@ class _DictationPageState extends State<DictationPage> {
     }
   }
 
+  ///
   /// 标记当前单词的拼写和全部释义均已答对。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _completeCurrentWord() {
     // 单词完成给予中等震动，作为里程碑反馈。
     HapticFeedback.mediumImpact();
@@ -932,6 +1137,7 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(_playAudio(interrupt: true));
   }
 
+  ///
   /// 把当前单词的本次默写结果写入记录 Store。
   ///
   /// 这一步只在用户点击「下一题」后发生；停留在完成态或点击「再试一次」都不会
@@ -945,6 +1151,7 @@ class _DictationPageState extends State<DictationPage> {
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
   ///
   /// @return `Future<bool>` 数据库事务是否成功；没有主键时返回 true 并跳过写入。
+  ///
   Future<bool> _recordCompletion() async {
     // 取出当前单词主键。
     final wordId = _currentWord.id;
@@ -973,11 +1180,13 @@ class _DictationPageState extends State<DictationPage> {
     }
   }
 
+  ///
   /// 退出默写页，并把本次复习过的单词 id 集合带回首页，供其定向回刷。
   ///
   /// 通过 [Navigator.pop] 的结果参数传出，避免首页重新加载整库。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _exitDictation() {
     // 用户点击下一题后必须等事务结束；保存中主动返回会让首页漏掉最新回刷 id。
     if (_isSavingCompletion) return;
@@ -985,9 +1194,11 @@ class _DictationPageState extends State<DictationPage> {
     Navigator.pop(context, _reviewedWordIds.toList());
   }
 
+  ///
   /// 用户点击底部长条按钮后先提交当前结果，再进入下一词或整轮完成页。
   ///
   /// @return `Future<void>` 记录事务与页面推进完成后的异步结果。
+  ///
   Future<void> _goToNextWord() async {
     // 只有当前题已完成才允许推进，防止外部误调用跳过题目。
     if (!_isCurrentWordComplete || _isSavingCompletion) return;
@@ -1061,13 +1272,15 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(_playAudio(interrupt: true));
   }
 
+  ///
   /// 用户点击"再试一次"：把当前单词整体退回刚进入这一题时的状态。
   ///
   /// 语义等同于"这道题重做一遍"：拼写没选、释义没选、提示未展开、错项全部清空，
   /// 并像刚进入新题一样自动发音一次。本题错误与提示次数也会归零，最终只提交
   /// 用户重做这一遍产生的数据。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _retryCurrentWord() {
     // 只有当前题处于"已完成"状态时才会出现这个按钮，其余情况忽略调用。
     if (!_isCurrentWordComplete || _isDone || _isSavingCompletion) return;
@@ -1106,12 +1319,14 @@ class _DictationPageState extends State<DictationPage> {
     unawaited(_playAudio(interrupt: true));
   }
 
+  ///
   /// 构建当前单词的完整步骤清单：先“听音选词”，再逐条词性释义。
   ///
   /// 每个步骤都从一开始列出，状态随答题进度在 未开始/进行中/已完成 之间变化。
   /// 组件只负责按状态渲染，不关心答题下标。
   ///
   /// @return `List<DictationStep>` 当前单词的不可变步骤列表。
+  ///
   List<DictationStep> _buildSteps() {
     // 步骤集合从“听音选词”开始，拼写答对后它转为已完成。
     final steps = <DictationStep>[
@@ -1172,9 +1387,11 @@ class _DictationPageState extends State<DictationPage> {
     return List<DictationStep>.unmodifiable(steps);
   }
 
+  ///
   /// 返回当前答题阶段的用户可见名称。
   ///
-  /// @return `String` “听音选词”或“释义”。
+  /// @return String “听音选词”或“释义”。
+  ///
   String get _stageLabel {
     // 完成后的提示不再要求选择，只说明当前单词已完成。
     if (_isCurrentWordComplete) return '当前单词已完成';
@@ -1185,9 +1402,11 @@ class _DictationPageState extends State<DictationPage> {
     return '$pos · 选择释义 ${_definitionIndex + 1}/${meaning.definitions.length}';
   }
 
+  ///
   /// 释放音频请求并补写尚未完成的页面状态。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   @override
   void dispose() {
     // 系统返回或路由销毁前补写最终答题状态；完成页已经删除会话，不能重新创建。
@@ -1196,10 +1415,12 @@ class _DictationPageState extends State<DictationPage> {
     super.dispose();
   }
 
+  ///
   /// 构建默写页、题目页或整轮完成页。
   ///
-  /// @param `BuildContext` context 当前 Widget 树上下文。
-  /// @return `Widget` 当前默写状态对应的完整界面。
+  /// @param  BuildContext  context 当前 Widget 树上下文。
+  /// @return Widget 当前默写状态对应的完整界面。
+  ///
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
@@ -1227,11 +1448,13 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  ///
   /// 构建顶栏与进度条，布局结构和随身听页面保持一致。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @param `double` progress 当前单词在学习列表中的进度比例。
-  /// @return `Widget` 返回按钮、题量、难度徽章和进度条。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @param  double  progress 当前单词在学习列表中的进度比例。
+  /// @return Widget 返回按钮、题量、难度徽章和进度条。
+  ///
   Widget _buildHeader(AppTokens tokens, double progress) {
     // Column 让顶栏按钮行和进度条从上到下排列。
     return Column(
@@ -1310,10 +1533,12 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  ///
   /// 构建可滚动题目区、透明播放热区和悬浮候选区。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @return `Widget` 占满顶部信息区以下空间的题目 Stack。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @return Widget 占满顶部信息区以下空间的题目 Stack。
+  ///
   Widget _buildQuestion(AppTokens tokens) {
     // 底部控件虽然脱离普通布局，但滚动内容仍需保留等高的尾部内边距，
     // 否则较长 Steps 的最后几行会被悬浮候选区遮住。
@@ -1386,10 +1611,12 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  ///
   /// 构建贴近底部安全区的候选与操作区。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @return `Widget` 候选四选一或完成后的下一题操作区。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @return Widget 候选四选一或完成后的下一题操作区。
+  ///
   Widget _buildBottomControls(AppTokens tokens) {
     // Padding 在 SafeArea 已避开系统手势条后，再提供 20 像素底部留白。
     return Padding(
@@ -1483,14 +1710,16 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  ///
   /// 构建当前单词全部答对后的底部操作区：左「再试一次」+ 右「下一题」。
   ///
   /// 两个按钮通过 Expanded 各占一半宽度，中间用 [DictationLayout.columnGap]
   /// 留出间距（相当于小程序里 flex:1 + margin 的写法）。
   /// 左侧是次要操作（描边样式），右侧是主操作（蓝色实心）。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @return `Widget` 再试一次和下一题的双按钮区域。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @return Widget 再试一次和下一题的双按钮区域。
+  ///
   Widget _buildNextQuestionButton(AppTokens tokens) {
     // 最后一题提交后会进入完成状态页，因此主操作使用“完成”语义。
     final isLastWord = _wordIndex + 1 >= widget.words.length;
@@ -1572,10 +1801,12 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  ///
   /// 构建整轮默写完成状态页，展示题量、累计错选次数和返回入口。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @return `Widget` 整轮完成后的状态页。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @return Widget 整轮完成后的状态页。
+  ///
   Widget _buildDone(AppTokens tokens) {
     // Center 让完成反馈在剩余页面区域中保持视觉居中。
     return Center(
@@ -1634,22 +1865,30 @@ class _DictationPageState extends State<DictationPage> {
   }
 }
 
+///
 /// 默写顶栏难度徽章：正数使用危险色，其余情况用成功色显示 0。
+///
 class _DictationDifficultyBadge extends StatelessWidget {
+  ///
   /// 创建当前单词的只读难度徽章。
   ///
-  /// @param `int?` difficulty 当前单词难度。
+  /// @param  int?  difficulty 当前单词难度。
+  ///
   const _DictationDifficultyBadge({required this.difficulty});
 
+  ///
   /// 模型中的可空难度；历史异常负数也按无难度处理。
   ///
-  /// @var `int?`
+  /// @var int?
+  ///
   final int? difficulty;
 
+  ///
   /// 输出固定高度的 Tabler 软色 Badge。
   ///
-  /// @param `BuildContext` context 当前 Widget 树上下文。
-  /// @return `Widget` 正数危险色或零值成功色徽章。
+  /// @param  BuildContext  context 当前 Widget 树上下文。
+  /// @return Widget 正数危险色或零值成功色徽章。
+  ///
   @override
   Widget build(BuildContext context) {
     // 只有真实正数才是需要提醒的难度，其余值统一归零。
@@ -1687,12 +1926,19 @@ class _DictationDifficultyBadge extends StatelessWidget {
   }
 }
 
+///
+/// 默写顶栏使用的无文字 Tabler 图标按钮。
+///
 class _PlainIconButton extends StatelessWidget {
+  ///
   /// 构建固定画布的顶栏图标按钮。
   ///
-  /// @param `IconData` icon 需要显示的 Tabler 图标。
-  /// @param `VoidCallback` onTap 点击回调。
-  /// @param `AlignmentGeometry` alignment 图标在画布中的对齐方式。
+  /// @param  IconData  icon 需要显示的 Tabler 图标。
+  /// @param  VoidCallback  onTap 点击回调。
+  /// @param  AlignmentGeometry  alignment 图标在画布中的对齐方式。
+  ///
+  /// @param  Key?  key
+  ///
   const _PlainIconButton({
     required this.icon,
     required this.onTap,
@@ -1700,25 +1946,33 @@ class _PlainIconButton extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 需要显示的 Tabler 图标。
   ///
-  /// @var `IconData`
+  /// @var IconData
+  ///
   final IconData icon;
 
+  ///
   /// 用户点击图标画布时执行的回调。
   ///
-  /// @var `VoidCallback`
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 图标在 34 像素画布中的对齐方式。
   ///
-  /// @var `AlignmentGeometry`
+  /// @var AlignmentGeometry
+  ///
   final AlignmentGeometry alignment;
 
+  ///
   /// Flutter 每次需要绘制顶栏按钮时调用此方法。
   ///
-  /// @param `BuildContext` context 当前 Widget 树上下文。
-  /// @return `Widget` 固定点击画布的顶栏图标按钮。
+  /// @param  BuildContext  context 当前 Widget 树上下文。
+  /// @return Widget 固定点击画布的顶栏图标按钮。
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前亮色或深色主题中的文字颜色。
@@ -1743,17 +1997,24 @@ class _PlainIconButton extends StatelessWidget {
   }
 }
 
+///
+/// 底部提示和播放入口共用的 Tabler 描边操作按钮。
+///
 class _OutlineAction extends StatelessWidget {
+  ///
   /// 构建右侧的提示或播放按钮。
   ///
-  /// @param `String` label 按钮文案。
-  /// @param `Color` foreground 图标和文字颜色。
-  /// @param `Color` border 外边框颜色。
-  /// @param `VoidCallback` onTap 点击回调。
-  /// @param `double` height 按钮固定高度。
-  /// @param `double` horizontalPadding 水平内边距。
-  /// @param `Color?` background 可选背景色。
-  /// @param `IconData?` icon 可选 Tabler 图标。
+  /// @param  String  label 按钮文案。
+  /// @param  Color  foreground 图标和文字颜色。
+  /// @param  Color  border 外边框颜色。
+  /// @param  VoidCallback  onTap 点击回调。
+  /// @param  double  height 按钮固定高度。
+  /// @param  double  horizontalPadding 水平内边距。
+  /// @param  Color?  background 可选背景色。
+  /// @param  IconData?  icon 可选 Tabler 图标。
+  ///
+  /// @param  Key?  key
+  ///
   const _OutlineAction({
     required this.label,
     required this.foreground,
@@ -1766,50 +2027,68 @@ class _OutlineAction extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 仅当按钮具有图标语义时传入 Tabler 图标。
   ///
-  /// @var `IconData?`
+  /// @var IconData?
+  ///
   final IconData? icon;
 
+  ///
   /// 按钮中显示的命令文字。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 图标和文字的前景色。
   ///
-  /// @var `Color`
+  /// @var Color
+  ///
   final Color foreground;
 
+  ///
   /// 按钮一像素外边框的颜色。
   ///
-  /// @var `Color`
+  /// @var Color
+  ///
   final Color border;
 
+  ///
   /// 可选按钮背景色；播放主操作传入蓝色，提示按钮则沿用卡片色。
   ///
-  /// @var `Color?`
+  /// @var Color?
+  ///
   final Color? background;
 
+  ///
   /// 点击按钮时执行的业务操作。
   ///
-  /// @var `VoidCallback`
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 按钮的固定高度，底部操作区使用 48 像素。
   ///
-  /// @var `double`
+  /// @var double
+  ///
   final double height;
 
+  ///
   /// 按钮文字两侧留白，窄右栏使用较紧凑的值。
   ///
-  /// @var `double`
+  /// @var double
+  ///
   final double horizontalPadding;
 
+  ///
   /// Flutter 绘制提示或播放按钮时调用此方法。
   ///
-  /// @param `BuildContext` context 当前 Widget 树上下文。
-  /// @return `Widget` 统一尺寸的提示或播放按钮。
+  /// @param  BuildContext  context 当前 Widget 树上下文。
+  /// @return Widget 统一尺寸的提示或播放按钮。
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前主题的卡片背景色。
@@ -1844,18 +2123,24 @@ class _OutlineAction extends StatelessWidget {
   }
 }
 
+///
 /// 候选词卡片：错选时触发左右抖动动画，配合触觉反馈传达错误感。
 ///
 /// 动画时长 300ms，振幅从 ±8px 衰减到 0，类似微信摇一摇的阻尼抖动。
 /// 正确选项不做动画——页面立即切换为新题，视觉变化本身就是反馈。
+///
 class _OptionCard extends StatefulWidget {
+  ///
   /// 创建一个支持错误抖动和长按刷新的候选卡片。
   ///
-  /// @param `DictationOption` option 当前候选数据。
-  /// @param `int` index 候选在四选一列表中的下标。
-  /// @param `bool` wrong 是否已经选错。
-  /// @param `VoidCallback` onTap 点击答题回调。
-  /// @param `VoidCallback` onLongPress 长按刷新回调。
+  /// @param  DictationOption  option 当前候选数据。
+  /// @param  int  index 候选在四选一列表中的下标。
+  /// @param  bool  wrong 是否已经选错。
+  /// @param  VoidCallback  onTap 点击答题回调。
+  /// @param  VoidCallback  onLongPress 长按刷新回调。
+  ///
+  /// @param  Key?  key
+  ///
   const _OptionCard({
     required this.option,
     required this.index,
@@ -1865,48 +2150,74 @@ class _OptionCard extends StatefulWidget {
     super.key,
   });
 
+  ///
   /// 当前选项数据（文本 + 是否正确）。
   ///
-  /// @var `DictationOption`
+  /// @var DictationOption
+  ///
   final DictationOption option;
 
+  ///
   /// 选项在四选一列表中的位置（0-3），用于 A/B/C/D badge。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int index;
 
+  ///
   /// 是否已被选错；从 false 变 true 时触发抖动。
   ///
-  /// @var `bool`
+  /// @var bool
+  ///
   final bool wrong;
 
+  ///
   /// 点击回调；错选后由调用方传入 null 禁用。
   ///
-  /// @var `VoidCallback`
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 长按回调；即使该项已经选错，仍允许用户把它刷新成新候选。
   ///
-  /// @var `VoidCallback`
+  /// @var VoidCallback
+  ///
   final VoidCallback onLongPress;
 
+  ///
   /// 创建候选卡片动画状态。
   ///
   /// @return `State<_OptionCard>` 管理错误抖动动画的状态对象。
+  ///
   @override
   State<_OptionCard> createState() => _OptionCardState();
 }
 
+///
+/// 管理候选卡片选错后的水平衰减抖动动画。
+///
 class _OptionCardState extends State<_OptionCard>
     with SingleTickerProviderStateMixin {
-  // 抖动动画控制器，300ms 一次完整衰减。
+  ///
+  /// 驱动一次 300ms 抖动过程的动画控制器。
+  ///
+  /// @var AnimationController
+  ///
   late final AnimationController _shakeController;
-  // 抖动位移曲线：从 0 出发，经过 ±8px 衰减振荡，最终回到 0。
+
+  ///
+  /// 从零开始、经过正负位移并最终回到零的抖动曲线。
+  ///
+  /// @var `Animation<double>`
+  ///
   late final Animation<double> _shakeAnimation;
 
+  ///
   /// 初始化抖动动画控制器和位移序列。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   @override
   void initState() {
     super.initState();
@@ -1932,10 +2243,12 @@ class _OptionCardState extends State<_OptionCard>
     ).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
   }
 
+  ///
   /// 在候选从正常状态变为错误状态时启动抖动。
   ///
-  /// @param `_OptionCard` oldWidget 更新前的候选卡片配置。
-  /// @return `void`
+  /// @param  _OptionCard  oldWidget 更新前的候选卡片配置。
+  /// @return void
+  ///
   @override
   void didUpdateWidget(covariant _OptionCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -1945,19 +2258,23 @@ class _OptionCardState extends State<_OptionCard>
     }
   }
 
+  ///
   /// 释放抖动动画控制器。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   @override
   void dispose() {
     _shakeController.dispose();
     super.dispose();
   }
 
+  ///
   /// 构建候选卡片及错误抖动效果。
   ///
-  /// @param `BuildContext` context 当前 Widget 树上下文。
-  /// @return `Widget` 可点击、长按并显示错误状态的候选卡片。
+  /// @param  BuildContext  context 当前 Widget 树上下文。
+  /// @return Widget 可点击、长按并显示错误状态的候选卡片。
+  ///
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);

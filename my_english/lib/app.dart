@@ -10,15 +10,31 @@ import 'pages/home/home.dart';
 // 引入全局设置 Store，MaterialApp 会监听其中的主题变化。
 import 'store/settings.dart';
 
+///
 /// 应用根组件；它负责全局配置，不处理首页内部业务。
+///
 class MainApp extends StatelessWidget {
+  ///
   /// App 启动前必须传入已经读取本地数据的设置 Store。
+  ///
+  /// @param  SettingsStore  settings
+  /// @param  Key?  key
+  ///
   const MainApp({required this.settings, super.key});
 
+  ///
   /// 口音与主题都由同一个全局 Store 管理。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// build 相当于输出应用最外层模板。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // ListenableBuilder 类似监听小程序全局 data，只有设置变化时才重建 MaterialApp。

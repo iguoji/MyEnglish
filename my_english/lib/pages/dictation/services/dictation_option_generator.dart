@@ -1,14 +1,24 @@
 // 引入全局 Word 模型，候选项需要从首页传入的词库中读取拼写和释义。
 import '../../../models/word.dart';
 
+///
 /// 默写候选项生成器，作用类似 PHP 中只负责数据规则的 Service。
 ///
 /// 这个类不依赖 Widget 或页面状态，因此可以独立测试“始终三个干扰项”和相似度排序。
+///
 abstract final class DictationOptionGenerator {
+  ///
   /// 英文元音集合，替换元音时只在同类字母中选择。
+  ///
+  /// @var `Set<String>`
+  ///
   static const Set<String> _vowels = <String>{'a', 'e', 'i', 'o', 'u', 'y'};
 
+  ///
   /// 常见辅音的相近或易混淆替换表，生成结果比随机字符更像英文拼写。
+  ///
+  /// @var `Map<String, List<String>>`
+  ///
   static const Map<String, List<String>> _consonantReplacements =
       <String, List<String>>{
         'b': <String>['p', 'd'],
@@ -33,7 +43,11 @@ abstract final class DictationOptionGenerator {
         'z': <String>['s', 'c'],
       };
 
+  ///
   /// 当首页词库过小或数据异常时，使用真实常见英文词作为最后一层保底。
+  ///
+  /// @var `List<String>`
+  ///
   static const List<String> _wordFallbackBank = <String>[
     'answer',
     'choice',
@@ -45,7 +59,11 @@ abstract final class DictationOptionGenerator {
     'meaning',
   ];
 
+  ///
   /// 当活动词库中不足三条不同释义时，使用常见中文释义补足固定数量。
+  ///
+  /// @var `List<String>`
+  ///
   static const List<String> _definitionFallbackBank = <String>[
     '状态',
     '方式',
@@ -57,7 +75,14 @@ abstract final class DictationOptionGenerator {
     '事物',
   ];
 
+  ///
   /// 为英文拼写生成固定数量的不重复干扰项。
+  ///
+  /// @param  String  correct
+  /// @param  `List<Word>`  sourceWords
+  /// @param  int  count
+  /// @return `List<String>`
+  ///
   static List<String> buildWordDistractors({
     required String correct,
     required List<Word> sourceWords,
@@ -109,7 +134,14 @@ abstract final class DictationOptionGenerator {
     return List<String>.unmodifiable(distractors.take(count));
   }
 
+  ///
   /// 从首页词库的全部释义中生成固定数量的不重复干扰项。
+  ///
+  /// @param  String  correct
+  /// @param  `List<Word>`  sourceWords
+  /// @param  int  count
+  /// @return `List<String>`
+  ///
   static List<String> buildDefinitionDistractors({
     required String correct,
     required List<Word> sourceWords,
@@ -163,7 +195,14 @@ abstract final class DictationOptionGenerator {
     return List<String>.unmodifiable(distractors.take(count));
   }
 
+  ///
   /// 为长按刷新寻找一个尚未出现在当前四选一中的新英文干扰项。
+  ///
+  /// @param  String  correct
+  /// @param  `List<Word>`  sourceWords
+  /// @param  `Iterable<String>`  excluded
+  /// @return String?
+  ///
   static String? findReplacementWordDistractor({
     required String correct,
     required List<Word> sourceWords,
@@ -188,7 +227,14 @@ abstract final class DictationOptionGenerator {
     return null;
   }
 
+  ///
   /// 为长按刷新寻找一个尚未出现在当前四选一中的新中文释义干扰项。
+  ///
+  /// @param  String  correct
+  /// @param  `List<Word>`  sourceWords
+  /// @param  `Iterable<String>`  excluded
+  /// @return String?
+  ///
   static String? findReplacementDefinitionDistractor({
     required String correct,
     required List<Word> sourceWords,
@@ -209,7 +255,12 @@ abstract final class DictationOptionGenerator {
     return null;
   }
 
+  ///
   /// 按“中心交换、元音替换、相近辅音替换”生成同长度英文变体。
+  ///
+  /// @param  String  word
+  /// @return `List<String>`
+  ///
   static List<String> _syntheticWordVariants(String word) {
     // 非纯英文单词不做人工改字母，会直接进入真实词库回退。
     if (!RegExp(r'^[A-Za-z]+$').hasMatch(word)) return const <String>[];
@@ -302,7 +353,12 @@ abstract final class DictationOptionGenerator {
     ];
   }
 
+  ///
   /// 为释义生成尽量等字数的最后回退项。
+  ///
+  /// @param  String  definition
+  /// @return `List<String>`
+  ///
   static List<String> _syntheticDefinitionVariants(String definition) {
     // 使用 Unicode 码点而不是简单 codeUnit，表情或扩展字符也不会被拆坏。
     final characters = definition.runes.toList(growable: false);
@@ -340,7 +396,13 @@ abstract final class DictationOptionGenerator {
     return variants.toList(growable: false);
   }
 
+  ///
   /// 按长度、编辑距离、公共前缀和原始顺序稳定排列字符串。
+  ///
+  /// @param  String  target
+  /// @param  `Iterable<String>`  values
+  /// @return `List<String>`
+  ///
   static List<String> _rankBySimilarity(
     String target,
     Iterable<String> values,
@@ -411,7 +473,14 @@ abstract final class DictationOptionGenerator {
     return scored.map((item) => item.value).toList(growable: false);
   }
 
+  ///
   /// 把英文候选项加入集合，同时执行去重和拼写形态校验。
+  ///
+  /// @param  `Set<String>`  output
+  /// @param  String  candidate
+  /// @param  String  correct
+  /// @return void
+  ///
   static void _addUniqueWordCandidate(
     Set<String> output,
     String candidate,
@@ -431,7 +500,14 @@ abstract final class DictationOptionGenerator {
     output.add(value);
   }
 
+  ///
   /// 把普通文本候选加入集合，排除空值、正确值和重复值。
+  ///
+  /// @param  `Set<String>`  output
+  /// @param  String  candidate
+  /// @param  String  correct
+  /// @return void
+  ///
   static void _addUniqueTextCandidate(
     Set<String> output,
     String candidate,
@@ -447,7 +523,12 @@ abstract final class DictationOptionGenerator {
     output.add(value);
   }
 
+  ///
   /// 检查字符串是否符合基本英文拼写形态。
+  ///
+  /// @param  String  value
+  /// @return bool
+  ///
   static bool _looksLikeEnglishWord(String value) {
     // 允许纯字母，以及 can't / well-known 这类中间带撗号或连字符的形态。
     final validCharacters = RegExp(
@@ -463,7 +544,12 @@ abstract final class DictationOptionGenerator {
     return true;
   }
 
+  ///
   /// 返回从字符串中心逐渐扩展到两侧的下标顺序。
+  ///
+  /// @param  int  length
+  /// @return `List<int>`
+  ///
   static List<int> _centerFirstPositions(int length) {
     // 生成 0..length-1 的所有位置。
     final positions = List<int>.generate(length, (index) => index);
@@ -484,7 +570,13 @@ abstract final class DictationOptionGenerator {
     return positions;
   }
 
+  ///
   /// 按原字母的大小写形态返回替换字母。
+  ///
+  /// @param  String  replacement
+  /// @param  String  original
+  /// @return String
+  ///
   static String _matchCase(String replacement, String original) {
     // 原字母是大写时也把替换值转为大写。
     if (original == original.toUpperCase()) return replacement.toUpperCase();
@@ -492,7 +584,13 @@ abstract final class DictationOptionGenerator {
     return replacement.toLowerCase();
   }
 
+  ///
   /// 计算两个字符串的 Levenshtein 编辑距离。
+  ///
+  /// @param  String  first
+  /// @param  String  second
+  /// @return int
+  ///
   static int _levenshteinDistance(String first, String second) {
     // 转为 Unicode 码点列表，中英文和扩展字符共用同一算法。
     final firstRunes = first.toLowerCase().runes.toList(growable: false);
@@ -533,7 +631,13 @@ abstract final class DictationOptionGenerator {
     return previous.last;
   }
 
+  ///
   /// 计算两个文本从开头连续相同的 Unicode 字符数。
+  ///
+  /// @param  String  first
+  /// @param  String  second
+  /// @return int
+  ///
   static int _commonPrefixLength(String first, String second) {
     // 统一转小写后比较英文，中文不受影响。
     final firstRunes = first.toLowerCase().runes.toList(growable: false);

@@ -13,11 +13,15 @@ import '../../../models/word.dart';
 // 分组 Store 提供当前分组列表。
 import '../../../store/group.dart';
 
+///
 /// 词性选项列表。
 ///
 /// 前七个为高频词性固定顺序：n. / v. / adj. / adv. / vi. / vt. / vi. vt.，
 /// 其余按词库使用频率降序排列。不含 '*'（'*' 表示未选，由取消选择产生）。
 /// 该列表作为词性单选区域的固定数据源，UI 横向滑动展示。
+///
+/// @var `List<String>`
+///
 const List<String> _kPosOptions = <String>[
   'n.',
   'v.',
@@ -37,9 +41,18 @@ const List<String> _kPosOptions = <String>[
   'det.',
 ];
 
+///
 /// 表单提交结果：首页据此调用 WordStore 创建或更新。
+///
 class WordFormResult {
+  ///
   /// 创建结果对象。
+  ///
+  /// @param  String  spelling
+  /// @param  `List<Meaning>`  meanings
+  /// @param  int?  groupId
+  /// @param  bool  continueAdding
+  ///
   const WordFormResult({
     required this.spelling,
     required this.meanings,
@@ -47,20 +60,44 @@ class WordFormResult {
     required this.continueAdding,
   });
 
+  ///
   /// 整理后的拼写（已去除首尾空格）。
+  ///
+  /// @var String
+  ///
   final String spelling;
 
+  ///
   /// 整理后的 Meaning 列表，index 已按显示顺序编好。
+  ///
+  /// @var `List<Meaning>`
+  ///
   final List<Meaning> meanings;
 
+  ///
   /// 目标分组；null 表示"未分组"。
+  ///
+  /// @var int?
+  ///
   final int? groupId;
 
+  ///
   /// true 表示"提交并继续添加"，面板保持打开。
+  ///
+  /// @var bool
+  ///
   final bool continueAdding;
 }
 
+///
 /// 弹出添加/修改单词表单；onSubmit 由首页执行真正的 Store 操作。
+///
+/// @param  BuildContext  context
+/// @param  GroupStore  groups
+/// @param  `Future<void> Function(WordFormResult result)`  onSubmit
+/// @param  Word?  editing
+/// @return `Future<void>`
+///
 Future<void> showWordFormSheet(
   BuildContext context, {
   required GroupStore groups,
@@ -77,61 +114,126 @@ Future<void> showWordFormSheet(
   );
 }
 
+///
 /// 表单内部状态：拼写、分组与若干"词性+释义"编辑块。
+///
 class _WordFormSheet extends StatefulWidget {
+  ///
   /// 接收分组 Store、提交回调与可选的被编辑单词。
+  ///
+  /// @param  GroupStore  groups
+  /// @param  `Future<void> Function(WordFormResult result)`  onSubmit
+  /// @param  Word?  editing
+  ///
   const _WordFormSheet({
     required this.groups,
     required this.onSubmit,
     required this.editing,
   });
 
+  ///
   /// 分组来源。
+  ///
+  /// @var GroupStore
+  ///
   final GroupStore groups;
 
+  ///
   /// 提交回调。
+  ///
+  /// @var `Future<void> Function(WordFormResult result)`
+  ///
   final Future<void> Function(WordFormResult result) onSubmit;
 
+  ///
   /// 非空表示"修改单词"模式。
+  ///
+  /// @var Word?
+  ///
   final Word? editing;
 
+  ///
   /// 创建状态。
+  ///
+  /// @return `State<_WordFormSheet>`
+  ///
   @override
   State<_WordFormSheet> createState() => _WordFormSheetState();
 }
 
+///
 /// 单个"词性+释义"编辑块的临时数据。
+///
 class _MeaningDraft {
+  ///
   /// 创建编辑块。
+  ///
+  /// @param  String  pos
+  /// @param  `List<String>?`  defs
+  ///
   _MeaningDraft({this.pos = '', List<String>? defs})
     : defs = defs ?? <String>[];
 
+  ///
   /// 词性文字。
+  ///
+  /// @var String
+  ///
   String pos;
 
+  ///
   /// 已确认的释义标签。
+  ///
+  /// @var `List<String>`
+  ///
   final List<String> defs;
 
+  ///
   /// 输入框中尚未确认的释义草稿。
+  ///
+  /// @var String
+  ///
   String draft = '';
 }
 
+///
 /// 表单状态实现。
+///
 class _WordFormSheetState extends State<_WordFormSheet> {
+  ///
   /// 拼写输入控制器；编辑模式带入原拼写。
+  ///
+  /// @var TextEditingController
+  ///
   late final TextEditingController _spelling;
 
+  ///
   /// 当前选择的分组；null 表示"未分组"。
+  ///
+  /// @var int?
+  ///
   int? _groupId;
 
+  ///
   /// 全部"词性+释义"编辑块。
+  ///
+  /// @var `List<_MeaningDraft>`
+  ///
   late final List<_MeaningDraft> _meanings;
 
+  ///
   /// 每个编辑块的释义草稿输入控制器，与 _meanings 一一对应。
+  ///
+  /// @var `List<TextEditingController>`
+  ///
   final List<TextEditingController> _draftControllers =
       <TextEditingController>[];
 
+  ///
   /// 初始化：编辑模式回填数据，新增模式给一个空块。
+  ///
+  /// @return void
+  ///
   @override
   void initState() {
     // 保留父类初始化。
@@ -160,7 +262,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     }
   }
 
+  ///
   /// 释放全部输入控制器。
+  ///
+  /// @return void
+  ///
   @override
   void dispose() {
     // 拼写控制器。
@@ -173,7 +279,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     super.dispose();
   }
 
+  ///
   /// 把第 index 块草稿转正为释义标签。
+  ///
+  /// @param  int  index
+  /// @return void
+  ///
   void _commitDraft(int index) {
     // 去除首尾空格。
     final value = _meanings[index].draft.trim();
@@ -187,7 +298,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     });
   }
 
+  ///
   /// 汇总当前表单为提交结果；拼写为空时返回 null。
+  ///
+  /// @param  bool  continueAdding
+  /// @return WordFormResult?
+  ///
   WordFormResult? _buildResult(bool continueAdding) {
     // 拼写必填。
     final spelling = _spelling.text.trim();
@@ -223,7 +339,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     );
   }
 
+  ///
   /// 执行提交；continueAdding 为 true 时清空表单继续添加。
+  ///
+  /// @param  bool  continueAdding
+  /// @return `Future<void>`
+  ///
   Future<void> _submit(bool continueAdding) async {
     // 组装结果；拼写为空时静默忽略（按钮也已用透明度提示）。
     final result = _buildResult(continueAdding);
@@ -252,7 +373,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     Navigator.of(context).pop();
   }
 
+  ///
   /// 输出完整表单面板。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -568,7 +694,13 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     );
   }
 
+  ///
   /// 构建第 index 个"词性+释义"编辑卡。
+  ///
+  /// @param  AppTokens  tokens
+  /// @param  int  index
+  /// @return Widget
+  ///
   Widget _buildMeaningCard(AppTokens tokens, int index) {
     // 当前编辑块。
     final meaning = _meanings[index];
@@ -743,29 +875,54 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   }
 }
 
+///
 /// 词性单选横向滑动区。
 ///
 /// 按 [_kPosOptions] 顺序横向排列所有词性选项，点击即选中；
 /// 选中项使用主色描边+主色文字，未选中项使用普通边框+次要文字。
 /// 区域可横向滑动，避免词性过多时溢出。
+///
 class _PosSelector extends StatelessWidget {
+  ///
   /// 接收设计令牌、当前选中词性与选择回调。
+  ///
+  /// @param  AppTokens  tokens
+  /// @param  String  selected
+  /// @param  `void Function(String pos)`  onSelect
+  ///
   const _PosSelector({
     required this.tokens,
     required this.selected,
     required this.onSelect,
   });
 
+  ///
   /// 设计令牌，用于读取颜色。
+  ///
+  /// @var AppTokens
+  ///
   final AppTokens tokens;
 
+  ///
   /// 当前选中的词性文字；'*' 表示未选。
+  ///
+  /// @var String
+  ///
   final String selected;
 
+  ///
   /// 点击词性选项后的回调。
+  ///
+  /// @var `void Function(String pos)`
+  ///
   final void Function(String pos) onSelect;
 
+  ///
   /// 输出 23 高的可横向滑动词性 Chip 列表（原 34 缩小三分之一）。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // SingleChildScrollView +横向滚动 让词性列表超出宽度时可滑动。
@@ -794,9 +951,18 @@ class _PosSelector extends StatelessWidget {
   }
 }
 
+///
 /// 单个词性选项 Chip。
+///
 class _PosChip extends StatelessWidget {
+  ///
   /// 接收设计令牌、文案、是否选中与点击回调。
+  ///
+  /// @param  AppTokens  tokens
+  /// @param  String  label
+  /// @param  bool  isSelected
+  /// @param  VoidCallback  onTap
+  ///
   const _PosChip({
     required this.tokens,
     required this.label,
@@ -804,19 +970,40 @@ class _PosChip extends StatelessWidget {
     required this.onTap,
   });
 
+  ///
   /// 设计令牌。
+  ///
+  /// @var AppTokens
+  ///
   final AppTokens tokens;
 
+  ///
   /// 词性文字。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 是否选中。
+  ///
+  /// @var bool
+  ///
   final bool isSelected;
 
+  ///
   /// 点击回调。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 输出圆角描边 Chip。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // InkWell 提供点击反馈。
@@ -853,9 +1040,20 @@ class _PosChip extends StatelessWidget {
   }
 }
 
+///
 /// 表单底部的统一按钮样式。
+///
 class _FormButton extends StatelessWidget {
+  ///
   /// 接收文案、配色与动作。
+  ///
+  /// @param  String  label
+  /// @param  Color  background
+  /// @param  Color  foreground
+  /// @param  VoidCallback  onTap
+  /// @param  Color?  border
+  /// @param  Key?  key
+  ///
   const _FormButton({
     required this.label,
     required this.background,
@@ -865,22 +1063,47 @@ class _FormButton extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 按钮文字。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 背景色。
+  ///
+  /// @var Color
+  ///
   final Color background;
 
+  ///
   /// 文字颜色。
+  ///
+  /// @var Color
+  ///
   final Color foreground;
 
+  ///
   /// 可选边框色。
+  ///
+  /// @var Color?
+  ///
   final Color? border;
 
+  ///
   /// 点击动作。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 输出 40 高圆角按钮。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // InkWell 提供点击反馈。

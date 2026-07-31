@@ -4,28 +4,55 @@ import 'package:flutter/material.dart';
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
 
+///
 /// 目标分组的一行展示数据。
+///
 class GroupPickerTarget {
+  ///
   /// 创建目标项；groupId 为 null 表示"未分组"。
+  ///
+  /// @param  int?  groupId
+  /// @param  String  name
+  /// @param  int  wordCount
+  ///
   const GroupPickerTarget({
     required this.groupId,
     required this.name,
     required this.wordCount,
   });
 
+  ///
   /// 目标分组主键；null 表示移回"未分组"。
+  ///
+  /// @var int?
+  ///
   final int? groupId;
 
+  ///
   /// 分组名称。
+  ///
+  /// @var String
+  ///
   final String name;
 
+  ///
   /// 分组当前单词数量。
+  ///
+  /// @var int
+  ///
   final int wordCount;
 }
 
+///
 /// 弹出"移动/复制到分组"选择面板；返回用户选中的 groupId。
 ///
 /// 返回值语义：null 需要与"用户直接关闭"区分，所以外层用 record 包装。
+///
+/// @param  BuildContext  context
+/// @param  String  title
+/// @param  `List<GroupPickerTarget>`  targets
+/// @return `Future<(int?)?>`
+///
 Future<(int?,)?> showGroupPickerSheet(
   BuildContext context, {
   required String title,

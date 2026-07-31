@@ -4,7 +4,11 @@ import 'dart:io';
 // flutter_test 提供 test、expect 等测试 API。
 import 'package:flutter_test/flutter_test.dart';
 
+///
 /// 对源码执行图标规范检查，避免后续开发重新混入 Material 图标或文字型图标。
+///
+/// @return void
+///
 void main() {
   // 这一条测试扫描 lib 目录下的全部 Dart 源码。
   test('all interface icons use Tabler instead of built-in or text icons', () {

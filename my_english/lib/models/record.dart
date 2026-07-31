@@ -1,28 +1,32 @@
 import 'model_value_parser.dart';
 
+///
 /// 单词默写记录模型，字段与 README 的 record 表一一对应。
 ///
 /// 每次提交默写结果都会产生一条记录；同一单词在同一天可以有多条记录。
 /// 首页统计今日复习数量时按 [wordId] 去重。
 ///
-/// @property `int` id SQLite 自增主键。
-/// @property `int` wordId 本次默写对应的单词主键。
-/// @property `bool` isCorrect 本次是否零错误完成。
-/// @property `int` wrongCount 本次选错次数。
-/// @property `int` hintCount 本次使用提示次数。
+/// @property int id SQLite 自增主键。
+/// @property int wordId 本次默写对应的单词主键。
+/// @property bool isCorrect 本次是否零错误完成。
+/// @property int wrongCount 本次选错次数。
+/// @property int hintCount 本次使用提示次数。
+///
 class Record {
+  ///
   /// 创建一条单词默写记录。
   ///
-  /// @param `int` id SQLite 自增主键。
-  /// @param `String` module 产生记录的业务模块。
-  /// @param `int` wordId 所属单词主键。
-  /// @param `bool` isCorrect 本次是否零错误完成。
-  /// @param `int` wrongCount 本次选错次数。
-  /// @param `int` hintCount 本次使用提示次数。
-  /// @param `int` difficultyBefore 提交前难度。
-  /// @param `int` difficultyAfter 提交后难度。
-  /// @param `int` createdAt 写入时间的毫秒时间戳。
-  /// @param `String` createdDate 写入日期的 yyyy-MM-dd 文本。
+  /// @param  int  id SQLite 自增主键。
+  /// @param  String  module 产生记录的业务模块。
+  /// @param  int  wordId 所属单词主键。
+  /// @param  bool  isCorrect 本次是否零错误完成。
+  /// @param  int  wrongCount 本次选错次数。
+  /// @param  int  hintCount 本次使用提示次数。
+  /// @param  int  difficultyBefore 提交前难度。
+  /// @param  int  difficultyAfter 提交后难度。
+  /// @param  int  createdAt 写入时间的毫秒时间戳。
+  /// @param  String  createdDate 写入日期的 yyyy-MM-dd 文本。
+  ///
   const Record({
     required this.id,
     required this.module,
@@ -36,60 +40,82 @@ class Record {
     required this.createdDate,
   });
 
+  ///
   /// 自增主键。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int id;
 
+  ///
   /// 来源模块，目前只有单词默写。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String module;
 
+  ///
   /// 所属单词主键。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int wordId;
 
+  ///
   /// 本次答题过程中是否没有选错候选项。
   ///
-  /// @var `bool`
+  /// @var bool
+  ///
   final bool isCorrect;
 
+  ///
   /// 本次错误次数。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int wrongCount;
 
+  ///
   /// 本次提示次数。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int hintCount;
 
+  ///
   /// 变动前难度。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int difficultyBefore;
 
+  ///
   /// 变动后难度。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int difficultyAfter;
 
+  ///
   /// 写入时间（毫秒时间戳）。
   ///
-  /// @var `int`
+  /// @var int
+  ///
   final int createdAt;
 
+  ///
   /// 本地日期，格式 'YYYY-MM-DD'。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String createdDate;
 
+  ///
   /// 从原生记录数据创建模型。
   ///
-  /// @param `Map<Object?, Object?>` map Android SQLite 返回的一行记录。
-  /// @return `Record` 完成类型校验和默认值处理后的默写记录。
+  /// @param  `Map<Object?, Object?>`  map Android SQLite 返回的一行记录。
+  /// @return Record 完成类型校验和默认值处理后的默写记录。
+  ///
   factory Record.fromMap(Map<Object?, Object?> map) {
     // id 对应数据库主键，逻辑类似 Laravel 模型必须存在的 route key。
     final id = readOptionalInt(map['id'], 'Record.id');

@@ -1,6 +1,11 @@
+///
 /// 将完整日期时间格式化为首页标题等位置可复用的中文格式。
 ///
 /// 输出 `yyyy年MM月dd日 HH:mm:ss`，对应 PHP 的 `date('Y年m月d日 H:i:s')`。
+///
+/// @param  DateTime  dateTime
+/// @return String
+///
 String formatFullDateTime(DateTime dateTime) {
   // 转为设备本地时间，确保真机显示用户所在时区。
   final localDateTime = dateTime.toLocal();
@@ -20,9 +25,15 @@ String formatFullDateTime(DateTime dateTime) {
   return '$year年$month月$day日 $hour:$minute:$second';
 }
 
+///
 /// 将单词日期格式化为紧凑列表日期，作用类似 PHP 项目里的日期 helper 函数。
 ///
 /// 今年显示 `MM.dd`，其他年份显示 `yyyy.MM.dd`；列表日期不包含秒，所以无需定时更新。
+///
+/// @param  DateTime  date
+/// @param  DateTime  now
+/// @return String
+///
 String formatWordDate(DateTime date, DateTime now) {
   // toLocal 把数据转换为设备本地时间，类似 PHP 先设置并使用当前时区。
   final localDate = date.toLocal();

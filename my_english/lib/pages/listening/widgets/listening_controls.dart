@@ -8,9 +8,18 @@ import '../../../common/theme.dart';
 // 引入随身听统一布局尺寸。
 import 'listening_layout.dart';
 
+///
 /// 播放列表顶部的紧凑搜索框，对应小程序中的受控 input 组件。
+///
 class ListeningPlaylistSearchField extends StatelessWidget {
+  ///
   /// 父页面负责保存输入值，本组件只负责稳定尺寸和视觉样式。
+  ///
+  /// @param  TextEditingController  controller
+  /// @param  AppTokens  tokens
+  /// @param  `ValueChanged<String>`  onChanged
+  /// @param  Key?  key
+  ///
   const ListeningPlaylistSearchField({
     required this.controller,
     required this.tokens,
@@ -18,16 +27,33 @@ class ListeningPlaylistSearchField extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 控制器保存当前输入文本，作用类似小程序 input 的 value 双向绑定来源。
+  ///
+  /// @var TextEditingController
+  ///
   final TextEditingController controller;
 
+  ///
   /// 页面主题颜色集合。
+  ///
+  /// @var AppTokens
+  ///
   final AppTokens tokens;
 
+  ///
   /// 输入变化回调，父页面收到后更新搜索过滤条件。
+  ///
+  /// @var `ValueChanged<String>`
+  ///
   final ValueChanged<String> onChanged;
 
+  ///
   /// Flutter 每次绘制搜索区域时调用此方法。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // SizedBox 把输入框高度固定为 32，与左右两个图标按钮完全相等。
@@ -74,9 +100,19 @@ class ListeningPlaylistSearchField extends StatelessWidget {
   }
 }
 
+///
 /// 设置面板中的数字步进器行，对应小程序中的“标签 + 减号 + 数值 + 加号”。
+///
 class ListeningSettingRow extends StatelessWidget {
+  ///
   /// 父级提供当前数值和两个方向的可空回调。
+  ///
+  /// @param  String  label
+  /// @param  int  value
+  /// @param  VoidCallback?  onMinus
+  /// @param  VoidCallback?  onPlus
+  /// @param  Key?  key
+  ///
   const ListeningSettingRow({
     required this.label,
     required this.value,
@@ -85,19 +121,40 @@ class ListeningSettingRow extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 左侧设置名称。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 中间显示的当前整数值。
+  ///
+  /// @var int
+  ///
   final int value;
 
+  ///
   /// 点击减号时执行；null 表示已经达到下限。
+  ///
+  /// @var VoidCallback?
+  ///
   final VoidCallback? onMinus;
 
+  ///
   /// 点击加号时执行；null 表示已经达到上限。
+  ///
+  /// @var VoidCallback?
+  ///
   final VoidCallback? onPlus;
 
+  ///
   /// Flutter 绘制每一项设置时调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前主题颜色。
@@ -140,18 +197,38 @@ class ListeningSettingRow extends StatelessWidget {
   }
 }
 
+///
 /// 数字步进器的单个方形图标按钮。
+///
 class _StepButton extends StatelessWidget {
+  ///
   /// onTap 可以为空，Flutter 会据此禁用 InkWell。
+  ///
+  /// @param  IconData  icon
+  /// @param  VoidCallback?  onTap
+  ///
   const _StepButton({required this.icon, required this.onTap});
 
+  ///
   /// 加号或减号图标。
+  ///
+  /// @var IconData
+  ///
   final IconData icon;
 
+  ///
   /// 点击回调；null 表示当前方向不可继续调整。
+  ///
+  /// @var VoidCallback?
+  ///
   final VoidCallback? onTap;
 
+  ///
   /// Flutter 绘制按钮时调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取主题颜色。
@@ -187,9 +264,19 @@ class _StepButton extends StatelessWidget {
   }
 }
 
+///
 /// 固定画布图标按钮，只允许约束对齐，不提供任何人工位移参数。
+///
 class ListeningIconButton extends StatelessWidget {
+  ///
   /// 图标按钮只接收图标、点击回调和画布内对齐方式。
+  ///
+  /// @param  IconData  icon
+  /// @param  VoidCallback  onTap
+  /// @param  Color?  color
+  /// @param  AlignmentGeometry  alignment
+  /// @param  Key?  key
+  ///
   const ListeningIconButton({
     required this.icon,
     required this.onTap,
@@ -198,19 +285,40 @@ class ListeningIconButton extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// Tabler 图标数据，相当于小程序 icon 组件的 type。
+  ///
+  /// @var IconData
+  ///
   final IconData icon;
 
+  ///
   /// 点击后执行的业务回调。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 可选图标颜色，不传时使用主题中的中等文字颜色。
+  ///
+  /// @var Color?
+  ///
   final Color? color;
 
+  ///
   /// 图标画布在固定点击区域内的合法对齐方式，例如左中、右中或右上。
+  ///
+  /// @var AlignmentGeometry
+  ///
   final AlignmentGeometry alignment;
 
+  ///
   /// Flutter 每次需要绘制按钮时都会调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 从当前主题读取默认图标颜色。
@@ -236,22 +344,43 @@ class ListeningIconButton extends StatelessWidget {
   }
 }
 
+///
 /// 播放列表工具栏按钮，尺寸必须与搜索框高度一致。
+///
 class ListeningSmallIconButton extends StatelessWidget {
+  ///
   /// 父页面必须提供图标和滚动回调。
+  ///
+  /// @param  IconData  icon
+  /// @param  VoidCallback  onTap
+  /// @param  Key?  key
+  ///
   const ListeningSmallIconButton({
     required this.icon,
     required this.onTap,
     super.key,
   });
 
+  ///
   /// 按钮内部的 Tabler 图标。
+  ///
+  /// @var IconData
+  ///
   final IconData icon;
 
+  ///
   /// 点击后的滚动操作。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// Flutter 每次绘制工具栏时调用此方法。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前主题颜色。
@@ -280,9 +409,19 @@ class ListeningSmallIconButton extends StatelessWidget {
   }
 }
 
+///
 /// “上一个/下一个”文字按钮，图标方向由父级明确指定。
+///
 class ListeningPlayerMoveButton extends StatelessWidget {
+  ///
   /// 默认图标放在文字前；下一个按钮通过 iconAfterLabel 改到文字后。
+  ///
+  /// @param  IconData  icon
+  /// @param  String  label
+  /// @param  VoidCallback  onTap
+  /// @param  bool  iconAfterLabel
+  /// @param  Key?  key
+  ///
   const ListeningPlayerMoveButton({
     required this.icon,
     required this.label,
@@ -291,19 +430,40 @@ class ListeningPlayerMoveButton extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// Tabler 上一个或下一个图标。
+  ///
+  /// @var IconData
+  ///
   final IconData icon;
 
+  ///
   /// 按钮可见文字。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 点击后执行跳词操作。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// false 对应“‹ 上一个”，true 对应“下一个 ›”。
+  ///
+  /// @var bool
+  ///
   final bool iconAfterLabel;
 
+  ///
   /// Flutter 绘制移动按钮时调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前主题颜色。

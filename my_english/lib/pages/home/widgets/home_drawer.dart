@@ -17,6 +17,7 @@ import '../../../store/settings.dart';
 // 离线语音缓存进度服务：抽屉内的"离线语音"入口实时读取与驱动后台预缓存。
 import '../../../services/word_audio_cache.dart';
 
+///
 /// 右侧抽屉菜单：顶部品牌区 + Primary 添加按钮 + 数据入口 + 内嵌设置卡片 + 页脚联系。
 ///
 /// 整体布局自上而下：
@@ -32,8 +33,21 @@ import '../../../services/word_audio_cache.dart';
 /// 10. “学习设置”分区标题（字号小 2px）
 /// 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习
 /// 16. 页脚：Github 图标 + 邮箱图标（居左、有间隔）
+///
 class HomeDrawer extends StatelessWidget {
+  ///
   /// 各入口的动作全部由首页注入，抽屉自身不包含业务逻辑。
+  ///
+  /// @param  VoidCallback  onAddWord
+  /// @param  SettingsStore  settings
+  /// @param  WordAudioCache  cache
+  /// @param  VoidCallback  onImport
+  /// @param  VoidCallback  onExport
+  /// @param  VoidCallback  onClearData
+  /// @param  VoidCallback  onOpenGithub
+  /// @param  VoidCallback  onCopyEmail
+  /// @param  Key?  key
+  ///
   const HomeDrawer({
     required this.onAddWord,
     required this.settings,
@@ -46,31 +60,68 @@ class HomeDrawer extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 点击“添加单词”后由首页打开单词表单。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onAddWord;
 
+  ///
   /// 全局设置 Store；抽屉内直接内嵌设置控件并实时反映修改。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// 离线语音缓存进度服务；“离线语音”入口读取百分比并触发后台预缓存。
+  ///
+  /// @var WordAudioCache
+  ///
   final WordAudioCache cache;
 
+  ///
   /// 点击“数据导入”后由首页弹出文件选择器读取 JSON。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onImport;
 
+  ///
   /// 点击“数据导出”后由首页把本地数据写出为 JSON 文件。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onExport;
 
+  ///
   /// 点击“清空数据”后由首页弹出二次确认，确认后清空全部本地数据。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onClearData;
 
+  ///
   /// 点击页脚仓库地址后的动作：用默认浏览器打开 GitHub。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onOpenGithub;
 
+  ///
   /// 点击页脚作者邮箱后的动作：复制邮箱并提示。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onCopyEmail;
 
+  ///
   /// 输出与设计稿一致的 252 宽抽屉内容。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -151,29 +202,53 @@ class HomeDrawer extends StatelessWidget {
   }
 }
 
+///
 /// 顶部三栏：左 logo、中 Azure 浅色徽章（名字+版号）、右主题切换图标。
 ///
 /// 主题切换图标取代了原内嵌设置中的“黑暗模式”开关：
 /// - 浅色模式显示月亮（暗示切到深色）
 /// - 深色模式显示太阳（暗示切到浅色）
+///
 class _DrawerHeader extends StatefulWidget {
+  ///
   /// 接收全局设置 Store，用于读取与切换主题。
+  ///
+  /// @param  SettingsStore  settings
+  ///
   const _DrawerHeader({required this.settings});
 
+  ///
   /// 全局设置 Store。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// 创建局部状态，管理主题切换的异步保存。
+  ///
+  /// @return `State<_DrawerHeader>`
+  ///
   @override
   State<_DrawerHeader> createState() => _DrawerHeaderState();
 }
 
+///
 /// 控制主题切换期间的禁用与错误提示。
+///
 class _DrawerHeaderState extends State<_DrawerHeader> {
+  ///
   /// true 表示主题正在等待 Android 磁盘确认，期间忽略重复点击。
+  ///
+  /// @var bool
+  ///
   bool _isSaving = false;
 
+  ///
   /// 切换黑暗/明亮模式；与原 _DrawerSettings._toggleDark 逻辑一致。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _toggleTheme() async {
     // 阻止重复磁盘写入。
     if (_isSaving) return;
@@ -195,13 +270,23 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
     }
   }
 
+  ///
   /// 统一显示主题切换失败。
+  ///
+  /// @param  Object  error
+  /// @return void
+  ///
   void _showSaveError(Object error) {
     // Toast 基于根 Overlay，层级高于 Drawer。
     Toast.show(context, '主题切换失败：$error');
   }
 
+  ///
   /// 输出三栏横向布局。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -322,17 +407,32 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
   }
 }
 
+///
 /// Primary 添加单词按钮：主色实底、白色文字、整行宽度。
 ///
 /// 对应 Tabler 的 btn-primary 样式：圆角 6、字号 14、字重 w600。
+///
 class _AddWordButton extends StatelessWidget {
+  ///
   /// 接收点击动作。
+  ///
+  /// @param  VoidCallback  onTap
+  ///
   const _AddWordButton({required this.onTap});
 
+  ///
   /// 点击动作，由首页决定行为。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 输出 38 高的整行主色按钮。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // Padding 让按钮左右与菜单项对齐（20），上下 32 对称留白。
@@ -381,20 +481,35 @@ class _AddWordButton extends StatelessWidget {
   }
 }
 
+///
 /// 抽屉里的“离线语音”入口：左侧图标+文案，右侧居右显示缓存百分比。
 ///
 /// 点击后会在下方展开一条整行圆角进度条，并触发后台批量缓存词库全部单词的
 /// 双口音音频；缓存进度由 [WordAudioCache] 单例实时推送，因此关闭抽屉回到首页
 /// 后任务继续，重新打开即见最新百分比。组件只通过 ListenableBuilder 监听服务，
 /// 自身不持有任何后台状态。
+///
 class _DrawerOfflineSpeech extends StatelessWidget {
+  ///
   /// 接收全局缓存服务。
+  ///
+  /// @param  WordAudioCache  cache
+  ///
   const _DrawerOfflineSpeech({required this.cache});
 
+  ///
   /// 离线语音缓存进度服务。
+  ///
+  /// @var WordAudioCache
+  ///
   final WordAudioCache cache;
 
+  ///
   /// 输出入口行 + 点击后出现的整行圆角进度条。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -484,11 +599,22 @@ class _DrawerOfflineSpeech extends StatelessWidget {
   }
 }
 
+///
 /// 抽屉里单个功能入口：左图标右文字，整行可点。
 ///
 /// [isDanger] 为 true 时图标与文字使用红色（用于“清空数据”）。
+///
 class _DrawerItem extends StatelessWidget {
+  ///
   /// 接收图标、文案、点击动作与是否危险样式。
+  ///
+  /// @param  IconData  icon
+  /// @param  String  label
+  /// @param  VoidCallback  onTap
+  /// @param  bool  isDanger
+  /// @param  double  bottomPadding
+  /// @param  Key?  key
+  ///
   const _DrawerItem({
     required this.icon,
     required this.label,
@@ -498,23 +624,48 @@ class _DrawerItem extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 入口图标。
+  ///
+  /// @var IconData
+  ///
   final IconData icon;
 
+  ///
   /// 入口文案。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 点击动作，由首页决定行为。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 是否使用红色危险样式（清空数据）。
+  ///
+  /// @var bool
+  ///
   final bool isDanger;
 
+  ///
   /// 底部内边距：默认 0（项间间距由下一项的 top 20 决定），
   /// 区块最后一项传 20 让其与下方分割线间距也=20，保持全链路对等。
+  ///
+  /// @var double
+  ///
   final double bottomPadding;
 
+  ///
   /// 输出上 20、下 [bottomPadding] 的入口行。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -543,17 +694,32 @@ class _DrawerItem extends StatelessWidget {
   }
 }
 
+///
 /// 分区标题（如“学习设置”）：字号比普通菜单项小 2px，muted 色。
 ///
 /// 普通 _DrawerItem 字号 14.5，这里 12.5，对应 Tabler 的 section label 风格。
+///
 class _SectionLabel extends StatelessWidget {
+  ///
   /// 接收标题文案。
+  ///
+  /// @param  String  text
+  ///
   const _SectionLabel(this.text);
 
+  ///
   /// 标题文字。
+  ///
+  /// @var String
+  ///
   final String text;
 
+  ///
   /// 输出左对齐的小号标题。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -576,29 +742,54 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+///
 /// 设置卡片：包裹口语发音 + 单词分隔 + 每日复习（11~15 项）。
 ///
 /// 卡片有 padding、无边框、有背景色（tokens.expand），圆角 8。
 /// 背景用 tokens.expand（比 tokens.sub 更浅），让选择器轨道 tokens.sub 可见，
 /// 选中项 tokens.card 白色浮起，视觉层次清晰。
+///
 class _SettingsCard extends StatefulWidget {
+  ///
   /// 接收全局设置 Store。
+  ///
+  /// @param  SettingsStore  settings
+  ///
   const _SettingsCard({required this.settings});
 
+  ///
   /// 所有修改直接写入该 Store 并持久化。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// 创建局部状态。
+  ///
+  /// @return `State<_SettingsCard>`
+  ///
   @override
   State<_SettingsCard> createState() => _SettingsCardState();
 }
 
+///
 /// 控制口音与分隔符保存期间的禁用与错误提示。
+///
 class _SettingsCardState extends State<_SettingsCard> {
+  ///
   /// true 表示某项设置正在等待 Android 磁盘确认。
+  ///
+  /// @var bool
+  ///
   bool _isSaving = false;
 
+  ///
   /// 保存口音并把失败原因显示在当前页面。
+  ///
+  /// @param  PronunciationAccent  value
+  /// @return `Future<void>`
+  ///
   Future<void> _setAccent(PronunciationAccent value) async {
     // 已经保存中时忽略新的并发点击。
     if (_isSaving) return;
@@ -616,7 +807,12 @@ class _SettingsCardState extends State<_SettingsCard> {
     }
   }
 
+  ///
   /// 保存中文释义分隔符，并沿用口音设置相同的失败提示流程。
+  ///
+  /// @param  DefinitionSeparator  value
+  /// @return `Future<void>`
+  ///
   Future<void> _setDefinitionSeparator(DefinitionSeparator value) async {
     // 已有设置正在写入时忽略并发点击，避免磁盘值与界面选择交错。
     if (_isSaving) return;
@@ -634,13 +830,23 @@ class _SettingsCardState extends State<_SettingsCard> {
     }
   }
 
+  ///
   /// 统一显示设置保存错误。
+  ///
+  /// @param  Object  error
+  /// @return void
+  ///
   void _showSaveError(Object error) {
     // Toast 基于根 Overlay，层级高于 Drawer。
     Toast.show(context, '设置保存失败：$error');
   }
 
+  ///
   /// 输出卡片容器 + 两行设置（口语发音 / 单词分隔）。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -701,23 +907,47 @@ class _SettingsCardState extends State<_SettingsCard> {
   }
 }
 
+///
 /// 三种设置控件共用的轨道宽度，让口语发音/单词分隔/每日复习视觉等宽。
+///
+/// @var double
+///
 const double _kSettingControlWidth = 108;
 
+///
 /// 口语发音分段选择器：美式 / 英式。
 ///
 /// 轨道与段钮样式与单词分隔、每日复习完全一致，统一宽度 [_kSettingControlWidth]。
+///
 class _AccentControl extends StatelessWidget {
+  ///
   /// 接收设置 Store 与选择回调。
+  ///
+  /// @param  SettingsStore  settings
+  /// @param  `void Function(PronunciationAccent)`  onTap
+  ///
   const _AccentControl({required this.settings, required this.onTap});
 
+  ///
   /// 全局设置 Store，读取当前口音。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// 点击某个口音后的回调。
+  ///
+  /// @var `void Function(PronunciationAccent)`
+  ///
   final void Function(PronunciationAccent) onTap;
 
+  ///
   /// 输出固定宽轨道 + 两个段钮。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -773,20 +1003,40 @@ class _AccentControl extends StatelessWidget {
   }
 }
 
+///
 /// 单词分隔分段选择器：、/，/；。
 ///
 /// 轨道宽度与口语发音一致 [_kSettingControlWidth]，三个段钮均分。
+///
 class _SeparatorControl extends StatelessWidget {
+  ///
   /// 接收设置 Store 与选择回调。
+  ///
+  /// @param  SettingsStore  settings
+  /// @param  `void Function(DefinitionSeparator)`  onTap
+  ///
   const _SeparatorControl({required this.settings, required this.onTap});
 
+  ///
   /// 全局设置 Store，读取当前分隔符。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// 点击某个分隔符后的回调。
+  ///
+  /// @var `void Function(DefinitionSeparator)`
+  ///
   final void Function(DefinitionSeparator) onTap;
 
+  ///
   /// 输出固定宽轨道 + 三个段钮。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -841,28 +1091,53 @@ class _SeparatorControl extends StatelessWidget {
   }
 }
 
+///
 /// 每日复习目标行：- 数值 +，三元素放进 switch 风格容器。
 ///
 /// 容器样式（tokens.sub 背景、8 圆角、无边框、固定宽度 [_kSettingControlWidth]）
 /// 与口语发音/单词分隔完全一致；加减按钮去掉边框，仅保留图标。
+///
 class _DailyGoalRow extends StatefulWidget {
+  ///
   /// 接收全局设置 Store。
+  ///
+  /// @param  SettingsStore  settings
+  ///
   const _DailyGoalRow({required this.settings});
 
+  ///
   /// 全局设置 Store，读取与修改每日复习目标。
+  ///
+  /// @var SettingsStore
+  ///
   final SettingsStore settings;
 
+  ///
   /// 创建局部状态，避免连续点击造成多个 SharedPreferences 写入交错。
+  ///
+  /// @return `State<_DailyGoalRow>`
+  ///
   @override
   State<_DailyGoalRow> createState() => _DailyGoalRowState();
 }
 
+///
 /// 管理每日目标步进按钮的异步保存状态。
+///
 class _DailyGoalRowState extends State<_DailyGoalRow> {
+  ///
   /// true 表示正在等待 Android 确认磁盘写入。
+  ///
+  /// @var bool
+  ///
   bool _isSaving = false;
 
+  ///
   /// 把目标增加或减少一个步长，并统一处理保存失败。
+  ///
+  /// @param  int  delta
+  /// @return `Future<void>`
+  ///
   Future<void> _changeGoal(int delta) async {
     // 保存期间忽略重复点击，避免较慢设备上发生写入顺序倒置。
     if (_isSaving) return;
@@ -880,7 +1155,12 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
     }
   }
 
+  ///
   /// 输出 52 高的步进器行。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -973,11 +1253,20 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
   }
 }
 
+///
 /// 设置项的通用一行：左标签、右控件、可选底部分隔线。
 ///
 /// [horizontalPadding] 默认 20（卡片外菜单项对齐），卡片内统一传 10。
+///
 class _SettingRow extends StatelessWidget {
+  ///
   /// label 是左侧字段名，control 是右侧控件。
+  ///
+  /// @param  String  label
+  /// @param  Widget  control
+  /// @param  bool  showDivider
+  /// @param  double  horizontalPadding
+  ///
   const _SettingRow({
     required this.label,
     required this.control,
@@ -985,19 +1274,40 @@ class _SettingRow extends StatelessWidget {
     this.horizontalPadding = 20,
   });
 
+  ///
   /// 设置项名称。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 右侧可操作控件。
+  ///
+  /// @var Widget
+  ///
   final Widget control;
 
+  ///
   /// 是否绘制底部行分隔线。
+  ///
+  /// @var bool
+  ///
   final bool showDivider;
 
+  ///
   /// 横向内边距：卡片外 20、卡片内 16。
+  ///
+  /// @var double
+  ///
   final double horizontalPadding;
 
+  ///
   /// 输出 52 高的横向布局。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -1025,20 +1335,40 @@ class _SettingRow extends StatelessWidget {
   }
 }
 
+///
 /// 页脚：Github 图标 + 邮箱图标，两个图标居左排列、有间隔。
 ///
 /// 仅显示图标，不显示文字。整行位于抽屉底部。
+///
 class _DrawerFooter extends StatelessWidget {
+  ///
   /// 接收两个点击动作。
+  ///
+  /// @param  VoidCallback  onOpenGithub
+  /// @param  VoidCallback  onCopyEmail
+  ///
   const _DrawerFooter({required this.onOpenGithub, required this.onCopyEmail});
 
+  ///
   /// 点击 Github 项后用系统默认浏览器打开仓库。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onOpenGithub;
 
+  ///
   /// 点击邮箱项后复制邮箱并提示。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onCopyEmail;
 
+  ///
   /// 输出水平排列的两个可点击项。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。

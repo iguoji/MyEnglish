@@ -29,6 +29,11 @@ import 'package:my_english/store/settings.dart';
 
 import '../../support/memory_learning_session_store.dart';
 
+///
+/// 注册默写页面的答题、播放、缓存和恢复交互测试。
+///
+/// @return void
+///
 void main() {
   // Widget 测试需要先初始化二进制消息桥，才能为原生记录通道安装测试桩。
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -948,7 +953,12 @@ void main() {
   );
 }
 
+///
 /// 断言当前小题始终存在精确四个候选项。
+///
+/// @param  WidgetTester  tester
+/// @return void
+///
 void _expectFourOptions(WidgetTester tester) {
   // 下标 0..3 都必须各有一个选项。
   for (var index = 0; index < 4; index++) {
@@ -958,7 +968,12 @@ void _expectFourOptions(WidgetTester tester) {
   expect(find.byKey(const Key('dictation-option-4')), findsNothing);
 }
 
+///
 /// 断言当前单词完成后四个候选项已经全部卸载。
+///
+/// @param  WidgetTester  tester
+/// @return void
+///
 void _expectNoOptions(WidgetTester tester) {
   // 逐个检查原四个固定下标。
   for (var index = 0; index < 4; index++) {
@@ -966,7 +981,14 @@ void _expectNoOptions(WidgetTester tester) {
   }
 }
 
+///
 /// 断言一个英文字母严格对应一个固定瓷砖，并核对当前公开的字母数量。
+///
+/// @param  WidgetTester  tester
+/// @param  String  spelling
+/// @param  int  revealedLetterCount
+/// @return void
+///
 void _expectTiles(
   WidgetTester tester, {
   required String spelling,
@@ -992,6 +1014,11 @@ void _expectTiles(
   expect(find.byKey(Key('dictation-tile-${spelling.length}')), findsNothing);
 }
 
+///
+/// 默写页面测试共用的固定单词列表。
+///
+/// @var `List<Word>`
+///
 final _words = <Word>[
   const Word(
     id: 1,
@@ -1004,38 +1031,88 @@ final _words = <Word>[
   const Word(id: 2, spelling: 'abandon'),
 ];
 
+///
+/// 每次播放和停止都会立即完成的测试播放器。
+///
 class _ImmediateAudioPlayer implements WordAudioPlayer {
+  ///
+  /// 立即完成指定单词的模拟播放。
+  ///
+  /// @param  String  spelling
+  /// @param  PronunciationAccent  accent
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {}
 
+  ///
+  /// 立即完成模拟停止操作。
+  ///
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> stop() async {}
 }
 
+///
 /// 记录每次播放请求并立即结束，适合验证多个点击热区复用同一播放事件。
+///
 class _RecordingAudioPlayer implements WordAudioPlayer {
+  ///
   /// 按发生顺序保存被请求播放的单词。
+  ///
+  /// @var `List<String>`
+  ///
   final List<String> requested = <String>[];
 
+  ///
+  /// 记录指定单词后立即完成模拟播放。
+  ///
+  /// @param  String  spelling
+  /// @param  PronunciationAccent  accent
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {
     // 每次调用都追加一次，不做去重。
     requested.add(spelling);
   }
 
+  ///
+  /// 立即完成模拟停止操作。
+  ///
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> stop() async {}
 }
 
+///
 /// 模拟真实原生播放器：play 的 Future 会一直挂起直到音频播完，
 /// 新的 play 会把上一个请求以「已被替换」的中断异常结束（与 Android 实现一致）。
+///
 class _PendingAudioPlayer implements WordAudioPlayer {
+  ///
   /// 依次记录每一次被请求播放的单词，供测试断言播放顺序。
+  ///
+  /// @var `List<String>`
+  ///
   final List<String> requested = <String>[];
 
+  ///
   /// 当前尚未结束的那次播放；Completer 相当于一个"手动兑现的 Promise"。
+  ///
+  /// @var `Completer<void>?`
+  ///
   Completer<void>? _pending;
 
+  ///
+  /// 记录新请求、中断旧请求并返回仍处于等待状态的播放结果。
+  ///
+  /// @param  String  spelling
+  /// @param  PronunciationAccent  accent
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) {
     // 记录本次请求。
@@ -1048,13 +1125,22 @@ class _PendingAudioPlayer implements WordAudioPlayer {
     return completer.future;
   }
 
+  ///
+  /// 中断当前仍处于等待状态的模拟播放。
+  ///
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> stop() async {
     // 停止同样让挂起的播放以中断异常收尾。
     _completePending();
   }
 
+  ///
   /// 结束当前挂起的播放；页面会把这个异常当作"被替换"而静默忽略。
+  ///
+  /// @return void
+  ///
   void _completePending() {
     final pending = _pending;
     _pending = null;

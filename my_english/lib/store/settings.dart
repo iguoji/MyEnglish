@@ -3,52 +3,96 @@ import 'package:flutter/material.dart';
 // services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SharedPreferences。
 import 'package:flutter/services.dart';
 
+///
 /// 单词发音口音；枚举比到处传递字符串更不容易写错。
+///
 enum PronunciationAccent {
+  ///
   /// 美式发音，也是第一次安装时的默认值。
+  ///
+  /// @var PronunciationAccent
+  ///
   american,
 
+  ///
   /// 英式发音。
+  ///
+  /// @var PronunciationAccent
+  ///
   british,
 }
 
+///
 /// 为口音枚举补充原生存储值和界面文字。
+///
 extension PronunciationAccentDetails on PronunciationAccent {
+  ///
   /// Android SharedPreferences 中保存的稳定字符串。
+  ///
+  /// @return String
+  ///
   String get storageValue => switch (this) {
     PronunciationAccent.american => 'american',
     PronunciationAccent.british => 'british',
   };
 
+  ///
   /// 设置面板显示的简短名称。
+  ///
+  /// @return String
+  ///
   String get label => switch (this) {
     PronunciationAccent.american => '美式',
     PronunciationAccent.british => '英式',
   };
 }
 
+///
 /// 中文释义之间使用的全角分隔符。
+///
 enum DefinitionSeparator {
+  ///
   /// 中文顿号，也是首次安装和旧版本升级后的默认值。
+  ///
+  /// @var DefinitionSeparator
+  ///
   ideographicComma,
 
+  ///
   /// 中文全角逗号。
+  ///
+  /// @var DefinitionSeparator
+  ///
   fullWidthComma,
 
+  ///
   /// 中文全角分号。
+  ///
+  /// @var DefinitionSeparator
+  ///
   fullWidthSemicolon,
 }
 
+///
 /// 为释义分隔符补充持久化值与真正显示的全角符号。
+///
 extension DefinitionSeparatorDetails on DefinitionSeparator {
+  ///
   /// Android SharedPreferences 保存英文稳定值，避免标点编码差异影响迁移。
+  ///
+  /// @return String
+  ///
   String get storageValue => switch (this) {
     DefinitionSeparator.ideographicComma => 'ideographic_comma',
     DefinitionSeparator.fullWidthComma => 'full_width_comma',
     DefinitionSeparator.fullWidthSemicolon => 'full_width_semicolon',
   };
 
+  ///
   /// App 拼接中文释义时真正使用的全角标点。
+  ///
+  /// @return String
+  ///
   String get symbol => switch (this) {
     DefinitionSeparator.ideographicComma => '、',
     DefinitionSeparator.fullWidthComma => '，',
@@ -56,39 +100,73 @@ extension DefinitionSeparatorDetails on DefinitionSeparator {
   };
 }
 
+///
 /// 用户选择的主题；当前只允许需求中明确给出的 Light 与 Dark。
+///
 enum AppThemePreference {
+  ///
   /// 浅色主题，也是第一次安装时的默认值。
+  ///
+  /// @var AppThemePreference
+  ///
   light,
 
+  ///
   /// 深色主题。
+  ///
+  /// @var AppThemePreference
+  ///
   dark,
 }
 
+///
 /// 为主题枚举补充持久化值、界面文字和 Flutter ThemeMode。
+///
 extension AppThemePreferenceDetails on AppThemePreference {
+  ///
   /// Android SharedPreferences 中使用的稳定字符串。
+  ///
+  /// @return String
+  ///
   String get storageValue => switch (this) {
     AppThemePreference.light => 'light',
     AppThemePreference.dark => 'dark',
   };
 
+  ///
   /// 设置面板显示的名称。
+  ///
+  /// @return String
+  ///
   String get label => switch (this) {
     AppThemePreference.light => 'Light',
     AppThemePreference.dark => 'Dark',
   };
 
+  ///
   /// MaterialApp 真正需要的主题模式。
+  ///
+  /// @return ThemeMode
+  ///
   ThemeMode get themeMode => switch (this) {
     AppThemePreference.light => ThemeMode.light,
     AppThemePreference.dark => ThemeMode.dark,
   };
 }
 
+///
 /// 全局设置 Store，类似小程序的全局状态加 wx.setStorageSync。
+///
 class SettingsStore extends ChangeNotifier {
+  ///
   /// 私有构造器确保生产环境必须先通过 load 读取原生持久化值。
+  ///
+  /// @param  MethodChannel?  _channel
+  /// @param  PronunciationAccent  _accent
+  /// @param  AppThemePreference  _theme
+  /// @param  DefinitionSeparator  _definitionSeparator
+  /// @param  int  _dailyGoal
+  ///
   SettingsStore._({
     required this._channel,
     required this._accent,
@@ -97,24 +175,49 @@ class SettingsStore extends ChangeNotifier {
     required this._dailyGoal,
   });
 
+  ///
   /// 原生通道名必须与 MainActivity 注册值保持一致。
+  ///
+  /// @var MethodChannel
+  ///
   static const MethodChannel _defaultChannel = MethodChannel(
     'my_english/settings',
   );
 
+  ///
   /// null 表示测试使用纯内存模式，不访问 Android。
+  ///
+  /// @var MethodChannel?
+  ///
   final MethodChannel? _channel;
 
+  ///
   /// 当前口音设置；下划线字段只允许通过 setAccent 修改。
+  ///
+  /// @var PronunciationAccent
+  ///
   PronunciationAccent _accent;
 
+  ///
   /// 当前主题设置；下划线字段只允许通过 setTheme 修改。
+  ///
+  /// @var AppThemePreference
+  ///
   AppThemePreference _theme;
 
+  ///
   /// 当前中文释义分隔符；下划线字段只允许通过 setDefinitionSeparator 修改。
+  ///
+  /// @var DefinitionSeparator
+  ///
   DefinitionSeparator _definitionSeparator;
 
+  ///
   /// App 启动时调用：先读取 SharedPreferences，再创建可供页面监听的 Store。
+  ///
+  /// @param  MethodChannel  channel
+  /// @return `Future<SettingsStore>`
+  ///
   static Future<SettingsStore> load({
     MethodChannel channel = _defaultChannel,
   }) async {
@@ -170,7 +273,14 @@ class SettingsStore extends ChangeNotifier {
     }
   }
 
+  ///
   /// Widget 测试使用的纯内存 Store，不要求初始化 Android 插件。
+  ///
+  /// @param  PronunciationAccent  accent
+  /// @param  AppThemePreference  theme
+  /// @param  DefinitionSeparator  definitionSeparator
+  /// @param  int  dailyGoal
+  ///
   factory SettingsStore.inMemory({
     PronunciationAccent accent = PronunciationAccent.american,
     AppThemePreference theme = AppThemePreference.light,
@@ -188,22 +298,47 @@ class SettingsStore extends ChangeNotifier {
     );
   }
 
+  ///
   /// 页面只读访问当前口音。
+  ///
+  /// @return PronunciationAccent
+  ///
   PronunciationAccent get accent => _accent;
 
+  ///
   /// 页面只读访问当前主题偏好。
+  ///
+  /// @return AppThemePreference
+  ///
   AppThemePreference get theme => _theme;
 
+  ///
   /// 页面只读访问当前中文释义分隔符。
+  ///
+  /// @return DefinitionSeparator
+  ///
   DefinitionSeparator get definitionSeparator => _definitionSeparator;
 
+  ///
   /// 每日复习目标；启动时从 Android SharedPreferences 恢复。
+  ///
+  /// @var int
+  ///
   int _dailyGoal;
 
+  ///
   /// 页面只读访问每日复习目标。
+  ///
+  /// @return int
+  ///
   int get dailyGoal => _dailyGoal;
 
+  ///
   /// 修改并持久化每日复习目标；负数一律钳制为 0。
+  ///
+  /// @param  int  value
+  /// @return `Future<void>`
+  ///
   Future<void> setDailyGoal(int value) async {
     // 目标不允许是负数。
     final normalized = value < 0 ? 0 : value;
@@ -217,10 +352,19 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// MaterialApp 直接读取的主题模式。
+  ///
+  /// @return ThemeMode
+  ///
   ThemeMode get themeMode => _theme.themeMode;
 
+  ///
   /// 修改并持久化口音；原生保存成功后才通知界面，避免显示与磁盘不一致。
+  ///
+  /// @param  PronunciationAccent  value
+  /// @return `Future<void>`
+  ///
   Future<void> setAccent(PronunciationAccent value) async {
     // 重复选择当前值时不做磁盘写入，也不触发无意义重建。
     if (_accent == value) return;
@@ -232,7 +376,12 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// 修改并持久化主题；通知后 MaterialApp 会立即切换 light/dark。
+  ///
+  /// @param  AppThemePreference  value
+  /// @return `Future<void>`
+  ///
   Future<void> setTheme(AppThemePreference value) async {
     // 当前值相同时无需再次写入。
     if (_theme == value) return;
@@ -244,7 +393,12 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// 修改并持久化中文释义分隔符；成功后所有正在监听的释义区域立即刷新。
+  ///
+  /// @param  DefinitionSeparator  value
+  /// @return `Future<void>`
+  ///
   Future<void> setDefinitionSeparator(DefinitionSeparator value) async {
     // 重复选择当前符号时不写磁盘。
     if (_definitionSeparator == value) return;
@@ -259,10 +413,14 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// 清空全部设置，恢复到首次安装的默认值。
   ///
   /// 对应首页「清空数据」入口：先请原生删除 SharedPreferences 中所有键值，
   /// 再把内存模型重置回美式 / Light / 顿号 / 100，并通知界面刷新（主题随之切回 Light）。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> clearAll() async {
     // 原生清空偏好文件；channel 为 null 时（纯测试）只重置内存。
     await _channel?.invokeMethod<void>('clearAllSettings');
@@ -275,7 +433,12 @@ class SettingsStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// 把原生字符串转换成强类型口音。
+  ///
+  /// @param  Object?  value
+  /// @return PronunciationAccent
+  ///
   static PronunciationAccent _accentFromStorage(Object? value) {
     // 只有明确保存 british 才使用英式，其余值都采用默认美式。
     return value == PronunciationAccent.british.storageValue
@@ -283,7 +446,12 @@ class SettingsStore extends ChangeNotifier {
         : PronunciationAccent.american;
   }
 
+  ///
   /// 把原生字符串转换成强类型主题。
+  ///
+  /// @param  Object?  value
+  /// @return AppThemePreference
+  ///
   static AppThemePreference _themeFromStorage(Object? value) {
     // 只有明确保存 dark 才启用深色，其余值都采用默认 Light。
     return value == AppThemePreference.dark.storageValue
@@ -291,7 +459,12 @@ class SettingsStore extends ChangeNotifier {
         : AppThemePreference.light;
   }
 
+  ///
   /// 把原生字符串转换成强类型中文释义分隔符。
+  ///
+  /// @param  Object?  value
+  /// @return DefinitionSeparator
+  ///
   static DefinitionSeparator _definitionSeparatorFromStorage(Object? value) {
     // switch 明确列出两个非默认值；未知值与缺失值都安全回退顿号。
     return switch (value) {
@@ -301,7 +474,12 @@ class SettingsStore extends ChangeNotifier {
     };
   }
 
+  ///
   /// 把原生动态值转换成合法的每日目标。
+  ///
+  /// @param  Object?  value
+  /// @return int
+  ///
   static int _dailyGoalFromStorage(Object? value) {
     // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
     final parsed = (value as num?)?.toInt();

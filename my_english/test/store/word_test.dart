@@ -7,7 +7,11 @@ import 'package:my_english/models/word.dart';
 // 引入被测试的纯 SQLite Word Store 与导入解析器。
 import 'package:my_english/store/word.dart';
 
+///
 /// 注册原生通道桩，验证纯 SQLite Store 的路由与导入解析。
+///
+/// @return void
+///
 void main() {
   // MethodChannel 测试需要先初始化 Flutter binding。
   TestWidgetsFlutterBinding.ensureInitialized();

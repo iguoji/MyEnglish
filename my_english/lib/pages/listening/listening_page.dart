@@ -27,19 +27,25 @@ import 'widgets/listening_controls.dart';
 // 引入集中管理的页面布局尺寸。
 import 'widgets/listening_layout.dart';
 
+///
 /// 随身听全屏页面。
 ///
 /// 页面结构为：顶部进度、可搜索跳转的播放列表、隐藏答案卡、
 /// 上一个/播放/下一个控制，以及播放次数、间隔和循环设置面板。
+///
 class ListeningPage extends StatefulWidget {
+  ///
   /// 创建随身听页面；首页必须提供至少一个单词以及可替换的播放器。
   ///
-  /// @param `List<Word>` words 本轮固定顺序的学习列表。
-  /// @param `WordAudioPlayer` audioPlayer 单词发音服务。
-  /// @param `PronunciationAccent` accent 当前发音口音。
-  /// @param `LearningSession?` initialSession 需要恢复的历史会话。
-  /// @param `LearningSessionStore?` sessionStore 可替换的会话 Store。
-  /// @param `String` definitionSeparator 多条释义之间的分隔符。
+  /// @param  `List<Word>`  words 本轮固定顺序的学习列表。
+  /// @param  WordAudioPlayer  audioPlayer 单词发音服务。
+  /// @param  PronunciationAccent  accent 当前发音口音。
+  /// @param  LearningSession?  initialSession 需要恢复的历史会话。
+  /// @param  LearningSessionStore?  sessionStore 可替换的会话 Store。
+  /// @param  String  definitionSeparator 多条释义之间的分隔符。
+  ///
+  /// @param  Key?  key
+  ///
   const ListeningPage({
     required this.words,
     required this.audioPlayer,
@@ -50,102 +56,204 @@ class ListeningPage extends StatefulWidget {
     super.key,
   }) : assert(words.length > 0, '随身听至少需要一个单词');
 
+  ///
   /// 首页按“已勾选优先，否则当前可见”规则传入的学习列表。
   ///
   /// @var `List<Word>`
+  ///
   final List<Word> words;
 
+  ///
   /// 与首页共用音频服务，测试时可以注入内存替身。
   ///
-  /// @var `WordAudioPlayer`
+  /// @var WordAudioPlayer
+  ///
   final WordAudioPlayer audioPlayer;
 
+  ///
   /// 当前设置中的美式或英式口音。
   ///
-  /// @var `PronunciationAccent`
+  /// @var PronunciationAccent
+  ///
   final PronunciationAccent accent;
 
+  ///
   /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新随身听。
   ///
-  /// @var `LearningSession?`
+  /// @var LearningSession?
+  ///
   final LearningSession? initialSession;
 
+  ///
   /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
   ///
-  /// @var `LearningSessionStore?`
+  /// @var LearningSessionStore?
+  ///
   final LearningSessionStore? sessionStore;
 
+  ///
   /// 同一词性下多条中文释义之间使用的全角分隔符。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String definitionSeparator;
 
+  ///
   /// 创建随身听页面状态。
   ///
   /// @return `State<ListeningPage>` 管理播放和恢复流程的状态对象。
+  ///
   @override
   State<ListeningPage> createState() => _ListeningPageState();
 }
 
+///
 /// 随身听页面状态，集中管理播放流程、搜索条件和所有用户交互。
+///
 class _ListeningPageState extends State<ListeningPage> {
-  // 播放列表滚动控制器，用于把当前单词自动滚动到中间。
+  ///
+  /// 播放列表滚动控制器，用于把当前单词自动移动到可见区域。
+  ///
+  /// @var ScrollController
+  ///
   final ScrollController _listController = ScrollController();
-  // 搜索框控制器保存用户输入。
+
+  ///
+  /// 保存搜索框输入并管理输入组件生命周期的控制器。
+  ///
+  /// @var TextEditingController
+  ///
   final TextEditingController _queryController = TextEditingController();
 
-  // 当前播放下标。
+  ///
+  /// 当前单词在固定播放列表中的下标。
+  ///
+  /// @var int
+  ///
   int _index = 0;
-  // 当前单词已经完成的播放轮数。
+
+  ///
+  /// 当前单词已经完成的播放轮数。
+  ///
+  /// @var int
+  ///
   int _completedRepeats = 0;
-  // 两次播放之间剩余秒数。
+
+  ///
+  /// 两次发音之间仍需等待的秒数。
+  ///
+  /// @var int
+  ///
   int _remainingSeconds = 2;
-  // 默认自动播放。
+
+  ///
+  /// 当前是否处于自动播放状态。
+  ///
+  /// @var bool
+  ///
   bool _isPlaying = true;
-  // 非循环模式走到末尾后显示“已播完”。
+
+  ///
+  /// 非循环模式是否已经播放到列表末尾。
+  ///
+  /// @var bool
+  ///
   bool _isFinished = false;
-  // 是否永久显示答案。
+
+  ///
+  /// 是否持续显示当前单词和释义答案。
+  ///
+  /// @var bool
+  ///
   bool _revealAll = false;
-  // 是否正在按住答案卡临时查看。
+
+  ///
+  /// 用户是否正在按住答案卡临时查看答案。
+  ///
+  /// @var bool
+  ///
   bool _isPeeking = false;
-  // 设置面板允许每个单词播放 1 到 9 次。
+
+  ///
+  /// 每个单词需要播放的总次数，允许范围为 1 到 9。
+  ///
+  /// @var int
+  ///
   int _repeat = 2;
-  // 设置面板允许 1 到 10 秒的播放间隔。
+
+  ///
+  /// 两次发音之间的等待秒数，允许范围为 1 到 10。
+  ///
+  /// @var int
+  ///
   int _interval = 2;
-  // 默认循环整个列表。
+
+  ///
+  /// 播放到末尾后是否重新从第一个单词开始。
+  ///
+  /// @var bool
+  ///
   bool _loop = true;
-  // 搜索文本只用于过滤上方列表，不改变真实播放顺序。
+
+  ///
+  /// 只用于过滤可见列表且不会改变真实播放顺序的搜索文本。
+  ///
+  /// @var String
+  ///
   String _query = '';
-  // 每次暂停、跳转或退出都会增加序号，使旧异步循环自动失效。
+
+  ///
+  /// 当前播放任务代次，暂停、跳转或退出时递增以中止旧任务。
+  ///
+  /// @var int
+  ///
   int _playSerial = 0;
-  // 可取消的一秒计时器；相比 Future.delayed，页面销毁时不会遗留测试计时器。
+
+  ///
+  /// 可主动取消的一秒倒计时计时器。
+  ///
+  /// @var Timer?
+  ///
   Timer? _countdownTimer;
-  // 当前一秒等待的完成器，取消时主动完成以唤醒旧循环。
+
+  ///
+  /// 当前一秒等待的完成器，取消时主动完成以唤醒旧播放循环。
+  ///
+  /// @var `Completer<void>?`
+  ///
   Completer<void>? _countdownCompleter;
 
+  ///
   /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
   ///
-  /// @return `LearningSessionStore` 当前页面实际使用的会话 Store。
+  /// @return LearningSessionStore 当前页面实际使用的会话 Store。
+  ///
   LearningSessionStore get _sessionStore =>
       widget.sessionStore ?? LocalLearningSessionStore.instance;
 
+  ///
   /// 当前页面的会话持久化入口。
   ///
-  /// @return `LearningSessionPersistence` 已绑定随身听类型的持久化门面。
+  /// @return LearningSessionPersistence 已绑定随身听类型的持久化门面。
+  ///
   LearningSessionPersistence get _sessionPersistence =>
       LearningSessionPersistence(
         store: _sessionStore,
         type: LearningSessionType.listening,
       );
 
+  ///
   /// 当前正在播放的单词。
   ///
-  /// @return `Word` 播放列表当前下标对应的单词。
+  /// @return Word 播放列表当前下标对应的单词。
+  ///
   Word get _currentWord => widget.words[_index];
 
+  ///
   /// 页面状态第一次创建时执行一次初始化。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   @override
   void initState() {
     // 先让 Flutter 完成 State 基础初始化。
@@ -165,9 +273,11 @@ class _ListeningPageState extends State<ListeningPage> {
     });
   }
 
+  ///
   /// 从构造参数恢复上次状态；每个字段都限制在当前页面的合法范围内。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _restoreInitialSession() {
     // 新开始没有历史状态，保留字段默认值。
     final session = widget.initialSession;
@@ -206,9 +316,11 @@ class _ListeningPageState extends State<ListeningPage> {
     _isFinished = false;
   }
 
+  ///
   /// 把当前页面状态写入本地；没有完整数据库主键的测试数据不创建无效历史。
   ///
   /// @return `Future<void>` 会话保存完成后的异步结果。
+  ///
   Future<void> _persistSession() => _sessionPersistence.save(
     // 只传主键，恢复时首页会从最新词库重新组装 Word 模型。
     wordIds: widget.words.map((word) => word.id),
@@ -231,14 +343,18 @@ class _ListeningPageState extends State<ListeningPage> {
     },
   );
 
+  ///
   /// 正常播完后删除会话；删除失败只影响首页入口，不影响完成状态。
   ///
   /// @return `Future<void>` 会话删除完成后的异步结果。
+  ///
   Future<void> _deleteSession() => _sessionPersistence.delete();
 
+  ///
   /// 启动一个新的异步播放循环。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _startPlaybackLoop() {
     // 新序号会让旧循环在下一次检查时退出。
     final serial = ++_playSerial;
@@ -246,10 +362,12 @@ class _ListeningPageState extends State<ListeningPage> {
     unawaited(_runPlayback(serial));
   }
 
+  ///
   /// 按真实音频完成时间执行循环，避免固定 Timer 截断较长发音。
   ///
-  /// @param `int` serial 当前播放任务的代次号。
+  /// @param  int  serial 当前播放任务的代次号。
   /// @return `Future<void>` 播放循环结束后的异步结果。
+  ///
   Future<void> _runPlayback(int serial) async {
     // while 对应 PHP 中持续执行的任务循环；三项条件任一失效就停止。
     while (mounted && serial == _playSerial && _isPlaying) {
@@ -329,9 +447,11 @@ class _ListeningPageState extends State<ListeningPage> {
     }
   }
 
+  ///
   /// 等待一秒，但允许暂停、跳转和 dispose 立即取消。
   ///
   /// @return `Future<void>` 一秒到期或被主动取消后完成的 Future。
+  ///
   Future<void> _waitOneSecond() {
     // 创建新等待前先清理旧 Timer，确保任意时刻最多只有一个计时器。
     _cancelCountdown();
@@ -353,9 +473,11 @@ class _ListeningPageState extends State<ListeningPage> {
     return completer.future;
   }
 
+  ///
   /// 取消尚未结束的倒计时，并让等待它的旧循环立刻继续到序号检查处。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _cancelCountdown() {
     // 停止系统 Timer，防止稍后重复触发回调。
     _countdownTimer?.cancel();
@@ -369,9 +491,11 @@ class _ListeningPageState extends State<ListeningPage> {
     if (completer != null && !completer.isCompleted) completer.complete();
   }
 
+  ///
   /// 暂停当前音频并使旧循环失效。
   ///
   /// @return `Future<void>` 原生播放器停止后的异步结果。
+  ///
   Future<void> _pausePlayback() async {
     // 序号递增后，旧 _runPlayback 会在下一处检查直接返回。
     ++_playSerial;
@@ -391,9 +515,11 @@ class _ListeningPageState extends State<ListeningPage> {
     }
   }
 
+  ///
   /// 播放/暂停主按钮。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   void _togglePlayback() {
     // “已播完”状态再次点击时从第一个单词重新开始。
     if (_isFinished) {
@@ -427,10 +553,12 @@ class _ListeningPageState extends State<ListeningPage> {
     }
   }
 
+  ///
   /// 跳到指定位置并从该词第一轮重新开始。
   ///
-  /// @param `int` index 目标单词在完整播放列表中的下标。
-  /// @return `void`
+  /// @param  int  index 目标单词在完整播放列表中的下标。
+  /// @return void
+  ///
   void _jumpTo(int index) {
     // 让旧播放循环失效。
     ++_playSerial;
@@ -461,10 +589,12 @@ class _ListeningPageState extends State<ListeningPage> {
     if (_isPlaying) _startPlaybackLoop();
   }
 
+  ///
   /// 自动把当前项滚动到列表中部。
   ///
-  /// @param `bool` force 是否使用较快的主动跳转动画。
-  /// @return `void`
+  /// @param  bool  force 是否使用较快的主动跳转动画。
+  /// @return void
+  ///
   void _centerCurrentWord({bool force = false}) {
     // 等当前帧完成列表布局后，ScrollController 才能读取准确尺寸。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -489,9 +619,11 @@ class _ListeningPageState extends State<ListeningPage> {
     });
   }
 
+  ///
   /// 打开播放设置面板。
   ///
   /// @return `Future<void>` 设置面板关闭后的异步结果。
+  ///
   Future<void> _openSettings() async {
     await showModalBottomSheet<void>(
       // 使用当前页面 Navigator 管理弹出与关闭。
@@ -506,7 +638,13 @@ class _ListeningPageState extends State<ListeningPage> {
         builder: (sheetContext, setSheetState) {
           // 设置面板也必须读取当前亮色或深色主题。
           final tokens = AppTokens.of(sheetContext);
-          // 同时刷新面板和背后的播放页。
+
+          ///
+          /// 同时更新播放页状态、恢复缓存和当前设置面板。
+          ///
+          /// @param  VoidCallback  change
+          /// @return void
+          ///
           void update(VoidCallback change) {
             // 更新页面长期保存的播放设置。
             setState(change);
@@ -639,9 +777,11 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 页面退出时释放所有计时器、原生播放任务和输入控制器。
   ///
-  /// @return `void`
+  /// @return void
+  ///
   @override
   void dispose() {
     // 系统返回或路由销毁前补写最终状态；正常播完已经删会话，不能在这里重新创建。
@@ -660,10 +800,12 @@ class _ListeningPageState extends State<ListeningPage> {
     super.dispose();
   }
 
+  ///
   /// 构建随身听页面。
   ///
-  /// @param `BuildContext` context 当前 Widget 树上下文。
-  /// @return `Widget` 完整的随身听界面。
+  /// @param  BuildContext  context 当前 Widget 树上下文。
+  /// @return Widget 完整的随身听界面。
+  ///
   @override
   Widget build(BuildContext context) {
     // tokens 相当于小程序从全局主题 Store 读取当前页面颜色变量。
@@ -711,11 +853,13 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 构建顶栏和播放进度。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @param `double` progress 当前单词在列表中的进度比例。
-  /// @return `Widget` 顶栏和线性进度条。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @param  double  progress 当前单词在列表中的进度比例。
+  /// @return Widget 顶栏和线性进度条。
+  ///
   Widget _buildHeader(AppTokens tokens, double progress) {
     // Column 让按钮标题行与进度条垂直排列。
     return Column(
@@ -785,11 +929,13 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 构建搜索工具栏与播放列表。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @param `List<({int index, Word word})>` filtered 当前搜索结果及真实下标。
-  /// @return `Widget` 固定高度的播放列表卡片。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @param  `List<({int index, Word word})>`  filtered 当前搜索结果及真实下标。
+  /// @return Widget 固定高度的播放列表卡片。
+  ///
   Widget _buildPlaylistCard(
     AppTokens tokens,
     List<({int index, Word word})> filtered,
@@ -872,10 +1018,12 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 把播放列表平滑滚动到目标位置。
   ///
-  /// @param `double` target 目标滚动偏移量。
-  /// @return `void`
+  /// @param  double  target 目标滚动偏移量。
+  /// @return void
+  ///
   void _scrollPlaylistTo(double target) {
     // 页面刚创建或已经销毁时控制器可能没有绑定 ListView，此时直接忽略点击。
     if (!_listController.hasClients) return;
@@ -886,11 +1034,13 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 构建播放列表中的单个固定高度行。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @param `({int index, Word word})` entry 当前结果的真实下标和单词。
-  /// @return `Widget` 可点击的播放列表行。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @param  `({int index, Word word})`  entry 当前结果的真实下标和单词。
+  /// @return Widget 可点击的播放列表行。
+  ///
   Widget _buildPlaylistRow(AppTokens tokens, ({int index, Word word}) entry) {
     // 真实下标相同表示这一行是当前正在播放的单词。
     final current = entry.index == _index;
@@ -947,11 +1097,13 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 构建答案卡；按钮相对卡片外框使用正数边距定位。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @param `bool` showAnswer 是否显示完整答案。
-  /// @return `Widget` 支持按住查看与永久显示的答案卡。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @param  bool  showAnswer 是否显示完整答案。
+  /// @return Widget 支持按住查看与永久显示的答案卡。
+  ///
   Widget _buildAnswerCard(AppTokens tokens, bool showAnswer) {
     // Padding 放在卡片外部，因此 key 读取到的是实际白色卡片边界而不是含 margin 的虚拟尺寸。
     return Padding(
@@ -1028,10 +1180,12 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 构建页面底部的三个播放控制按钮。
   ///
-  /// @param `AppTokens` tokens 当前主题设计令牌。
-  /// @return `Widget` 上一个、播放暂停和下一个控制区。
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @return Widget 上一个、播放暂停和下一个控制区。
+  ///
   Widget _buildPlaybackControls(AppTokens tokens) {
     // Padding 提供控制区与答案卡、屏幕边缘之间的固定距离。
     return Padding(
@@ -1084,10 +1238,12 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
+  ///
   /// 隐藏播放列表拼写，只保留首字母并用圆点代替其余字符。
   ///
-  /// @param `String` spelling 需要隐藏的原始拼写。
-  /// @return `String` 保留首字母并遮盖其余字符的展示文本。
+  /// @param  String  spelling 需要隐藏的原始拼写。
+  /// @return String 保留首字母并遮盖其余字符的展示文本。
+  ///
   String _maskSpelling(String spelling) {
     // 空字符串没有首字母，直接返回可避免访问 spelling[0] 越界。
     if (spelling.isEmpty) return '';

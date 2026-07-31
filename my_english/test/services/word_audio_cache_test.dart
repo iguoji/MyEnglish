@@ -8,7 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 // 引入待测试的离线缓存状态服务。
 import 'package:my_english/services/word_audio_cache.dart';
 
+///
 /// 验证失败进度的真实百分比，以及清空后长期订阅仍可复用。
+///
+/// @return void
+///
 void main() {
   // MethodChannel 测试必须先初始化 Flutter 消息绑定。
   TestWidgetsFlutterBinding.ensureInitialized();

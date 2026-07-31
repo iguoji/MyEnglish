@@ -22,6 +22,11 @@ import 'package:my_english/store/settings.dart';
 
 import '../../support/memory_learning_session_store.dart';
 
+///
+/// 注册随身听页面的布局、播放和恢复交互测试。
+///
+/// @return void
+///
 void main() {
   testWidgets('listening page mirrors player layout and reveal interaction', (
     tester,
@@ -324,6 +329,11 @@ void main() {
   });
 }
 
+///
+/// 随身听测试共用的固定单词列表。
+///
+/// @var `List<Word>`
+///
 final _words = <Word>[
   const Word(
     id: 1,
@@ -335,11 +345,25 @@ final _words = <Word>[
   const Word(id: 2, spelling: 'abandon'),
 ];
 
+///
 /// 立即完成的播放器让测试无需网络和原生 MediaPlayer。
+///
 class _ImmediateAudioPlayer implements WordAudioPlayer {
+  ///
+  /// 立即完成指定单词的模拟播放。
+  ///
+  /// @param  String  spelling
+  /// @param  PronunciationAccent  accent
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {}
 
+  ///
+  /// 立即完成模拟停止操作。
+  ///
+  /// @return `Future<void>`
+  ///
   @override
   Future<void> stop() async {}
 }

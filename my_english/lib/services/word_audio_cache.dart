@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 // services.dart 提供 MethodChannel 与 EventChannel，分别用于触发预缓存和接收进度。
 import 'package:flutter/services.dart';
 
+///
 /// 离线语音缓存进度服务（单例）。
 ///
 /// 它只依赖 Android 原生层与独立的后台线程池，**不持有任何 Flutter Widget**，
@@ -14,69 +15,145 @@ import 'package:flutter/services.dart';
 ///
 /// 百分比口径与需求一致：总数 = 词库单词数 × 2（美式 + 英式），
 /// 已缓存 = 当前磁盘上已存在有效 MP3 的 (单词, 口音) 对数。
+///
 class WordAudioCache extends ChangeNotifier {
+  ///
   /// 私有构造器；外部统一通过 [instance] 访问同一份缓存状态。
+  ///
+  /// @param  MethodChannel  _channel
+  /// @param  `Stream<dynamic>`  _progressEvents
+  ///
   WordAudioCache._(this._channel, this._progressEvents);
 
+  ///
   /// 测试专用构造器：注入方法通道和进度流，不依赖 Android 插件。
+  ///
+  /// @param  MethodChannel  channel
+  /// @param  `Stream<dynamic>`  progressEvents
+  ///
   @visibleForTesting
   WordAudioCache.forTesting({
     required MethodChannel channel,
     required Stream<dynamic> progressEvents,
   }) : this._(channel, progressEvents);
 
+  ///
   /// 与方法通道对应的事件通道名；必须与 MainActivity 注册值完全一致。
+  ///
+  /// @var String
+  ///
   static const String _eventChannelName = 'my_english/audio_cache';
 
+  ///
   /// 音频方法通道名；与 MainActivity 注册值一致。
+  ///
+  /// @var String
+  ///
   static const String _methodChannelName = 'my_english/word_audio';
 
+  ///
   /// App 级唯一实例；首页、抽屉与后台缓存任务共享同一份进度。
+  ///
+  /// @var WordAudioCache
+  ///
   static final WordAudioCache instance = WordAudioCache._(
     const MethodChannel(_methodChannelName),
     const EventChannel(_eventChannelName).receiveBroadcastStream(),
   );
 
+  ///
   /// 缓存控制方法通道。
+  ///
+  /// @var MethodChannel
+  ///
   final MethodChannel _channel;
 
+  ///
   /// 进度事件流：生产环境来自 EventChannel，测试可注入可控 Stream。
+  ///
+  /// @var `Stream<dynamic>`
+  ///
   final Stream<dynamic> _progressEvents;
 
+  ///
   /// 是否已订阅原生进度流；只订阅一次，避免重复监听导致重复计数。
+  ///
+  /// @var bool
+  ///
   bool _subscribed = false;
 
+  ///
   /// 已缓存音频数（美式 + 英式）。
+  ///
+  /// @var int
+  ///
   int _cached = 0;
 
+  ///
   /// 需要缓存的音频总数 = 词库单词数 × 2（美式 + 英式）。
+  ///
+  /// @var int
+  ///
   int _total = 0;
 
+  ///
   /// 是否正在后台预缓存（用于决定是否显示进度条）。
+  ///
+  /// @var bool
+  ///
   bool _isCaching = false;
 
+  ///
   /// 当前参与缓存的单词拼写列表（来自首页词库）。
+  ///
+  /// @var `List<String>`
+  ///
   List<String> _spellings = const <String>[];
 
+  ///
   /// 只读：已缓存数量。
+  ///
+  /// @return int
+  ///
   int get cached => _cached;
 
+  ///
   /// 只读：需要缓存的总数。
+  ///
+  /// @return int
+  ///
   int get total => _total;
 
+  ///
   /// 只读：是否正在后台预缓存。
+  ///
+  /// @return bool
+  ///
   bool get isCaching => _isCaching;
 
+  ///
   /// 缓存完成比例（0.0~1.0）；总数为 0 时返回 0 避免除零。
+  ///
+  /// @return double
+  ///
   double get ratio => _total == 0 ? 0.0 : _cached / _total;
 
+  ///
   /// 已缓存百分比整数（0~100），供抽屉右侧展示。
+  ///
+  /// @return int
+  ///
   int get percent => (ratio * 100).round();
 
+  ///
   /// 词库变化时（导入 / 新增 / 删除）刷新总数与已缓存数量。
   ///
   /// 向原生查询当前已缓存数；通道不可用（单元测试或异常环境）时安全回退为 0，
   /// 不让首页渲染因缓存探测失败而崩溃。
+  ///
+  /// @param  `List<String>`  spellings
+  /// @return `Future<void>`
+  ///
   Future<void> setWordList(List<String> spellings) async {
     // 记录参与缓存的单词，供 start() 触发预缓存使用。
     _spellings = spellings;
@@ -105,10 +182,14 @@ class WordAudioCache extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// 启动后台批量预缓存；已在进行中或词库为空时忽略重复点击。
   ///
   /// 已 100% 缓存完毕时也会直接返回，由调用方（抽屉入口）判断并提示用户，
   /// 避免进度条一闪而过造成"点了没反应"的错觉。
+  ///
+  /// @return void
+  ///
   void start() {
     // 已经在缓存则不再重复触发，避免重复创建任务。
     if (_isCaching) return;
@@ -137,10 +218,14 @@ class WordAudioCache extends ChangeNotifier {
     );
   }
 
+  ///
   /// 清空全部离线语音缓存文件，并重置本地进度为 0。
   ///
   /// 由"清空数据"流程调用，确保删除本地单词时一并移除已下载的音频；
   /// 调用成功后抽屉入口百分比会回到 0%。通道不可用（测试/异常）时只重置本地状态。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> clearCacheFiles() async {
     try {
       // 通知原生删除 word_audio 目录下的全部 mp3。
@@ -159,7 +244,11 @@ class WordAudioCache extends ChangeNotifier {
     notifyListeners();
   }
 
+  ///
   /// 确保只订阅一次原生进度流。
+  ///
+  /// @return void
+  ///
   void _ensureSubscribed() {
     // 已经订阅过则直接返回，复用已有订阅。
     if (_subscribed) return;

@@ -6,27 +6,55 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
 
+///
 /// 首页分组视角；决定列表按什么维度分组显示。
+///
 enum GroupMode {
+  ///
   /// 按用户自定义分组。
+  ///
+  /// @var GroupMode
+  ///
   custom,
 
+  ///
   /// 按难度数值分组。
+  ///
+  /// @var GroupMode
+  ///
   difficulty,
 
+  ///
   /// 按复习时间分组（枚举顺序即下拉菜单顺序，插在"更新时间"前面）。
+  ///
+  /// @var GroupMode
+  ///
   reviewed,
 
+  ///
   /// 按更新时间分组。
+  ///
+  /// @var GroupMode
+  ///
   updated,
 
+  ///
   /// 按加入时间分组。
+  ///
+  /// @var GroupMode
+  ///
   added,
 }
 
+///
 /// 为分组视角补充界面文字。
+///
 extension GroupModeDetails on GroupMode {
+  ///
   /// 模式按钮与下拉菜单显示的名称。
+  ///
+  /// @return String
+  ///
   String get label => switch (this) {
     GroupMode.custom => '分组',
     GroupMode.difficulty => '难度',
@@ -36,28 +64,59 @@ extension GroupModeDetails on GroupMode {
   };
 }
 
+///
 /// 筛选 chip 的展示数据；由首页根据当前分组结果生成。
+///
 class GroupFilterChip {
+  ///
   /// 创建一个 chip；key 为 null 表示"全部"。
+  ///
+  /// @param  String?  sectionKey
+  /// @param  String  name
+  /// @param  bool  isActive
+  ///
   const GroupFilterChip({
     required this.sectionKey,
     required this.name,
     required this.isActive,
   });
 
+  ///
   /// 对应分组区块的标识；null 表示不过滤。
+  ///
+  /// @var String?
+  ///
   final String? sectionKey;
 
+  ///
   /// chip 显示文字。
+  ///
+  /// @var String
+  ///
   final String name;
 
+  ///
   /// 是否为当前生效的筛选项。
+  ///
+  /// @var bool
+  ///
   final bool isActive;
 }
 
+///
 /// 搜索框下方的分组行：模式下拉 + 横向筛选 chips + 分组管理按钮。
+///
 class GroupFilterBar extends StatelessWidget {
+  ///
   /// 全部状态由首页管理，本组件只负责展示与回调。
+  ///
+  /// @param  GroupMode  mode
+  /// @param  `List<GroupFilterChip>`  chips
+  /// @param  `ValueChanged<GroupMode>`  onModeSelected
+  /// @param  `ValueChanged<String?>`  onChipSelected
+  /// @param  VoidCallback  onOpenManage
+  /// @param  Key?  key
+  ///
   const GroupFilterBar({
     required this.mode,
     required this.chips,
@@ -67,22 +126,47 @@ class GroupFilterBar extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 当前分组视角。
+  ///
+  /// @var GroupMode
+  ///
   final GroupMode mode;
 
+  ///
   /// 当前可选的筛选 chips（含"全部"）。
+  ///
+  /// @var `List<GroupFilterChip>`
+  ///
   final List<GroupFilterChip> chips;
 
+  ///
   /// 选择新的分组视角。
+  ///
+  /// @var `ValueChanged<GroupMode>`
+  ///
   final ValueChanged<GroupMode> onModeSelected;
 
+  ///
   /// 点击某个筛选 chip；参数为 sectionKey，null 表示"全部"。
+  ///
+  /// @var `ValueChanged<String?>`
+  ///
   final ValueChanged<String?> onChipSelected;
 
+  ///
   /// 打开分组管理面板；仅自定义分组模式下可用。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onOpenManage;
 
+  ///
   /// 输出模式按钮、chips 滚动区与管理按钮。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。

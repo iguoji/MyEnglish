@@ -1,27 +1,43 @@
 import 'dart:convert';
 
+///
 /// 学习会话类型；每一种学习方式在本地最多保留一条未完成记录。
+///
 enum LearningSessionType {
+  ///
   /// 随身听播放进度。
+  ///
+  /// @var LearningSessionType
+  ///
   listening('listening'),
 
+  ///
   /// 单词默写答题进度。
+  ///
+  /// @var LearningSessionType
+  ///
   dictation('dictation');
 
+  ///
   /// 绑定不受枚举重命名影响的数据库键。
   ///
-  /// @param `String` storageKey SQLite 使用的稳定主键文本。
+  /// @param  String  storageKey SQLite 使用的稳定主键文本。
+  ///
   const LearningSessionType(this.storageKey);
 
+  ///
   /// 写入数据库主键的文本，不依赖 Dart 枚举名称自动转换。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String storageKey;
 
+  ///
   /// 从数据库键恢复会话类型。
   ///
-  /// @param `String` value SQLite 返回的 session_type。
-  /// @return `LearningSessionType` 匹配的学习会话类型。
+  /// @param  String  value SQLite 返回的 session_type。
+  /// @return LearningSessionType 匹配的学习会话类型。
+  ///
   static LearningSessionType fromStorageKey(String value) {
     // values 对应 PHP 枚举的 cases()，从全部合法类型中查找稳定存储键。
     return values.firstWhere(
@@ -33,17 +49,21 @@ enum LearningSessionType {
   }
 }
 
+///
 /// 一次未完成的学习会话。
 ///
 /// [wordIds] 固定进入页面时的单词顺序，[state] 保存不同页面自己的进度字段。
 /// 两者分开存储后，首页只需读取单词 id 就能判断“继续”入口是否可用，页面再解释状态。
+///
 class LearningSession {
+  ///
   /// 创建一条可恢复的学习会话快照。
   ///
-  /// @param `LearningSessionType` type 学习模式。
-  /// @param `List<int>` wordIds 固定顺序的单词主键。
-  /// @param `Map<String, Object?>` state 页面自己的进度数据。
-  /// @param `DateTime?` updatedAt 原生数据库最后更新时间。
+  /// @param  LearningSessionType  type 学习模式。
+  /// @param  `List<int>`  wordIds 固定顺序的单词主键。
+  /// @param  `Map<String, Object?>`  state 页面自己的进度数据。
+  /// @param  DateTime?  updatedAt 原生数据库最后更新时间。
+  ///
   const LearningSession({
     required this.type,
     required this.wordIds,
@@ -51,30 +71,40 @@ class LearningSession {
     this.updatedAt,
   });
 
+  ///
   /// 随身听或默写。
   ///
-  /// @var `LearningSessionType`
+  /// @var LearningSessionType
+  ///
   final LearningSessionType type;
 
+  ///
   /// 进入学习页时的单词主键快照，顺序就是用户当时看到的学习顺序。
   ///
   /// @var `List<int>`
+  ///
   final List<int> wordIds;
 
+  ///
   /// 页面自行维护的进度快照。
   ///
   /// @var `Map<String, Object?>`
+  ///
   final Map<String, Object?> state;
 
+  ///
   /// 原生保存时间，仅用于诊断和未来展示，不参与当前恢复逻辑。
   ///
-  /// @var `DateTime?`
+  /// @var DateTime?
+  ///
   final DateTime? updatedAt;
 
+  ///
   /// 把 MethodChannel 返回的一行 SQLite 数据转换成模型。
   ///
-  /// @param `Map<Object?, Object?>` map 原生通道返回的一行会话数据。
-  /// @return `LearningSession` 完成校验且不可变的会话快照。
+  /// @param  `Map<Object?, Object?>`  map 原生通道返回的一行会话数据。
+  /// @return LearningSession 完成校验且不可变的会话快照。
+  ///
   factory LearningSession.fromMap(Map<Object?, Object?> map) {
     // 先读取会话类型，它相当于 Laravel 模型的主键和类型字段。
     final rawType = map['session_type']?.toString();
@@ -127,9 +157,11 @@ class LearningSession {
     );
   }
 
+  ///
   /// 转成 MethodChannel 可传输的数据。
   ///
   /// @return `Map<String, Object?>` 原生 SQLite Store 需要的字段集合。
+  ///
   Map<String, Object?> toMap() => <String, Object?>{
     // 同类型会话使用同一个主键，新快照会覆盖旧快照。
     'session_type': type.storageKey,
@@ -140,11 +172,13 @@ class LearningSession {
   };
 }
 
+///
 /// 从会话快照读取整数，字段缺失或类型错误时使用页面默认值。
 ///
-/// @param `Object?` value JSON 状态中的动态字段值。
-/// @param `int` fallback 字段不可用时采用的页面默认值。
-/// @return `int` 可供页面边界校验的整数。
+/// @param  Object?  value JSON 状态中的动态字段值。
+/// @param  int  fallback 字段不可用时采用的页面默认值。
+/// @return int 可供页面边界校验的整数。
+///
 int readLearningSessionInt(Object? value, {required int fallback}) {
   // JSON 数字统一转成 int；坏数据按小程序 data 默认值继续运行页面。
   return value is num ? value.toInt() : fallback;

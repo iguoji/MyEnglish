@@ -7,7 +7,11 @@ import 'package:my_english/models/word.dart';
 // 引入需要验证的候选项生成服务。
 import 'package:my_english/pages/dictation/services/dictation_option_generator.dart';
 
+///
 /// 验证默写候选项的数量、拼写形态和词库相似度排序。
+///
+/// @return void
+///
 void main() {
   test('word distractors keep length and use plausible letter changes', () {
     // ability 有足够的同长度换位、元音和辅音替换结果。

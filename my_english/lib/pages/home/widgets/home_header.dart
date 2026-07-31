@@ -6,12 +6,23 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
 
+///
 /// 首页顶部：左侧问候语与收录统计，右侧汉堡菜单按钮。
 ///
 /// [StatelessWidget] 表示该组件自己不保存状态，类似一个只根据传入参数输出 HTML 的
 /// PHP 模板，或只根据 properties 渲染的小程序组件。
+///
 class HomeHeader extends StatelessWidget {
+  ///
   /// `const` 构造函数表示参数不变时 Flutter 可以复用该组件，减少重复创建对象。
+  ///
+  /// @param  DateTime  now
+  /// @param  int  wordCount
+  /// @param  int  dailyGoal
+  /// @param  int  reviewCount
+  /// @param  VoidCallback  onMenuPressed
+  /// @param  Key?  key
+  ///
   const HomeHeader({
     required this.now,
     required this.wordCount,
@@ -21,22 +32,47 @@ class HomeHeader extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 用于计算问候语的当前时间；由首页在构建时传入。
+  ///
+  /// @var DateTime
+  ///
   final DateTime now;
 
+  ///
   /// 已收录单词总数，显示在副标题里。
+  ///
+  /// @var int
+  ///
   final int wordCount;
 
+  ///
   /// 每日复习目标，显示在副标题里。
+  ///
+  /// @var int
+  ///
   final int dailyGoal;
 
+  ///
   /// 今日复习已完成的单词数（去重），来自真实 record，显示在副标题里。
+  ///
+  /// @var int
+  ///
   final int reviewCount;
 
+  ///
   /// 点击右上角汉堡按钮时由首页打开右侧抽屉菜单。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onMenuPressed;
 
+  ///
   /// `@override` 表示这里重写 Flutter 父类规定的 build 方法，类似实现框架约定的入口。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -120,7 +156,12 @@ class HomeHeader extends StatelessWidget {
     );
   }
 
+  ///
   /// 按小时返回问候语；阈值与设计稿保持一致。
+  ///
+  /// @param  DateTime  time
+  /// @return String
+  ///
   String _greeting(DateTime time) {
     // 从 DateTime 取 0—23 的小时数，相当于 PHP 的 (int) date('G')。
     final hour = time.hour;

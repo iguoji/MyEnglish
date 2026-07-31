@@ -3,15 +3,31 @@ import 'package:flutter/material.dart';
 // tabler_icons_plus 提供统一的搜索图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
+///
 /// 首页搜索框；组件本身不保存关键词，只把输入变化通知给父页面。
+///
 class WordSearchField extends StatelessWidget {
+  ///
   /// required 表示调用方必须传 onChanged，类似 PHP 方法中的必填参数。
+  ///
+  /// @param  `ValueChanged<String>`  onChanged
+  /// @param  Key?  key
+  ///
   const WordSearchField({required this.onChanged, super.key});
 
+  ///
   /// `ValueChanged<String>` 表示接收字符串但不返回结果的回调，类似小程序 bindinput。
+  ///
+  /// @var `ValueChanged<String>`
+  ///
   final ValueChanged<String> onChanged;
 
+  ///
   /// Flutter 每次需要绘制本组件时都会调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前 Light/Dark 的完整 Material 3 色板。

@@ -21,7 +21,11 @@ import 'package:path/path.dart' as p;
 //
 // 注意：本脚本必须在 my_english/ 目录下运行（脚本内会向上找到 pubspec.yaml）。
 
+///
 /// 同步生成 lib/common/app_info.dart。
+///
+/// @return `Future<void>`
+///
 Future<void> main() async {
   // 1. 定位 pubspec.yaml。
   // 脚本位于 my_english/tools/sync_app_info.dart，
@@ -89,6 +93,12 @@ Future<void> main() async {
 
   // 5. 展示名约定：包名转 PascalCase。
   // my_english → MyEnglish；这种规则覆盖大多数情况。
+  ///
+  /// 将下划线分隔的包名转换成用户可见的 PascalCase 名称。
+  ///
+  /// @param  String  pkg
+  /// @return String
+  ///
   String displayName(String pkg) {
     if (pkg.isEmpty) return pkg;
     // 按 _ 切分，每段首字母大写后拼接。
@@ -108,24 +118,46 @@ Future<void> main() async {
 // 生成时间：$generatedAt
 // 数据来源：${resolvedPubspec.path}
 
+///
 /// 应用元信息（由 pubspec.yaml 同步生成，单一数据源在 pubspec.yaml）。
+///
 class AppInfo {
+  ///
   /// 包名（pubspec.yaml `name` 字段），与 Dart import 路径一致。
+  ///
+  /// @var String
+  ///
   static const String packageName = '$packageName';
 
+  ///
   /// 展示名（系统 launcher / Drawer 头部 / MaterialApp.title 用）。
   ///
   /// 当前约定：包名转 PascalCase。如需自定义展示名（如含空格或特殊字符），
   /// 在 pubspec.yaml 添加 `display_name: ...` 字段并扩展本脚本。
+  ///
+  /// @var String
+  ///
   static const String displayName = '${displayName(packageName)}';
 
+  ///
   /// 用户可见版本号（pubspec.yaml `version` 字段的 `X.Y.Z` 段）。
+  ///
+  /// @var String
+  ///
   static const String version = '$version';
 
+  ///
   /// 构建号（pubspec.yaml `version` 字段的 `+N` 段，0 表示未设置）。
+  ///
+  /// @var String
+  ///
   static const String buildNumber = '$buildNumber';
 
+  ///
   /// 完整的 `version+buildNumber` 字符串，便于单一展示。
+  ///
+  /// @var String
+  ///
   static const String fullVersion = '$version+\$buildNumber';
 }
 ''';

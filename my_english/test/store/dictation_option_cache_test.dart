@@ -5,7 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 // 引入被测试的默写候选缓存 Store。
 import 'package:my_english/store/dictation_option_cache.dart';
 
+///
 /// 验证候选缓存 Store 的方法名、参数结构与返回值清洗。
+///
+/// @return void
+///
 void main() {
   // MethodChannel 测试必须先初始化 Flutter binding。
   TestWidgetsFlutterBinding.ensureInitialized();

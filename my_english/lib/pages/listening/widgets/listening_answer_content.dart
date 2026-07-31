@@ -10,9 +10,19 @@ import '../../../models/word.dart';
 // 引入随身听统一布局尺寸。
 import 'listening_layout.dart';
 
+///
 /// 答案卡正文组件，负责按“单词 → 词性 → 释义”的流程输出内容。
+///
 class ListeningAnswerContent extends StatelessWidget {
+  ///
   /// 父页面传入当前单词和显示状态，本组件不自行保存业务数据。
+  ///
+  /// @param  Word  word
+  /// @param  AppTokens  tokens
+  /// @param  String  definitionSeparator
+  /// @param  bool  revealed
+  /// @param  Key?  key
+  ///
   const ListeningAnswerContent({
     required this.word,
     required this.tokens,
@@ -21,19 +31,40 @@ class ListeningAnswerContent extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 当前正在播放并需要展示的单词。
+  ///
+  /// @var Word
+  ///
   final Word word;
 
+  ///
   /// 当前主题颜色集合。
+  ///
+  /// @var AppTokens
+  ///
   final AppTokens tokens;
 
+  ///
   /// 同一词性下多条释义之间使用的全角分隔符。
+  ///
+  /// @var String
+  ///
   final String definitionSeparator;
 
+  ///
   /// true 显示真实单词和释义，false 在相同布局槽位内显示骨架。
+  ///
+  /// @var bool
+  ///
   final bool revealed;
 
+  ///
   /// Flutter 每次切换单词或显隐状态时都会重新调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 单词样式只定义一次，真实文字和隐藏态的高度测量都会使用它。
@@ -98,9 +129,19 @@ class ListeningAnswerContent extends StatelessWidget {
   }
 }
 
+///
 /// 一条“词性 + 释义”的答案块，对应小程序列表中的单个 meaning 子组件。
+///
 class _MeaningAnswerBlock extends StatelessWidget {
+  ///
   /// 所有影响排版的数据都由父组件传入，避免子组件产生额外状态。
+  ///
+  /// @param  Meaning  meaning
+  /// @param  String  definitionSeparator
+  /// @param  TextStyle  definitionStyle
+  /// @param  AppTokens  tokens
+  /// @param  bool  revealed
+  ///
   const _MeaningAnswerBlock({
     required this.meaning,
     required this.definitionSeparator,
@@ -109,22 +150,47 @@ class _MeaningAnswerBlock extends StatelessWidget {
     required this.revealed,
   });
 
+  ///
   /// 当前词性和它的全部中文释义。
+  ///
+  /// @var Meaning
+  ///
   final Meaning meaning;
 
+  ///
   /// 多条释义之间使用的全角连接符号。
+  ///
+  /// @var String
+  ///
   final String definitionSeparator;
 
+  ///
   /// 与真实文字高度测量共用的释义样式。
+  ///
+  /// @var TextStyle
+  ///
   final TextStyle definitionStyle;
 
+  ///
   /// 当前主题颜色集合。
+  ///
+  /// @var AppTokens
+  ///
   final AppTokens tokens;
 
+  ///
   /// 是否显示真实释义。
+  ///
+  /// @var bool
+  ///
   final bool revealed;
 
+  ///
   /// Flutter 绘制当前词性块时调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 一个词性的 definitions 先连接成同一段文字，避免不必要的强制换行。
@@ -174,9 +240,22 @@ class _MeaningAnswerBlock extends StatelessWidget {
   }
 }
 
+///
 /// 在同一高度内切换真实文字与骨架，作用类似小程序先计算行高再切换 visibility。
+///
 class _StableAnswerSlot extends StatelessWidget {
+  ///
   /// 创建稳定槽位，真实文字和骨架所需数据都由父组件明确传入。
+  ///
+  /// @param  String  text
+  /// @param  TextStyle  style
+  /// @param  bool  revealed
+  /// @param  double  skeletonWidth
+  /// @param  double  skeletonHeight
+  /// @param  double  skeletonRadius
+  /// @param  Color  skeletonColor
+  /// @param  Key?  key
+  ///
   const _StableAnswerSlot({
     required this.text,
     required this.style,
@@ -188,28 +267,61 @@ class _StableAnswerSlot extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 最终需要显示的真实文字，也是隐藏态计算高度的数据源。
+  ///
+  /// @var String
+  ///
   final String text;
 
+  ///
   /// 真实文字样式；字号、行高和字体都会参与高度计算。
+  ///
+  /// @var TextStyle
+  ///
   final TextStyle style;
 
+  ///
   /// true 绘制文字，false 绘制骨架。
+  ///
+  /// @var bool
+  ///
   final bool revealed;
 
+  ///
   /// 骨架期望宽度，超过卡片可用宽度时会自动收窄。
+  ///
+  /// @var double
+  ///
   final double skeletonWidth;
 
+  ///
   /// 骨架自身高度。
+  ///
+  /// @var double
+  ///
   final double skeletonHeight;
 
+  ///
   /// 骨架圆角大小。
+  ///
+  /// @var double
+  ///
   final double skeletonRadius;
 
+  ///
   /// 骨架背景颜色。
+  ///
+  /// @var Color
+  ///
   final Color skeletonColor;
 
+  ///
   /// Flutter 每次排版答案内容时调用 build。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // LayoutBuilder 提供当前卡片的真实可用宽度，等价于小程序读取节点宽度后计算换行。

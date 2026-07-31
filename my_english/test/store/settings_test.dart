@@ -7,7 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 // 引入被测试的全局设置 Store。
 import 'package:my_english/store/settings.dart';
 
+///
 /// 验证设置启动读取、默认值和后续原生持久化调用。
+///
+/// @return void
+///
 void main() {
   // 初始化 Flutter 二进制消息测试环境。
   TestWidgetsFlutterBinding.ensureInitialized();

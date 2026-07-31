@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 // 引入项目 Material 3 双主题。
 import 'package:my_english/common/theme.dart';
 
+///
 /// 验证 Material 3 与 Light/Dark 基础配置。
+///
+/// @return void
+///
 void main() {
   // 两种主题都必须使用 Material 3，不能出现组件行为不一致。
   test('both app themes use Material 3', () {

@@ -7,7 +7,11 @@ import 'package:my_english/services/word_audio.dart';
 // 引入口音枚举。
 import 'package:my_english/store/settings.dart';
 
+///
 /// 验证页面参数正确发送给 Android 音频服务。
+///
+/// @return void
+///
 void main() {
   // 初始化测试二进制消息环境。
   TestWidgetsFlutterBinding.ensureInitialized();

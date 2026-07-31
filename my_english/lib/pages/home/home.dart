@@ -65,9 +65,20 @@ import 'widgets/word_sort_bar.dart';
 // 纯排序服务负责搜索过滤和多级稳定排序，页面只提供当前交互参数。
 import 'services/home_word_sorter.dart';
 
+///
 /// 首页组件，结构类似小程序一个 page 目录下的 Page 实例。
+///
 class HomePage extends StatefulWidget {
+  ///
   /// store 允许测试注入假实现；真实 App 不传时使用原生 SQLite Store。
+  ///
+  /// @param  Key?  key
+  /// @param  WordStore?  store
+  /// @param  SettingsStore?  settings
+  /// @param  WordAudioPlayer?  audioPlayer
+  /// @param  NativeFileIo?  fileIo
+  /// @param  LearningSessionStore?  sessionStore
+  ///
   const HomePage({
     super.key,
     this.store,
@@ -77,122 +88,268 @@ class HomePage extends StatefulWidget {
     this.sessionStore,
   });
 
+  ///
   /// 接口类型类似 PHP 构造器依赖注入，页面不关心数据具体来自 SQLite 还是测试内存。
+  ///
+  /// @var WordStore?
+  ///
   final WordStore? store;
 
+  ///
   /// 全局设置由 MainApp 注入；独立测试不传时使用纯内存默认值。
+  ///
+  /// @var SettingsStore?
+  ///
   final SettingsStore? settings;
 
+  ///
   /// 音频接口允许测试注入，不依赖真实网络和 Android MediaPlayer。
+  ///
+  /// @var WordAudioPlayer?
+  ///
   final WordAudioPlayer? audioPlayer;
 
+  ///
   /// 文件读写接口允许测试注入，不依赖真实系统选择器与 Android SAF。
+  ///
+  /// @var NativeFileIo?
+  ///
   final NativeFileIo? fileIo;
 
+  ///
   /// 学习会话接口允许测试注入内存实现；正式 App 使用 SQLite。
+  ///
+  /// @var LearningSessionStore?
+  ///
   final LearningSessionStore? sessionStore;
 
+  ///
   /// 为页面创建保存 data 和生命周期的 State。
+  ///
+  /// @return `State<HomePage>`
+  ///
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
+///
 /// 一个分组区块：标题信息与其中经过搜索、排序后的单词。
+///
 class _WordSection {
+  ///
   /// 创建区块。
+  ///
+  /// @param  String  key
+  /// @param  String  name
+  /// @param  `List<Word>`  words
+  ///
   const _WordSection({
     required this.key,
     required this.name,
     required this.words,
   });
 
+  ///
   /// 稳定标识，用于折叠与筛选（如 c1、d5、u20260726）。
+  ///
+  /// @var String
+  ///
   final String key;
 
+  ///
   /// 分组标题文字。
+  ///
+  /// @var String
+  ///
   final String name;
 
+  ///
   /// 区块内经过搜索过滤与排序的单词。
+  ///
+  /// @var `List<Word>`
+  ///
   final List<Word> words;
 }
 
+///
 /// 下划线表示状态类仅当前文件可见；Observer 接收 App Show/Hide 等状态。
+///
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  ///
   /// Scaffold key 用于以编程方式打开右侧抽屉。
+  ///
+  /// @var `GlobalKey<ScaffoldState>`
+  ///
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  ///
   /// Scrollbar 和 CustomScrollView 必须共享同一个控制器，滑块才可以被直接拖动。
+  ///
+  /// @var ScrollController
+  ///
   final ScrollController _scrollController = ScrollController();
 
+  ///
   /// 搜索防抖定时器；上万条数据时避免每按一个键立即重复过滤。
+  ///
+  /// @var Timer?
+  ///
   Timer? _searchDebounce;
 
+  ///
   /// 单词加载超时定时器；页面提前关闭时必须主动取消，避免留下仍在等待的任务。
+  ///
+  /// @var Timer?
+  ///
   Timer? _loadTimeout;
 
+  ///
   /// 页面最终使用的单词 Store，在 initState 中完成一次赋值。
+  ///
+  /// @var WordStore
+  ///
   late final WordStore _store;
 
+  ///
   /// 首页和设置面板共享的设置 Store。
+  ///
+  /// @var SettingsStore
+  ///
   late final SettingsStore _settings;
 
+  ///
   /// true 表示首页为了测试自行创建了内存设置，dispose 时需要释放。
+  ///
+  /// @var bool
+  ///
   late final bool _ownsSettings;
 
+  ///
   /// 真正执行缓存和播放的音频接口。
+  ///
+  /// @var WordAudioPlayer
+  ///
   late final WordAudioPlayer _audioPlayer;
 
+  ///
   /// 原生 SAF 文件读写服务：导入选 JSON、导出写文件。
   /// 默认走 Android 原生通道；测试可注入假通道避免真正弹出系统选择器。
+  ///
+  /// @var NativeFileIo
+  ///
   late final NativeFileIo _fileIo;
 
+  ///
   /// 随身听和默写共用的学习会话持久化接口。
+  ///
+  /// @var LearningSessionStore
+  ///
   late final LearningSessionStore _sessionStore;
 
+  ///
   /// 自定义分组 Store；分组与成员关系均由原生 SQLite 持久化。
+  ///
+  /// @var GroupStore
+  ///
   final GroupStore _groups = GroupStore();
 
+  ///
   /// Store 一次加载全部未删除单词；每组 SliverList 仍然只惰性构建可见行。
+  ///
+  /// @var `List<Word>`
+  ///
   List<Word> _allWords = const <Word>[];
 
+  ///
   /// 今日复习已完成的单词数（去重），来自真实 record，用于副标题展示。
+  ///
+  /// @var int
+  ///
   int _reviewCount = 0;
 
+  ///
   /// 保存已展开的 Word 对象；spelling 可重复，所以不能把拼写当作行身份。
+  ///
+  /// @var `Set<Word>`
+  ///
   final Set<Word> _expandedWords = <Word>{};
 
+  ///
   /// 选择模式下被勾选的 Word 对象集合。
+  ///
+  /// @var `Set<Word>`
+  ///
   final Set<Word> _selectedWords = <Word>{};
 
+  ///
   /// 新版学习悬浮按钮是否已经展开。
+  ///
+  /// @var bool
+  ///
   bool _learningMenuOpen = false;
 
+  ///
   /// 本地尚未完成的学习会话；两种类型各自最多一条。
+  ///
+  /// @var `Map<LearningSessionType, LearningSession>`
+  ///
   Map<LearningSessionType, LearningSession> _learningSessions =
       const <LearningSessionType, LearningSession>{};
 
+  ///
   /// 当前处于下载或播放状态的具体 Word 对象。
+  ///
+  /// @var Word?
+  ///
   Word? _playingWord;
 
+  ///
   /// 当前左滑露出操作区的行；同一时刻最多一行。
+  ///
+  /// @var Word?
+  ///
   Word? _swipedWord;
 
+  ///
   /// 当前分组视角，默认按自定义分组。
+  ///
+  /// @var GroupMode
+  ///
   GroupMode _mode = GroupMode.custom;
 
+  ///
   /// 当前筛选的分组区块 key；null 表示"全部"。
+  ///
+  /// @var String?
+  ///
   String? _filterKey;
 
+  ///
   /// 已折叠的分组区块 key 集合。
+  ///
+  /// @var `Set<String>`
+  ///
   final Set<String> _collapsedKeys = <String>{};
 
+  ///
   /// 是否处于选择模式。
+  ///
+  /// @var bool
+  ///
   bool _selectMode = false;
 
+  ///
   /// 当前使用的排序字段，默认保持 SQLite 返回顺序。
+  ///
+  /// @var WordSortField
+  ///
   WordSortField _sortField = WordSortField.original;
 
+  ///
   /// 每个可排序字段各自记住方向；true 升序，false 降序。
+  ///
+  /// @var `Map<WordSortField, bool>`
+  ///
   final Map<WordSortField, bool> _sortDirections = <WordSortField, bool>{
     // 字母第一次点击从 A 到 Z。
     WordSortField.alphabet: true,
@@ -202,19 +359,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WordSortField.date: false,
   };
 
+  ///
   /// 当前真正参与过滤的小写搜索词。
+  ///
+  /// @var String
+  ///
   String _query = '';
 
+  ///
   /// 页面是否仍在等待 SQLite 查询。
+  ///
+  /// @var bool
+  ///
   bool _isLoading = true;
 
+  ///
   /// 数据加载异常；null 表示没有错误。
+  ///
+  /// @var Object?
+  ///
   Object? _loadError;
 
+  ///
   /// 列表静态日期使用的年份参考值。
+  ///
+  /// @var DateTime
+  ///
   late DateTime _dateReference;
 
+  ///
   /// 对应小程序 onLoad，只在首页首次创建时执行一次。
+  ///
+  /// @return void
+  ///
   @override
   void initState() {
     // 保留 StatefulWidget 父类初始化流程。
@@ -251,13 +428,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_loadLearningSessions());
   }
 
+  ///
   /// 设置或分组内容变化时触发整页重建。
+  ///
+  /// @return void
+  ///
   void _handleExternalChange() {
     // 页面存活时才重建。
     if (mounted) setState(() {});
   }
 
+  ///
   /// 分组列表变化：清理指向已删除分组的单词与筛选。
+  ///
+  /// @return void
+  ///
   void _handleGroupsChanged() {
     // 先按通用逻辑重建界面。
     _handleExternalChange();
@@ -265,7 +450,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_reassignOrphanWords());
   }
 
+  ///
   /// 把指向已删除分组的单词批量移回"未分组"（防御性清理）。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _reassignOrphanWords() async {
     // 收集所有仍然指向不存在分组的单词（理论上 deleteGroup 已清成员关系）。
     final orphans = _allWords
@@ -284,7 +473,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _refreshWords();
   }
 
+  ///
   /// 按当前页面状态创建纯排序服务；服务不持有 Widget，可独立测试。
+  ///
+  /// @return HomeWordSorter
+  ///
   HomeWordSorter get _wordSorter => HomeWordSorter(
     // 分组视角决定日期字段取 reviewedAt、updatedAt 或 createdAt。
     mode: _mode,
@@ -296,16 +489,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     query: _query,
   );
 
+  ///
   /// 返回当前分组视角下列表行应展示的日期。
+  ///
+  /// @param  Word  word
+  /// @return DateTime?
+  ///
   DateTime? _listDateOf(Word word) => _wordSorter.dateOf(word);
 
+  ///
   /// 对一个区块执行搜索过滤与稳定排序。
+  ///
+  /// @param  `List<Word>`  source
+  /// @return `List<Word>`
+  ///
   List<Word> _filterAndSort(List<Word> source) {
     // 业务比较规则集中在独立服务，页面只负责提供当前交互状态。
     return _wordSorter.filterAndSort(source);
   }
 
+  ///
   /// 按当前分组视角把全部单词组织成区块列表。
+  ///
+  /// @return `List<_WordSection>`
+  ///
   List<_WordSection> _buildSections() {
     // 汇总结果。
     final sections = <_WordSection>[];
@@ -371,6 +578,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     // 时间视角分组：复用 _listDateOf 确保分组日期与列表行显示日期完全一致。
     // 复习时间视角 → reviewedAt；更新时间视角 → updatedAt；加入时间视角 → createdAt。
+    ///
+    /// 读取当前分组视角下用于分段的单词日期。
+    ///
+    /// @param  Word  word
+    /// @return DateTime?
+    ///
     DateTime? dateOf(Word word) => _listDateOf(word);
     // 收集出现过的"天"数字键（yyyyMMdd），null 单独一组。
     final dayKeys = <int>{};
@@ -434,7 +647,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return sections;
   }
 
+  ///
   /// 点击排序项：新字段使用预设方向，再点当前字段则切换方向。
+  ///
+  /// @param  WordSortField  field
+  /// @return void
+  ///
   void _handleSortSelected(WordSortField field) {
     // 默认项只恢复原始顺序，没有方向可切换。
     if (field == WordSortField.original) {
@@ -456,7 +674,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  ///
   /// 从 Store 一次读取全部本地单词（带加载与错误界面）。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _loadWords() async {
     // 重试时立即切回加载状态并清空旧错误。
     setState(() {
@@ -547,7 +769,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 增删改之后的轻量刷新：重新读取数据但不显示整页加载圈。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _refreshWords() async {
     // 读取最新数据。
     final words = await _store.getAll();
@@ -572,10 +798,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadLearningSessions();
   }
 
+  ///
   /// 读取今日复习的单词数（按词去重），用于副标题「今日复习 X/目标」刷新。
   ///
   /// 数据来自原生 record 表；通道不可用（如单元测试）时静默回退为 0，
   /// 不影响首页其余功能。方法末尾统一做 mounted 守卫，避免已卸载时 setState。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _loadReviewCount() async {
     // try/catch 兜底原生通道异常，保证首页在测试或异常环境下不崩溃。
     try {
@@ -597,7 +827,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 读取随身听与默写的未完成会话，失败时只隐藏“继续”按钮，不影响首页主体。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _loadLearningSessions() async {
     try {
       // 原生最多返回两条记录，转成按类型索引的 Map 供 build 常数时间读取。
@@ -619,7 +853,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 按会话中的 id 顺序，从当前最新词库重新组装学习列表。
+  ///
+  /// @param  LearningSession  session
+  /// @return `List<Word>`
+  ///
   List<Word> _wordsForSession(LearningSession session) {
     // 当前词库按主键建立索引，编辑后的拼写、释义和难度会自然使用最新值。
     final wordsById = <int, Word>{
@@ -634,7 +873,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return List<Word>.unmodifiable(session.wordIds.map((id) => wordsById[id]!));
   }
 
+  ///
   /// 打开一轮随身听；[session] 非空时从历史状态继续，否则覆盖为新会话。
+  ///
+  /// @param  `List<Word>`  words
+  /// @param  LearningSession?  session
+  /// @return `Future<void>`
+  ///
   Future<void> _openListening(
     List<Word> words, {
     LearningSession? session,
@@ -657,7 +902,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (mounted) await _loadLearningSessions();
   }
 
+  ///
   /// 打开一轮默写，并保留原有的复习数据定向回刷逻辑。
+  ///
+  /// @param  `List<Word>`  words
+  /// @param  LearningSession?  session
+  /// @return `Future<void>`
+  ///
   Future<void> _openDictation(
     List<Word> words, {
     LearningSession? session,
@@ -688,7 +939,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadLearningSessions();
   }
 
+  ///
   /// 点击“继续”后校验会话列表并进入对应页面；坏快照会被立即删除。
+  ///
+  /// @param  LearningSessionType  type
+  /// @return `Future<void>`
+  ///
   Future<void> _continueLearning(LearningSessionType type) async {
     // 按按钮所属类型读取会话；异步回刷期间记录可能已经被完成流程删除。
     final session = _learningSessions[type];
@@ -716,11 +972,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 默写返回后只回刷本次复习涉及的单词，避免重新加载整库。
   ///
   /// [ids] 是本次默写完成过的单词主键集合；只向原生请求这些单词的最新数据
   /// （含更新后的 difficulty / reviewedAt），再用新对象原地替换 [_allWords] 中
   /// 同 id 的项，其余单词保持原位与顺序。原生或通道异常时静默忽略，界面不崩。
+  ///
+  /// @param  `List<int>`  ids
+  /// @return `Future<void>`
+  ///
   Future<void> _mergeReviewedWords(List<int> ids) async {
     // 没有 id 时直接结束，界面保持不动。
     if (ids.isEmpty) return;
@@ -745,7 +1006,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// App 生命周期变化，对应小程序 App Show/App Hide。
+  ///
+  /// @param  AppLifecycleState  state
+  /// @return void
+  ///
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // resumed 表示 App 回到前台。
@@ -763,7 +1029,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_stopAudio());
   }
 
+  ///
   /// 搜索框输入回调，使用 120ms 防抖保护上万条内存过滤。
+  ///
+  /// @param  String  value
+  /// @return void
+  ///
   void _handleSearchChanged(String value) {
     // 标准化大小写和首尾空格。
     final normalizedQuery = value.trim().toLowerCase();
@@ -778,7 +1049,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  ///
   /// 点击单词行：滑动打开时先收起；选择模式切换勾选；否则播放并展开。
+  ///
+  /// @param  Word  word
+  /// @return void
+  ///
   void _handleRowTap(Word word) {
     // 有行处于滑动打开状态时，本次点击只负责收起。
     if (_swipedWord != null) {
@@ -802,7 +1078,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_playWord(word));
   }
 
+  ///
   /// 切换某行的选中状态。
+  ///
+  /// @param  Word  word
+  /// @return void
+  ///
   void _toggleSelected(Word word) {
     // setState 同步刷新勾选框与计数。
     setState(() {
@@ -811,7 +1092,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  ///
   /// 行左滑打开或关闭操作区。
+  ///
+  /// @param  Word  word
+  /// @param  bool  open
+  /// @return void
+  ///
   void _handleSwipeChanged(Word word, bool open) {
     // 选择模式下禁止滑出操作区，与设计稿一致。
     if (open && _selectMode) return;
@@ -819,7 +1106,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() => _swipedWord = open ? word : null);
   }
 
+  ///
   /// 点击单词文字后按当前口音播放；同一行播放中重复点击直接忽略。
+  ///
+  /// @param  Word  word
+  /// @return `Future<void>`
+  ///
   Future<void> _playWord(Word word) async {
     // 下载中和播放中都属于 active，同一个 Word 不重新开始。
     if (identical(_playingWord, word)) return;
@@ -850,7 +1142,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 主动停止音频并立即移除播放动画。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _stopAudio() async {
     // 没有下载或播放时不调用原生通道。
     if (_playingWord == null) return;
@@ -867,7 +1163,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 打开添加/修改单词表单；editing 为 null 表示新增。
+  ///
+  /// @param  Word?  editing
+  /// @return void
+  ///
   void _openWordForm({Word? editing}) {
     // 表单提交由首页执行 Store 操作。
     unawaited(
@@ -880,7 +1181,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  ///
   /// 执行表单提交：新增走 create，编辑走 update。
+  ///
+  /// @param  WordFormResult  result
+  /// @param  Word?  editing
+  /// @return `Future<void>`
+  ///
   Future<void> _submitWordForm(WordFormResult result, {Word? editing}) async {
     try {
       // 表单每次只选一个分组，这里把单值转成单元素列表（null 表示未分组）。
@@ -917,7 +1224,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 弹出删除确认对话框。
+  ///
+  /// @param  Word  word
+  /// @return void
+  ///
   void _confirmDelete(Word word) {
     // 先收起滑动操作区。
     setState(() => _swipedWord = null);
@@ -1029,7 +1341,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  ///
   /// 真正执行删除并刷新列表。
+  ///
+  /// @param  Word  word
+  /// @return `Future<void>`
+  ///
   Future<void> _deleteWord(Word word) async {
     try {
       // 没有主键的数据无法定位，直接提示。
@@ -1046,7 +1363,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 打开移动/复制目标分组选择面板。
+  ///
+  /// @param  bool  isCopy
+  /// @return `Future<void>`
+  ///
   Future<void> _pickGroupAndApply({required bool isCopy}) async {
     // 没有选中任何单词时忽略（按钮颜色已提示不可用）。
     if (_selectedWords.isEmpty) return;
@@ -1107,10 +1429,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 移动/复制收尾：清空选择并刷新界面。
   ///
   /// 无论操作成功还是中途异常都调用，避免「原生已部分落库但 UI 仍是旧状态」
   /// 的不一致窗口。组件卸载后不再触碰状态。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _finishGroupApply() async {
     // 组件已销毁则不操作，避免触发已卸载的 setState。
     if (!mounted) return;
@@ -1120,18 +1446,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _refreshWords();
   }
 
+  ///
   /// 尚未实现具体页面的菜单项使用统一提示。
+  ///
+  /// @param  String  feature
+  /// @return void
+  ///
   void _showComingSoon(String feature) {
     Toast.show(context, '「$feature」功能正在整理中');
   }
 
+  ///
   /// 统一的轻提示，全系统使用同一 Toast 接口，层级高于 Drawer/BottomSheet。
+  ///
+  /// @param  String  message
+  /// @return void
+  ///
   void _showSnackBar(String message) {
     // Toast 基于根 Overlay，不被任何 modal route 遮挡。
     Toast.show(context, message);
   }
 
+  ///
   /// 数据导入：打开系统文件选择器读取 JSON，解析后整库替换写入本地。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _importData() async {
     // 先关闭抽屉，避免遮挡系统选择器。
     Navigator.of(context).pop();
@@ -1191,10 +1531,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 数据导出：把本地全部单词、分组与成员关系聚合为 JSON，通过系统保存框写出。
   ///
   /// 导出结构在 words.json 基础上新增 groups 与 members 两段，原生 importData
   /// 导入时连同分组与多对多关系整库还原，避免备份丢失归类信息。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _exportData() async {
     // 先关闭抽屉，避免遮挡系统保存框。
     Navigator.of(context).pop();
@@ -1266,7 +1610,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 清空数据：二次确认后清空单词、释义与全部设置。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _clearData() async {
     // 先关闭抽屉，避免遮挡确认弹窗。
     Navigator.of(context).pop();
@@ -1297,7 +1645,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 清空数据的二次确认弹窗，返回 true 表示用户确认清空。
+  ///
+  /// @return `Future<bool>`
+  ///
   Future<bool> _showClearConfirmDialog() async {
     // showDialog 返回 bool?，确认按钮 pop(true)。
     final result = await showDialog<bool>(
@@ -1401,7 +1753,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return result == true;
   }
 
+  ///
   /// 将任意异常转换成用户可见的详情，不再只显示笼统失败文案。
+  ///
+  /// @param  Object  error
+  /// @return String
+  ///
   String _describeLoadError(Object error) {
     // toString 会保留 PlatformException code、JSON offset 和 StateError 信息。
     final details = error.toString();
@@ -1409,7 +1766,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return details.trim().isEmpty ? error.runtimeType.toString() : details;
   }
 
+  ///
   /// 页面卸载时释放 Observer、Timer 和监听器。
+  ///
+  /// @return void
+  ///
   @override
   void dispose() {
     // 移除 App 生命周期监听。
@@ -1441,7 +1802,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  ///
   /// 根据加载状态选择进度、错误、空状态或高性能列表。
+  ///
+  /// @param  `List<_WordSection>`  shownSections
+  /// @param  bool  hasVisibleRows
+  /// @return Widget
+  ///
   Widget _buildListContent(
     List<_WordSection> shownSections,
     bool hasVisibleRows,
@@ -1581,7 +1948,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  ///
   /// 构造一个分组头；独立成方法后，普通位置与 Sliver 吸顶位置使用完全相同的交互。
+  ///
+  /// @param  _WordSection  section
+  /// @return Widget
+  ///
   Widget _buildSectionHeader(_WordSection section) {
     // 当前分组是否已经全部选中。
     final isAllSelected =
@@ -1610,7 +1982,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  ///
   /// 构造单个单词行；由每个分组自己的 SliverList 按需调用。
+  ///
+  /// @param  Word  word
+  /// @return Widget
+  ///
   Widget _buildWordRow(Word word) {
     // 返回原有单词行组件，播放、展开、选择和左滑逻辑全部保持不变。
     return WordListTile(
@@ -1649,7 +2026,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  ///
   /// 打开 GitHub 仓库：用系统默认浏览器跳转到项目主页。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _openGithub() async {
     // 先把抽屉收起，避免浏览器唤起后抽屉仍残留在界面上。
     _scaffoldKey.currentState?.closeEndDrawer();
@@ -1665,7 +2046,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  ///
   /// 复制作者邮箱到系统剪贴板，并用 SnackBar 提示。
+  ///
+  /// @return `Future<void>`
+  ///
   Future<void> _copyEmail() async {
     // 作者邮箱地址（与抽屉页脚展示保持一致）。
     const email = 'asgeg@qq.com';
@@ -1679,7 +2064,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     Toast.show(context, '已复制作者邮箱：$email');
   }
 
+  ///
   /// build 对应小程序 WXML：把当前 State 转成界面树。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -1961,26 +2351,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 }
 
+///
 /// 把普通分组头包装为 Flutter 原生可吸顶的 Sliver 标题。
+///
 class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
+  ///
   /// 接收实际分组头；状态和点击逻辑仍由首页统一管理。
+  ///
+  /// @param  Widget  child
+  ///
   const _SectionHeaderDelegate({required this.child});
 
+  ///
   /// 分组行必须始终保持原型规定的 34 逻辑像素高度。
+  ///
+  /// @var double
+  ///
   static const double height = 34;
 
+  ///
   /// 真正显示的分组头组件。
+  ///
+  /// @var Widget
+  ///
   final Widget child;
 
+  ///
   /// 最小高度与最大高度相同，因此滚动时只吸顶，不会缩放或拉伸。
+  ///
+  /// @return double
+  ///
   @override
   double get minExtent => height;
 
+  ///
   /// 固定最大高度，防止吸顶过程中发生尺寸跳动。
+  ///
+  /// @return double
+  ///
   @override
   double get maxExtent => height;
 
+  ///
   /// Flutter 每一帧滚动时调用这里，把分组头放进 Sliver 当前计算出的区域。
+  ///
+  /// @param  BuildContext  context
+  /// @param  double  shrinkOffset
+  /// @param  bool  overlapsContent
+  /// @return Widget
+  ///
   @override
   Widget build(
     BuildContext context,
@@ -1991,7 +2410,12 @@ class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
     return SizedBox.expand(child: child);
   }
 
+  ///
   /// 首页状态变化会创建新的 child，此时要求 Flutter 重建标题内容。
+  ///
+  /// @param  _SectionHeaderDelegate  oldDelegate
+  /// @return bool
+  ///
   @override
   bool shouldRebuild(covariant _SectionHeaderDelegate oldDelegate) {
     // 对象发生变化即重建，确保折叠箭头、数量和选择状态立即更新。
@@ -1999,9 +2423,20 @@ class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
+///
 /// 分组区块头：34 高浅底行，含可选勾选框、名称、计数与折叠箭头。
+///
 class _SectionHeader extends StatelessWidget {
+  ///
   /// 全部状态由首页注入。
+  ///
+  /// @param  _WordSection  section
+  /// @param  bool  isCollapsed
+  /// @param  bool  selectMode
+  /// @param  bool  isAllSelected
+  /// @param  VoidCallback  onTap
+  /// @param  VoidCallback  onToggleSelect
+  ///
   const _SectionHeader({
     required this.section,
     required this.isCollapsed,
@@ -2011,25 +2446,54 @@ class _SectionHeader extends StatelessWidget {
     required this.onToggleSelect,
   });
 
+  ///
   /// 当前区块数据。
+  ///
+  /// @var _WordSection
+  ///
   final _WordSection section;
 
+  ///
   /// 是否处于折叠状态。
+  ///
+  /// @var bool
+  ///
   final bool isCollapsed;
 
+  ///
   /// 首页是否处于选择模式。
+  ///
+  /// @var bool
+  ///
   final bool selectMode;
 
+  ///
   /// 区块内全部单词是否都被选中。
+  ///
+  /// @var bool
+  ///
   final bool isAllSelected;
 
+  ///
   /// 点击行切换折叠。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 点击勾选框整组选中/取消。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onToggleSelect;
 
+  ///
   /// 输出设计稿的分组头行。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。

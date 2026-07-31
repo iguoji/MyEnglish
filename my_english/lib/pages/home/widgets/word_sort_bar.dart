@@ -6,24 +6,55 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
 
+///
 /// 首页支持的排序字段；original 表示保持 Store/JSON 原始顺序。
+///
 enum WordSortField {
+  ///
   /// 默认原始顺序。
+  ///
+  /// @var WordSortField
+  ///
   original,
 
+  ///
   /// 按 spelling 字母排序。
+  ///
+  /// @var WordSortField
+  ///
   alphabet,
 
+  ///
   /// 按 difficulty 排序。
+  ///
+  /// @var WordSortField
+  ///
   difficulty,
 
+  ///
   /// 按 updatedAt ?? createdAt 排序。
+  ///
+  /// @var WordSortField
+  ///
   date,
 }
 
+///
 /// 排序工具行：左侧四个排序项，右侧"折叠/展开"与"选择/完成"。
+///
 class WordSortBar extends StatelessWidget {
+  ///
   /// 当前字段、各字段方向和全部动作都由 HomePage 保存并注入。
+  ///
+  /// @param  WordSortField  selectedField
+  /// @param  `Map<WordSortField, bool>`  directions
+  /// @param  `ValueChanged<WordSortField>`  onSelected
+  /// @param  String  collapseLabel
+  /// @param  VoidCallback  onToggleCollapseAll
+  /// @param  String  selectLabel
+  /// @param  VoidCallback  onToggleSelectMode
+  /// @param  Key?  key
+  ///
   const WordSortBar({
     required this.selectedField,
     required this.directions,
@@ -35,28 +66,61 @@ class WordSortBar extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 当前高亮字段。
+  ///
+  /// @var WordSortField
+  ///
   final WordSortField selectedField;
 
+  ///
   /// 除默认外每个字段上次使用的升降序。
+  ///
+  /// @var `Map<WordSortField, bool>`
+  ///
   final Map<WordSortField, bool> directions;
 
+  ///
   /// 点击排序项时通知首页切换字段或方向。
+  ///
+  /// @var `ValueChanged<WordSortField>`
+  ///
   final ValueChanged<WordSortField> onSelected;
 
+  ///
   /// 右侧折叠按钮文案（折叠/展开）。
+  ///
+  /// @var String
+  ///
   final String collapseLabel;
 
+  ///
   /// 点击折叠按钮时切换全部分组的展开状态。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onToggleCollapseAll;
 
+  ///
   /// 右侧选择按钮文案（选择/完成）。
+  ///
+  /// @var String
+  ///
   final String selectLabel;
 
+  ///
   /// 点击选择按钮时进入或退出选择模式。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onToggleSelectMode;
 
+  ///
   /// 输出从左到右固定顺序的排序项与右侧动作。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // Row 按设计稿从左到右排列，排序项之间 18 像素间距。
@@ -130,9 +194,19 @@ class WordSortBar extends StatelessWidget {
   }
 }
 
+///
 /// 单个排序项：文字在左，紧贴其右显示 Tabler 排序方向图标。
+///
 class _SortChip extends StatelessWidget {
+  ///
   /// 默认项不传 isAscending，其他三项必须传入方向。
+  ///
+  /// @param  WordSortField  field
+  /// @param  String  label
+  /// @param  bool  isSelected
+  /// @param  `ValueChanged<WordSortField>`  onPressed
+  /// @param  bool?  isAscending
+  ///
   const _SortChip({
     required this.field,
     required this.label,
@@ -141,22 +215,47 @@ class _SortChip extends StatelessWidget {
     this.isAscending,
   });
 
+  ///
   /// 当前按钮代表的字段。
+  ///
+  /// @var WordSortField
+  ///
   final WordSortField field;
 
+  ///
   /// 界面显示文字。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 是否为当前排序字段。
+  ///
+  /// @var bool
+  ///
   final bool isSelected;
 
+  ///
   /// true 升序、false 降序，null 代表默认项（无箭头）。
+  ///
+  /// @var bool?
+  ///
   final bool? isAscending;
 
+  ///
   /// 点击后把字段交给首页。
+  ///
+  /// @var `ValueChanged<WordSortField>`
+  ///
   final ValueChanged<WordSortField> onPressed;
 
+  ///
   /// 输出设计稿风格的纯文字排序项。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -209,9 +308,19 @@ class _SortChip extends StatelessWidget {
   }
 }
 
+///
 /// 右侧纯文字动作按钮（折叠/展开、选择/完成、全选、反选等复用）。
+///
 class _ActionText extends StatelessWidget {
+  ///
   /// 接收文案、颜色与点击动作。
+  ///
+  /// @param  String  label
+  /// @param  Color  color
+  /// @param  VoidCallback  onTap
+  /// @param  FontWeight  fontWeight
+  /// @param  Key?  key
+  ///
   const _ActionText({
     required this.label,
     required this.color,
@@ -220,19 +329,40 @@ class _ActionText extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 按钮文案。
+  ///
+  /// @var String
+  ///
   final String label;
 
+  ///
   /// 文字颜色。
+  ///
+  /// @var Color
+  ///
   final Color color;
 
+  ///
   /// 文字字重，默认为半粗。
+  ///
+  /// @var FontWeight
+  ///
   final FontWeight fontWeight;
 
+  ///
   /// 点击动作。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onTap;
 
+  ///
   /// 输出不带背景反馈的纯文字按钮。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // InkWell 保留按钮语义、键盘操作与触控能力，但关闭会形成背景色的视觉反馈。
@@ -259,9 +389,20 @@ class _ActionText extends StatelessWidget {
   }
 }
 
+///
 /// 选择模式下的第二行工具：已选计数、全选、反选、移动、复制。
+///
 class WordSelectionBar extends StatelessWidget {
+  ///
   /// 全部状态与动作由首页注入。
+  ///
+  /// @param  int  selectedCount
+  /// @param  VoidCallback  onSelectAll
+  /// @param  VoidCallback  onInvertSelection
+  /// @param  VoidCallback  onMove
+  /// @param  VoidCallback  onCopy
+  /// @param  Key?  key
+  ///
   const WordSelectionBar({
     required this.selectedCount,
     required this.onSelectAll,
@@ -271,22 +412,47 @@ class WordSelectionBar extends StatelessWidget {
     super.key,
   });
 
+  ///
   /// 当前已选中的单词数量。
+  ///
+  /// @var int
+  ///
   final int selectedCount;
 
+  ///
   /// 全选当前可见单词。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onSelectAll;
 
+  ///
   /// 反选当前可见单词。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onInvertSelection;
 
+  ///
   /// 移动所选到指定分组；没有选中时首页会忽略。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onMove;
 
+  ///
   /// 复制所选到指定分组；没有选中时首页会忽略。
+  ///
+  /// @var VoidCallback
+  ///
   final VoidCallback onCopy;
 
+  ///
   /// 输出与设计稿一致的选择工具行。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。

@@ -1,25 +1,29 @@
 import 'meaning.dart';
 import 'model_value_parser.dart';
 
+///
 /// 单词及其释义、分组和复习信息。
 ///
-/// @property `int?` id SQLite 自增主键。
-/// @property `String` spelling 英文拼写。
+/// @property int? id SQLite 自增主键。
+/// @property String spelling 英文拼写。
 /// @property `List<Meaning>` meanings 词性与释义列表。
-/// @property `int?` difficulty 当前学习难度。
+/// @property int? difficulty 当前学习难度。
 /// @property `List<int>` groupIds 所属分组主键。
+///
 class Word {
+  ///
   /// 创建 Word；id 和时间在写入数据库前可以为空。
   ///
-  /// @param `int?` id SQLite 自增主键。
-  /// @param `String` spelling 英文拼写。
-  /// @param `List<Meaning>` meanings 词性与释义列表。
-  /// @param `int?` difficulty 当前学习难度。
-  /// @param `List<int>` groupIds 所属分组主键。
-  /// @param `DateTime?` reviewedAt 最近复习时间。
-  /// @param `DateTime?` createdAt 创建时间。
-  /// @param `DateTime?` updatedAt 更新时间。
-  /// @param `DateTime?` deletedAt 软删除时间。
+  /// @param  int?  id SQLite 自增主键。
+  /// @param  String  spelling 英文拼写。
+  /// @param  `List<Meaning>`  meanings 词性与释义列表。
+  /// @param  int?  difficulty 当前学习难度。
+  /// @param  `List<int>`  groupIds 所属分组主键。
+  /// @param  DateTime?  reviewedAt 最近复习时间。
+  /// @param  DateTime?  createdAt 创建时间。
+  /// @param  DateTime?  updatedAt 更新时间。
+  /// @param  DateTime?  deletedAt 软删除时间。
+  ///
   const Word({
     this.id,
     required this.spelling,
@@ -32,67 +36,91 @@ class Word {
     this.deletedAt,
   });
 
+  ///
   /// SQLite 自增主键。
   ///
-  /// @var `int?`
+  /// @var int?
+  ///
   final int? id;
 
+  ///
   /// 英文拼写；允许多个 Word 使用相同 spelling，记录身份由 id 决定。
   ///
-  /// @var `String`
+  /// @var String
+  ///
   final String spelling;
 
+  ///
   /// 当前单词的全部 Meaning。
   ///
   /// @var `List<Meaning>`
+  ///
   final List<Meaning> meanings;
 
+  ///
   /// 可空难度，最小值为 0 且没有最大值。
   ///
-  /// @var `int?`
+  /// @var int?
+  ///
   final int? difficulty;
 
+  ///
   /// 所属分组主键；空列表表示未分组，复制操作可使单词属于多个分组。
   ///
   /// @var `List<int>`
+  ///
   final List<int> groupIds;
 
+  ///
   /// 最近复习时间。
   ///
-  /// @var `DateTime?`
+  /// @var DateTime?
+  ///
   final DateTime? reviewedAt;
 
+  ///
   /// 创建时间。
   ///
-  /// @var `DateTime?`
+  /// @var DateTime?
+  ///
   final DateTime? createdAt;
 
+  ///
   /// 更新时间。
   ///
-  /// @var `DateTime?`
+  /// @var DateTime?
+  ///
   final DateTime? updatedAt;
 
+  ///
   /// 软删除时间。
   ///
-  /// @var `DateTime?`
+  /// @var DateTime?
+  ///
   final DateTime? deletedAt;
 
+  ///
   /// 首页更新时间分组使用的日期。
   ///
-  /// @return `DateTime?` 更新时间；缺失时回退创建时间。
+  /// @return DateTime? 更新时间；缺失时回退创建时间。
+  ///
   DateTime? get effectiveDate => updatedAt ?? createdAt;
 
+  ///
   /// 未指定分组模式时使用的列表日期。
   ///
   /// 依次回退到最近复习、创建和更新时间；三者均为空时返回 null。
   ///
-  /// @return `DateTime?` 当前最适合展示的业务日期。
+  /// @return DateTime? 当前最适合展示的业务日期。
+  ///
   DateTime? get displayDate => reviewedAt ?? createdAt ?? updatedAt;
 
+  ///
   /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。
   ///
-  /// @param `Map<Object?, Object?>` map 数据库行或导入文件中的单词对象。
-  /// @return `Word` 完成字段校验、释义排序和列表冻结后的单词模型。
+  /// @param  `Map<Object?, Object?>`  map 数据库行或导入文件中的单词对象。
+  /// @return Word 完成字段校验、释义排序和列表冻结后的单词模型。
+  ///
   factory Word.fromMap(Map<Object?, Object?> map) {
     // 先读取必填拼写，逻辑类似 Laravel FormRequest 的 required 校验。
     final spelling = map['spelling']?.toString();
@@ -159,9 +187,11 @@ class Word {
     );
   }
 
+  ///
   /// 转成 MethodChannel 可传输 Map，供 SQLite 模式 CRUD 使用。
   ///
   /// @return `Map<String, Object?>` 原生 Word Store 接受的字段集合。
+  ///
   Map<String, Object?> toMap() {
     // 返回 Map 类似 Laravel 模型的 toArray()，MethodChannel 可直接传输。
     return <String, Object?>{
@@ -183,11 +213,13 @@ class Word {
     };
   }
 
+  ///
   /// 转成导出文件使用的数据。
   ///
   /// 日期统一使用 yyyy-MM-dd；分组关系使用导入流程识别的 groups 字段。
   ///
   /// @return `Map<String, Object?>` 可写入备份 JSON 的业务字段集合。
+  ///
   Map<String, Object?> toExportMap() {
     // 导出结构只使用 JSON 支持的字符串、数字、数组和对象。
     final map = <String, Object?>{
@@ -211,12 +243,14 @@ class Word {
     return map;
   }
 
+  ///
   /// 返回移动到指定分组后的新 Word；null 表示移回"未分组"。
   ///
   /// 移动会替换全部分组关系；只有复制操作保留多个分组。
   ///
-  /// @param `int?` newGroupId 目标分组主键；null 表示未分组。
-  /// @return `Word` 更新分组和更新时间后的新模型。
+  /// @param  int?  newGroupId 目标分组主键；null 表示未分组。
+  /// @return Word 更新分组和更新时间后的新模型。
+  ///
   Word withGroup(int? newGroupId) {
     // 模型保持不可变，移动操作通过创建副本表达状态变化。
     return Word(
@@ -234,12 +268,14 @@ class Word {
     );
   }
 
+  ///
   /// 返回加入指定分组后的新 Word（复制语义）。
   ///
   /// 保留当前分组并追加 [groupId]。
   ///
-  /// @param `int` groupId 需要追加的目标分组主键。
-  /// @return `Word` 同时属于原分组和目标分组的新模型。
+  /// @param  int  groupId 需要追加的目标分组主键。
+  /// @return Word 同时属于原分组和目标分组的新模型。
+  ///
   Word withAddedGroup(int groupId) {
     // 扩展运算符对应 PHP 的数组展开，保留旧分组后追加目标分组。
     return Word(
@@ -255,12 +291,14 @@ class Word {
     );
   }
 
+  ///
   /// 返回按表单结果编辑后的新 Word，供"修改单词"提交时使用。
   ///
-  /// @param `String` spelling 表单提交的新拼写。
-  /// @param `List<Meaning>` meanings 表单提交的新释义列表。
-  /// @param `int?` groupId 表单选择的单一分组；null 表示未分组。
-  /// @return `Word` 保留主键和创建时间、刷新业务字段后的新模型。
+  /// @param  String  spelling 表单提交的新拼写。
+  /// @param  `List<Meaning>`  meanings 表单提交的新释义列表。
+  /// @param  int?  groupId 表单选择的单一分组；null 表示未分组。
+  /// @return Word 保留主键和创建时间、刷新业务字段后的新模型。
+  ///
   Word edited({
     required String spelling,
     required List<Meaning> meanings,
@@ -282,13 +320,15 @@ class Word {
   }
 }
 
+///
 /// 把日期格式化为导出文件使用的 yyyy-MM-dd 文本；null 直接返回 null。
 ///
 /// 不引入 intl 依赖，用 ISO 字符串前 10 位即可得到稳定的年月日，
 /// 与 [Word.fromMap] 支持的 yyyy-MM-dd 解析格式完全对称。
 ///
-/// @param `DateTime?` value 待导出的可空日期。
-/// @return `String?` yyyy-MM-dd 文本；输入为空时返回 null。
+/// @param  DateTime?  value 待导出的可空日期。
+/// @return String? yyyy-MM-dd 文本；输入为空时返回 null。
+///
 String? _exportDate(DateTime? value) {
   // 空日期保持为 null，导出时整字段省略或写为 null。
   if (value == null) return null;

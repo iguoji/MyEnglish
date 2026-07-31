@@ -3,7 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 // 引入被测试的日期 helper，类似 PHPUnit 测试 require 业务函数文件。
 import 'package:my_english/common/date.dart';
 
+///
 /// 测试程序入口；这里只登记测试用例，不会启动 Flutter 页面。
+///
+/// @return void
+///
 void main() {
   // 验证公用完整日期时间格式，首页和未来页面应复用该函数。
   group('formatFullDateTime', () {

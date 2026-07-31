@@ -27,12 +27,12 @@
     - 参数说明：使用 @param 声明参数类型和名称。
     - 返回值说明：使用 @return 声明返回的数据类型。
         ```php
-        /**
-         * 获取数据库连接实例。
-         *
-         * @param  string|null  $name
-         * @return \Illuminate\Database\ConnectionInterface
-         */
+        ///
+        /// 获取数据库连接实例。
+        ///
+        /// @param  string|null  $name
+        /// @return \Illuminate\Database\ConnectionInterface
+        ///
         public static function connection($name = null)
         {
             // ...
@@ -42,19 +42,19 @@
     - 类注释：说明类的整体功能与所属模块。
     - 属性注释：在属性上方标明变量类型、作用域等等修饰符
         ```php
-        /**
-         * 用户模型类.
-         *
-         * @property int $id
-         * @property string $name
-         */
+        ///
+        /// 用户模型类.
+        ///
+        /// @property int $id
+        /// @property string $name
+        ///
         class User extends Model
         {
-            /**
-             * 不可被批量赋值的属性.
-             *
-             * @var array<int, string>
-             */
+            ///
+            /// 不可被批量赋值的属性.
+            ///
+            /// @var array<int, string>
+            ///
             protected $guarded = [];
         }
         ```

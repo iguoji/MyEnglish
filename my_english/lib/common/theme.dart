@@ -1,45 +1,99 @@
 // material.dart 提供 ColorScheme 和 ThemeData，类似小程序 app.wxss 的全局样式能力。
 import 'package:flutter/material.dart';
 
+///
 /// 应用级主题配置；页面从 Theme.of(context) 取颜色，才能同时适配 Light 与 Dark。
+///
 abstract final class AppTheme {
+  ///
   /// Tabler 主蓝色，作为按钮、选中项和进度状态的品牌色。
+  ///
+  /// @var Color
+  ///
   static const primaryColor = Color(0xFF206BC4);
 
+  ///
   /// 浅色页面背景（设计稿 cPage）。
+  ///
+  /// @var Color
+  ///
   static const backgroundColor = Color(0xFFF6F8FB);
 
+  ///
   /// 浅色主要文字（设计稿 cTx）。
+  ///
+  /// @var Color
+  ///
   static const textColor = Color(0xFF182433);
 
+  ///
   /// 浅色次要文字（设计稿 cTs）。
+  ///
+  /// @var Color
+  ///
   static const mutedColor = Color(0xFF667382);
 
+  ///
   /// 浅色输入框等控件边框（设计稿 cIb）。
+  ///
+  /// @var Color
+  ///
   static const borderColor = Color(0xFFDCE1E7);
 
+  ///
   /// Tabler 浅色表格分隔线，对应 `--tblr-border-color: #e6e7e9`。
+  ///
+  /// @var Color
+  ///
   static const tableBorderColor = Color(0xFFE6E7E9);
 
+  ///
   /// 深色页面背景（设计稿 cPage）。
+  ///
+  /// @var Color
+  ///
   static const darkBackgroundColor = Color(0xFF141A22);
 
+  ///
   /// 深色列表和输入框表面（设计稿 cCard）。
+  ///
+  /// @var Color
+  ///
   static const darkSurfaceColor = Color(0xFF1B232E);
 
+  ///
   /// 深色主要文字（设计稿 cTx）。
+  ///
+  /// @var Color
+  ///
   static const darkTextColor = Color(0xFFE6EBF1);
 
+  ///
   /// 深色次要文字（设计稿 cTs）。
+  ///
+  /// @var Color
+  ///
   static const darkMutedColor = Color(0xFF93A0AF);
 
+  ///
   /// 深色输入框等控件边框（设计稿 cIb）。
+  ///
+  /// @var Color
+  ///
   static const darkBorderColor = Color(0xFF364250);
 
+  ///
   /// 深色分组与列表分隔线（设计稿 cBd）。
+  ///
+  /// @var Color
+  ///
   static const darkTableBorderColor = Color(0xFF2B3644);
 
+  ///
   /// Material 3 浅色色板；copyWith 固定项目需要的 Tabler 中性色。
+  ///
+  /// @var ColorScheme
+  ///
   static final ColorScheme _lightScheme =
       ColorScheme.fromSeed(
         // seedColor 让 Material 3 自动派生按钮等语义颜色。
@@ -63,7 +117,11 @@ abstract final class AppTheme {
         error: const Color(0xFFD63939),
       );
 
+  ///
   /// Material 3 深色色板；字段含义与浅色完全一致。
+  ///
+  /// @var ColorScheme
+  ///
   static final ColorScheme _darkScheme =
       ColorScheme.fromSeed(
         // 深色模式仍使用同一个品牌蓝生成语义色。
@@ -87,7 +145,11 @@ abstract final class AppTheme {
         error: const Color(0xFFFF6B6B),
       );
 
+  ///
   /// 全局浅色主题；所有页面都继承同一套 Material 3 行为和颜色。
+  ///
+  /// @var ThemeData
+  ///
   static final ThemeData light = ThemeData(
     // 正式启用 Material 3；旧代码关闭它只是为了暂时规避默认尺寸变化。
     useMaterial3: true,
@@ -155,7 +217,11 @@ abstract final class AppTheme {
     ),
   );
 
+  ///
   /// 全局深色主题；组件尺寸与浅色相同，只替换语义颜色。
+  ///
+  /// @var ThemeData
+  ///
   static final ThemeData dark = ThemeData(
     // 深色同样使用 Material 3，避免两种主题组件行为不一致。
     useMaterial3: true,
@@ -221,12 +287,31 @@ abstract final class AppTheme {
   );
 }
 
+///
 /// 设计稿色板的完整令牌集合，命名与设计稿 CSS 变量一一对应。
 ///
 /// 页面通过 AppTokens.of(context) 取当前明暗对应的一组颜色，
 /// 作用类似小程序在 WXSS 里读取一组主题 CSS 变量。
+///
 class AppTokens {
+  ///
   /// 私有构造器；只允许使用下方两个预设实例。
+  ///
+  /// @param  Color  page
+  /// @param  Color  card
+  /// @param  Color  sub
+  /// @param  Color  expand
+  /// @param  Color  border
+  /// @param  Color  rowBorder
+  /// @param  Color  text
+  /// @param  Color  textSecondary
+  /// @param  Color  textMedium
+  /// @param  Color  inputBorder
+  /// @param  Color  muted
+  /// @param  Color  check
+  /// @param  Color  listDate
+  /// @param  Color  listDateEmpty
+  ///
   const AppTokens._({
     required this.page,
     required this.card,
@@ -244,55 +329,123 @@ class AppTokens {
     required this.listDateEmpty,
   });
 
+  ///
   /// 页面背景（cPage）。
+  ///
+  /// @var Color
+  ///
   final Color page;
 
+  ///
   /// 卡片与列表表面（cCard）。
+  ///
+  /// @var Color
+  ///
   final Color card;
 
+  ///
   /// 次级底色，如分组头与开关轨道（cSub）。
+  ///
+  /// @var Color
+  ///
   final Color sub;
 
+  ///
   /// 展开释义区域底色（cExp）。
+  ///
+  /// @var Color
+  ///
   final Color expand;
 
+  ///
   /// 分组与区域分隔线（cBd）。
+  ///
+  /// @var Color
+  ///
   final Color border;
 
+  ///
   /// 列表行分隔线（cRb）。
+  ///
+  /// @var Color
+  ///
   final Color rowBorder;
 
+  ///
   /// 主要文字（cTx）。
+  ///
+  /// @var Color
+  ///
   final Color text;
 
+  ///
   /// 次要文字（cTs）。
+  ///
+  /// @var Color
+  ///
   final Color textSecondary;
 
+  ///
   /// 中等强调文字（cTm）。
+  ///
+  /// @var Color
+  ///
   final Color textMedium;
 
+  ///
   /// 输入框与按钮边框（cIb）。
+  ///
+  /// @var Color
+  ///
   final Color inputBorder;
 
+  ///
   /// 弱化文字，如计数与占位（cMut）。
+  ///
+  /// @var Color
+  ///
   final Color muted;
 
+  ///
   /// 未选中复选框边框与开关轨道（chk）。
+  ///
+  /// @var Color
+  ///
   final Color check;
 
+  ///
   /// 列表右侧日期的极淡灰：刻意比 textSecondary 更弱，让辅助信息不抢眼。
+  ///
+  /// @var Color
+  ///
   final Color listDate;
 
+  ///
   /// 列表右侧无日期占位"00.00"的更淡灰：比 listDate 还弱，进一步降低存在感。
+  ///
+  /// @var Color
+  ///
   final Color listDateEmpty;
 
+  ///
   /// 品牌主色，与设计稿 accent 一致。
+  ///
+  /// @var Color
+  ///
   static const Color accent = AppTheme.primaryColor;
 
+  ///
   /// 危险色，用于删除与难度徽章。
+  ///
+  /// @var Color
+  ///
   static const Color danger = Color(0xFFD63939);
 
+  ///
   /// 浅色令牌，与设计稿浅色 CSS 变量一致。
+  ///
+  /// @var AppTokens
+  ///
   static const AppTokens light = AppTokens._(
     page: AppTheme.backgroundColor,
     card: Color(0xFFFFFFFF),
@@ -312,7 +465,11 @@ class AppTokens {
     listDateEmpty: Color(0xFFE0E4E9),
   );
 
+  ///
   /// 深色令牌，与设计稿深色 CSS 变量一致。
+  ///
+  /// @var AppTokens
+  ///
   static const AppTokens dark = AppTokens._(
     page: AppTheme.darkBackgroundColor,
     card: AppTheme.darkSurfaceColor,
@@ -332,7 +489,12 @@ class AppTokens {
     listDateEmpty: Color(0xFF3A4350),
   );
 
+  ///
   /// 按当前主题亮度返回对应令牌集合。
+  ///
+  /// @param  BuildContext  context
+  /// @return AppTokens
+  ///
   static AppTokens of(BuildContext context) {
     // 深色主题返回深色令牌，其余返回浅色令牌。
     return Theme.of(context).brightness == Brightness.dark ? dark : light;

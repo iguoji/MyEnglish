@@ -4,23 +4,45 @@
 // 生成时间：2026-07-31T17:25:36.816308
 // 数据来源：/Users/iguoji/Desktop/Learn/MyEnglish/my_english/pubspec.yaml
 
+///
 /// 应用元信息（由 pubspec.yaml 同步生成，单一数据源在 pubspec.yaml）。
+///
 class AppInfo {
+  ///
   /// 包名（pubspec.yaml `name` 字段），与 Dart import 路径一致。
+  ///
+  /// @var String
+  ///
   static const String packageName = 'my_english';
 
+  ///
   /// 展示名（系统 launcher / Drawer 头部 / MaterialApp.title 用）。
   ///
   /// 当前约定：包名转 PascalCase。如需自定义展示名（如含空格或特殊字符），
   /// 在 pubspec.yaml 添加 `display_name: ...` 字段并扩展本脚本。
+  ///
+  /// @var String
+  ///
   static const String displayName = 'MyEnglish';
 
+  ///
   /// 用户可见版本号（pubspec.yaml `version` 字段的 `X.Y.Z` 段）。
+  ///
+  /// @var String
+  ///
   static const String version = '0.22.2';
 
+  ///
   /// 构建号（pubspec.yaml `version` 字段的 `+N` 段，0 表示未设置）。
+  ///
+  /// @var String
+  ///
   static const String buildNumber = '6';
 
+  ///
   /// 完整的 `version+buildNumber` 字符串，便于单一展示。
+  ///
+  /// @var String
+  ///
   static const String fullVersion = '0.22.2+$buildNumber';
 }

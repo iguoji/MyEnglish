@@ -8,9 +8,11 @@ import 'package:my_english/store/learning_session.dart';
 
 import '../support/memory_learning_session_store.dart';
 
+///
 /// 验证学习会话的 JSON 解析、通道方法名和覆盖写入参数。
 ///
-/// @return `void`
+/// @return void
+///
 void main() {
   // MethodChannel 测试必须先初始化 Flutter binding。
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -135,27 +137,35 @@ void main() {
   });
 }
 
+///
 /// 主动抛错的测试 Store，用于验证辅助缓存异常不会中断页面流程。
+///
 class _FailingLearningSessionStore implements LearningSessionStore {
+  ///
   /// 返回空会话列表。
   ///
   /// @return `Future<List<LearningSession>>` 空列表。
+  ///
   @override
   Future<List<LearningSession>> getAll() async => const <LearningSession>[];
 
+  ///
   /// 模拟保存失败。
   ///
-  /// @param `LearningSession` session 本次尝试保存的会话。
+  /// @param  LearningSession  session 本次尝试保存的会话。
   /// @return `Future<void>` 始终以 StateError 结束。
+  ///
   @override
   Future<void> save(LearningSession session) async {
     throw StateError('save failed');
   }
 
+  ///
   /// 模拟删除失败。
   ///
-  /// @param `LearningSessionType` type 本次尝试删除的会话类型。
+  /// @param  LearningSessionType  type 本次尝试删除的会话类型。
   /// @return `Future<void>` 始终以 StateError 结束。
+  ///
   @override
   Future<void> delete(LearningSessionType type) async {
     throw StateError('delete failed');
