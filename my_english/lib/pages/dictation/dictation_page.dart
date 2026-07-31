@@ -23,7 +23,7 @@ import '../../services/word_audio.dart';
 import '../../store/settings.dart';
 // 引入独立候选项生成服务，页面只负责当前答题状态。
 import 'services/dictation_option_generator.dart';
-// 引入默写记录 Store：单词完成时写入结果并驱动难度变化。
+// 引入默写记录 Store：点击下一题时写入结果并驱动难度变化。
 import '../../store/record.dart';
 // 引入默写页面集中管理的布局尺寸。
 import 'widgets/dictation_layout.dart';
@@ -47,6 +47,7 @@ class DictationPage extends StatefulWidget {
     required this.words,
     required this.audioPlayer,
     required this.accent,
+    this.recordStore,
     this.definitionSeparator = '、',
     super.key,
   }) : assert(words.length > 0, '默写页至少需要一个学习单词');
@@ -59,6 +60,9 @@ class DictationPage extends StatefulWidget {
 
   /// 当前发音口音。
   final PronunciationAccent accent;
+
+  /// 默写记录存储；正式环境使用全局实例，测试可注入独立通道。
+  final RecordStore? recordStore;
 
   /// 已答出的同词性中文释义之间使用的全角分隔符。
   final String definitionSeparator;
@@ -80,7 +84,7 @@ class _DictationPageState extends State<DictationPage> {
   int _definitionIndex = 0;
   // 单词阶段已经公开的开头字母数。
   int _hintLevel = 0;
-  // 整轮累计答错次数。
+  // 整轮累计答错次数，完成状态页用它展示本轮统计。
   int _errors = 0;
   // 当前单词本次默写累计选错候选词的次数（每个新词重置）。
   int _currentWrong = 0;
@@ -88,10 +92,12 @@ class _DictationPageState extends State<DictationPage> {
   int _currentHints = 0;
   // 本轮复习完成过的单词主键集合，退出时带回首页用于定向回刷。
   final Set<int> _reviewedWordIds = <int>{};
-  // 是否已完成全部单词。
+  // 是否已经提交最后一个单词并进入整轮完成状态页。
   bool _isDone = false;
   // 当前单词的拼写和全部含义是否均已答对，完成后等待用户点击下一题。
   bool _isCurrentWordComplete = false;
+  // 是否正在把当前题提交给原生事务；用于阻止连续点击产生重复记录。
+  bool _isSavingCompletion = false;
   // 发音图标是否显示。
   bool _isPlaying = false;
   // 发音请求代次号：每发起一次播放就 +1，相当于给这次播放发一张"号码牌"。
@@ -112,6 +118,9 @@ class _DictationPageState extends State<DictationPage> {
   final Set<String> _wrongOptions = <String>{};
 
   Word get _currentWord => widget.words[_wordIndex];
+
+  /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
+  RecordStore get _recordStore => widget.recordStore ?? RecordStore.instance;
 
   List<Meaning> get _availableMeanings => _currentWord.meanings
       .where((meaning) => meaning.definitions.isNotEmpty)
@@ -246,6 +255,7 @@ class _DictationPageState extends State<DictationPage> {
       HapticFeedback.heavyImpact();
       setState(() {
         _wrongOptions.add(option.text);
+        // 整轮错误统计供完成状态页展示，不会因重做当前单词而回退。
         _errors++;
         // 当前单词的选错次数同步累加，用于落 record。
         _currentWrong++;
@@ -317,72 +327,88 @@ class _DictationPageState extends State<DictationPage> {
     // 自动重播一次发音作为答对奖励：既有听觉反馈，又强化单词记忆。
     // interrupt: true —— 若用户刚好手动点了播放，奖励发音直接接管，不会被忽略。
     unawaited(_playAudio(interrupt: true));
-    // 当前单词已完成，把本次默写结果写入记录（每天首条为准，异步、不阻塞）。
-    _recordCompletion();
   }
 
   /// 把当前单词的本次默写结果写入记录 Store。
   ///
-  /// 这一步发生在「单词完成」那一刻，此时 [_currentWrong]/[_currentHints]
-  /// 仍保存着本词累计的选错与提示次数；即便用户随后返回首页也不影响已经落库。
-  /// 若单词没有主键（极端情况）则直接跳过。
+  /// 这一步只在用户点击「下一题」后发生；停留在完成态或点击「再试一次」都不会
+  /// 写数据库。此时 [_currentWrong]/[_currentHints] 仍保存着本词累计数据。
+  /// 若单词没有主键（极端情况）则直接跳过，并允许页面继续推进。
   ///
   /// 关于 isCorrect 的口径（重要）：默写只能以"全部选对"结束，所以不能用"是否
   /// 完成"来判断对错。真正有意义的判定是**本次过程中有没有选错过候选词**：
   /// - 一次没错（[_currentWrong] == 0）→ 视为本次默写正确；
   /// - 中途选错过 → 视为本次默写错误，原生据此把难度 +1。
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
-  void _recordCompletion() {
+  Future<bool> _recordCompletion() async {
     // 取出当前单词主键。
     final wordId = _currentWord.id;
-    // 没有主键无法落库，直接放弃记录。
-    if (wordId == null) return;
-    // 记录本次复习涉及的单词，退出首页时只回刷这些单词。
-    _reviewedWordIds.add(wordId);
-    // 用 unawaited 异步发送，不等待结果，也不阻断默写流程。
-    unawaited(
-      RecordStore.instance
-          .addCompletion(
-            // 本次是否"一次做对"：零错选才算正确，见上方口径说明。
-            wordId: wordId,
-            isCorrect: _currentWrong == 0,
-            wrongCount: _currentWrong,
-            hintCount: _currentHints,
-          )
-          // 记录失败只打印，不影响界面与后续答题。
-          .catchError((Object error) {
-            debugPrint('记录默写结果失败：$error');
-          }),
-    );
+    // 没有主键无法落库；它通常只会出现在尚未保存的测试数据中。
+    if (wordId == null) return true;
+    try {
+      // 等待原生事务真正结束后才允许切题，确保首页回刷时能读取到最新数据。
+      await _recordStore.addCompletion(
+        // 本次是否"一次做对"：零错选才算正确，见上方口径说明。
+        wordId: wordId,
+        isCorrect: _currentWrong == 0,
+        wrongCount: _currentWrong,
+        hintCount: _currentHints,
+      );
+      // 只有事务成功后才把 id 带回首页，避免首页回刷一条并未更新的数据。
+      _reviewedWordIds.add(wordId);
+      // true 告诉按钮流程可以安全进入下一题。
+      return true;
+    } catch (error) {
+      // 保留日志便于开发时定位原生数据库异常。
+      debugPrint('记录默写结果失败：$error');
+      // 页面仍存在时给用户明确反馈，并停留在本题以便再次点击重试。
+      if (mounted) Toast.show(context, '保存默写结果失败，请重试');
+      // false 阻止切题，避免用户误以为本次结果已经保存。
+      return false;
+    }
   }
 
   /// 退出默写页，并把本次复习过的单词 id 集合带回首页，供其定向回刷。
   ///
   /// 通过 [Navigator.pop] 的结果参数传出，避免首页重新加载整库。
   void _exitDictation() {
+    // 用户点击下一题后必须等事务结束；保存中主动返回会让首页漏掉最新回刷 id。
+    if (_isSavingCompletion) return;
     // 把收集到的 id 列表作为路由结果返回给上一页。
     Navigator.pop(context, _reviewedWordIds.toList());
   }
 
-  /// 用户点击底部长条按钮后进入下一词；最后一词则显示统计页。
-  void _goToNextWord() {
+  /// 用户点击底部长条按钮后先提交当前结果，再进入下一词或整轮完成页。
+  Future<void> _goToNextWord() async {
     // 只有当前题已完成才允许推进，防止外部误调用跳过题目。
-    if (!_isCurrentWordComplete || _isDone) return;
-    // 已经处于最后一个单词时，下一步是整轮完成页。
+    if (!_isCurrentWordComplete || _isSavingCompletion) return;
+    // 先锁住两个完成态按钮，避免连点「下一题」插入重复记录。
+    setState(() => _isSavingCompletion = true);
+    // 本地 SQLite 事务完成后再换题，保证后续读到的是最新难度与复习时间。
+    final didSave = await _recordCompletion();
+    // 保存期间用户可能通过系统返回键关闭页面，异步回来后不能再调用 setState。
+    if (!mounted) return;
+    // 事务失败时解除按钮锁并停留在当前题，用户可以再次提交。
+    if (!didSave) {
+      setState(() => _isSavingCompletion = false);
+      return;
+    }
+    // 最后一题提交成功后进入整轮完成状态页，由用户确认后再返回首页。
     if (_wordIndex + 1 >= widget.words.length) {
-      // 整轮完成给予中等震动，与单词完成同级但更持久。
+      // 整轮完成给予中等震动，与单词完成反馈保持一致。
       HapticFeedback.mediumImpact();
-      // 作废尚未结束的奖励发音代次，防止它稍后把播放状态改回去。
+      // 作废尚未结束的奖励发音代次，防止旧请求随后覆盖完成页状态。
       _playGeneration++;
       setState(() {
-        // 切换到整轮完成状态。
+        // 切换到整轮完成页面。
         _isDone = true;
-        // 不再显示播放中图标。
+        // 原生事务已经成功，解除保存期间的返回锁。
+        _isSavingCompletion = false;
+        // 完成页不显示播放中图标与当前单词反馈。
         _isPlaying = false;
-        // 整轮统计页不需要单词反馈文案。
         _feedback = '';
       });
-      // 停止可能尚未结束的底层音频。
+      // 停止可能仍在播放的答对奖励音频。
       unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
       return;
     }
@@ -405,6 +431,8 @@ class _DictationPageState extends State<DictationPage> {
       _currentHints = 0;
       // 新单词尚未完成。
       _isCurrentWordComplete = false;
+      // 上一题事务已结束，新题允许正常交互。
+      _isSavingCompletion = false;
       // 清除上一题的完成反馈。
       _feedback = '';
       // 反馈颜色恢复主题默认值。
@@ -421,11 +449,11 @@ class _DictationPageState extends State<DictationPage> {
   /// 用户点击"再试一次"：把当前单词整体退回刚进入这一题时的状态。
   ///
   /// 语义等同于"这道题重做一遍"：拼写没选、释义没选、提示未展开、错项全部清空，
-  /// 并像刚进入新题一样自动发音一次。注意整轮累计错误数 [_errors] 不回退，
-  /// 它统计的是本轮全部答错次数，属于历史事实。
+  /// 并像刚进入新题一样自动发音一次。本题错误与提示次数也会归零，最终只提交
+  /// 用户重做这一遍产生的数据。
   void _retryCurrentWord() {
     // 只有当前题处于"已完成"状态时才会出现这个按钮，其余情况忽略调用。
-    if (!_isCurrentWordComplete || _isDone) return;
+    if (!_isCurrentWordComplete || _isDone || _isSavingCompletion) return;
     // 轻触震动确认操作已被接受。
     HapticFeedback.lightImpact();
     // 一次 setState 完整回滚当前题的全部答题状态（与 _goToNextWord 相同的字段集，
@@ -527,7 +555,7 @@ class _DictationPageState extends State<DictationPage> {
     // 拼写阶段引导用户通过发音选出单词。
     if (_stage == DictationStage.word) return '听音，选出正确的单词';
     final meaning = _availableMeanings[_meaningIndex];
-    final pos = meaning.pos.isEmpty ? '释义' : meaning.displayPos;
+    final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.displayPos;
     return '$pos · 选择释义 ${_definitionIndex + 1}/${meaning.definitions.length}';
   }
 
@@ -543,18 +571,22 @@ class _DictationPageState extends State<DictationPage> {
     final progress =
         (_isDone ? widget.words.length : _wordIndex + 1) / widget.words.length;
 
-    return Scaffold(
-      backgroundColor: tokens.page,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 顶栏和进度条与随身听共用相同的位置、尺寸和对齐逻辑。
-            _buildHeader(tokens, progress),
-            if (_isDone)
-              Expanded(child: _buildDone(tokens))
-            else
-              Expanded(child: _buildQuestion(tokens)),
-          ],
+    // 保存中禁止系统返回手势，避免事务成功后首页却收不到需要回刷的单词 id。
+    return PopScope<Object?>(
+      canPop: !_isSavingCompletion,
+      child: Scaffold(
+        backgroundColor: tokens.page,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 顶栏和进度条与随身听共用相同的位置、尺寸和对齐逻辑。
+              _buildHeader(tokens, progress),
+              if (_isDone)
+                Expanded(child: _buildDone(tokens))
+              else
+                Expanded(child: _buildQuestion(tokens)),
+            ],
+          ),
         ),
       ),
     );
@@ -601,11 +633,16 @@ class _DictationPageState extends State<DictationPage> {
                   ),
                 ),
               ),
-              // 默写页没有设置按钮，但保留与左侧完全等宽的空画布以确保题号绝对居中。
-              const SizedBox(
-                key: Key('dictation-header-trailing-space'),
+              // 右侧用与返回按钮等宽的固定画布承载难度，中央题号仍保持绝对居中。
+              SizedBox(
                 width: DictationLayout.headerButtonSize,
                 height: DictationLayout.headerButtonSize,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _DictationDifficultyBadge(
+                    difficulty: _currentWord.difficulty,
+                  ),
+                ),
               ),
             ],
           ),
@@ -778,7 +815,7 @@ class _DictationPageState extends State<DictationPage> {
   /// 留出间距（相当于小程序里 flex:1 + margin 的写法）。
   /// 左侧是次要操作（描边样式），右侧是主操作（蓝色实心）。
   Widget _buildNextQuestionButton(AppTokens tokens) {
-    // 最后一个单词之后没有新题，此时按钮文案改为“完成”。
+    // 最后一题提交后会进入完成状态页，因此主操作使用“完成”语义。
     final isLastWord = _wordIndex + 1 >= widget.words.length;
     // Padding 与普通候选区共用相同的左右、顶部和安全区留白。
     return Padding(
@@ -800,7 +837,7 @@ class _DictationPageState extends State<DictationPage> {
             Expanded(
               child: OutlinedButton.icon(
                 key: const Key('retry-dictation-word'),
-                onPressed: _retryCurrentWord,
+                onPressed: _isSavingCompletion ? null : _retryCurrentWord,
                 // Tabler 的刷新图标表达"重来一遍"。
                 icon: const Icon(TablerIcons.refresh, size: 17),
                 label: const Text('再试一次'),
@@ -824,18 +861,18 @@ class _DictationPageState extends State<DictationPage> {
             ),
             // 两个按钮之间的固定间距，复用候选区与操作区的同一套尺寸。
             const SizedBox(width: DictationLayout.columnGap),
-            // 右半：主操作「下一题」/「完成」。
+            // 右半：普通题进入「下一题」，最后一题提交后进入完成状态页。
             Expanded(
               // FilledButton.icon 用蓝色背景表达当前的主操作。
               child: FilledButton.icon(
                 key: const Key('next-dictation-word'),
-                onPressed: _goToNextWord,
-                // 最后一题使用勾选图标，其他题使用向右箭头。
+                onPressed: _isSavingCompletion ? null : _goToNextWord,
+                // 最后一题使用 Tabler 勾选图标，其余题使用向右箭头。
                 icon: Icon(
                   isLastWord ? TablerIcons.check : TablerIcons.arrowRight,
                   size: 17,
                 ),
-                // 中间文字明确说明点击后的结果。
+                // 文案明确区分“继续答题”和“提交整轮”。
                 label: Text(isLastWord ? '完成' : '下一题'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTokens.accent,
@@ -859,13 +896,16 @@ class _DictationPageState extends State<DictationPage> {
     );
   }
 
+  /// 构建整轮默写完成状态页，展示题量、累计错选次数和返回入口。
   Widget _buildDone(AppTokens tokens) {
+    // Center 让完成反馈在剩余页面区域中保持视觉居中。
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 绿色圆形图标作为整轮完成的主要视觉反馈。
             Container(
               width: 64,
               height: 64,
@@ -880,6 +920,7 @@ class _DictationPageState extends State<DictationPage> {
               ),
             ),
             const SizedBox(height: 12),
+            // 状态标题说明本轮流程已经结束。
             Text(
               '默写完成',
               style: TextStyle(
@@ -889,11 +930,13 @@ class _DictationPageState extends State<DictationPage> {
               ),
             ),
             const SizedBox(height: 12),
+            // 统计本轮总单词数与所有错选次数，重做不会抹去已经发生的错误。
             Text(
               '共 ${widget.words.length} 个单词 · 答错 $_errors 次',
               style: TextStyle(color: tokens.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 20),
+            // 返回按钮把成功提交的单词 id 一并交回首页进行定向回刷。
             FilledButton(
               key: const Key('finish-dictation'),
               onPressed: _exitDictation,
@@ -906,6 +949,52 @@ class _DictationPageState extends State<DictationPage> {
               child: const Text('返回'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 默写顶栏难度徽章：正数使用危险色，其余情况用成功色显示 0。
+class _DictationDifficultyBadge extends StatelessWidget {
+  /// 创建当前单词的只读难度徽章。
+  const _DictationDifficultyBadge({required this.difficulty});
+
+  /// 模型中的可空难度；历史异常负数也按无难度处理。
+  final int? difficulty;
+
+  /// 输出固定高度的 Tabler 软色 Badge。
+  @override
+  Widget build(BuildContext context) {
+    // 只有真实正数才是需要提醒的难度，其余值统一归零。
+    final normalizedDifficulty = (difficulty ?? 0) > 0 ? difficulty! : 0;
+    // 正数采用 Tabler danger，零采用 Tabler success green。
+    final foreground = normalizedDifficulty > 0
+        ? AppTokens.danger
+        : const Color(0xFF2FB344);
+    return Container(
+      key: const Key('dictation-difficulty-badge'),
+      constraints: const BoxConstraints(minWidth: 22, maxWidth: 34),
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        // 13% 软色背景与首页难度 Badge 保持同一 Tabler 视觉。
+        color: foreground.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      // FittedBox 只在极大数值超过 34 像素画布时缩小，避免顶栏溢出。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          normalizedDifficulty.toString(),
+          style: TextStyle(
+            color: foreground,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            height: 1,
+            letterSpacing: 0,
+          ),
         ),
       ),
     );

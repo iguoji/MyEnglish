@@ -22,8 +22,9 @@ void main() {
     difficulty: 3,
     createdAt: DateTime(2026, 1, 5),
     meanings: const <Meaning>[
-      Meaning(index: 2, pos: 'n.', definitions: <String>['能力', '才能']),
-      Meaning(index: 1, pos: 'adj.', definitions: <String>['能干的']),
+      // 故意传入旧数据中的大写词性，验证共享展示入口会统一转成小写。
+      Meaning(index: 2, pos: 'N.', definitions: <String>['能力', '才能']),
+      Meaning(index: 1, pos: 'ADJ.', definitions: <String>['能干的']),
     ],
   );
 
@@ -118,10 +119,10 @@ void main() {
     // 等待展开动画。
     await tester.pumpAndSettle();
 
-    // 两条 Meaning 全部可见（词性大写显示）。
-    expect(find.text('N.'), findsOneWidget);
+    // 两条 Meaning 全部可见，词性统一使用小写显示。
+    expect(find.text('n.'), findsOneWidget);
     expect(find.text('能力、才能'), findsOneWidget);
-    expect(find.text('ADJ.'), findsOneWidget);
+    expect(find.text('adj.'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整体高度超过标题行。
     expect(

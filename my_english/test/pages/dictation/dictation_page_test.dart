@@ -2,6 +2,8 @@
 import 'dart:async';
 // material.dart 提供 MaterialApp 与 SizedBox。
 import 'package:flutter/material.dart';
+// services.dart 提供 MethodChannel 与 MethodCall，用来观察默写记录何时提交。
+import 'package:flutter/services.dart';
 // flutter_test 提供页面交互和断言。
 import 'package:flutter_test/flutter_test.dart';
 // Tabler 图标用于核对完成状态图标规范。
@@ -17,10 +19,33 @@ import 'package:my_english/pages/dictation/dictation_page.dart';
 // 引入默写布局尺寸，使测试与真实页面共用同一组对齐标准。
 import 'package:my_english/pages/dictation/widgets/dictation_layout.dart';
 import 'package:my_english/services/word_audio.dart';
+// 引入可注入测试通道的记录 Store。
+import 'package:my_english/store/record.dart';
 import 'package:my_english/store/settings.dart';
 
 void main() {
-  testWidgets('dictation handles wrong answers, stages and completion stats', (
+  // Widget 测试需要先初始化二进制消息桥，才能为原生记录通道安装测试桩。
+  TestWidgetsFlutterBinding.ensureInitialized();
+  // 普通页面用例走正式通道名，但统一由空实现接住，避免访问真实 Android。
+  const defaultRecordChannel = MethodChannel('my_english/word_store');
+  // 保存测试环境提供的消息桥，后续每个用例都复用它注册处理器。
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+  // 每个用例开始前安装成功返回的默认记录通道。
+  setUp(() {
+    messenger.setMockMethodCallHandler(
+      defaultRecordChannel,
+      (call) async => null,
+    );
+  });
+
+  // 每个用例结束后注销处理器，避免影响其他测试文件。
+  tearDown(() {
+    messenger.setMockMethodCallHandler(defaultRecordChannel, null);
+  });
+
+  testWidgets('dictation handles wrong answers and advances between words', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -41,6 +66,20 @@ void main() {
     _expectTiles(tester, spelling: 'ability', revealedLetterCount: 0);
     // 每个拼写或释义小题都必须精确显示四个候选项。
     _expectFourOptions(tester);
+    // 第一题难度为 3，右上角使用红色 Badge 展示真实数值。
+    final difficultyBadgeFinder = find.byKey(
+      const Key('dictation-difficulty-badge'),
+    );
+    final difficultyBadge = tester.widget<Container>(difficultyBadgeFinder);
+    final difficultyDecoration = difficultyBadge.decoration! as BoxDecoration;
+    expect(
+      find.descendant(of: difficultyBadgeFinder, matching: find.text('3')),
+      findsOneWidget,
+    );
+    expect(
+      difficultyDecoration.color,
+      AppTokens.danger.withValues(alpha: 0.13),
+    );
     // 播放是右侧主操作，使用蓝色背景和白色前景。
     final playButton = tester.widget<OutlinedButton>(
       find
@@ -69,11 +108,11 @@ void main() {
     // 正确拼写进入第一个词义的第一条释义。
     await tester.tap(find.text('ability'));
     await tester.pump();
-    expect(find.text('N. · 选择释义 1/2'), findsOneWidget);
+    expect(find.text('n. · 选择释义 1/2'), findsOneWidget);
     _expectFourOptions(tester);
     await tester.tap(find.text('能力'));
     await tester.pump();
-    expect(find.text('N. · 选择释义 2/2'), findsOneWidget);
+    expect(find.text('n. · 选择释义 2/2'), findsOneWidget);
     _expectFourOptions(tester);
     await tester.tap(find.text('才能'));
     await tester.pump();
@@ -85,8 +124,8 @@ void main() {
     // 步骤一次性列出：第一步“听音选词”已完成，第二条是该词性的释义。
     expect(find.byKey(const Key('dictation-step-word')), findsOneWidget);
     expect(find.byKey(const Key('dictation-step-meaning-0')), findsOneWidget);
-    // 释义步骤展示词性小标签与已答出的两条释义 chips（词性大写显示）。
-    expect(find.text('N.'), findsOneWidget);
+    // 释义步骤展示小写词性标签与已答出的两条释义 chips。
+    expect(find.text('n.'), findsOneWidget);
     expect(find.text('能力'), findsOneWidget);
     expect(find.text('才能'), findsOneWidget);
     // 四个候选、提示和播放整组隐藏。
@@ -130,23 +169,184 @@ void main() {
 
     // 只有点击长条按钮后才按首页列表顺序进入第二个单词。
     await tester.tap(nextButtonFinder);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('听音，选出正确的单词'), findsOneWidget);
     _expectFourOptions(tester);
-    // 第二个单词没有释义，答对拼写后改为最后的“完成”长条按钮。
+    // 第二题没有难度值，右上角使用绿色 Badge 明确显示 0。
+    final zeroBadge = tester.widget<Container>(
+      find.byKey(const Key('dictation-difficulty-badge')),
+    );
+    final zeroDecoration = zeroBadge.decoration! as BoxDecoration;
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('dictation-difficulty-badge')),
+        matching: find.text('0'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      zeroDecoration.color,
+      const Color(0xFF2FB344).withValues(alpha: 0.13),
+    );
+    // 第二个单词没有释义，答对拼写后显示进入状态页的“完成”按钮。
     await tester.tap(find.text('abandon'));
     await tester.pump();
     _expectNoOptions(tester);
     expect(find.text('完成'), findsOneWidget);
-    expect(find.text('默写完成'), findsNothing);
-    // 点击最后一题的完成按钮后才进入整轮统计页。
+    // 末题提交成功后进入原有完成状态页，并保留整轮错选统计。
     await tester.tap(find.byKey(const Key('next-dictation-word')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('默写完成'), findsOneWidget);
     expect(find.text('共 2 个单词 · 答错 1 次'), findsOneWidget);
     expect(find.byIcon(TablerIcons.check), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 记录必须等到点击“下一题”才写入；事务未完成前页面保持原题且按钮锁定。
+  testWidgets('completion is recorded only after tapping next', (tester) async {
+    // 独立通道避免与普通用例的默认空实现混在一起。
+    const channel = MethodChannel('test/dictation_record_timing');
+    // 保存原生事务收到的完整调用参数。
+    final nativeCalls = <MethodCall>[];
+    // 手动控制事务何时结束，便于确认页面确实等待保存。
+    final saveCompleter = Completer<void>();
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      // 收到调用即记录，但暂不返回，模拟 SQLite 正在执行事务。
+      nativeCalls.add(call);
+      await saveCompleter.future;
+      return null;
+    });
+    // 用例结束时注销独立通道。
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words,
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          recordStore: RecordStore(channel: channel),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 制造一次提示和一次错选，后面同时核对这两个统计字段。
+    await tester.tap(find.byKey(const Key('dictation-hint')));
+    await tester.pump();
+    await tester.tap(find.text('abliity'));
+    await tester.pump();
+    // 完整答完当前单词，但此时绝不能调用原生记录事务。
+    await tester.tap(find.text('ability'));
+    await tester.pump();
+    await tester.tap(find.text('能力'));
+    await tester.pump();
+    await tester.tap(find.text('才能'));
+    await tester.pump();
+    expect(find.text('当前单词已完成'), findsOneWidget);
+    expect(nativeCalls, isEmpty);
+
+    // 点击下一题才发起事务；事务挂起时仍停留在 ability。
+    await tester.tap(find.byKey(const Key('next-dictation-word')));
+    await tester.pump();
+    expect(nativeCalls, hasLength(1));
+    expect(find.text('当前单词已完成'), findsOneWidget);
+    final lockedNextButton = tester.widget<FilledButton>(
+      find.byKey(const Key('next-dictation-word')),
+    );
+    expect(lockedNextButton.onPressed, isNull);
+    // 保存期间左上角返回不响应，系统返回对应的路由策略也必须是 doNotPop。
+    await tester.tap(find.byKey(const Key('close-dictation')));
+    await tester.pump();
+    expect(find.byType(DictationPage), findsOneWidget);
+    final dictationRoute = ModalRoute.of(
+      tester.element(find.byType(DictationPage)),
+    );
+    expect(dictationRoute?.popDisposition, RoutePopDisposition.doNotPop);
+    // 原生方法和参数必须完整反映本题一次错选、一次提示的结果。
+    expect(nativeCalls.single.method, 'addDictationRecord');
+    expect(nativeCalls.single.arguments, <String, Object?>{
+      'wordId': 1,
+      'isCorrect': false,
+      'wrongCount': 1,
+      'hintCount': 1,
+    });
+
+    // 事务完成后页面才切换到 abandon。
+    saveCompleter.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('听音，选出正确的单词'), findsOneWidget);
+    expect(find.text('abandon'), findsOneWidget);
+    expect(nativeCalls, hasLength(1));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 最后一题同样先提交；提交成功后进入完成状态页，再返回首页并带回已复习 id。
+  testWidgets('last completion submits before opening the done page', (
+    tester,
+  ) async {
+    // 为最后一题建立独立通道并记录调用次数。
+    const channel = MethodChannel('test/dictation_last_word');
+    final nativeCalls = <MethodCall>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      nativeCalls.add(call);
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    // 接收默写页通过 Navigator.pop 带回的单词 id。
+    List<int>? returnedWordIds;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              // 首页先 push 默写页，等待最后一题直接 pop 回来的结果。
+              returnedWordIds = await Navigator.push<List<int>>(
+                context,
+                MaterialPageRoute<List<int>>(
+                  builder: (_) => DictationPage(
+                    words: _words.skip(1).toList(),
+                    audioPlayer: _ImmediateAudioPlayer(),
+                    accent: PronunciationAccent.american,
+                    recordStore: RecordStore(channel: channel),
+                  ),
+                ),
+              );
+            },
+            child: const Text('开始默写'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('开始默写'));
+    await tester.pumpAndSettle();
+
+    // 答完最后一个词只进入当前题完成态，不点击就不提交、也不进入状态页。
+    await tester.tap(find.text('abandon'));
+    await tester.pump();
+    expect(nativeCalls, isEmpty);
+    expect(find.byType(DictationPage), findsOneWidget);
+    expect(find.text('完成'), findsOneWidget);
+    expect(find.text('默写完成'), findsNothing);
+
+    // 点击完成后先写入一次记录，再进入原有的默写完成状态页。
+    await tester.tap(find.byKey(const Key('next-dictation-word')));
+    await tester.pumpAndSettle();
+    expect(nativeCalls, hasLength(1));
+    expect(find.byType(DictationPage), findsOneWidget);
+    expect(find.text('默写完成'), findsOneWidget);
+    expect(find.text('共 1 个单词 · 答错 0 次'), findsOneWidget);
+    expect(returnedWordIds, isNull);
+
+    // 状态页点击返回后才 pop 到首页，并把已提交的单词 id 交回去。
+    await tester.tap(find.byKey(const Key('finish-dictation')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DictationPage), findsNothing);
+    expect(find.text('开始默写'), findsOneWidget);
+    expect(returnedWordIds, <int>[2]);
   });
 
   // 「再试一次」必须把当前单词退回到刚进入这一题的样子：
@@ -494,6 +694,7 @@ final _words = <Word>[
   const Word(
     id: 1,
     spelling: 'ability',
+    difficulty: 3,
     meanings: <Meaning>[
       Meaning(index: 1, pos: 'n.', definitions: <String>['能力', '才能']),
     ],

@@ -838,8 +838,8 @@ class _PosChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
-          // 词性大写显示。
-          label.toUpperCase(),
+          // 词性统一使用小写显示；即使旧选项数据含大写，也在展示层归一化。
+          label.toLowerCase(),
           style: TextStyle(
             // 选中项主色加粗，未选中次要色常规。
             color: isSelected ? AppTokens.accent : tokens.textSecondary,
