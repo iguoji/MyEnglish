@@ -101,8 +101,16 @@ abstract final class DictationLayout {
   /// 四个候选词加上三段间距后的总高度，右侧两个按钮以此作为上下对齐边界。
   static const double optionStackHeight = optionHeight * 4 + optionGap * 3;
 
+  /// 普通候选区悬浮在 Stack 底部时的完整外部高度（顶部间距 + 内容 + 底部留白）。
+  static const double bottomControlsExtent =
+      bottomSectionTop + optionStackHeight + bottomInset;
+
   /// 右侧“提示”和“播放”按钮的高度。
   static const double actionHeight = 48;
+
+  /// 当前单词完成后两个横向按钮悬浮在 Stack 底部时的完整外部高度。
+  static const double nextControlsExtent =
+      bottomSectionTop + actionHeight + bottomInset;
 
   /// 左侧候选词所占的 flex 份数，三份对一份即约 75% 宽度。
   static const int optionColumnFlex = 3;

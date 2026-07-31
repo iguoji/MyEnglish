@@ -1183,47 +1183,73 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   Widget _buildQuestion(AppTokens tokens) {
-    // Column 把中间答题信息与固定底部操作区分成两个独立区域。
-    return Column(
+    // 底部控件虽然脱离普通布局，但滚动内容仍需保留等高的尾部内边距，
+    // 否则较长 Steps 的最后几行会被悬浮候选区遮住。
+    final bottomOverlayHeight = _isCurrentWordComplete
+        ? DictationLayout.nextControlsExtent
+        : DictationLayout.bottomControlsExtent;
+    // Stack 对应小程序 position + z-index：列表是中间层，底部控件作为最后绘制的顶层。
+    return Stack(
+      key: const Key('dictation-question-stack'),
+      fit: StackFit.expand,
       children: [
-        // Expanded 让中间区占用底部操作区之外的全部剩余高度。
-        Expanded(
-          // SingleChildScrollView 只负责内容过高时滚动，默认位置从顶部开始。
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: DictationLayout.pageInset,
-              vertical: DictationLayout.questionVerticalInset,
-            ),
-            // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: DictationLayout.questionMaxWidth,
+        // 第一层兼具“透明播放命中层”和可滚动内容容器：GestureDetector 自身不绘制颜色，
+        // 但会占满顶部区域以下的全部空间。它包在 ScrollView 外层，因此轻点播放，
+        // 纵向拖动时 ScrollView 的手势识别器仍可赢得手势竞争并正常滚动。
+        Positioned.fill(
+          child: GestureDetector(
+            key: const Key('dictation-question-audio-overlay'),
+            behavior: HitTestBehavior.translucent,
+            onTap: _playAudio,
+            child: Semantics(
+              button: true,
+              label: '播放当前单词发音',
+              child: SingleChildScrollView(
+                key: const Key('dictation-question-scroll'),
+                padding: EdgeInsets.fromLTRB(
+                  DictationLayout.pageInset,
+                  DictationLayout.questionVerticalInset,
+                  DictationLayout.pageInset,
+                  bottomOverlayHeight + DictationLayout.questionVerticalInset,
                 ),
-                // 独立组件按“单词卡、提示横幅、全量步骤”从上到下输出。
-                child: DictationQuestionContent(
-                  spelling: _currentWord.spelling,
-                  revealedLetterCount: _hintLevel,
-                  revealWholeWord:
-                      _stage == DictationStage.definition ||
-                      _isCurrentWordComplete,
-                  onSpeakerTap: _playAudio,
-                  isPlaying: _isPlaying,
-                  prompt: _stageLabel,
-                  feedback: _feedback,
-                  feedbackColor: _feedbackColor,
-                  steps: _buildSteps(),
-                  definitionSeparator: widget.definitionSeparator,
+                // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: DictationLayout.questionMaxWidth,
+                    ),
+                    // 独立组件按“单词卡、提示横幅、全量步骤”从上到下输出。
+                    child: DictationQuestionContent(
+                      spelling: _currentWord.spelling,
+                      revealedLetterCount: _hintLevel,
+                      revealWholeWord:
+                          _stage == DictationStage.definition ||
+                          _isCurrentWordComplete,
+                      onSpeakerTap: _playAudio,
+                      isPlaying: _isPlaying,
+                      prompt: _stageLabel,
+                      feedback: _feedback,
+                      feedbackColor: _feedbackColor,
+                      steps: _buildSteps(),
+                      definitionSeparator: widget.definitionSeparator,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-        // 未完成时显示四选一与工具按钮，完成后整组替换为「再试一次 + 下一题」。
-        _isCurrentWordComplete
-            ? _buildNextQuestionButton(tokens)
-            : _buildBottomControls(tokens),
+        // 第二层最后绘制，相当于 zIndex:100；Positioned 使其脱离 Stack 普通布局，
+        // 因此候选区不会压缩上面的内容层，并且按钮会优先于透明播放层接收点击。
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _isCurrentWordComplete
+              ? _buildNextQuestionButton(tokens)
+              : _buildBottomControls(tokens),
+        ),
       ],
     );
   }

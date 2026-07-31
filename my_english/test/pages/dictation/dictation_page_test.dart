@@ -467,7 +467,9 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('prompt and steps both replay the current word', (tester) async {
+  testWidgets('question overlay replays without intercepting bottom controls', (
+    tester,
+  ) async {
     // 使用真实手机比例，避免测试框架默认矮屏把 Steps 中点压到底部候选区后面。
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -485,6 +487,14 @@ void main() {
     await tester.pump();
     // 进入页面会先自动播放一次。
     expect(player.requested, <String>['ability']);
+    // 新透明命中层必须覆盖顶部区域以下的完整第二部分，而非只包住提示和 Steps。
+    final overlayRect = tester.getRect(
+      find.byKey(const Key('dictation-question-audio-overlay')),
+    );
+    final questionStackRect = tester.getRect(
+      find.byKey(const Key('dictation-question-stack')),
+    );
+    expect(overlayRect, questionStackRect);
 
     // 点击提示横幅中心，事件应由外层中部播放热区接收。
     final promptCenter = tester
@@ -500,6 +510,92 @@ void main() {
     await tester.tapAt(stepsCenter);
     await tester.pump();
     expect(player.requested, <String>['ability', 'ability', 'ability']);
+
+    // 单词卡自身的听音按钮位于透明层内部，子按钮应赢得事件且只播放一次。
+    await tester.tap(find.byKey(const Key('dictation-word-card-speaker')));
+    await tester.pump();
+    expect(player.requested, <String>[
+      'ability',
+      'ability',
+      'ability',
+      'ability',
+    ]);
+
+    // 候选与操作区虽然几何上覆盖透明层，但作为 Stack 最上层必须优先接收事件。
+    final controlsRect = tester.getRect(
+      find.byKey(const Key('dictation-bottom-controls')),
+    );
+    expect(overlayRect.contains(controlsRect.center), isTrue);
+    // 提示按钮只执行提示，不得穿透到底层后额外触发播放。
+    await tester.tap(find.byKey(const Key('dictation-hint')));
+    await tester.pump();
+    expect(player.requested, <String>[
+      'ability',
+      'ability',
+      'ability',
+      'ability',
+    ]);
+    // 显式播放按钮仍只触发一次相同播放事件。
+    await tester.tap(find.byKey(const Key('dictation-play')));
+    await tester.pump();
+    expect(player.requested, <String>[
+      'ability',
+      'ability',
+      'ability',
+      'ability',
+      'ability',
+    ]);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('question overlay keeps long content vertically scrollable', (
+    tester,
+  ) async {
+    // 使用较矮手机画布和多条释义，确保 Steps 内容真实超过透明层可视高度。
+    await tester.binding.setSurfaceSize(const Size(390, 560));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const longWord = Word(
+      id: 30,
+      spelling: 'scroll',
+      meanings: <Meaning>[
+        Meaning(index: 6, pos: 'n.', definitions: <String>['释义一']),
+        Meaning(index: 5, pos: 'v.', definitions: <String>['释义二']),
+        Meaning(index: 4, pos: 'adj.', definitions: <String>['释义三']),
+        Meaning(index: 3, pos: 'adv.', definitions: <String>['释义四']),
+        Meaning(index: 2, pos: 'prep.', definitions: <String>['释义五']),
+        Meaning(index: 1, pos: 'conj.', definitions: <String>['释义六']),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: const <Word>[longWord],
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // 保存拖动前单词卡位置；手势从内容区发起，不能落在悬浮候选按钮上。
+    final beforeTop = tester
+        .getTopLeft(find.byKey(const Key('dictation-word-card')))
+        .dy;
+    final overlayRect = tester.getRect(
+      find.byKey(const Key('dictation-question-audio-overlay')),
+    );
+    await tester.dragFrom(
+      Offset(overlayRect.center.dx, overlayRect.top + 120),
+      const Offset(0, -160),
+    );
+    await tester.pumpAndSettle();
+
+    // ScrollView 必须消费纵向拖动，证明透明播放层没有封死原有滚动能力。
+    final afterTop = tester
+        .getTopLeft(find.byKey(const Key('dictation-word-card')))
+        .dy;
+    expect(afterTop, lessThan(beforeTop));
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
