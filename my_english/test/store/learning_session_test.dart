@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_english/models/learning_session.dart';
 import 'package:my_english/store/learning_session.dart';
 
+import '../support/memory_learning_session_store.dart';
+
 /// 验证学习会话的 JSON 解析、通道方法名和覆盖写入参数。
 void main() {
   // MethodChannel 测试必须先初始化 Flutter binding。
@@ -87,4 +89,61 @@ void main() {
       ),
     );
   });
+
+  test(
+    'persistence saves valid snapshots and skips invalid word ids',
+    () async {
+      final store = MemoryLearningSessionStore();
+      final persistence = LearningSessionPersistence(
+        store: store,
+        type: LearningSessionType.dictation,
+      );
+
+      await persistence.save(
+        wordIds: <int?>[2, 5],
+        state: <String, Object?>{'wordIndex': 1},
+      );
+      await persistence.save(
+        wordIds: <int?>[2, null],
+        state: <String, Object?>{'wordIndex': 0},
+      );
+      await persistence.save(
+        wordIds: <int?>[2, 5],
+        state: <String, Object?>{'wordIndex': 0},
+        enabled: false,
+      );
+
+      expect(store.sessions, hasLength(1));
+      expect(store.sessions.single.wordIds, <int>[2, 5]);
+      expect(store.sessions.single.state, <String, Object?>{'wordIndex': 1});
+    },
+  );
+
+  test('persistence isolates optional cache failures', () async {
+    final persistence = LearningSessionPersistence(
+      store: _FailingLearningSessionStore(),
+      type: LearningSessionType.listening,
+    );
+
+    await expectLater(
+      persistence.save(wordIds: <int?>[1], state: const <String, Object?>{}),
+      completes,
+    );
+    await expectLater(persistence.delete(), completes);
+  });
+}
+
+class _FailingLearningSessionStore implements LearningSessionStore {
+  @override
+  Future<List<LearningSession>> getAll() async => const <LearningSession>[];
+
+  @override
+  Future<void> save(LearningSession session) async {
+    throw StateError('save failed');
+  }
+
+  @override
+  Future<void> delete(LearningSessionType type) async {
+    throw StateError('delete failed');
+  }
 }

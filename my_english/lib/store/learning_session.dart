@@ -1,7 +1,6 @@
-// services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SQLite。
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-// 引入学习会话模型及类型枚举。
 import '../models/learning_session.dart';
 
 /// 学习会话 Store 接口，正式环境写 SQLite，Widget 测试可注入内存实现。
@@ -35,13 +34,11 @@ class LocalLearningSessionStore implements LearningSessionStore {
 
   @override
   Future<List<LearningSession>> getAll() async {
-    // 原生返回两行以内的 Map 列表；测试空实现返回 null 时按无历史处理。
     final rows = await _channel.invokeListMethod<Object?>(
       'getLearningSessions',
     );
     if (rows == null) return const <LearningSession>[];
 
-    // 每一行都必须是 Map，格式异常应被首页捕获并清空继续入口。
     return List<LearningSession>.unmodifiable(
       rows.map((row) {
         if (row is! Map) {
@@ -54,20 +51,73 @@ class LocalLearningSessionStore implements LearningSessionStore {
 
   @override
   Future<void> save(LearningSession session) async {
-    // 空列表无法恢复页面，禁止写入一条永远不可用的“继续”记录。
     if (session.wordIds.isEmpty) {
       throw ArgumentError.value(session.wordIds, 'wordIds', '学习会话单词列表不能为空');
     }
-    // 原生使用 session_type 主键执行覆盖写入。
     await _channel.invokeMethod<void>('saveLearningSession', session.toMap());
   }
 
   @override
   Future<void> delete(LearningSessionType type) async {
-    // 删除参数保留 Map 结构，便于以后附加原因或时间字段。
     await _channel.invokeMethod<void>(
       'deleteLearningSession',
       <String, Object?>{'session_type': type.storageKey},
     );
   }
+}
+
+/// 管理单个学习页面的会话快照。
+///
+/// 页面只负责组装自己的状态字段；本类统一处理单词主键校验、异常隔离和
+/// 同类型会话的保存或删除。缓存失败不会中断当前学习流程。
+class LearningSessionPersistence {
+  const LearningSessionPersistence({required this.store, required this.type});
+
+  /// 实际读写会话的 Store。
+  final LearningSessionStore store;
+
+  /// 当前页面维护的会话类型。
+  final LearningSessionType type;
+
+  /// 保存最新快照。
+  ///
+  /// [enabled] 为 false 或任一单词尚无数据库主键时不创建无法恢复的记录。
+  Future<void> save({
+    required Iterable<int?> wordIds,
+    required Map<String, Object?> state,
+    bool enabled = true,
+  }) async {
+    if (!enabled) return;
+
+    final nullableIds = wordIds.toList(growable: false);
+    if (nullableIds.isEmpty || nullableIds.any((id) => id == null)) return;
+
+    try {
+      await store.save(
+        LearningSession(
+          type: type,
+          wordIds: nullableIds.cast<int>(),
+          state: state,
+        ),
+      );
+    } catch (error) {
+      debugPrint('保存${type.label}进度失败：$error');
+    }
+  }
+
+  /// 删除已完成或失效的快照。
+  Future<void> delete() async {
+    try {
+      await store.delete(type);
+    } catch (error) {
+      debugPrint('删除${type.label}进度失败：$error');
+    }
+  }
+}
+
+extension on LearningSessionType {
+  String get label => switch (this) {
+    LearningSessionType.listening => '随身听',
+    LearningSessionType.dictation => '默写',
+  };
 }

@@ -120,13 +120,7 @@ class _DictationPageState extends State<DictationPage> {
   bool _isSavingCompletion = false;
   // 发音图标是否显示。
   bool _isPlaying = false;
-  // 发音请求代次号：每发起一次播放就 +1，相当于给这次播放发一张"号码牌"。
-  //
-  // 为什么需要它？因为 `_playAudio` 是异步的（await 原生播放直到音频结束），
-  // 当奖励音频还没播完、用户就点了"下一题"时，新播放会打断旧播放，
-  // 旧的那次 await 随后才抛出中断异常并进入 finally。若不加区分，
-  // 旧调用的 finally 会把 `_isPlaying` 置回 false，把新播放的"播放中"状态误清掉。
-  // 有了代次号，旧调用发现自己的号码牌已经过期，就什么都不做，直接安静退出。
+  // 只允许最新音频请求更新播放状态，避免被已中断请求的 finally 覆盖。
   int _playGeneration = 0;
   // 中间信息面板中的反馈文案。
   String _feedback = '';
@@ -153,6 +147,13 @@ class _DictationPageState extends State<DictationPage> {
   /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
   LearningSessionStore get _sessionStore =>
       widget.sessionStore ?? LocalLearningSessionStore.instance;
+
+  /// 当前页面的会话持久化入口。
+  LearningSessionPersistence get _sessionPersistence =>
+      LearningSessionPersistence(
+        store: _sessionStore,
+        type: LearningSessionType.dictation,
+      );
 
   List<Meaning> get _availableMeanings => _currentWord.meanings
       .where((meaning) => meaning.definitions.isNotEmpty)
@@ -197,7 +198,7 @@ class _DictationPageState extends State<DictationPage> {
     }
     // 先恢复单词下标，后续释义边界都依赖当前单词。
     final state = session.state;
-    _wordIndex = _readSessionInt(
+    _wordIndex = readLearningSessionInt(
       state['wordIndex'],
       fallback: 0,
     ).clamp(0, widget.words.length - 1);
@@ -208,23 +209,29 @@ class _DictationPageState extends State<DictationPage> {
     // 当前单词没有可答释义时不能恢复到 definition，否则 getter 会越界。
     if (_availableMeanings.isEmpty) _stage = DictationStage.word;
     if (_stage == DictationStage.definition) {
-      _meaningIndex = _readSessionInt(
+      _meaningIndex = readLearningSessionInt(
         state['meaningIndex'],
         fallback: 0,
       ).clamp(0, _availableMeanings.length - 1);
-      _definitionIndex = _readSessionInt(
+      _definitionIndex = readLearningSessionInt(
         state['definitionIndex'],
         fallback: 0,
       ).clamp(0, _availableMeanings[_meaningIndex].definitions.length - 1);
     }
     // 计数都不能为负数；提示级别额外受当前单词字母数约束。
-    _hintLevel = _readSessionInt(
+    _hintLevel = readLearningSessionInt(
       state['hintLevel'],
       fallback: 0,
     ).clamp(0, _currentWordLetterCount);
-    _errors = max(0, _readSessionInt(state['errors'], fallback: 0));
-    _currentWrong = max(0, _readSessionInt(state['currentWrong'], fallback: 0));
-    _currentHints = max(0, _readSessionInt(state['currentHints'], fallback: 0));
+    _errors = max(0, readLearningSessionInt(state['errors'], fallback: 0));
+    _currentWrong = max(
+      0,
+      readLearningSessionInt(state['currentWrong'], fallback: 0),
+    );
+    _currentHints = max(
+      0,
+      readLearningSessionInt(state['currentHints'], fallback: 0),
+    );
     _isCurrentWordComplete = state['isCurrentWordComplete'] is bool
         ? state['isCurrentWordComplete']! as bool
         : false;
@@ -282,55 +289,33 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   /// 把当前答题状态写入 SQLite；页面交互先完成，持久化失败不阻断答题。
-  Future<void> _persistSession() async {
-    // 正式词库单词都有主键；临时测试对象缺少 id 时不制造无法恢复的记录。
-    final wordIds = widget.words.map((word) => word.id).toList(growable: false);
-    if (wordIds.any((id) => id == null) || _isDone) return;
-    try {
-      await _sessionStore.save(
-        LearningSession(
-          type: LearningSessionType.dictation,
-          wordIds: wordIds.cast<int>(),
-          state: <String, Object?>{
-            'wordIndex': _wordIndex,
-            'stage': _stage.name,
-            'meaningIndex': _meaningIndex,
-            'definitionIndex': _definitionIndex,
-            'hintLevel': _hintLevel,
-            'errors': _errors,
-            'currentWrong': _currentWrong,
-            'currentHints': _currentHints,
-            'isCurrentWordComplete': _isCurrentWordComplete,
-            'feedback': _feedback,
-            'feedbackTone': _feedbackColor == AppTokens.danger
-                ? 'danger'
-                : (_feedbackColor == const Color(0xFF2FB344)
-                      ? 'success'
-                      : 'neutral'),
-            'wrongOptions': _wrongOptions.toList(growable: false),
-            'options': <Map<String, Object?>>[
-              for (final option in _options)
-                <String, Object?>{
-                  'text': option.text,
-                  'isCorrect': option.isCorrect,
-                },
-            ],
-          },
-        ),
-      );
-    } catch (error) {
-      debugPrint('保存默写进度失败：$error');
-    }
-  }
+  Future<void> _persistSession() => _sessionPersistence.save(
+    wordIds: widget.words.map((word) => word.id),
+    enabled: !_isDone,
+    state: <String, Object?>{
+      'wordIndex': _wordIndex,
+      'stage': _stage.name,
+      'meaningIndex': _meaningIndex,
+      'definitionIndex': _definitionIndex,
+      'hintLevel': _hintLevel,
+      'errors': _errors,
+      'currentWrong': _currentWrong,
+      'currentHints': _currentHints,
+      'isCurrentWordComplete': _isCurrentWordComplete,
+      'feedback': _feedback,
+      'feedbackTone': _feedbackColor == AppTokens.danger
+          ? 'danger'
+          : (_feedbackColor == const Color(0xFF2FB344) ? 'success' : 'neutral'),
+      'wrongOptions': _wrongOptions.toList(growable: false),
+      'options': <Map<String, Object?>>[
+        for (final option in _options)
+          <String, Object?>{'text': option.text, 'isCorrect': option.isCorrect},
+      ],
+    },
+  );
 
   /// 整轮完成后删除默写会话，首页随即隐藏对应“继续”入口。
-  Future<void> _deleteSession() async {
-    try {
-      await _sessionStore.delete(LearningSessionType.dictation);
-    } catch (error) {
-      debugPrint('删除默写进度失败：$error');
-    }
-  }
+  Future<void> _deleteSession() => _sessionPersistence.delete();
 
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
   String get _currentCorrectAnswer => _stage == DictationStage.word
@@ -451,11 +436,8 @@ class _DictationPageState extends State<DictationPage> {
 
   /// 调用真实发音服务，并在播放期间显示 Tabler 音量图标。
   ///
-  /// [interrupt] 决定"当前已经有音频在播"时的策略，类似小程序里两种点击语义：
-  /// - false（默认，用户手动点播放按钮）：正在播就忽略这次点击，避免连点导致反复重播；
-  /// - true（切下一题 / 再试一次这类自动播放）：**强制打断**正在播的旧音频。
-  ///   这是本次修复的关键——答对后的"奖励发音"还没结束时点下一题，
-  ///   必须允许新单词把它顶掉，否则新题永远发不出声。
+  /// [interrupt] 为 false 时忽略播放中的重复点击；为 true 时允许自动播放
+  /// 打断旧音频，确保切题后立即播放新单词。
   ///
   /// 底层原生播放器本身就支持"后来的请求替换先前请求"（旧请求会收到
   /// AUDIO_INTERRUPTED），所以这里只要不在 Dart 层把请求拦下来即可。
@@ -1188,7 +1170,7 @@ class _DictationPageState extends State<DictationPage> {
     final bottomOverlayHeight = _isCurrentWordComplete
         ? DictationLayout.nextControlsExtent
         : DictationLayout.bottomControlsExtent;
-    // Stack 对应小程序 position + z-index：列表是中间层，底部控件作为最后绘制的顶层。
+    // Stack 让底部控件覆盖滚动内容，同时保留整块内容区的播放热区。
     return Stack(
       key: const Key('dictation-question-stack'),
       fit: StackFit.expand,
@@ -1369,7 +1351,6 @@ class _DictationPageState extends State<DictationPage> {
       child: SizedBox(
         width: double.infinity,
         height: DictationLayout.actionHeight,
-        // Row 横向排列两个按钮，类似小程序的 display:flex。
         child: Row(
           children: [
             // 左半：次要操作「再试一次」，把当前题退回初始状态重做。
@@ -1750,7 +1731,6 @@ class _OptionCardState extends State<_OptionCard>
           child: child,
         );
       },
-      // 以下与原 _buildOption 的 UI 完全一致，仅改为从 widget 读取参数。
       child: Material(
         key: Key('dictation-option-${widget.index}'),
         color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
@@ -1826,12 +1806,4 @@ class _OptionCardState extends State<_OptionCard>
       ),
     );
   }
-}
-
-/// 从动态 JSON 状态读取整数；类型不符时使用明确默认值。
-int _readSessionInt(Object? value, {required int fallback}) {
-  // jsonDecode 的整数属于 num，统一转成 Dart int。
-  if (value is num) return value.toInt();
-  // 旧版本或坏数据缺失字段时保持页面可用。
-  return fallback;
 }

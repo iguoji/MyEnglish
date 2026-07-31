@@ -8,8 +8,7 @@ import '../../../common/theme.dart';
 
 /// 首页右下角“学习”悬浮菜单。
 ///
-/// 它对应小程序里一个由 `fabOpen` 控制的自定义组件：关闭时只显示主按钮，
-/// 打开时向上展开“随身听”和“默写”两个入口，同时显示轻量遮罩。
+/// 关闭时只显示主按钮；展开后显示随身听、默写和对应的继续入口。
 ///
 /// 用 StatefulWidget + 显式 AnimationController 驱动所有展开/收起动画，
 /// 避免 StatelessWidget 重建时 AnimatedSwitcher 偶发“瞬间切换不播放”的问题。

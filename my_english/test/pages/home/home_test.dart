@@ -30,6 +30,8 @@ import 'package:my_english/store/settings.dart';
 import 'package:my_english/store/learning_session.dart';
 import 'package:my_english/store/word.dart';
 
+import '../../support/memory_learning_session_store.dart';
+
 /// 注册首页 Widget 测试。
 void main() {
   // 验证顶部问候、收录统计副标题与汉堡按钮。
@@ -1054,7 +1056,7 @@ void main() {
     tester,
   ) async {
     // 两种学习方式都准备一条未完成记录；随身听列表故意使用与首页相反的顺序。
-    final sessionStore = _MemoryLearningSessionStore(<LearningSession>[
+    final sessionStore = MemoryLearningSessionStore(<LearningSession>[
       const LearningSession(
         type: LearningSessionType.listening,
         wordIds: <int>[2, 1],
@@ -1322,7 +1324,7 @@ Future<void> _pumpHome(
         // 默认注入静音播放器，避免点击行时访问不存在的原生通道。
         audioPlayer: audioPlayer ?? _SilentAudioPlayer(),
         // 默认使用空内存会话，避免 Widget 测试依赖 Android MethodChannel。
-        sessionStore: sessionStore ?? _MemoryLearningSessionStore(const []),
+        sessionStore: sessionStore ?? MemoryLearningSessionStore(),
       ),
     ),
   );
@@ -1378,33 +1380,6 @@ List<Word> _sampleWords() {
     // 第二条没有难度。
     Word(id: 2, spelling: 'abandon', createdAt: DateTime(2026, 7, 26)),
   ];
-}
-
-/// 首页测试使用的学习会话内存 Store，模拟 SQLite 的按类型覆盖语义。
-class _MemoryLearningSessionStore implements LearningSessionStore {
-  /// 复制初始会话，避免页面保存时修改调用方数组。
-  _MemoryLearningSessionStore(List<LearningSession> initial)
-    : sessions = List<LearningSession>.of(initial);
-
-  /// 当前两种学习方式的未完成记录。
-  final List<LearningSession> sessions;
-
-  @override
-  Future<List<LearningSession>> getAll() async =>
-      List<LearningSession>.unmodifiable(sessions);
-
-  @override
-  Future<void> save(LearningSession session) async {
-    // 同类型只保留最后一次保存快照。
-    sessions.removeWhere((item) => item.type == session.type);
-    sessions.add(session);
-  }
-
-  @override
-  Future<void> delete(LearningSessionType type) async {
-    // 完成或失效时精确删除一种历史，不影响另一种。
-    sessions.removeWhere((item) => item.type == type);
-  }
 }
 
 /// 支持增删改的内存 Store，让选择/复制/删除/表单用例真实生效。

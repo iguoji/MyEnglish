@@ -1,7 +1,5 @@
-// package 相当于 PHP namespace，让本类与 MainActivity 位于同一模块。
 package com.example.my_english
 
-// ContentValues 是 Android 写 SQLite 时使用的键值对象，类似 PHP insert 的关联数组。
 import android.content.ContentValues
 // Context 用来确定数据库文件属于哪个 App。
 import android.content.Context
@@ -21,13 +19,11 @@ import java.util.Locale
 /**
  * word/meaning 本地 SQLite 数据库。
  *
- * 这相当于 PHP 项目中的 Migration + Store：onCreate 建表，公开方法负责 SQLite
- * 查询、事务与 CRUD；导入/导出的 JSON 文本由 Dart 解析后再以结构化参数传入。
+ * 负责 SQLite 建表、升级和业务数据读写；导入导出数据由 Dart 解析后传入。
  */
 class WordsDatabase(context: Context) :
     SQLiteOpenHelper(context, databaseName, null, databaseVersion) {
 
-    // companion object 类似 PHP 类常量区，所有实例共享同一份配置。
     companion object {
         // 数据库文件保存在 Android App 私有目录，卸载应用时由系统删除。
         private const val databaseName = "my_english.db"
@@ -48,7 +44,7 @@ class WordsDatabase(context: Context) :
         db.setForeignKeyConstraintsEnabled(true)
     }
 
-    // 数据库文件第一次创建时执行，作用类似 PHP migration up()。
+    // 数据库首次创建时建立完整结构。
     override fun onCreate(db: SQLiteDatabase) {
         // 创建允许重复 spelling 的 words 表。
         createWordsTable(db)
@@ -68,7 +64,7 @@ class WordsDatabase(context: Context) :
         createIndexes(db)
     }
 
-    // 已安装旧版本升级时执行，作用类似 Laravel migration 的后续版本。
+    // 按数据库版本补齐增量结构。
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         // 只有从版本 1 升到 2 或更高时，才需要删除 spelling 唯一约束。
         if (oldVersion < 2 && newVersion >= 2) {
@@ -347,7 +343,7 @@ class WordsDatabase(context: Context) :
                 val wordId = cursor.getLong(cursor.getColumnIndexOrThrow("word_id"))
                 // 当前关联指向的分组。
                 val groupId = cursor.getLong(cursor.getColumnIndexOrThrow("group_id"))
-                // 按单词归集分组 id 列表，类似 PHP 的 $map[$wordId][] = $groupId。
+                // 按单词归集分组 id 列表。
                 memberGroupsByWord.getOrPut(wordId) { mutableListOf() }.add(groupId)
             }
         }
@@ -813,8 +809,8 @@ class WordsDatabase(context: Context) :
     /**
      * 创建单词默写记录表（幂等：用 IF NOT EXISTS，可重复调用）。
      *
-     * 每个单词每天只留一条记录（首条为准）。`created_date` 用本机时区算好的
-     * 'YYYY-MM-DD' 字符串存储，查询时直接比字符串即可，无需在 SQL 里再算时区。
+     * 每次默写提交都新增一条记录，同一单词同一天可以有多条。`created_date`
+     * 使用本机时区的 'YYYY-MM-DD' 字符串，供今日记录查询和去重统计使用。
      */
     private fun createRecordTable(db: SQLiteDatabase) {
         // execSQL 执行固定结构 SQL，不拼接任何用户输入；IF NOT EXISTS 保证重复建表不报错。
@@ -992,10 +988,9 @@ class WordsDatabase(context: Context) :
     /**
      * 记录一次单词默写结果，并在同一事务内更新单词难度与复习时间。
      *
-     * 规则（2026-07-30 起，不再限制"每天一条"）：
-     * 1. **无论任何情况都插入一条新记录**——同一天同一个词重复默写会产生多条，
-     *    这样"再试一次"或多轮复习都能被完整留痕。
-     * 2. **无论任何情况都更新单词的 reviewed_at**（最近复习时间）。
+     * 规则：
+     * 1. 每次提交都插入新记录，并更新单词的 reviewed_at。
+     * 2. 同一天重复默写同一个词会保留多条独立记录。
      * 3. 难度调整：
      *    - 本次错误（isCorrect = false，即中途选错过）→ 难度 +1；
      *    - 本次正确 → 从本次向前数「连续完美（无错）」的记录条数，再把本次计入总数。
@@ -1028,10 +1023,7 @@ class WordsDatabase(context: Context) :
                 val priorPerfect = countConsecutivePerfect(db, wordId)
                 // 把本次（必然完美）计入总数，得到「连续完美总数」。
                 val streak = priorPerfect + 1
-                // 仅当「连续完美总数 > 1 且为 5 的倍数」（第 5、10、15…次）才降难度：
-                // 修正旧逻辑每次都只数最近 4 条历史，导致第 6 次正确仍误判为"连续 5 条"而重复减 1。
-                // coerceAtLeast(0) 相当于 PHP 的 max(0, $x)：难度不允许降到负数，
-                // 否则会撞上 words 表 difficulty >= 0 的 CHECK 约束导致整个事务回滚。
+                // 第 5、10、15…次连续完美时降低难度；下限由 words 表约束为 0。
                 if (streak > 1 && streak % 5 == 0) newDiff = (curDiff - 1).coerceAtLeast(0)
             }
             // 插入本次记录（不再判断今天是否已有）。

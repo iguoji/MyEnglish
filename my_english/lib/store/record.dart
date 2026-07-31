@@ -1,23 +1,17 @@
-// flutter/services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SQLite。
 import 'package:flutter/services.dart';
 
-// 记录模型位于全局 models 目录，与 word.dart 同层级。
 import '../models/record.dart';
 
 /// 默写记录 Store：记录写入与「今日复习」查询都走原生 word_store 通道。
 ///
-/// 记录策略（2026-07-30 起）：**每次默写成功都插入一条新记录**，同一个单词
-/// 一天可以有多条（重复练习、点了"再试一次"都会各留一条）。所以本 Store 负责：
-/// 1) 把一次默写结果交给原生 `addDictationRecord`（插记录、更新复习时间、
-///    调整难度都在原生同一个事务内完成）；
-/// 2) 读取「今日复习」所需的记录列表与去重后的数量。
+/// 每次默写提交都会新增记录；复习时间和难度由原生数据库在同一事务更新。
 class RecordStore {
   /// 允许测试注入原生通道；正式 App 使用默认值。
   RecordStore({MethodChannel? channel})
     // 没有注入通道时使用 Android MainActivity 注册的固定名称。
     : _channel = channel ?? _defaultChannel;
 
-  /// App 默认复用同一个实例，类似 PHP 单例 Store。
+  /// App 默认复用实例。
   static final RecordStore instance = RecordStore();
 
   /// 通道名必须与 Android MainActivity 完全一致。
@@ -44,7 +38,6 @@ class RecordStore {
     required int wrongCount,
     required int hintCount,
   }) async {
-    // 把字段打包成原生能识别的 Map 再调用，类似 PHP 调原生插件时传关联数组。
     await _channel.invokeMethod<void>('addDictationRecord', <String, Object?>{
       'wordId': wordId,
       'isCorrect': isCorrect,
@@ -97,7 +90,7 @@ class RecordStore {
   Future<int> getTodayReviewWordCount() async {
     // 原生返回一个整数；通道异常由调用方 try/catch 兜底。
     final count = await _channel.invokeMethod<int>('getTodayReviewWordCount');
-    // null（如旧版本原生尚未实现）按 0 处理，界面仍能正常显示。
+    // 原生空返回按 0 处理，避免首页统计中断。
     return count ?? 0;
   }
 }

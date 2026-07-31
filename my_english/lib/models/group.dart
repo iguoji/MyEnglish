@@ -14,7 +14,6 @@ class WordGroup {
 
   /// 返回替换名称或顺序后的新对象，模型本身保持不可变。
   WordGroup copyWith({String? name, int? sortOrder}) {
-    // 未提供的字段沿用当前值，写法类似 PHP 的 $val ?? $this->val。
     return WordGroup(
       id: id,
       name: name ?? this.name,

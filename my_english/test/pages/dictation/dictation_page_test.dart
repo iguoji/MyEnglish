@@ -23,10 +23,11 @@ import 'package:my_english/services/word_audio.dart';
 // 引入可注入测试通道的候选缓存 Store。
 import 'package:my_english/store/dictation_option_cache.dart';
 // 引入学习会话接口，测试用内存实现观察保存和完成删除。
-import 'package:my_english/store/learning_session.dart';
 // 引入可注入测试通道的记录 Store。
 import 'package:my_english/store/record.dart';
 import 'package:my_english/store/settings.dart';
+
+import '../../support/memory_learning_session_store.dart';
 
 void main() {
   // Widget 测试需要先初始化二进制消息桥，才能为原生记录通道安装测试桩。
@@ -909,7 +910,7 @@ void main() {
         },
       );
       // 内存 Store 让测试能直接确认最后一题提交后会话被删除。
-      final sessionStore = _MemoryLearningSessionStore(<LearningSession>[
+      final sessionStore = MemoryLearningSessionStore(<LearningSession>[
         session,
       ]);
       await tester.pumpWidget(
@@ -1009,31 +1010,6 @@ class _ImmediateAudioPlayer implements WordAudioPlayer {
 
   @override
   Future<void> stop() async {}
-}
-
-/// 学习会话的测试内存实现，模拟 SQLite 按类型覆盖与删除。
-class _MemoryLearningSessionStore implements LearningSessionStore {
-  /// 复制初始历史，避免测试修改传入常量数组。
-  _MemoryLearningSessionStore(List<LearningSession> initial)
-    : sessions = List<LearningSession>.of(initial);
-
-  /// 当前尚未完成的会话。
-  final List<LearningSession> sessions;
-
-  @override
-  Future<List<LearningSession>> getAll() async =>
-      List<LearningSession>.unmodifiable(sessions);
-
-  @override
-  Future<void> save(LearningSession session) async {
-    sessions.removeWhere((item) => item.type == session.type);
-    sessions.add(session);
-  }
-
-  @override
-  Future<void> delete(LearningSessionType type) async {
-    sessions.removeWhere((item) => item.type == type);
-  }
 }
 
 /// 记录每次播放请求并立即结束，适合验证多个点击热区复用同一播放事件。

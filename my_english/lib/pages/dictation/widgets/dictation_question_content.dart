@@ -1,4 +1,3 @@
-// material.dart 提供卡片、文字、布局和主题能力，作用类似小程序页面的 WXML + WXSS。
 import 'package:flutter/material.dart';
 // Tabler 图标让提示信息与应用中的其他功能图标保持同一套视觉语言。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
@@ -10,8 +9,7 @@ import 'dictation_layout.dart';
 
 /// 单个步骤的类型，决定左侧节点使用哪种 Tabler 图标。
 ///
-/// 相当于把“听音选词”和“释义”两类任务各归为一种枚举值，
-/// 页面只需要告诉步骤组件类型，由组件决定画什么图标。
+/// 页面传入步骤类型，组件据此选择对应的 Tabler 图标。
 enum DictationStepKind {
   /// 第一步：听音并从四个候选里选出正确单词。
   word,
@@ -162,11 +160,9 @@ class DictationQuestionContent extends StatelessWidget {
   }
 }
 
-/// 第一个模块：重新设计的单词卡。
+/// 展示单词拼写进度与发音入口。
 ///
-/// 与旧版“下划线占位槽”不同，新版用等宽圆角瓷砖承载每个字母，
-/// 未公开时瓷砖留空、公开后填入大写字母并染上品牌色，
-/// 左上角放一个可点击的听音按钮，强化“听音选词”的操作语义。
+/// 未公开的字母槽保持空白，提示公开后填入大写字母并使用强调色。
 class _WordCard extends StatelessWidget {
   /// 接收完整拼写、提示公开数量、播放状态与主题色。
   const _WordCard({
@@ -409,10 +405,7 @@ class _CardSpeakerButton extends StatelessWidget {
   }
 }
 
-/// 独立的提示横幅：从 Steps 中拆出，专门承载“当前这一小步要做什么”。
-///
-/// 旧版把“提示”当成 Steps 第一步，导致进度被它占掉一格；
-/// 现在 Steps 只表达“听音选词 + 各释义”的计划，提示单独成卡更清晰。
+/// 展示当前操作要求和即时反馈。
 class _PromptBanner extends StatelessWidget {
   /// 创建提示横幅。
   const _PromptBanner({
@@ -434,7 +427,7 @@ class _PromptBanner extends StatelessWidget {
   /// 当前主题令牌。
   final AppTokens tokens;
 
-  /// 文本全部从横幅顶部开始排列，不再使用独立背景卡叠在步骤里。
+  /// 从横幅顶部开始排列反馈内容。
   @override
   Widget build(BuildContext context) {
     // Container 绘制与单词卡同款的边框与圆角，保持组件一致性。

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 // 分组模型位于全局 models 目录，任何页面都可以复用。
 import '../models/group.dart';
+import '../models/model_value_parser.dart';
 
 /// 分组 Store：分组列表与顺序持久化在 Android 原生 SQLite 的 group 表。
 ///
@@ -68,10 +69,11 @@ class GroupStore extends ChangeNotifier {
       // Map.from 收窄动态键值类型。
       final map = Map<Object?, Object?>.from(rawGroup);
       // 主键与名称必填。
-      final id = _readInt(map['id'], 'Group.id') ?? 0;
+      final id = readOptionalInt(map['id'], 'Group.id') ?? 0;
       final name = map['name']?.toString() ?? '未命名';
       // 排序值缺省 0。
-      final sortOrder = _readInt(map['sort_order'], 'Group.sort_order') ?? 0;
+      final sortOrder =
+          readOptionalInt(map['sort_order'], 'Group.sort_order') ?? 0;
       // 组装并追加。
       loaded.add(WordGroup(id: id, name: name, sortOrder: sortOrder));
       // 更新最大主键。
@@ -193,14 +195,4 @@ class GroupStore extends ChangeNotifier {
     // 通知分组管理面板与首页刷新。
     notifyListeners();
   }
-}
-
-/// 读取可空整数并保留清晰字段错误（分组场景专用，避免跨文件依赖）。
-int? _readInt(Object? value, String fieldName) {
-  // null 表示字段确实没有值。
-  if (value == null) return null;
-  // JSON 数字和 MethodChannel Long 都实现 num。
-  if (value is num) return value.toInt();
-  // 不接受难以发现的隐式字符串转数字。
-  throw FormatException('$fieldName 必须是数字，实际值为：$value');
 }

@@ -61,7 +61,6 @@ class ListeningPage extends StatefulWidget {
   /// 同一词性下多条中文释义之间使用的全角分隔符。
   final String definitionSeparator;
 
-  /// StatefulWidget 把会变化的数据交给独立 State，类似小程序 Page 的 data 与方法集合。
   @override
   State<ListeningPage> createState() => _ListeningPageState();
 }
@@ -87,9 +86,9 @@ class _ListeningPageState extends State<ListeningPage> {
   bool _revealAll = false;
   // 是否正在按住答案卡临时查看。
   bool _isPeeking = false;
-  // 播放次数边界与原型一致，为 1 到 9。
+  // 设置面板允许每个单词播放 1 到 9 次。
   int _repeat = 2;
-  // 播放间隔边界与原型一致，为 1 到 10 秒。
+  // 设置面板允许 1 到 10 秒的播放间隔。
   int _interval = 2;
   // 默认循环整个列表。
   bool _loop = true;
@@ -106,7 +105,14 @@ class _ListeningPageState extends State<ListeningPage> {
   LearningSessionStore get _sessionStore =>
       widget.sessionStore ?? LocalLearningSessionStore.instance;
 
-  /// 根据当前下标读取正在播放的单词，类似 PHP 数组 `$words[$index]`。
+  /// 当前页面的会话持久化入口。
+  LearningSessionPersistence get _sessionPersistence =>
+      LearningSessionPersistence(
+        store: _sessionStore,
+        type: LearningSessionType.listening,
+      );
+
+  /// 当前正在播放的单词。
   Word get _currentWord => widget.words[_index];
 
   /// 页面状态第一次创建时执行一次初始化。
@@ -136,18 +142,20 @@ class _ListeningPageState extends State<ListeningPage> {
     if (session == null || session.type != LearningSessionType.listening) {
       return;
     }
-    // state 对应小程序持久化后的 Page.data。
     final state = session.state;
     // 当前下标不能超过恢复后的实际列表长度。
-    _index = _readSessionInt(
+    _index = readLearningSessionInt(
       state['index'],
       fallback: 0,
     ).clamp(0, widget.words.length - 1);
     // 播放次数与间隔继续遵守设置面板原有边界。
-    _repeat = _readSessionInt(state['repeat'], fallback: 2).clamp(1, 9);
-    _interval = _readSessionInt(state['interval'], fallback: 2).clamp(1, 10);
+    _repeat = readLearningSessionInt(state['repeat'], fallback: 2).clamp(1, 9);
+    _interval = readLearningSessionInt(
+      state['interval'],
+      fallback: 2,
+    ).clamp(1, 10);
     // 已完成重复次数不能达到 repeat，否则恢复时应直接推进到下一词。
-    _completedRepeats = _readSessionInt(
+    _completedRepeats = readLearningSessionInt(
       state['completedRepeats'],
       fallback: 0,
     ).clamp(0, _repeat - 1);
@@ -166,41 +174,21 @@ class _ListeningPageState extends State<ListeningPage> {
   }
 
   /// 把当前页面状态写入本地；没有完整数据库主键的测试数据不创建无效历史。
-  Future<void> _persistSession() async {
-    // 真实 SQLite 单词都有 id；任一缺失时说明这只是尚未落库的临时对象。
-    final wordIds = widget.words.map((word) => word.id).toList(growable: false);
-    if (wordIds.any((id) => id == null)) return;
-    try {
-      // 同类型主键覆盖写入，因此频繁推进只会保留最新快照，不会无限新增记录。
-      await _sessionStore.save(
-        LearningSession(
-          type: LearningSessionType.listening,
-          wordIds: wordIds.cast<int>(),
-          state: <String, Object?>{
-            'index': _index,
-            'completedRepeats': _completedRepeats,
-            'isPlaying': _isPlaying,
-            'revealAll': _revealAll,
-            'repeat': _repeat,
-            'interval': _interval,
-            'loop': _loop,
-          },
-        ),
-      );
-    } catch (error) {
-      // 会话是辅助能力，写入失败不能中断正在进行的音频学习。
-      debugPrint('保存随身听进度失败：$error');
-    }
-  }
+  Future<void> _persistSession() => _sessionPersistence.save(
+    wordIds: widget.words.map((word) => word.id),
+    state: <String, Object?>{
+      'index': _index,
+      'completedRepeats': _completedRepeats,
+      'isPlaying': _isPlaying,
+      'revealAll': _revealAll,
+      'repeat': _repeat,
+      'interval': _interval,
+      'loop': _loop,
+    },
+  );
 
   /// 正常播完后删除会话；删除失败只影响首页入口，不影响完成状态。
-  Future<void> _deleteSession() async {
-    try {
-      await _sessionStore.delete(LearningSessionType.listening);
-    } catch (error) {
-      debugPrint('删除随身听进度失败：$error');
-    }
-  }
+  Future<void> _deleteSession() => _sessionPersistence.delete();
 
   /// 启动一个新的异步播放循环。
   void _startPlaybackLoop() {
@@ -223,7 +211,6 @@ class _ListeningPageState extends State<ListeningPage> {
       } catch (error) {
         // 网络或原生播放器失败时暂停，并保留具体错误给用户。
         if (!mounted || serial != _playSerial) return;
-        // setState 类似小程序 setData，修改后会重绘播放按钮和状态文字。
         setState(() => _isPlaying = false);
         // 保存暂停状态，用户下次继续时不会立刻再次触发失败音频。
         unawaited(_persistSession());
@@ -391,7 +378,7 @@ class _ListeningPageState extends State<ListeningPage> {
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
     // 更新当前单词及其关联状态。
     setState(() {
-      // clamp 类似 PHP min/max 组合，保证下标永远位于列表范围内。
+      // 限制下标，避免首尾按钮导致数组越界。
       _index = index.clamp(0, widget.words.length - 1);
       // 新单词从第 1 次播放重新计数。
       _completedRepeats = 0;
@@ -437,9 +424,8 @@ class _ListeningPageState extends State<ListeningPage> {
     });
   }
 
-  /// 打开与原型一致的底部播放设置。
+  /// 打开播放设置面板。
   Future<void> _openSettings() async {
-    // showModalBottomSheet 类似小程序从底部弹出的自定义 action-sheet。
     await showModalBottomSheet<void>(
       // 使用当前页面 Navigator 管理弹出与关闭。
       context: context,
@@ -449,7 +435,7 @@ class _ListeningPageState extends State<ListeningPage> {
       isScrollControlled: true,
       // builder 在独立路由中创建设置面板。
       builder: (sheetContext) => StatefulBuilder(
-        // StatefulBuilder 提供面板自己的 setSheetState，类似局部 setData。
+        // 面板状态独立刷新，提交时再同步回页面。
         builder: (sheetContext, setSheetState) {
           // 设置面板也必须读取当前亮色或深色主题。
           final tokens = AppTokens.of(sheetContext);
@@ -465,7 +451,6 @@ class _ListeningPageState extends State<ListeningPage> {
 
           // Container 绘制底部面板背景、圆角和安全区留白。
           return Container(
-            // Key 类似小程序容器的 id，让测试能以面板自身边界核对右对齐。
             key: const Key('listening-settings-sheet'),
             // 底部额外叠加系统安全区，避免开关被手势条遮挡。
             padding: EdgeInsets.fromLTRB(
@@ -474,7 +459,6 @@ class _ListeningPageState extends State<ListeningPage> {
               0,
               20 + MediaQuery.paddingOf(sheetContext).bottom,
             ),
-            // BoxDecoration 对应 WXSS 中的 background 与 border-radius。
             decoration: BoxDecoration(
               color: tokens.card,
               borderRadius: const BorderRadius.vertical(
@@ -505,7 +489,6 @@ class _ListeningPageState extends State<ListeningPage> {
                       const Spacer(),
                       // InkWell 只包住可见文字，不像 TextButton 默认在文字左右添加内边距。
                       InkWell(
-                        // Key 类似小程序节点的 id，供测试准确读取“完成”的位置。
                         key: const Key('listening-settings-done'),
                         // 点击“完成”后关闭当前底部设置面板。
                         onTap: () => Navigator.pop(sheetContext),
@@ -572,7 +555,6 @@ class _ListeningPageState extends State<ListeningPage> {
                         ),
                         // 占满中间区域。
                         const Spacer(),
-                        // Switch 对应小程序 switch，变化后更新页面和面板两处状态。
                         Switch(
                           key: const Key('listening-loop-switch'),
                           value: _loop,
@@ -632,7 +614,6 @@ class _ListeningPageState extends State<ListeningPage> {
     // “常显”或“手指正在按住”任一条件成立时都展示真实答案。
     final showAnswer = _revealAll || _isPeeking;
 
-    // Scaffold 对应小程序页面最外层容器，负责整页背景。
     return Scaffold(
       // 页面背景跟随亮色或深色主题。
       backgroundColor: tokens.page,
@@ -657,7 +638,7 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
-  /// 构建顶栏和播放进度，类似小程序页面中的 navigation 区域。
+  /// 构建顶栏和播放进度。
   Widget _buildHeader(AppTokens tokens, double progress) {
     // Column 让按钮标题行与进度条垂直排列。
     return Column(
@@ -672,7 +653,6 @@ class _ListeningPageState extends State<ListeningPage> {
             ListeningLayout.pageInset,
             0,
           ),
-          // Row 对应小程序 flex 横向布局。
           child: Row(
             children: [
               // 返回按钮的点击画布直接贴在 20 像素页面边界，不做任何负偏移。
@@ -728,7 +708,7 @@ class _ListeningPageState extends State<ListeningPage> {
     );
   }
 
-  /// 构建搜索与播放列表卡片，对应小程序页面中的独立 list-card 组件。
+  /// 构建搜索工具栏与播放列表。
   Widget _buildPlaylistCard(
     AppTokens tokens,
     List<({int index, Word word})> filtered,
@@ -815,7 +795,6 @@ class _ListeningPageState extends State<ListeningPage> {
   void _scrollPlaylistTo(double target) {
     // 页面刚创建或已经销毁时控制器可能没有绑定 ListView，此时直接忽略点击。
     if (!_listController.hasClients) return;
-    // animateTo 对应小程序 scroll-view 设置 scrollTop 并启用动画。
     _listController.animateTo(
       target,
       duration: const Duration(milliseconds: 220),
@@ -890,7 +869,6 @@ class _ListeningPageState extends State<ListeningPage> {
         ListeningLayout.pageInset,
         0,
       ),
-      // Listener 对应小程序 bindtouchstart/bindtouchend，支持按住临时查看答案。
       child: Listener(
         key: const Key('listening-answer-card'),
         onPointerDown: (_) => setState(() => _isPeeking = true),
@@ -898,7 +876,6 @@ class _ListeningPageState extends State<ListeningPage> {
         onPointerCancel: (_) => setState(() => _isPeeking = false),
         // Material 同时绘制背景、圆角和边框，避免两层组件的轮廓出现像素误差。
         child: Material(
-          // Key 类似小程序节点的 id，回归测试用它读取真正绘制边框的组件。
           key: const Key('listening-answer-surface'),
           // 卡片背景色交由 Material 统一绘制。
           color: tokens.card,
@@ -906,7 +883,6 @@ class _ListeningPageState extends State<ListeningPage> {
           shape: RoundedRectangleBorder(
             // 四个角共用布局尺寸表中的统一圆角。
             borderRadius: BorderRadius.circular(ListeningLayout.cardRadius),
-            // side 就像 WXSS 的 border，默认使用 1 像素宽度。
             side: BorderSide(color: tokens.border),
           ),
           // 内容按同一个圆角轮廓裁剪，抗锯齿保证圆角边缘平滑完整。
@@ -1020,12 +996,4 @@ class _ListeningPageState extends State<ListeningPage> {
     // 圆点至少两个、最多 32 个，避免极短和极长单词造成视觉异常。
     return '${spelling[0]}${List.filled((spelling.length - 1).clamp(2, 32), '•').join()}';
   }
-}
-
-/// 从动态 JSON 状态读取整数；类型不符时使用明确默认值。
-int _readSessionInt(Object? value, {required int fallback}) {
-  // jsonDecode 的整数属于 num，统一转成 Dart int。
-  if (value is num) return value.toInt();
-  // 旧版本或坏数据缺失字段时保持页面可用。
-  return fallback;
 }

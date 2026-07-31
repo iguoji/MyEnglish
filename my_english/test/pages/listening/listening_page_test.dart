@@ -18,8 +18,9 @@ import 'package:my_english/pages/listening/listening_page.dart';
 import 'package:my_english/pages/listening/widgets/listening_layout.dart';
 // 引入音频接口与口音枚举。
 import 'package:my_english/services/word_audio.dart';
-import 'package:my_english/store/learning_session.dart';
 import 'package:my_english/store/settings.dart';
+
+import '../../support/memory_learning_session_store.dart';
 
 void main() {
   testWidgets('listening page mirrors player layout and reveal interaction', (
@@ -270,7 +271,7 @@ void main() {
         },
       );
       // 内存 Store 用于观察页面进入和跳词后写出的最新快照。
-      final sessionStore = _MemoryLearningSessionStore(<LearningSession>[
+      final sessionStore = MemoryLearningSessionStore(<LearningSession>[
         session,
       ]);
       await tester.pumpWidget(
@@ -341,30 +342,4 @@ class _ImmediateAudioPlayer implements WordAudioPlayer {
 
   @override
   Future<void> stop() async {}
-}
-
-/// 学习会话的测试内存实现，行为与 SQLite 的“同类型覆盖”一致。
-class _MemoryLearningSessionStore implements LearningSessionStore {
-  /// 接收初始历史并复制为可变列表。
-  _MemoryLearningSessionStore(List<LearningSession> initial)
-    : sessions = List<LearningSession>.of(initial);
-
-  /// 当前内存记录。
-  final List<LearningSession> sessions;
-
-  @override
-  Future<List<LearningSession>> getAll() async =>
-      List<LearningSession>.unmodifiable(sessions);
-
-  @override
-  Future<void> save(LearningSession session) async {
-    // PRIMARY KEY REPLACE 语义：先移除同类型，再追加最新快照。
-    sessions.removeWhere((item) => item.type == session.type);
-    sessions.add(session);
-  }
-
-  @override
-  Future<void> delete(LearningSessionType type) async {
-    sessions.removeWhere((item) => item.type == type);
-  }
 }
