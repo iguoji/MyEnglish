@@ -46,7 +46,7 @@ const List<String> _kPosOptions = <String>[
 ///
 /// @var double
 ///
-const double _kMeaningContentGap = 8;
+const double _kMeaningContentGap = 20;
 
 ///
 /// 表单提交结果：首页据此调用 WordStore 创建或更新。
@@ -673,27 +673,30 @@ class _WordFormSheetState extends State<_WordFormSheet> {
             // 与分组控件共用相同高度的外层下边线，避免 TextField 自身布局造成错位。
             border: Border(bottom: BorderSide(color: tokens.inputBorder)),
           ),
-          child: TextField(
-            key: const Key('form-spelling'),
-            controller: _spelling,
-            onChanged: (value) => setState(() {}),
-            // 单词只能输入一行，外层容器负责统一 44 像素高度。
-            maxLines: 1,
-            textAlignVertical: TextAlignVertical.center,
-            style: TextStyle(color: tokens.text, fontSize: 15, height: 1.2),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: '输入单词拼写',
-              hintStyle: TextStyle(
-                color: tokens.muted,
-                fontSize: 14,
-                height: 1.2,
+          // 横向留白与左侧分组字段接近，纵向位置交给 Align 精确居中。
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Align(
+              key: const Key('form-spelling-alignment'),
+              alignment: Alignment.center,
+              child: TextField(
+                key: const Key('form-spelling'),
+                controller: _spelling,
+                onChanged: (value) => setState(() {}),
+                // 单词只能输入一行，外层容器负责统一 44 像素高度。
+                maxLines: 1,
+                textAlignVertical: TextAlignVertical.center,
+                style: TextStyle(color: tokens.text, fontSize: 15, height: 1.2),
+                // collapsed 不附带 Material 输入框默认的上下留白，文字由外层垂直居中。
+                decoration: InputDecoration.collapsed(
+                  hintText: '输入单词拼写',
+                  hintStyle: TextStyle(
+                    color: tokens.muted,
+                    fontSize: 14,
+                    height: 1.2,
+                  ),
+                ),
               ),
-              filled: true,
-              fillColor: tokens.card,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              // 边线交给外层固定高度容器绘制，输入框本身不再改变实际线条位置。
-              border: InputBorder.none,
             ),
           ),
         ),

@@ -1148,6 +1148,11 @@ void main() {
         find.byKey(const Key('form-spelling')),
       );
       expect(spellingInput.decoration!.border, InputBorder.none);
+      expect(spellingInput.decoration!.isCollapsed, isTrue);
+      final spellingAlignment = tester.widget<Align>(
+        find.byKey(const Key('form-spelling-alignment')),
+      );
+      expect(spellingAlignment.alignment, Alignment.center);
       // 两个字段由同样的 44 像素外层绘制底线，因此顶部、底部和高度完全相同。
       final groupInputRect = tester.getRect(
         find.byKey(const Key('form-group-input')),
@@ -1159,6 +1164,21 @@ void main() {
       expect(spellingInputRect.height, groupInputRect.height);
       expect(spellingInputRect.top, closeTo(groupInputRect.top, 0.1));
       expect(spellingInputRect.bottom, closeTo(groupInputRect.bottom, 0.1));
+      // 输入真实文字后，其编辑区域中心必须和左侧“未分组”文字中心保持一致。
+      await tester.enterText(find.byKey(const Key('form-spelling')), 'align');
+      await tester.pump();
+      final spellingEditable = find.descendant(
+        of: find.byKey(const Key('form-spelling-input')),
+        matching: find.byType(EditableText),
+      );
+      final groupValue = find.descendant(
+        of: find.byKey(const Key('form-group-input')),
+        matching: find.text('未分组'),
+      );
+      expect(
+        tester.getCenter(spellingEditable).dy,
+        closeTo(tester.getCenter(groupValue).dy, 0.5),
+      );
       // 顶部关闭按钮和底部三个新增模式按钮均存在。
       expect(find.byKey(const Key('form-close')), findsOneWidget);
       expect(find.text('提交并继续'), findsOneWidget);
@@ -1184,7 +1204,7 @@ void main() {
         tester.element(nounChipFinder),
       ).colorScheme.primary;
       expect((nounChip.decoration! as BoxDecoration).color, primaryColor);
-      // 默认状态下词性行固定贴着卡片 20 像素内边距，输入框与词性相距 8 像素。
+      // 默认状态下词性行固定贴着卡片 20 像素内边距，输入框与词性相距 20 像素。
       final defaultMeaningCardRect = tester.getRect(
         find.byKey(const Key('meaning-card-0')),
       );
@@ -1197,7 +1217,7 @@ void main() {
       // 卡片自身有 1 像素边框；扣除边框后，实际内边距正好为 20。
       expect(defaultPosRowRect.top - defaultMeaningCardRect.top - 1, 20);
       expect(defaultPosRowRect.height, 30);
-      expect(defaultMeaningInputRect.top - defaultPosRowRect.bottom, 8);
+      expect(defaultMeaningInputRect.top - defaultPosRowRect.bottom, 20);
 
       // 输入并确认一条含义，生成的标签使用 Azure 浅色背景。
       await tester.enterText(find.byKey(const Key('meaning-draft-0')), '新的含义');
@@ -1210,15 +1230,15 @@ void main() {
         (meaningTag.decoration! as BoxDecoration).color,
         const Color(0x1A45AAF2),
       );
-      // 添加含义后，词性到标签、标签到输入框都保持相同的 8 像素距离。
+      // 添加含义后，词性到标签、标签到输入框都保持相同的 20 像素距离。
       final meaningTagsRect = tester.getRect(
         find.byKey(const Key('meaning-tags-0')),
       );
       final taggedMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-0')),
       );
-      expect(meaningTagsRect.top - defaultPosRowRect.bottom, 8);
-      expect(taggedMeaningInputRect.top - meaningTagsRect.bottom, 8);
+      expect(meaningTagsRect.top - defaultPosRowRect.bottom, 20);
+      expect(taggedMeaningInputRect.top - meaningTagsRect.bottom, 20);
       // 添加第二组后，两组都显示 Tabler 垃圾桶；删除后保留一个基础组。
       await tester.tap(find.byKey(const Key('add-meaning')));
       await tester.pump();
@@ -1243,7 +1263,7 @@ void main() {
       final secondMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-1')),
       );
-      expect(secondMeaningInputRect.top - secondPosRowRect.bottom, 8);
+      expect(secondMeaningInputRect.top - secondPosRowRect.bottom, 20);
       await tester.tap(find.byKey(const Key('meaning-delete-1')));
       await tester.pump();
       expect(find.byIcon(TablerIcons.trash), findsNothing);
