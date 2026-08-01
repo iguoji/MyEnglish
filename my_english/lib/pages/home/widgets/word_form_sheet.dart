@@ -479,7 +479,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     // 白色标题栏固定在顶部，不跟随表单内容滚动。
     return Container(
       key: const Key('word-form-header'),
-      color: tokens.card,
+      decoration: BoxDecoration(
+        color: tokens.card,
+        // 标题栏与滚动表单区之间增加一条稳定的分隔线。
+        border: Border(bottom: BorderSide(color: tokens.border)),
+      ),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,7 +494,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
               isEditing ? '编辑单词' : '添加单词',
               style: TextStyle(
                 color: tokens.text,
-                fontSize: 20,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0,
               ),
@@ -909,9 +913,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                 // 词性单选区：占满剩余宽度，可横向滑动。
                 Expanded(
                   child: _PosSelector(
+                    key: Key('pos-selector-$index'),
                     tokens: tokens,
                     // 当前选中的词性；空字符串表示未选。
                     selected: meaning.pos,
+                    // 只有打开编辑表单时，才需要把已有的靠后词性带入可视区域。
+                    revealInitialSelection: widget.editing != null,
                     // 点击词性：再次点击已选项则取消选择(置空)，否则选中。
                     onSelect: (pos) => setState(() {
                       meaning.pos = meaning.pos == pos ? '' : pos;
@@ -1068,7 +1075,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
 /// 选中项使用实心主题主色与高对比文字，未选中项使用普通边框与次要文字。
 /// 区域可横向滑动，避免词性过多时溢出。
 ///
-class _PosSelector extends StatelessWidget {
+class _PosSelector extends StatefulWidget {
   ///
   /// 接收设计令牌、当前选中词性与选择回调。
   ///
@@ -1077,9 +1084,11 @@ class _PosSelector extends StatelessWidget {
   /// @param  `void Function(String pos)`  onSelect
   ///
   const _PosSelector({
+    super.key,
     required this.tokens,
     required this.selected,
     required this.onSelect,
+    required this.revealInitialSelection,
   });
 
   ///
@@ -1104,6 +1113,101 @@ class _PosSelector extends StatelessWidget {
   final void Function(String pos) onSelect;
 
   ///
+  /// 是否在第一次布局完成后显示已有的选中词性。
+  ///
+  /// @var bool
+  ///
+  final bool revealInitialSelection;
+
+  ///
+  /// 创建横向词性列表状态。
+  ///
+  /// @return `State<_PosSelector>`
+  ///
+  @override
+  State<_PosSelector> createState() => _PosSelectorState();
+}
+
+///
+/// 维护词性列表的横向滚动位置，并只执行一次初始选中项定位。
+///
+class _PosSelectorState extends State<_PosSelector> {
+  ///
+  /// 控制当前词性列表的横向滚动位置。
+  ///
+  /// @var ScrollController
+  ///
+  final ScrollController _scrollController = ScrollController();
+
+  ///
+  /// 标记初次进入编辑界面时需要定位的选中词性。
+  ///
+  /// @var GlobalKey
+  ///
+  final GlobalKey _initialSelectedKey = GlobalKey();
+
+  ///
+  /// 是否已经处理过初始定位，防止后续选择或重建再次抢走滚动位置。
+  ///
+  /// @var bool
+  ///
+  bool _didRevealInitialSelection = false;
+
+  ///
+  /// 初始化横向列表，并等待第一帧取得词性胶囊的真实尺寸。
+  ///
+  /// @return void
+  ///
+  @override
+  void initState() {
+    // 保留父类初始化。
+    super.initState();
+    // 第一帧之后词性胶囊与横向视口都已完成布局，可以计算滚动位置。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _revealInitialSelection();
+    });
+  }
+
+  ///
+  /// 仅在编辑表单刚打开时，将已有选中词性移动到横向可视区域中间。
+  ///
+  /// @return void
+  ///
+  void _revealInitialSelection() {
+    // 已处理、不是编辑回填或组件已经销毁时均不再执行。
+    if (_didRevealInitialSelection ||
+        !widget.revealInitialSelection ||
+        !mounted) {
+      return;
+    }
+    // 无论已有词性是否在选项表中，都只尝试这一次，避免后续重建反复定位。
+    _didRevealInitialSelection = true;
+    // 通过 GlobalKey 取得当前选中胶囊对应的渲染节点。
+    final renderObject = _initialSelectedKey.currentContext?.findRenderObject();
+    // 数据里没有匹配选项，或横向列表尚未挂载时保持默认位置。
+    if (renderObject == null || !_scrollController.hasClients) return;
+    // 只调用本横向 ScrollPosition，避免同时把外层纵向表单滚到其他位置。
+    _scrollController.position.ensureVisible(
+      renderObject,
+      alignment: 0.5,
+      duration: Duration.zero,
+    );
+  }
+
+  ///
+  /// 释放横向滚动控制器。
+  ///
+  /// @return void
+  ///
+  @override
+  void dispose() {
+    // ScrollController 与输入控制器一样，由创建它的状态负责释放。
+    _scrollController.dispose();
+    // 父类执行剩余清理。
+    super.dispose();
+  }
+
+  ///
   /// 输出 30 高的可横向滑动词性胶囊列表。
   ///
   /// @param  BuildContext  context
@@ -1116,6 +1220,7 @@ class _PosSelector extends StatelessWidget {
       // 在原 34 高基础上，上下各减少 2 像素留白，最终高度为 30。
       height: 30,
       child: SingleChildScrollView(
+        controller: _scrollController,
         // 横向滚动。
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -1124,10 +1229,15 @@ class _PosSelector extends StatelessWidget {
             for (var i = 0; i < _kPosOptions.length; i++) ...[
               if (i > 0) const SizedBox(width: 6),
               _PosChip(
-                tokens: tokens,
+                key:
+                    _kPosOptions[i] == widget.selected &&
+                        widget.revealInitialSelection
+                    ? _initialSelectedKey
+                    : null,
+                tokens: widget.tokens,
                 label: _kPosOptions[i],
-                isSelected: _kPosOptions[i] == selected,
-                onTap: () => onSelect(_kPosOptions[i]),
+                isSelected: _kPosOptions[i] == widget.selected,
+                onTap: () => widget.onSelect(_kPosOptions[i]),
               ),
             ],
           ],
@@ -1150,6 +1260,7 @@ class _PosChip extends StatelessWidget {
   /// @param  VoidCallback  onTap
   ///
   const _PosChip({
+    super.key,
     required this.tokens,
     required this.label,
     required this.isSelected,

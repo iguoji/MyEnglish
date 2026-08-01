@@ -1065,7 +1065,7 @@ void main() {
       final logicalHeight =
           tester.view.physicalSize.height / tester.view.devicePixelRatio;
       expect(footerRect.bottom, closeTo(logicalHeight, 0.1));
-      // 整个底部弹层恢复 14 像素顶部圆角，标题字号由 24 缩小为 20。
+      // 整个底部弹层保留 14 像素顶部圆角，标题字号进一步缩小为 16。
       final formSurface = tester.widget<Material>(
         find.byKey(const Key('word-form-surface')),
       );
@@ -1074,7 +1074,15 @@ void main() {
         const BorderRadius.vertical(top: Radius.circular(14)),
       );
       final formTitle = tester.widget<Text>(find.text('添加单词'));
-      expect(formTitle.style!.fontSize, 20);
+      expect(formTitle.style!.fontSize, 16);
+      // 白色标题栏底部使用主题边框色分隔表单内容。
+      final formHeader = tester.widget<Container>(
+        find.byKey(const Key('word-form-header')),
+      );
+      final headerDecoration = formHeader.decoration! as BoxDecoration;
+      final headerBorder = headerDecoration.border! as Border;
+      expect(headerBorder.bottom.style, BorderStyle.solid);
+      expect(headerBorder.bottom.color, AppTokens.light.border);
       // 中间区域使用首页 page 背景，第一张表单卡使用 card 背景。
       expect(
         tester
@@ -1286,6 +1294,82 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  // 验证编辑表单首次打开时，会完整显示每组原本位于列表后方的词性。
+  testWidgets('edit word form initially reveals selected parts of speech', (
+    tester,
+  ) async {
+    // catch 的两个词性分别位于第六、第七项，可覆盖用户实际遇到的隐藏情况。
+    const catchWord = Word(
+      id: 100,
+      spelling: 'catch',
+      meanings: <Meaning>[
+        Meaning(index: 3, pos: 'vt.', definitions: <String>['抓住']),
+        Meaning(index: 2, pos: 'n.', definitions: <String>['捕获']),
+        Meaning(index: 1, pos: 'vi. vt.', definitions: <String>['接住']),
+      ],
+    );
+    // 只放入 catch，方便稳定找到它对应的左滑编辑按钮。
+    await _pumpHome(tester, words: const <Word>[catchWord]);
+    await tester.drag(find.text('catch'), const Offset(-80, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('swipe-edit')));
+    await tester.pumpAndSettle();
+
+    // 第一组 vt. 与第三组 vi. vt. 都应主动滚离起点，而中间的 n. 保持起点。
+    final firstSelector = find.byKey(const Key('pos-selector-0'));
+    final secondSelector = find.byKey(const Key('pos-selector-1'));
+    final thirdSelector = find.byKey(const Key('pos-selector-2'));
+    final firstScrollView = tester.widget<SingleChildScrollView>(
+      find.descendant(
+        of: firstSelector,
+        matching: find.byType(SingleChildScrollView),
+      ),
+    );
+    final secondScrollView = tester.widget<SingleChildScrollView>(
+      find.descendant(
+        of: secondSelector,
+        matching: find.byType(SingleChildScrollView),
+      ),
+    );
+    final thirdScrollView = tester.widget<SingleChildScrollView>(
+      find.descendant(
+        of: thirdSelector,
+        matching: find.byType(SingleChildScrollView),
+      ),
+    );
+    expect(firstScrollView.controller!.offset, greaterThan(0));
+    expect(secondScrollView.controller!.offset, 0);
+    expect(thirdScrollView.controller!.offset, greaterThan(0));
+
+    // 靠后的选中胶囊必须完整落在各自横向可视区域内，不只是露出一条边。
+    final firstSelectorRect = tester.getRect(firstSelector);
+    final thirdSelectorRect = tester.getRect(thirdSelector);
+    final selectedTransitive = find.descendant(
+      of: firstSelector,
+      matching: find.byKey(const Key('pos-chip-vt.')),
+    );
+    final selectedCombined = find.descendant(
+      of: thirdSelector,
+      matching: find.byKey(const Key('pos-chip-vi. vt.')),
+    );
+    final transitiveRect = tester.getRect(selectedTransitive);
+    final combinedRect = tester.getRect(selectedCombined);
+    expect(transitiveRect.left, greaterThanOrEqualTo(firstSelectorRect.left));
+    expect(transitiveRect.right, lessThanOrEqualTo(firstSelectorRect.right));
+    expect(combinedRect.left, greaterThanOrEqualTo(thirdSelectorRect.left));
+    expect(combinedRect.right, lessThanOrEqualTo(thirdSelectorRect.right));
+
+    // 用户手动滑回开头后触发普通重建，列表不能再次抢走用户的滚动位置。
+    firstScrollView.controller!.jumpTo(0);
+    await tester.tap(find.byKey(const Key('form-spelling')));
+    await tester.enterText(find.byKey(const Key('form-spelling')), 'catching');
+    await tester.pump();
+    expect(firstScrollView.controller!.offset, 0);
+
+    // 清理页面及各词性列表的滚动控制器。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   // 验证关闭图标和向下拖动都能退出全屏单词表单。
   testWidgets('word form closes from header button and downward drag', (
