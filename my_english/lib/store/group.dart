@@ -8,7 +8,7 @@ import '../models/group.dart';
 import '../models/model_value_parser.dart';
 
 ///
-/// 分组 Store：分组列表与顺序持久化在 Android 原生 SQLite 的 group 表。
+/// 分组 Store：分组列表与顺序持久化在 Android 原生 SQLite。
 ///
 /// 每个分组的内存副本都由原生 group 表支撑，App 重启后通过 [load] 重新加载，
 /// 因此 group_id 引用在全生命周期内保持稳定，单词的 groupMember 关系不会错乱。
@@ -61,7 +61,7 @@ class GroupStore extends ChangeNotifier {
   static const String ungroupedName = '未分组';
 
   ///
-  /// 当前全部自定义分组，列表顺序就是界面显示顺序（与 sort_order 一致）。
+  /// 当前全部自定义分组，列表顺序就是界面显示顺序。
   ///
   /// @var `List<WordGroup>`
   ///
@@ -243,7 +243,7 @@ class GroupStore extends ChangeNotifier {
   }
 
   ///
-  /// 把当前列表顺序逐个写回原生 group 表的 sort_order。
+  /// 把当前列表顺序逐个写回原生内部排序表。
   ///
   /// @return `Future<void>` 全部分组排序写入完成后的异步结果。
   ///

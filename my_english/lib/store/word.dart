@@ -64,14 +64,21 @@ abstract interface class WordStore {
   Future<void> importWords(List<Word> words);
 
   ///
-  /// 导入完整备份（含 groups/words/members），由原生在事务内整库替换。
+  /// 导入 words，以及文件中可选的 groups/members。
   ///
-  /// 适用于导入本 App 导出的备份，分组与成员关系一并恢复。
+  /// 只有文件携带分组数据时才替换分组；未知数据库字段会被忽略。
   ///
   /// @param  `Map<String, Object?>`  data
   /// @return `Future<void>`
   ///
   Future<void> importData(Map<String, Object?> data);
+
+  ///
+  /// 从 SQLite 真实业务字段生成可写入 JSON 的单词与分组数据。
+  ///
+  /// @return `Future<Map<String, Object?>>`
+  ///
+  Future<Map<String, Object?>> exportData();
 
   ///
   /// 清空本地全部单词数据（单词、释义、分组与成员）。
@@ -226,15 +233,32 @@ class LocalWordStore implements WordStore {
   }
 
   ///
-  /// 导入完整备份（含 groups/words/members），由原生在事务内整库替换。
+  /// 导入 words，以及文件中可选的 groups/members。
   ///
   /// @param  `Map<String, Object?>`  data
   /// @return `Future<void>`
   ///
   @override
   Future<void> importData(Map<String, Object?> data) async {
-    // 原生 importData 负责重建四张表并映射外键，保证分组关系不丢失。
+    // 原生按真实表结构转换字段，并在文件带分组时映射新旧外键。
     await _channel.invokeMethod<void>('importData', data);
+  }
+
+  ///
+  /// 读取原生层按 SQLite 实际表结构生成的导出对象。
+  ///
+  /// @return `Future<Map<String, Object?>>`
+  ///
+  @override
+  Future<Map<String, Object?>> exportData() async {
+    final payload = await _channel.invokeMapMethod<Object?, Object?>(
+      'exportData',
+    );
+    if (payload == null) throw StateError('SQLite 没有返回导出数据');
+    return <String, Object?>{
+      for (final entry in payload.entries)
+        if (entry.key is String) entry.key! as String: entry.value,
+    };
   }
 
   ///

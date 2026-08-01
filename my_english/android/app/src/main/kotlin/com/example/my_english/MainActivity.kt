@@ -272,14 +272,20 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 导入完整备份（含 groups/words/members）。
+                    // 导入 words 数组，以及文件中可选的 groups/members。
                     "importData" -> runDatabaseCall(result) {
-                        // 参数必须是 Dart 传来的完整备份 Map。
+                        // 参数必须是 Dart 规范化后的导入 Map。
                         val payload = call.arguments as? Map<*, *>
-                            ?: error("importData 缺少备份数据")
-                        // 在事务内重建四张表，返回 null 对应 Dart Future<void>。
+                            ?: error("importData 缺少导入数据")
+                        // 在事务内替换词库并按需重建分组，返回 null 对应 Dart Future<void>。
                         wordsDatabase.importData(payload)
                         null
+                    }
+
+                    // 直接从 SQLite 实际业务字段生成单词与分组导出数据。
+                    "exportData" -> runDatabaseCall(result) {
+                        // 日期和数组已在数据库层转为人类可读的 MethodChannel 值。
+                        wordsDatabase.exportData()
                     }
 
                     // 读取随身听和默写尚未完成的学习会话。

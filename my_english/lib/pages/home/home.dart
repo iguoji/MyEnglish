@@ -1480,38 +1480,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final jsonText = await _fileIo.pickJsonText();
       // 取消选择或读到空文本都直接返回。
       if (jsonText == null || jsonText.isEmpty) return;
-      // 先整体解析一次，便于判断是「完整备份」还是「原始 words.json」。
+      // 先整体解析一次，原始数组与包含 words 的对象最终都交给 SQLite 动态导入。
       final decoded = jsonDecode(jsonText);
-      // 完整备份特征：顶层对象且同时带 groups/members 与 words 数组。
-      // 这种形态需要连同分组与多对多关系整库替换，必须用 importData。
-      final isFullBackup =
-          decoded is Map &&
-          decoded['words'] is List &&
-          (decoded['groups'] is List || decoded['members'] is List);
-      // 记录导入单词数量，用于成功提示。
-      final int importedCount;
-      if (isFullBackup) {
-        // 直接把解码后的完整备份交给原生：原生 importData 在事务内清空
-        // 四张表并按 groupId/wordId 映射重建外键，分组关系不丢失。
-        await _store.importData(decoded as Map<String, Object?>);
-        // 数量取自备份里的 words 数组长度。
-        importedCount = (decoded['words'] as List).length;
-        // 分组表已被原生重建，必须重新加载内存分组，否则界面仍显示旧分组。
-        await _groups.load();
+      final Map<String, Object?> payload;
+      if (decoded is List) {
+        // 旧 words.json 是顶层数组，只包装 words，不制造额外版本信息。
+        payload = <String, Object?>{'words': decoded};
+      } else if (decoded is Map && decoded['words'] is List) {
+        // 完整导出对象保留 groups/members；只接收字符串键。
+        payload = <String, Object?>{
+          for (final entry in decoded.entries)
+            if (entry.key is String) entry.key! as String: entry.value,
+        };
       } else {
-        // 原始 words.json 或仅含 words 的对象：只整库替换单词，保留已有分组。
-        // parseWordsFromJsonText 兼容顶层数组与含 words 数组的对象两种形态。
-        final words = parseWordsFromJsonText(jsonText);
-        // 没有解析出任何单词也提示，避免静默无反应。
-        if (words.isEmpty) {
-          _showSnackBar('文件中没有可导入的单词');
-          return;
-        }
-        // 整库替换写入原生 SQLite（原生先清空单词再批量插入，分组保留）。
-        await _store.importWords(words);
-        // 数量取自解析出的单词数。
-        importedCount = words.length;
+        throw const FormatException('导入文件必须是单词数组或包含 words 数组的对象');
       }
+      final words = payload['words']! as List;
+      if (words.isEmpty) {
+        _showSnackBar('文件中没有可导入的单词');
+        return;
+      }
+      // 原生层查询 PRAGMA 表结构，存在的字段按类型写入，未知字段自动忽略。
+      await _store.importData(payload);
+      final importedCount = words.length;
+      // 文件携带 groups 才会替换分组，此时同步刷新内存列表。
+      if (payload['groups'] is List) await _groups.load();
       // 原生整库导入会同步清除学习会话，首页立即移除两个“继续”按钮。
       if (mounted) {
         setState(() {
@@ -1543,53 +1536,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 先关闭抽屉，避免遮挡系统保存框。
     Navigator.of(context).pop();
     try {
-      // 重新拉取最新全部未删除单词（Word 已带 groupIds 快照）。
-      final words = await _store.getAll();
-      // 单词列表：每条使用 Word.toExportMap 生成干净字段，groups 字段即其归属分组。
-      final wordMaps = words.map((word) => word.toExportMap()).toList();
-      // 由单词的 groupIds 反向聚合出 members 关联：每个 (wordId, groupId)
-      // 对应 README 的 groupMember 一行，保证导入时能重建多对多关系。
-      final members = <Map<String, int>>[];
-      for (final word in words) {
-        // 单词尚未落库（无 id）时无法建立外键，跳过。
-        final wordId = word.id;
-        if (wordId == null) continue;
-        for (final groupId in word.groupIds) {
-          members.add(<String, int>{'group_id': groupId, 'word_id': wordId});
-        }
-      }
-      // 分组列表：导出原生 group 表所需的 id/name/sort_order，
-      // created_at/updated_at 由原生 importData 在重建时回退为当前时间。
-      final groupMaps = _groups.groups
-          .map(
-            (group) => <String, Object?>{
-              'id': group.id,
-              'name': group.name,
-              'sort_order': group.sortOrder,
-            },
-          )
-          .toList();
-      // 构造导出对象：app/version/时间 + groups + words + members + settings。
-      final payload = <String, Object?>{
-        // 标识来源 App。
-        'app': 'MyEnglish',
-        // 与 pubspec 版本保持一致。
-        'version': '0.11.8',
-        // 导出时间，便于区分多份备份。
-        'exportedAt': DateTime.now().toIso8601String(),
-        // 分组列表，导入时整库重建。
-        'groups': groupMaps,
-        // 单词列表，每条使用 Word.toExportMap 生成干净字段。
-        'words': wordMaps,
-        // 单词-分组多对多关联，导入时按 id 映射还原外键。
-        'members': members,
-        // 设置快照，导入时可选恢复。
-        'settings': <String, Object?>{
-          'accent': _settings.accent.storageValue,
-          'theme': _settings.theme.storageValue,
-          'definitionSeparator': _settings.definitionSeparator.storageValue,
-        },
-      };
+      // 原生层直接读取 words/meanings/groups/group_members 真实字段。
+      final payload = await _store.exportData();
       // 缩进格式，便于人读与二次编辑。
       final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
       // 文件名：App 名 + 当前日期，例如 MyEnglish-2026-07-28.json。
@@ -1603,7 +1551,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 用户取消保存不提示。
       if (savedUri == null) return;
       // 提示导出数量（系统已落盘到用户指定的位置）。
-      _showSnackBar('已导出 ${words.length} 个单词');
+      final exportedWords = payload['words'] as List? ?? const <Object?>[];
+      _showSnackBar('已导出 ${exportedWords.length} 个单词');
     } catch (error) {
       // 读取或保存异常，显示可读详情。
       _showSnackBar('导出失败：${_describeLoadError(error)}');

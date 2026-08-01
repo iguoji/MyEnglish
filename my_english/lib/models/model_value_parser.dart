@@ -48,33 +48,39 @@ List<int> readIntList(Object? value, String fieldName) {
 ///
 /// 读取可空日期。
 ///
-/// SQLite 毫秒时间戳、数字文本、`yyyy-MM-dd` 和完整 ISO 8601 文本均可解析。
+/// SQLite 毫秒/秒时间戳、数字文本、`yyyy-MM-dd` 和 ISO 8601 均可解析。
 ///
 /// @param  Object?  value 待解析的日期值，允许为空。
 /// @param  String  fieldName 错误信息中使用的字段名称。
 /// @return DateTime? 转换后的日期；输入为空时返回 null。
 ///
 DateTime? readOptionalDate(Object? value, String fieldName) {
-  // 对应 Laravel 可空时间字段，没有值时不制造默认日期。
+  // 空值和数据库的 0 都表示没有日期，模型中不制造 1970 年。
   if (value == null) return null;
-  // SQLite 通过 MethodChannel 返回毫秒时间戳，直接构造日期对象。
-  if (value is num) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  if (value is num) {
+    final timestamp = value.toInt();
+    if (timestamp == 0) return null;
+    // 10 位左右的值视为秒级，13 位左右的值视为毫秒级。
+    final milliseconds = timestamp.abs() < 100000000000
+        ? timestamp * 1000
+        : timestamp;
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds);
+  }
 
   // 导入文件可能使用数字文本或 ISO 日期文本，需要按顺序尝试两种格式。
   if (value is String) {
     // 先清理用户编辑 JSON 时可能留下的首尾空格。
     final normalizedValue = value.trim();
-    // 纯数字文本优先按毫秒时间戳处理。
-    final milliseconds = int.tryParse(normalizedValue);
-    if (milliseconds != null) {
-      return DateTime.fromMillisecondsSinceEpoch(milliseconds);
-    }
+    if (normalizedValue.isEmpty) return null;
+    // 纯数字文本复用上方秒/毫秒识别规则。
+    final timestamp = int.tryParse(normalizedValue);
+    if (timestamp != null) return readOptionalDate(timestamp, fieldName);
 
     // 非数字文本再交给 Dart 标准 ISO 8601 解析器。
     final parsedDate = DateTime.tryParse(normalizedValue);
     if (parsedDate != null) return parsedDate;
   }
 
-  // 所有兼容格式都失败时暴露具体字段，方便定位损坏的导入数据。
-  throw FormatException('$fieldName 不是有效日期，实际值为：$value');
+  // 用户约定错误日期按空日期处理，原生导入会将其落库为 0。
+  return null;
 }

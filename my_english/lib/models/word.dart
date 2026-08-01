@@ -8,6 +8,8 @@ import 'model_value_parser.dart';
 /// @property String spelling 英文拼写。
 /// @property `List<Meaning>` meanings 词性与释义列表。
 /// @property int? difficulty 当前学习难度。
+/// @property String? phoneticUk 英式音标。
+/// @property String? phoneticUs 美式音标。
 /// @property `List<int>` groupIds 所属分组主键。
 ///
 class Word {
@@ -18,6 +20,15 @@ class Word {
   /// @param  String  spelling 英文拼写。
   /// @param  `List<Meaning>`  meanings 词性与释义列表。
   /// @param  int?  difficulty 当前学习难度。
+  /// @param  String?  phoneticUk 英式音标。
+  /// @param  String?  phoneticUs 美式音标。
+  /// @param  `List<String>`  plural 复数形式。
+  /// @param  `List<String>`  thirdPersonSingular 第三人称单数形式。
+  /// @param  `List<String>`  gerund 现在分词形式。
+  /// @param  `List<String>`  pastTense 过去式。
+  /// @param  `List<String>`  pastParticiple 过去分词。
+  /// @param  `List<String>`  comparative 比较级。
+  /// @param  `List<String>`  superlative 最高级。
   /// @param  `List<int>`  groupIds 所属分组主键。
   /// @param  DateTime?  reviewedAt 最近复习时间。
   /// @param  DateTime?  createdAt 创建时间。
@@ -29,6 +40,15 @@ class Word {
     required this.spelling,
     this.meanings = const <Meaning>[],
     this.difficulty,
+    this.phoneticUk,
+    this.phoneticUs,
+    this.plural = const <String>[],
+    this.thirdPersonSingular = const <String>[],
+    this.gerund = const <String>[],
+    this.pastTense = const <String>[],
+    this.pastParticiple = const <String>[],
+    this.comparative = const <String>[],
+    this.superlative = const <String>[],
     this.groupIds = const <int>[],
     this.reviewedAt,
     this.createdAt,
@@ -63,6 +83,69 @@ class Word {
   /// @var int?
   ///
   final int? difficulty;
+
+  ///
+  /// README phonetic_uk；空值表示词库尚未提供英式音标。
+  ///
+  /// @var String?
+  ///
+  final String? phoneticUk;
+
+  ///
+  /// README phonetic_us；空值表示词库尚未提供美式音标。
+  ///
+  /// @var String?
+  ///
+  final String? phoneticUs;
+
+  ///
+  /// 复数形式列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> plural;
+
+  ///
+  /// 第三人称单数形式列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> thirdPersonSingular;
+
+  ///
+  /// 现在分词形式列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> gerund;
+
+  ///
+  /// 过去式列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> pastTense;
+
+  ///
+  /// 过去分词列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> pastParticiple;
+
+  ///
+  /// 比较级形式列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> comparative;
+
+  ///
+  /// 最高级形式列表。
+  ///
+  /// @var `List<String>`
+  ///
+  final List<String> superlative;
 
   ///
   /// 所属分组主键；空列表表示未分组，复制操作可使单词属于多个分组。
@@ -176,7 +259,24 @@ class Word {
       // 冻结释义数组，防止页面直接改坏模型内部数据。
       meanings: List<Meaning>.unmodifiable(parsedMeanings),
       // 难度为空表示尚未设置，数字则完整保留。
-      difficulty: readOptionalInt(map['difficulty'], 'Word.difficulty'),
+      difficulty: readOptionalInt(map['difficulty'], 'Word.difficulty') ?? 0,
+      // 音标是可空文本，空字符串也保持为文本交给展示层。
+      phoneticUk: map['phonetic_uk']?.toString(),
+      phoneticUs: map['phonetic_us']?.toString(),
+      // 词形字段在 JSON 和 MethodChannel 中都必须是字符串数组。
+      plural: _readStringList(map['plural'], 'Word.plural'),
+      thirdPersonSingular: _readStringList(
+        map['third_person_singular'],
+        'Word.third_person_singular',
+      ),
+      gerund: _readStringList(map['gerund'], 'Word.gerund'),
+      pastTense: _readStringList(map['past_tense'], 'Word.past_tense'),
+      pastParticiple: _readStringList(
+        map['past_participle'],
+        'Word.past_participle',
+      ),
+      comparative: _readStringList(map['comparative'], 'Word.comparative'),
+      superlative: _readStringList(map['superlative'], 'Word.superlative'),
       // 空分组数组表示未分组，多项表示复制到多个分组。
       groupIds: readIntList(map['group_ids'], 'Word.group_ids'),
       // 时间字段兼容原生毫秒时间戳和导入文件的日期文本。
@@ -203,8 +303,18 @@ class Word {
       'meanings': meanings.map((meaning) => meaning.toMap()).toList(),
       // 分组关系列表与单词主体在原生事务中一起保存。
       'group_ids': groupIds,
-      // null 难度原样交给数据库处理。
-      'difficulty': difficulty,
+      // 空难度按统一数字规则交给数据库 0。
+      'difficulty': difficulty ?? 0,
+      // README 中的音标与全部词形字段使用原名交给 SQLite。
+      'phonetic_uk': phoneticUk,
+      'phonetic_us': phoneticUs,
+      'plural': List<String>.from(plural),
+      'third_person_singular': List<String>.from(thirdPersonSingular),
+      'gerund': List<String>.from(gerund),
+      'past_tense': List<String>.from(pastTense),
+      'past_participle': List<String>.from(pastParticiple),
+      'comparative': List<String>.from(comparative),
+      'superlative': List<String>.from(superlative),
       // DateTime 统一转换成 SQLite 使用的毫秒时间戳。
       'reviewed_at': reviewedAt?.millisecondsSinceEpoch,
       'created_at': createdAt?.millisecondsSinceEpoch,
@@ -230,7 +340,16 @@ class Word {
       // 释义使用精简的导出结构，不携带数据库外键。
       'meanings': meanings.map((meaning) => meaning.toExportMap()).toList(),
       // 难度为空时 JSON 会保留 null，导入后语义不变。
-      'difficulty': difficulty,
+      'difficulty': difficulty ?? 0,
+      'phonetic_uk': phoneticUk,
+      'phonetic_us': phoneticUs,
+      'plural': List<String>.from(plural),
+      'third_person_singular': List<String>.from(thirdPersonSingular),
+      'gerund': List<String>.from(gerund),
+      'past_tense': List<String>.from(pastTense),
+      'past_participle': List<String>.from(pastParticiple),
+      'comparative': List<String>.from(comparative),
+      'superlative': List<String>.from(superlative),
       // 导入流程通过 groups 字段重建多对多关系。
       'groups': groupIds,
       // 日期格式固定为 yyyy-MM-dd，方便人工阅读和编辑。
@@ -258,6 +377,15 @@ class Word {
       spelling: spelling,
       meanings: meanings,
       difficulty: difficulty,
+      phoneticUk: phoneticUk,
+      phoneticUs: phoneticUs,
+      plural: plural,
+      thirdPersonSingular: thirdPersonSingular,
+      gerund: gerund,
+      pastTense: pastTense,
+      pastParticiple: pastParticiple,
+      comparative: comparative,
+      superlative: superlative,
       // 移动是单归属语义，目标为空时清空全部分组。
       groupIds: newGroupId == null ? const <int>[] : <int>[newGroupId],
       reviewedAt: reviewedAt,
@@ -283,6 +411,15 @@ class Word {
       spelling: spelling,
       meanings: meanings,
       difficulty: difficulty,
+      phoneticUk: phoneticUk,
+      phoneticUs: phoneticUs,
+      plural: plural,
+      thirdPersonSingular: thirdPersonSingular,
+      gerund: gerund,
+      pastTense: pastTense,
+      pastParticiple: pastParticiple,
+      comparative: comparative,
+      superlative: superlative,
       groupIds: <int>[...groupIds, groupId],
       reviewedAt: reviewedAt,
       createdAt: createdAt,
@@ -311,6 +448,15 @@ class Word {
       spelling: spelling,
       meanings: meanings,
       difficulty: difficulty,
+      phoneticUk: phoneticUk,
+      phoneticUs: phoneticUs,
+      plural: plural,
+      thirdPersonSingular: thirdPersonSingular,
+      gerund: gerund,
+      pastTense: pastTense,
+      pastParticiple: pastParticiple,
+      comparative: comparative,
+      superlative: superlative,
       groupIds: groupId == null ? const <int>[] : <int>[groupId],
       reviewedAt: reviewedAt,
       createdAt: createdAt,
@@ -321,17 +467,39 @@ class Word {
 }
 
 ///
-/// 把日期格式化为导出文件使用的 yyyy-MM-dd 文本；null 直接返回 null。
+/// 把 JSON/MethodChannel 的动态值收窄为字符串数组。
+///
+/// @param  Object?  value 待解析值。
+/// @param  String  fieldName 错误信息使用的字段名。
+/// @return `List<String>` 缺失时返回空数组，否则返回不可修改列表。
+///
+List<String> _readStringList(Object? value, String fieldName) {
+  // 老 words.json 没有词形字段时按空数组处理。
+  if (value == null) return const <String>[];
+  if (value is! List) throw FormatException('$fieldName 必须是数组');
+  return List<String>.unmodifiable(
+    value.map((item) {
+      if (item == null) throw FormatException('$fieldName 不能包含 null');
+      return item.toString();
+    }),
+  );
+}
+
+///
+/// 把日期格式化为导出文件使用的 yyyy-MM-dd HH:mm:ss 文本。
 ///
 /// 不引入 intl 依赖，用 ISO 字符串前 10 位即可得到稳定的年月日，
 /// 与 [Word.fromMap] 支持的 yyyy-MM-dd 解析格式完全对称。
 ///
 /// @param  DateTime?  value 待导出的可空日期。
-/// @return String? yyyy-MM-dd 文本；输入为空时返回 null。
+/// @return String 完整日期时间；输入为空时返回空字符串。
 ///
-String? _exportDate(DateTime? value) {
-  // 空日期保持为 null，导出时整字段省略或写为 null。
-  if (value == null) return null;
-  // toIso8601String 形如 2026-03-18T00:00:00.000，截前 10 位即 yyyy-MM-dd。
-  return value.toIso8601String().substring(0, 10);
+String _exportDate(DateTime? value) {
+  // 用户约定空日期导出为 ""，不显示 1970 年。
+  if (value == null || value.millisecondsSinceEpoch == 0) return '';
+  final local = value.toLocal();
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+  return '${local.year.toString().padLeft(4, '0')}-'
+      '${twoDigits(local.month)}-${twoDigits(local.day)} '
+      '${twoDigits(local.hour)}:${twoDigits(local.minute)}:${twoDigits(local.second)}';
 }

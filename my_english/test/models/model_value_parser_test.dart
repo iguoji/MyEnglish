@@ -29,6 +29,7 @@ void main() {
 
   test('optional date accepts database and import formats', () {
     final timestamp = DateTime(2026, 7, 31).millisecondsSinceEpoch;
+    final secondsTimestamp = timestamp ~/ 1000;
 
     expect(
       readOptionalDate(timestamp, 'date')?.millisecondsSinceEpoch,
@@ -38,10 +39,14 @@ void main() {
       readOptionalDate('$timestamp', 'date')?.millisecondsSinceEpoch,
       timestamp,
     );
-    expect(readOptionalDate('2026-07-31', 'date'), DateTime(2026, 7, 31));
     expect(
-      () => readOptionalDate('not-a-date', 'date'),
-      throwsA(isA<FormatException>()),
+      readOptionalDate(secondsTimestamp, 'date')?.millisecondsSinceEpoch,
+      secondsTimestamp * 1000,
     );
+    expect(readOptionalDate('2026-07-31', 'date'), DateTime(2026, 7, 31));
+    // 用户可编辑的空值、数据库的 0 和错误日期都统一表示“没有日期”。
+    expect(readOptionalDate('', 'date'), isNull);
+    expect(readOptionalDate(0, 'date'), isNull);
+    expect(readOptionalDate('not-a-date', 'date'), isNull);
   });
 }

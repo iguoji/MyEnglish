@@ -36,7 +36,8 @@ void main() {
     // Word 主字段应正确转换。
     expect(word.id, 1);
     expect(word.spelling, 'able');
-    expect(word.difficulty, isNull);
+    // README 数字空值统一收窄为 0。
+    expect(word.difficulty, 0);
     expect(word.createdAt?.millisecondsSinceEpoch, createdAt);
     // 嵌套 Meaning 数量与内容正确。
     expect(word.meanings, hasLength(1));
@@ -71,5 +72,31 @@ void main() {
     // 嵌套 Meaning 仍然存在。
     final meanings = map['meanings']! as List<Map<String, Object?>>;
     expect(meanings.single['definitions'], <String>['动物']);
+  });
+
+  test('Word keeps README phonetics and inflection arrays', () {
+    final word = Word.fromMap(<Object?, Object?>{
+      'spelling': 'good',
+      'phonetic_uk': 'gʊd',
+      'phonetic_us': 'gʊd',
+      'plural': <String>[],
+      'third_person_singular': <String>[],
+      'gerund': <String>[],
+      'past_tense': <String>[],
+      'past_participle': <String>[],
+      'comparative': <String>['better'],
+      'superlative': <String>['best'],
+      // 错误日期与 0 都表示空日期。
+      'reviewed_at': 'not-a-date',
+      'created_at': 0,
+    });
+
+    expect(word.phoneticUk, 'gʊd');
+    expect(word.comparative, <String>['better']);
+    expect(word.superlative, <String>['best']);
+    expect(word.reviewedAt, isNull);
+    expect(word.createdAt, isNull);
+    expect(word.toMap()['difficulty'], 0);
+    expect(word.toMap()['comparative'], <String>['better']);
   });
 }

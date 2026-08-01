@@ -34,6 +34,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // 真机仪器测试用 AndroidX Runner 启动隔离的 SQLite 往返用例。
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // 正式签名配置：从 key.properties 读取 keystore 路径、密码和别名
@@ -69,4 +71,7 @@ flutter {
 dependencies {
     // 纯 Kotlin/JVM 单元测试验证离线缓存计数，无需启动模拟器。
     testImplementation("junit:junit:4.13.2")
+    // AndroidX 仪器测试在真实 Android SQLite 上验证建表、导入与导出。
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

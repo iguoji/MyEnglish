@@ -7,8 +7,12 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 // SQLiteOpenHelper 负责数据库创建、版本升级和连接复用。
 import android.database.sqlite.SQLiteOpenHelper
-// JSONArray 负责还原 SQLite 中保存的 definitions_json。
+// JSONArray 负责还原 SQLite TEXT 列中保存的字符串数组。
 import org.json.JSONArray
+// JSONObject 负责在未来字段传入 JSON 对象时将其安全序列化到 TEXT 列。
+import org.json.JSONObject
+// ParsePosition 用于确保日期文本被完整解析，不接受只匹配前半段的错误日期。
+import java.text.ParsePosition
 // SimpleDateFormat 与 Date 负责把当前时刻格式化成 'yyyy-MM-dd' 本地日期。
 import java.text.SimpleDateFormat
 // Date 表示当前时刻，配合 SimpleDateFormat 取本地日期。
@@ -34,7 +38,8 @@ class WordsDatabase(context: Context) :
         // 版本 6 新增默写候选项缓存表，让每道拼写/释义题长期复用相同干扰项。
         // 版本 7 新增学习会话表，保存随身听和默写尚未完成的列表与页面进度。
         // 版本 8 为候选缓存增加正确答案位置，使四个候选的完整顺序可以长期恢复。
-        private const val databaseVersion = 8
+        // 版本 9 以 README 为业务字段标准，重建词库并统一 JSON/SQLite 命名。
+        private const val databaseVersion = 9
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -51,8 +56,10 @@ class WordsDatabase(context: Context) :
         createWordsTable(db)
         // 创建关联 meanings 表。
         createMeaningsTable(db)
-        // 创建分组表（名称与排序）。
+        // 创建分组业务表；界面排序由下一张内部表单独保存。
         createGroupsTable(db)
+        // 分组顺序是界面内部状态，不混入 README 定义的 group 业务字段。
+        createGroupPositionsTable(db)
         // 创建单词-分组关联表（多对多）。
         createGroupMembersTable(db)
         // 创建单词默写记录表（每次默写一条，允许同一天重复复习并驱动难度变化）。
@@ -67,40 +74,11 @@ class WordsDatabase(context: Context) :
 
     // 按数据库版本补齐增量结构。
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 只有从版本 1 升到 2 或更高时，才需要删除 spelling 唯一约束。
-        if (oldVersion < 2 && newVersion >= 2) {
-            // SQLite 无法直接 DROP UNIQUE，所以用新表复制数据完成迁移。
-            migrateToVersion2(db)
-        }
-        // 从版本 2 升到 3：已有用户只缺 group/groupMember 两张表，直接补齐，
-        // 不动 words/meanings，避免无谓的数据搬迁。
-        if (oldVersion < 3 && newVersion >= 3) {
-            createGroupsTable(db)
-            createGroupMembersTable(db)
-        }
-        // 从版本 3 升到 4：已有用户只缺 record 一张表，直接补齐，不迁旧数据。
-        if (oldVersion < 4 && newVersion >= 4) {
-            createRecordTable(db)
-        }
-        // 从版本 4 升到 5：record 表已在版本 4 创建，这里再次确保存在（幂等），
-        // 覆盖「老版本直接跳到 5」或任何历史升级遗漏 record 表的情况。
-        if (oldVersion < 5 && newVersion >= 5) {
-            createRecordTable(db)
-        }
-        // 从版本 5 升到 6：只补充候选项缓存表，不迁移现有单词与记录。
-        if (oldVersion < 6 && newVersion >= 6) {
-            createDictationOptionCacheTable(db)
-        }
-        // 从版本 6 升到 7：新增学习会话表，不触碰现有词库、记录和候选缓存。
-        if (oldVersion < 7 && newVersion >= 7) {
-            createLearningSessionTable(db)
-        }
-        // 从版本 7 升到 8：保留原有三个干扰项，只增加可空的正确答案位置。
-        if (oldVersion < 8 && newVersion >= 8) {
-            // 先兜底创建缓存表，兼容历史版本号存在但辅助表意外缺失的数据库。
-            createDictationOptionCacheTable(db)
-            // 已有行的位置先保持 null，Dart 首次读取后会用当前位置补齐并覆盖保存。
-            ensureDictationOptionCorrectIndexColumn(db)
+        // 用户已确认旧词库可从 words.json 重新导入；版本 9 直接重建可避免
+        // 同时维护 sort_index/definitions_json 等历史别名与新字段的复杂迁移。
+        if (oldVersion < 9 && newVersion >= 9) {
+            rebuildVocabularySchema(db)
+            return
         }
     }
 
@@ -122,6 +100,8 @@ class WordsDatabase(context: Context) :
         ensureDictationOptionCorrectIndexColumn(db)
         // 学习会话属于辅助数据，幂等补建可覆盖跨版本升级遗漏。
         createLearningSessionTable(db)
+        // 分组排序表只是内部实现，幂等补建不会改动 group 业务字段。
+        createGroupPositionsTable(db)
     }
 
     /** 创建 words 表；spelling 只要求非空，不再带 UNIQUE。 */
@@ -132,30 +112,39 @@ class WordsDatabase(context: Context) :
             CREATE TABLE words (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 spelling TEXT NOT NULL COLLATE BINARY,
-                difficulty INTEGER NULL CHECK (difficulty IS NULL OR difficulty >= 0),
-                reviewed_at INTEGER NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                deleted_at INTEGER NULL
+                difficulty INTEGER NOT NULL DEFAULT 0 CHECK (difficulty >= 0),
+                phonetic_uk TEXT NULL,
+                phonetic_us TEXT NULL,
+                plural TEXT NOT NULL DEFAULT '[]',
+                third_person_singular TEXT NOT NULL DEFAULT '[]',
+                gerund TEXT NOT NULL DEFAULT '[]',
+                past_tense TEXT NOT NULL DEFAULT '[]',
+                past_participle TEXT NOT NULL DEFAULT '[]',
+                comparative TEXT NOT NULL DEFAULT '[]',
+                superlative TEXT NOT NULL DEFAULT '[]',
+                reviewed_at INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                deleted_at INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
     }
 
-    /** 创建 meanings 表；外键仍然通过 Word.id 关联，不依赖 spelling。 */
+    /** 创建 meanings 表；字段名与 README/JSON 保持一致。 */
     private fun createMeaningsTable(db: SQLiteDatabase) {
-        // definitions 数组继续以 JSON 字符串保存。
+        // SQLite 没有数组类型，definitions 列内部仍保存 JSON 文本，但不再改字段名。
         db.execSQL(
             """
             CREATE TABLE meanings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 word_id INTEGER NOT NULL,
-                sort_index INTEGER NOT NULL DEFAULT 0,
+                "index" INTEGER NOT NULL DEFAULT 0,
                 pos TEXT NOT NULL,
-                definitions_json TEXT NOT NULL,
-                created_at INTEGER NULL,
-                updated_at INTEGER NULL,
-                deleted_at INTEGER NULL,
+                definitions TEXT NOT NULL DEFAULT '[]',
+                created_at INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                deleted_at INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
             )
             """.trimIndent(),
@@ -163,10 +152,10 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 创建分组表。
+     * 创建 README 定义的 group 业务表。
      *
-     * README 的 group 表只列 id/name/时间；这里额外加 sort_order 用于持久化
-     * 用户在「分组管理」里调整的顺序（README 未约束排序方式，此为必要补充）。
+     * 界面拖动顺序改由 group_positions 保存，避免为 JSON 分组对象引入 README
+     * 之外的 sort_order 字段。
      */
     private fun createGroupsTable(db: SQLiteDatabase) {
         db.execSQL(
@@ -174,33 +163,39 @@ class WordsDatabase(context: Context) :
             CREATE TABLE groups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                deleted_at INTEGER NULL
+                created_at INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                deleted_at INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
     }
 
     /**
-     * 创建单词-分组关联表，实现 README 的 groupMember（多对多）。
-     *
-     * 在 README 的 group_id/word_id 联合唯一之外，补一个自增 id 与主键，
-     * 便于后续软删除与行级更新；UNIQUE 约束保证同一单词在同一分组不会重复。
+     * 创建单词-分组关联表，严格使用 README 的 group_id/word_id 两个字段。
      */
     private fun createGroupMembersTable(db: SQLiteDatabase) {
         db.execSQL(
             """
             CREATE TABLE group_members (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 group_id INTEGER NOT NULL,
                 word_id INTEGER NOT NULL,
-                created_at INTEGER NOT NULL,
-                deleted_at INTEGER NULL,
-                UNIQUE(group_id, word_id),
+                PRIMARY KEY(group_id, word_id),
                 FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /** 创建分组界面顺序表；它不属于导入导出的业务数据。 */
+    private fun createGroupPositionsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS group_positions (
+                group_id INTEGER PRIMARY KEY,
+                position INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
             )
             """.trimIndent(),
         )
@@ -212,52 +207,30 @@ class WordsDatabase(context: Context) :
         db.execSQL("CREATE INDEX words_deleted_id ON words(deleted_at, id)")
         // 一次查询全部 Meaning 时按 word_id 和排序值组织，该索引避免额外全表排序。
         db.execSQL(
-            "CREATE INDEX meanings_word_sort ON meanings(word_id, deleted_at, sort_index DESC)",
+            "CREATE INDEX meanings_word_sort ON meanings(word_id, deleted_at, \"index\" DESC)",
         )
     }
 
-    /** 把版本 1 的 UNIQUE spelling 表迁移成版本 2 的普通 spelling 字段。 */
-    private fun migrateToVersion2(db: SQLiteDatabase) {
-        // 先重命名子表，保留全部 Meaning 数据和旧索引。
-        db.execSQL("ALTER TABLE meanings RENAME TO meanings_v1")
-        // 再重命名父表；SQLite 会同步调整旧子表中的外键目标。
-        db.execSQL("ALTER TABLE words RENAME TO words_v1")
-
-        // 按版本 2 结构创建没有 spelling UNIQUE 的新父表。
+    /** 丢弃旧词库并按 README 字段重建全部相关表。 */
+    private fun rebuildVocabularySchema(db: SQLiteDatabase) {
+        // 先删除引用 words/groups 的子表，再删父表，符合外键依赖顺序。
+        db.execSQL("DROP TABLE IF EXISTS dictation_option_cache")
+        db.execSQL("DROP TABLE IF EXISTS learning_sessions")
+        db.execSQL("DROP TABLE IF EXISTS record")
+        db.execSQL("DROP TABLE IF EXISTS group_positions")
+        db.execSQL("DROP TABLE IF EXISTS group_members")
+        db.execSQL("DROP TABLE IF EXISTS meanings")
+        db.execSQL("DROP TABLE IF EXISTS groups")
+        db.execSQL("DROP TABLE IF EXISTS words")
+        // 按新安装的建表顺序恢复完整结构。
         createWordsTable(db)
-        // 创建重新指向新 words 表的 Meaning 子表。
         createMeaningsTable(db)
-
-        // 明确列名复制 Word，避免未来增加字段时发生列顺序错位。
-        db.execSQL(
-            """
-            INSERT INTO words (
-                id, spelling, difficulty, reviewed_at, created_at, updated_at, deleted_at
-            )
-            SELECT
-                id, spelling, difficulty, reviewed_at, created_at, updated_at, deleted_at
-            FROM words_v1
-            """.trimIndent(),
-        )
-        // Meaning 同样保留原主键、外键、排序和全部时间字段。
-        db.execSQL(
-            """
-            INSERT INTO meanings (
-                id, word_id, sort_index, pos, definitions_json,
-                created_at, updated_at, deleted_at
-            )
-            SELECT
-                id, word_id, sort_index, pos, definitions_json,
-                created_at, updated_at, deleted_at
-            FROM meanings_v1
-            """.trimIndent(),
-        )
-
-        // 先删除旧子表，避免外键级联影响已复制的数据。
-        db.execSQL("DROP TABLE meanings_v1")
-        // 再删除带 UNIQUE 约束的旧父表。
-        db.execSQL("DROP TABLE words_v1")
-        // 旧索引随旧表删除后，使用原名称重建版本 2 索引。
+        createGroupsTable(db)
+        createGroupPositionsTable(db)
+        createGroupMembersTable(db)
+        createRecordTable(db)
+        createDictationOptionCacheTable(db)
+        createLearningSessionTable(db)
         createIndexes(db)
     }
 
@@ -301,28 +274,28 @@ class WordsDatabase(context: Context) :
             // null 表示读取全部列。
             null,
             // 只读取未软删除 Meaning，并按需裁剪到指定单词。
-            "deleted_at IS NULL$idFilter",
+            "deleted_at = 0$idFilter",
             args,
             // 不分组。
             null,
             // 不使用 HAVING。
             null,
             // 按 word_id 聚合，并按 index 从大到小保持 README 顺序。
-            "word_id ASC, sort_index DESC, id ASC",
+            "word_id ASC, \"index\" DESC, id ASC",
         ).use { cursor ->
             // moveToNext 类似遍历数据库结果集。
             while (cursor.moveToNext()) {
                 // 当前 Meaning 所属单词 id。
                 val wordId = cursor.getLong(cursor.getColumnIndexOrThrow("word_id"))
-                // definitions_json 还原成平台通道支持的字符串 List。
+                // definitions TEXT 列内部是 JSON，还原成平台通道支持的字符串 List。
                 val definitions = jsonArrayToStrings(
-                    cursor.getString(cursor.getColumnIndexOrThrow("definitions_json")),
+                    cursor.getString(cursor.getColumnIndexOrThrow("definitions")),
                 )
                 // 构造 Dart Meaning.fromMap 所需字段。
                 val meaning = linkedMapOf<String, Any?>(
                     "id" to cursor.getLong(cursor.getColumnIndexOrThrow("id")),
                     "word_id" to wordId,
-                    "index" to cursor.getInt(cursor.getColumnIndexOrThrow("sort_index")),
+                    "index" to cursor.getInt(cursor.getColumnIndexOrThrow("index")),
                     "pos" to cursor.getString(cursor.getColumnIndexOrThrow("pos")),
                     "definitions" to definitions,
                     "created_at" to cursor.nullableLong("created_at"),
@@ -365,7 +338,7 @@ class WordsDatabase(context: Context) :
             "words",
             null,
             // 只读取未软删除 Word，并按需裁剪到指定 id。
-            "deleted_at IS NULL$wordIdFilter",
+            "deleted_at = 0$wordIdFilter",
             args,
             null,
             null,
@@ -386,6 +359,17 @@ class WordsDatabase(context: Context) :
                         // 聚合后的分组 id 列表；Dart Word.groupIds 接收它。
                         "group_ids" to (memberGroupsByWord[id] ?: emptyList<Long>()),
                         "difficulty" to cursor.nullableLong("difficulty"),
+                        "phonetic_uk" to cursor.nullableString("phonetic_uk"),
+                        "phonetic_us" to cursor.nullableString("phonetic_us"),
+                        "plural" to cursor.jsonStringList("plural"),
+                        "third_person_singular" to cursor.jsonStringList(
+                            "third_person_singular",
+                        ),
+                        "gerund" to cursor.jsonStringList("gerund"),
+                        "past_tense" to cursor.jsonStringList("past_tense"),
+                        "past_participle" to cursor.jsonStringList("past_participle"),
+                        "comparative" to cursor.jsonStringList("comparative"),
+                        "superlative" to cursor.jsonStringList("superlative"),
                         "reviewed_at" to cursor.nullableLong("reviewed_at"),
                         "created_at" to cursor.nullableLong("created_at"),
                         "updated_at" to cursor.nullableLong("updated_at"),
@@ -460,7 +444,7 @@ class WordsDatabase(context: Context) :
         }
     }
 
-    /** 软删除 Word：首页查询会自动排除 deleted_at 非空记录。 */
+    /** 软删除 Word：首页查询只读取 deleted_at 为 0 的记录。 */
     fun softDeleteWord(id: Long) {
         // 使用同一毫秒值记录删除与最后更新时间。
         val now = System.currentTimeMillis()
@@ -515,56 +499,30 @@ class WordsDatabase(context: Context) :
      * 结果都一致且可重复，不会出现重复累加。
      */
     fun importWords(rawWords: List<*>) {
-        // 获取可写连接并开启事务，保证整批原子写入。
-        val db = writableDatabase
-        db.beginTransaction()
-        try {
-            // 先清空历史数据，导入即整库替换。
-            // 原始 words.json 没有分组信息，导入后单词都应回到「未分组」，
-            // 因此一并清空 group_members；分组列表本身保留，方便用户重新归类。
-            db.delete("dictation_option_cache", null, null)
-            db.delete("learning_sessions", null, null)
-            db.delete("group_members", null, null)
-            db.delete("meanings", null, null)
-            db.delete("words", null, null)
-            // 逐条写入，跳过类型不正确的元素，避免原生崩溃。
-            for (rawWord in rawWords) {
-                // 类型不正确时跳过并进入下一项，避免 ClassCastException。
-                val payload = rawWord as? Map<*, *> ?: continue
-                // 当前时间供缺失 created_at/updated_at 使用。
-                val now = System.currentTimeMillis()
-                // 复用单条写入逻辑构造 words 字段。
-                val values = wordValuesFromPayload(payload, now, touchUpdatedAt = false)
-                // 插入并返回新主键。
-                val wordId = db.insertOrThrow("words", null, values)
-                // 写入嵌套 Meaning。
-                replaceMeanings(db, wordId, payload["meanings"])
-            }
-            // 全部成功才提交。
-            db.setTransactionSuccessful()
-        } finally {
-            // 异常时回滚，保持数据库一致。
-            db.endTransaction()
-        }
+        // 原始数组包装成统一导入结构；缺少 groups 表示保留现有分组列表。
+        importData(mapOf("words" to rawWords))
     }
 
     // ---------- 分组与分组成员 ----------
 
-    /** 读取全部未软删除的分组，按排序值升序、主键升序稳定排列。 */
+    /** 读取全部未软删除的分组，内部排序表只向 Dart 提供界面顺序。 */
     fun getAllGroups(): List<Map<String, Any?>> {
         // 只读连接即可。
         val db = readableDatabase
         // 结果列表。
         val groups = ArrayList<Map<String, Any?>>()
         // 查询未删除分组。
-        db.query(
-            "groups",
+        db.rawQuery(
+            """
+            SELECT
+                groups.*,
+                COALESCE(group_positions.position, groups.id) AS ui_position
+            FROM groups
+            LEFT JOIN group_positions ON group_positions.group_id = groups.id
+            WHERE groups.deleted_at = 0
+            ORDER BY ui_position ASC, groups.id ASC
+            """.trimIndent(),
             null,
-            "deleted_at IS NULL",
-            null,
-            null,
-            null,
-            "sort_order ASC, id ASC",
         ).use { cursor ->
             // 逐行构造 Dart 需要的 Map。
             while (cursor.moveToNext()) {
@@ -572,7 +530,8 @@ class WordsDatabase(context: Context) :
                     linkedMapOf(
                         "id" to cursor.getLong(cursor.getColumnIndexOrThrow("id")),
                         "name" to cursor.getString(cursor.getColumnIndexOrThrow("name")),
-                        "sort_order" to cursor.getInt(cursor.getColumnIndexOrThrow("sort_order")),
+                        // sort_order 只是 Dart 现有 GroupStore 使用的界面别名，不是 groups 表字段。
+                        "sort_order" to cursor.getInt(cursor.getColumnIndexOrThrow("ui_position")),
                         "created_at" to cursor.nullableLong("created_at"),
                         "updated_at" to cursor.nullableLong("updated_at"),
                         "deleted_at" to cursor.nullableLong("deleted_at"),
@@ -584,19 +543,28 @@ class WordsDatabase(context: Context) :
         return groups
     }
 
-    /** 新建分组并返回自增主键；sortOrder 决定初始显示顺序。 */
+    /** 新建分组并在内部表记录初始显示位置。 */
     fun createGroup(name: String, sortOrder: Int): Long {
         // 当前时间供创建与更新字段使用。
         val now = System.currentTimeMillis()
-        // 组装字段；空名称回退为「未命名」。
-        val values = ContentValues().apply {
-            put("name", name.trim().ifEmpty { "未命名" })
-            put("sort_order", sortOrder)
-            put("created_at", now)
-            put("updated_at", now)
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            // groups 严格只保存 README 业务字段。
+            val values = ContentValues().apply {
+                put("name", name.trim().ifEmpty { "未命名" })
+                put("created_at", now)
+                put("updated_at", now)
+                put("deleted_at", 0)
+            }
+            val groupId = db.insertOrThrow("groups", null, values)
+            // 界面顺序放在独立内部表，导出 group 时不会出现该字段。
+            saveGroupPosition(db, groupId, sortOrder)
+            db.setTransactionSuccessful()
+            return groupId
+        } finally {
+            db.endTransaction()
         }
-        // 插入并返回自增主键。
-        return writableDatabase.insertOrThrow("groups", null, values)
     }
 
     /** 重命名指定分组。 */
@@ -611,15 +579,9 @@ class WordsDatabase(context: Context) :
         if (changed == 0) error("找不到要重命名的分组 id=$id")
     }
 
-    /** 调整分组排序值；移动分组位置后由 Dart 端计算并写入。 */
+    /** 调整分组界面顺序；业务表本身不新增 sort_order 字段。 */
     fun setGroupOrder(id: Long, sortOrder: Int) {
-        // 排序与更新时间同步。
-        val values = ContentValues().apply {
-            put("sort_order", sortOrder)
-            put("updated_at", System.currentTimeMillis())
-        }
-        // 静默更新，分组一定存在。
-        writableDatabase.update("groups", values, "id = ?", arrayOf(id.toString()))
+        saveGroupPosition(writableDatabase, id, sortOrder)
     }
 
     /** 软删除分组，并清理其全部成员关联。 */
@@ -646,11 +608,10 @@ class WordsDatabase(context: Context) :
 
     /** 把单词加入某分组；联合唯一约束保证重复加入不报错（幂等）。 */
     fun addGroupMember(groupId: Long, wordId: Long) {
-        // 组装关联行。
+        // 关联表严格只有 README 的两个外键字段。
         val values = ContentValues().apply {
             put("group_id", groupId)
             put("word_id", wordId)
-            put("created_at", System.currentTimeMillis())
         }
         // 唯一约束冲突时忽略，等价于已经在该分组。
         writableDatabase.insertWithOnConflict(
@@ -704,7 +665,6 @@ class WordsDatabase(context: Context) :
             val values = ContentValues().apply {
                 put("group_id", groupId)
                 put("word_id", wordId)
-                put("created_at", System.currentTimeMillis())
             }
             // 重复 id 使用联合唯一约束忽略；不存在的外键仍会抛错并回滚事务。
             db.insertWithOnConflict(
@@ -716,104 +676,433 @@ class WordsDatabase(context: Context) :
         }
     }
 
-    /**
-     * 导入完整备份（含 groups/words/members）。
-     *
-     * 与 importWords 不同，这里连分组也整库替换，因此要重建 group 表；
-     * 由于 words/group 自增主键会变，先收集旧 id→新 id 映射，再把
-     * members 里的 group_id/word_id 一并换成新值，保证关系不丢失。
-     */
+    /** 新增或覆盖一个分组的内部界面位置。 */
+    private fun saveGroupPosition(db: SQLiteDatabase, groupId: Long, position: Int) {
+        val values = ContentValues().apply {
+            put("group_id", groupId)
+            put("position", position.coerceAtLeast(0))
+        }
+        db.insertWithOnConflict(
+            "group_positions",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    /** 按 SQLite 实际表结构导入单词、释义、分组及所属关系。 */
     fun importData(payload: Map<*, *>) {
-        // 写连接与整体事务。
         val db = writableDatabase
         db.beginTransaction()
         try {
-            // 整库替换前清空词库、分组关系、候选缓存与未完成学习会话。
+            // 导入会替换词库，与旧单词主键绑定的记录、候选和会话也失效。
             db.delete("dictation_option_cache", null, null)
             db.delete("learning_sessions", null, null)
             db.delete("group_members", null, null)
-            db.delete("groups", null, null)
             db.delete("meanings", null, null)
             db.delete("words", null, null)
+            // 只有文件明确携带 groups 时才替换分组；原始 words.json 继续保留本地分组。
+            val replacesGroups = payload["groups"] is List<*>
+            if (replacesGroups) db.delete("groups", null, null)
 
-            // 重建分组，记录旧 id → 新 id 映射。
+            // 先用当前数据库中的分组主键建立默认映射，支持仅导入 words 的情况。
             val groupIdMap = mutableMapOf<Long, Long>()
-            // 容错：groups 缺失时按空列表处理。
+            if (!replacesGroups) {
+                db.query("groups", arrayOf("id"), "deleted_at = 0", null, null, null, null)
+                    .use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val id = cursor.getLong(0)
+                            groupIdMap[id] = id
+                        }
+                    }
+            }
             val rawGroups = payload["groups"] as? List<*> ?: emptyList<Any?>()
-            for (rawGroup in rawGroups) {
-                // 类型不正确时跳过。
+            for ((position, rawGroup) in rawGroups.withIndex()) {
                 val group = rawGroup as? Map<*, *> ?: continue
-                // 必须有旧主键才能建立映射。
-                val oldId = (group["id"] as? Number)?.toLong() ?: continue
-                // 当前时间回退值。
-                val now = System.currentTimeMillis()
-                // 组装分组字段。
-                val values = ContentValues().apply {
-                    put("name", group["name"]?.toString()?.trim()?.ifEmpty { "未命名" } ?: "未命名")
-                    put("sort_order", (group["sort_order"] as? Number)?.toInt() ?: 0)
-                    put("created_at", (group["created_at"] as? Number)?.toLong() ?: now)
-                    put("updated_at", (group["updated_at"] as? Number)?.toLong() ?: now)
-                }
-                // 插入并取新主键。
-                val newId = db.insertOrThrow("groups", null, values)
-                // 记录映射。
-                groupIdMap[oldId] = newId
+                val oldId = positiveId(group["id"])
+                val values = buildImportValues(db, "groups", group)
+                // name 是 README 必填文本，缺失时给人类可识别的回退值。
+                if (!values.containsKey("name")) values.put("name", "未命名")
+                val newId = insertRow(db, "groups", values)
+                if (oldId != null) groupIdMap[oldId] = newId
+                // JSON groups 数组的先后即界面顺序，无需额外导出 sort_order。
+                saveGroupPosition(db, newId, position)
             }
 
-            // 重建单词与释义，记录旧 id → 新 id 映射。
             val wordIdMap = mutableMapOf<Long, Long>()
-            // 容错：words 缺失时按空列表处理。
+            val nestedMemberships = mutableListOf<Pair<Long, Long>>()
             val rawWords = payload["words"] as? List<*> ?: emptyList<Any?>()
             for (rawWord in rawWords) {
-                // 类型不正确时跳过。
                 val word = rawWord as? Map<*, *> ?: continue
-                // 旧主键可选（原始 words.json 可能没有）。
-                val oldId = (word["id"] as? Number)?.toLong()
-                // 当前时间回退值。
-                val now = System.currentTimeMillis()
-                // 复用单词字段转换。
-                val values = wordValuesFromPayload(word, now, touchUpdatedAt = false)
-                // 插入并取新主键。
-                val newId = db.insertOrThrow("words", null, values)
-                // 记录映射（仅当存在旧主键）。
+                val oldId = positiveId(word["id"])
+                val values = buildImportValues(db, "words", word)
+                val spelling = values.getAsString("spelling")?.trim().orEmpty()
+                require(spelling.isNotEmpty()) { "words.spelling 不能为空" }
+                values.put("spelling", spelling)
+                val newId = insertRow(db, "words", values)
                 if (oldId != null) wordIdMap[oldId] = newId
-                // 重建释义。
-                replaceMeanings(db, newId, word["meanings"])
+                // meanings 是 words 上的嵌套关系，拆开后同样按 meanings 实际表结构写入。
+                val meanings = word["meanings"] as? List<*> ?: emptyList<Any?>()
+                for (rawMeaning in meanings) {
+                    val meaning = rawMeaning as? Map<*, *> ?: continue
+                    val meaningValues = buildImportValues(
+                        db,
+                        "meanings",
+                        meaning,
+                        overrides = mapOf("word_id" to newId),
+                    )
+                    if (!meaningValues.containsKey("pos")) meaningValues.put("pos", "")
+                    insertRow(db, "meanings", meaningValues)
+                }
+                // 兼容人工 JSON 在单词内直接写 groups/group_ids 的简写方式。
+                val rawGroupIds = (word["groups"] ?: word["group_ids"]) as? List<*>
+                for (rawGroupId in rawGroupIds ?: emptyList<Any?>()) {
+                    val oldGroupId = positiveId(rawGroupId) ?: continue
+                    nestedMemberships.add(newId to oldGroupId)
+                }
             }
 
-            // 重建成员关联，用映射把旧外键换成新外键。
-            // 容错：members 缺失时按空列表处理。
             val rawMembers = payload["members"] as? List<*> ?: emptyList<Any?>()
             for (rawMember in rawMembers) {
-                // 类型不正确时跳过。
                 val member = rawMember as? Map<*, *> ?: continue
-                // 读取旧外键。
-                val oldGroup = (member["group_id"] as? Number)?.toLong() ?: continue
-                val oldWord = (member["word_id"] as? Number)?.toLong() ?: continue
-                // 通过映射换成新外键；任一映射缺失则跳过该行。
+                val oldGroup = positiveId(member["group_id"]) ?: continue
+                val oldWord = positiveId(member["word_id"]) ?: continue
                 val newGroup = groupIdMap[oldGroup] ?: continue
                 val newWord = wordIdMap[oldWord] ?: continue
-                // 组装关联行。
-                val values = ContentValues().apply {
-                    put("group_id", newGroup)
-                    put("word_id", newWord)
-                    put("created_at", System.currentTimeMillis())
-                }
-                // 冲突忽略，保证幂等。
-                db.insertWithOnConflict(
-                    "group_members",
-                    null,
-                    values,
-                    SQLiteDatabase.CONFLICT_IGNORE,
-                )
+                insertGroupMember(db, newGroup, newWord)
+            }
+            for ((newWord, oldGroup) in nestedMemberships) {
+                val newGroup = groupIdMap[oldGroup] ?: continue
+                insertGroupMember(db, newGroup, newWord)
             }
 
-            // 全部成功才提交。
             db.setTransactionSuccessful()
         } finally {
-            // 异常时回滚，保持数据库一致。
             db.endTransaction()
         }
+    }
+
+    /** 按业务表实际字段导出人类可读的单词与分组数据。 */
+    fun exportData(): Map<String, Any?> {
+        val db = readableDatabase
+        val meaningRows = exportRows(
+            db,
+            "meanings",
+            "deleted_at = 0",
+            jsonArrayColumns = setOf("definitions"),
+        )
+        val meaningsByWord = meaningRows.groupBy { row -> (row["word_id"] as Number).toLong() }
+        val words = exportRows(
+            db,
+            "words",
+            "deleted_at = 0",
+            jsonArrayColumns = setOf(
+                "plural",
+                "third_person_singular",
+                "gerund",
+                "past_tense",
+                "past_participle",
+                "comparative",
+                "superlative",
+            ),
+        ).map { row ->
+            val wordId = (row["id"] as Number).toLong()
+            LinkedHashMap(row).apply {
+                // meanings 是 JSON 嵌套关系；其内部普通字段仍全部来自真实表结构。
+                put("meanings", meaningsByWord[wordId] ?: emptyList<Map<String, Any?>>())
+            }
+        }
+        // 分组数组顺序代表界面顺序，group_positions 不作为业务字段导出。
+        val groupColumns = tableColumns(db, "groups")
+        val groups = mutableListOf<Map<String, Any?>>()
+        db.rawQuery(
+            """
+            SELECT groups.*
+            FROM groups
+            LEFT JOIN group_positions ON group_positions.group_id = groups.id
+            WHERE groups.deleted_at = 0
+            ORDER BY COALESCE(group_positions.position, groups.id), groups.id
+            """.trimIndent(),
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                groups.add(exportCursorRow(cursor, groupColumns, emptySet()))
+            }
+        }
+        return linkedMapOf(
+            "words" to words,
+            "groups" to groups,
+            "members" to exportRows(db, "group_members", null),
+        )
+    }
+
+    /** SQLite PRAGMA table_info 返回的单个字段定义。 */
+    private data class TableColumn(
+        val name: String,
+        val declaredType: String,
+        val primaryKey: Boolean,
+    )
+
+    /** 读取固定业务表的真实字段，作为导入白名单与类型来源。 */
+    private fun tableColumns(db: SQLiteDatabase, table: String): LinkedHashMap<String, TableColumn> {
+        // table 只由本类中固定的 words/meanings/groups/group_members 传入，不接收用户表名。
+        val columns = linkedMapOf<String, TableColumn>()
+        db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            val typeIndex = cursor.getColumnIndexOrThrow("type")
+            val primaryKeyIndex = cursor.getColumnIndexOrThrow("pk")
+            while (cursor.moveToNext()) {
+                val column = TableColumn(
+                    name = cursor.getString(nameIndex),
+                    declaredType = cursor.getString(typeIndex).uppercase(Locale.ROOT),
+                    primaryKey = cursor.getInt(primaryKeyIndex) > 0,
+                )
+                columns[column.name] = column
+            }
+        }
+        return columns
+    }
+
+    /** 只把 JSON 中数据库真实存在的字段转换为 ContentValues。 */
+    private fun buildImportValues(
+        db: SQLiteDatabase,
+        table: String,
+        raw: Map<*, *>,
+        overrides: Map<String, Any?> = emptyMap(),
+    ): ContentValues {
+        val columns = tableColumns(db, table)
+        val values = ContentValues()
+        // 遍历 JSON 对象的属性；不在 PRAGMA 结果中的嵌套关系或未知字段直接忽略。
+        for ((rawName, rawValue) in raw) {
+            val name = rawName as? String ?: continue
+            val column = columns[name] ?: continue
+            putImportValue(values, column, rawValue)
+        }
+        // 外键等上下文值必须覆盖 JSON 旧值，保证指向本次新插入的主键。
+        for ((name, value) in overrides) {
+            val column = columns[name] ?: continue
+            putImportValue(values, column, value)
+        }
+        // 缺失的普通数字与日期字段按用户约定统一补 0；自增主键由 SQLite 生成。
+        for (column in columns.values) {
+            if (column.primaryKey || values.containsKey(column.name)) continue
+            if (column.name.endsWith("_at") || column.declaredType.contains("INT")) {
+                values.put(column.name, 0)
+            }
+        }
+        return values
+    }
+
+    /** 根据 SQLite 声明类型写入一个 JSON 值。 */
+    private fun putImportValue(values: ContentValues, column: TableColumn, rawValue: Any?) {
+        val name = column.name
+        // id 空值或非正数不伪造 0 号记录，而是交给 SQLite 自增。
+        if (column.primaryKey) {
+            val id = positiveId(rawValue) ?: return
+            values.put(name, id)
+            return
+        }
+        // SQLite 把日期保存为 INTEGER，通过 README 统一的 *_at 命名识别日期语义。
+        if (name.endsWith("_at")) {
+            values.put(name, parseImportDate(rawValue))
+            return
+        }
+        when {
+            column.declaredType.contains("INT") -> values.put(name, parseImportInteger(rawValue))
+            column.declaredType.contains("REAL") ||
+                column.declaredType.contains("FLOA") ||
+                column.declaredType.contains("DOUB") -> values.put(name, parseImportReal(rawValue))
+            rawValue == null -> values.putNull(name)
+            rawValue is List<*> -> values.put(name, JSONArray(rawValue).toString())
+            rawValue is Map<*, *> -> values.put(name, JSONObject(rawValue).toString())
+            else -> values.put(name, rawValue.toString())
+        }
+    }
+
+    /** 数字、数字文本和布尔值转整数；空值或错误内容统一为 0。 */
+    private fun parseImportInteger(value: Any?): Long = when (value) {
+        is Number -> value.toLong()
+        is Boolean -> if (value) 1 else 0
+        is String -> value.trim().toLongOrNull()
+            ?: value.trim().toDoubleOrNull()?.toLong()
+            ?: 0
+        else -> 0
+    }
+
+    /** 动态值转浮点数；空值或错误内容统一为 0。 */
+    private fun parseImportReal(value: Any?): Double = when (value) {
+        is Number -> value.toDouble()
+        is String -> value.trim().toDoubleOrNull() ?: 0.0
+        else -> 0.0
+    }
+
+    /** 只接受正数主键/外键，空值不生成虚假的 0 号关联。 */
+    private fun positiveId(value: Any?): Long? {
+        val parsed = when (value) {
+            is Number -> value.toLong()
+            is String -> value.trim().toLongOrNull()
+            else -> null
+        }
+        return parsed?.takeIf { it > 0 }
+    }
+
+    /** 导入日期并统一转为毫秒时间戳；空值或错误日期返回 0。 */
+    private fun parseImportDate(value: Any?): Long {
+        if (value is Number) return normalizeTimestamp(value.toLong())
+        val text = value?.toString()?.trim().orEmpty()
+        if (text.isEmpty()) return 0
+        text.toLongOrNull()?.let { return normalizeTimestamp(it) }
+        // 按人类常用程度从完整时区时间逐步回退到纯日期。
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy/MM/dd HH:mm:ss",
+            "yyyy-MM-dd",
+            "yyyy/MM/dd",
+        )
+        for (pattern in patterns) {
+            val formatter = SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }
+            val position = ParsePosition(0)
+            val parsed = formatter.parse(text, position)
+            if (parsed != null && position.index == text.length) return parsed.time
+        }
+        return 0
+    }
+
+    /** 自动区分秒级与毫秒级时间戳。 */
+    private fun normalizeTimestamp(value: Long): Long {
+        if (value == 0L) return 0
+        // 当前秒级时间戳约 10 位，毫秒级约 13 位；1000 亿是安全分界。
+        return if (kotlin.math.abs(value) < 100_000_000_000L) value * 1000 else value
+    }
+
+    /** 插入已完成新旧主键映射的分组所属关系。 */
+    private fun insertGroupMember(db: SQLiteDatabase, groupId: Long, wordId: Long) {
+        val values = ContentValues().apply {
+            put("group_id", groupId)
+            put("word_id", wordId)
+        }
+        db.insertWithOnConflict(
+            "group_members",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_IGNORE,
+        )
+    }
+
+    /**
+     * 插入一行 ContentValues，并为表名和字段名补上 SQLite 标识符引号。
+     *
+     * Android 自带的 insertOrThrow 不会给 ContentValues 的字段名加引号，README
+     * 使用的 meaning.index 又恰好是 SQLite 保留字，因此动态导入统一走该方法。
+     *
+     * @param db 当前写事务使用的 SQLite 连接。
+     * @param table 需要写入的固定业务表名。
+     * @param values 已按真实表结构和字段类型转换的数据。
+     * @return 新插入记录的主键；没有自增主键的表由 SQLite 返回 rowid。
+     */
+    private fun insertRow(db: SQLiteDatabase, table: String, values: ContentValues): Long {
+        require(values.size() > 0) { "$table 没有可写入字段" }
+        val columns = values.keySet().toList()
+        val sql = buildString {
+            append("INSERT INTO ")
+            append(quoteIdentifier(table))
+            append(" (")
+            append(columns.joinToString(", ") { name -> quoteIdentifier(name) })
+            append(") VALUES (")
+            append(List(columns.size) { "?" }.joinToString(", "))
+            append(")")
+        }
+        return db.compileStatement(sql).use { statement ->
+            for ((index, column) in columns.withIndex()) {
+                val parameterIndex = index + 1
+                when (val value = values.get(column)) {
+                    null -> statement.bindNull(parameterIndex)
+                    is ByteArray -> statement.bindBlob(parameterIndex, value)
+                    is Float -> statement.bindDouble(parameterIndex, value.toDouble())
+                    is Double -> statement.bindDouble(parameterIndex, value)
+                    is Number -> statement.bindLong(parameterIndex, value.toLong())
+                    is Boolean -> statement.bindLong(parameterIndex, if (value) 1 else 0)
+                    else -> statement.bindString(parameterIndex, value.toString())
+                }
+            }
+            statement.executeInsert()
+        }
+    }
+
+    /** 把可信表名或字段名转成 SQLite 双引号标识符。 */
+    private fun quoteIdentifier(identifier: String): String =
+        "\"${identifier.replace("\"", "\"\"")}\""
+
+    /** 读取指定业务表的全部实际字段并转成可导出对象。 */
+    private fun exportRows(
+        db: SQLiteDatabase,
+        table: String,
+        selection: String?,
+        jsonArrayColumns: Set<String> = emptySet(),
+    ): List<Map<String, Any?>> {
+        val columns = tableColumns(db, table)
+        val rows = mutableListOf<Map<String, Any?>>()
+        db.query(table, null, selection, null, null, null, "rowid ASC").use { cursor ->
+            while (cursor.moveToNext()) {
+                rows.add(exportCursorRow(cursor, columns, jsonArrayColumns))
+            }
+        }
+        return rows
+    }
+
+    /** 把一行 SQLite 数据按字段语义转成人类可读的 JSON 值。 */
+    private fun exportCursorRow(
+        cursor: android.database.Cursor,
+        columns: Map<String, TableColumn>,
+        jsonArrayColumns: Set<String>,
+    ): Map<String, Any?> {
+        val row = linkedMapOf<String, Any?>()
+        for (column in columns.values) {
+            val index = cursor.getColumnIndexOrThrow(column.name)
+            if (column.name.endsWith("_at")) {
+                val timestamp = if (cursor.isNull(index)) 0 else cursor.getLong(index)
+                row[column.name] = formatExportDate(timestamp)
+                continue
+            }
+            if (cursor.isNull(index)) {
+                // 数字空值导出 0，普通文本继续保持 null 语义。
+                row[column.name] = if (column.declaredType.contains("INT") ||
+                    column.declaredType.contains("REAL")) 0 else null
+                continue
+            }
+            row[column.name] = when {
+                column.declaredType.contains("INT") -> cursor.getLong(index)
+                column.declaredType.contains("REAL") ||
+                    column.declaredType.contains("FLOA") ||
+                    column.declaredType.contains("DOUB") -> cursor.getDouble(index)
+                column.name in jsonArrayColumns -> decodeExportArray(cursor.getString(index))
+                else -> cursor.getString(index)
+            }
+        }
+        return row
+    }
+
+    /** 把明确声明为数组的 SQLite TEXT 字段还原为 JSON 数组。 */
+    private fun decodeExportArray(value: String): Any {
+        return try {
+            val array = JSONArray(value)
+            List(array.length()) { index ->
+                val item = array.get(index)
+                if (item == JSONObject.NULL) null else item
+            }
+        } catch (_: Exception) {
+            value
+        }
+    }
+
+    /** 毫秒时间戳导出为本机时区的完整日期时间；0 导出空字符串。 */
+    private fun formatExportDate(timestamp: Long): String {
+        if (timestamp == 0L) return ""
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
     }
 
     /**
@@ -1281,10 +1570,21 @@ class WordsDatabase(context: Context) :
         return ContentValues().apply {
             // 保存区分大小写的拼写。
             put("spelling", spelling)
-            // 非空 difficulty 必须大于等于 0，数据库 CHECK 会再次保护。
-            putNullableLong("difficulty", (payload["difficulty"] as? Number)?.toLong())
+            // 普通数字空值统一为 0，数据库 CHECK 会再次阻止负难度。
+            put("difficulty", ((payload["difficulty"] as? Number)?.toLong() ?: 0).coerceAtLeast(0))
+            // 可空音标保持 null，不将文本空值伪造成数字。
+            putNullableString("phonetic_uk", payload["phonetic_uk"]?.toString())
+            putNullableString("phonetic_us", payload["phonetic_us"]?.toString())
+            // SQLite TEXT 列使用 JSON 数组字符串保存各类词形。
+            put("plural", jsonStringArray(payload["plural"]))
+            put("third_person_singular", jsonStringArray(payload["third_person_singular"]))
+            put("gerund", jsonStringArray(payload["gerund"]))
+            put("past_tense", jsonStringArray(payload["past_tense"]))
+            put("past_participle", jsonStringArray(payload["past_participle"]))
+            put("comparative", jsonStringArray(payload["comparative"]))
+            put("superlative", jsonStringArray(payload["superlative"]))
             // 保存最近复习时间。
-            putNullableLong("reviewed_at", (payload["reviewed_at"] as? Number)?.toLong())
+            put("reviewed_at", (payload["reviewed_at"] as? Number)?.toLong() ?: 0)
             // 新数据没有 created_at 时使用 now。
             put("created_at", (payload["created_at"] as? Number)?.toLong() ?: now)
             // 编辑操作始终使用 now；创建时允许保留导入数据传入的 updated_at。
@@ -1293,7 +1593,7 @@ class WordsDatabase(context: Context) :
                 if (touchUpdatedAt) now else (payload["updated_at"] as? Number)?.toLong() ?: now,
             )
             // 支持未来恢复/软删除数据同步。
-            putNullableLong("deleted_at", (payload["deleted_at"] as? Number)?.toLong())
+            put("deleted_at", (payload["deleted_at"] as? Number)?.toLong() ?: 0)
         }
     }
 
@@ -1314,15 +1614,15 @@ class WordsDatabase(context: Context) :
             // 组装数据库字段。
             val values = ContentValues().apply {
                 put("word_id", wordId)
-                put("sort_index", (meaning["index"] as? Number)?.toInt() ?: 0)
+                put("index", (meaning["index"] as? Number)?.toInt() ?: 0)
                 put("pos", meaning["pos"]?.toString() ?: "")
-                put("definitions_json", JSONArray(definitions).toString())
-                putNullableLong("created_at", (meaning["created_at"] as? Number)?.toLong())
-                putNullableLong("updated_at", (meaning["updated_at"] as? Number)?.toLong())
-                putNullableLong("deleted_at", (meaning["deleted_at"] as? Number)?.toLong())
+                put("definitions", JSONArray(definitions).toString())
+                put("created_at", (meaning["created_at"] as? Number)?.toLong() ?: 0)
+                put("updated_at", (meaning["updated_at"] as? Number)?.toLong() ?: 0)
+                put("deleted_at", (meaning["deleted_at"] as? Number)?.toLong() ?: 0)
             }
             // 外键与事务会确保关联正确。
-            db.insertOrThrow("meanings", null, values)
+            insertRow(db, "meanings", values)
         }
     }
 
@@ -1334,9 +1634,20 @@ class WordsDatabase(context: Context) :
         return List(array.length()) { index -> array.getString(index) }
     }
 
+    /** 把动态数组转成 SQLite TEXT 列使用的 JSON 字符串。 */
+    private fun jsonStringArray(value: Any?): String {
+        val items = (value as? List<*>)?.mapNotNull { item -> item?.toString() } ?: emptyList()
+        return JSONArray(items).toString()
+    }
+
     /** ContentValues 没有便捷可空 Long API，因此统一封装 put/putNull。 */
     private fun ContentValues.putNullableLong(key: String, value: Long?) {
         // 非空写真实数值，空值显式写 SQLite NULL。
+        if (value == null) putNull(key) else put(key, value)
+    }
+
+    /** ContentValues 显式写入可空文本。 */
+    private fun ContentValues.putNullableString(key: String, value: String?) {
         if (value == null) putNull(key) else put(key, value)
     }
 
@@ -1346,5 +1657,17 @@ class WordsDatabase(context: Context) :
         val index = getColumnIndexOrThrow(columnName)
         // SQLite NULL 对应 Kotlin null，否则读取 Long。
         return if (isNull(index)) null else getLong(index)
+    }
+
+    /** Cursor 安全读取可空文本字段。 */
+    private fun android.database.Cursor.nullableString(columnName: String): String? {
+        val index = getColumnIndexOrThrow(columnName)
+        return if (isNull(index)) null else getString(index)
+    }
+
+    /** Cursor 把指定 JSON TEXT 列还原成 MethodChannel 支持的字符串列表。 */
+    private fun android.database.Cursor.jsonStringList(columnName: String): List<String> {
+        val index = getColumnIndexOrThrow(columnName)
+        return if (isNull(index)) emptyList() else jsonArrayToStrings(getString(index))
     }
 }

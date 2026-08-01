@@ -53,6 +53,14 @@ void main() {
                 'created_at': DateTime(2026, 7, 26).millisecondsSinceEpoch,
               },
             ];
+          case 'exportData':
+            return <String, Object?>{
+              'words': <Object?>[
+                <String, Object?>{'id': 7, 'spelling': 'persisted'},
+              ],
+              'groups': <Object?>[],
+              'members': <Object?>[],
+            };
           // 更新、删除、导入和清空均返回 Future<void>，对应 null。
           case 'updateWord':
           case 'deleteWord':
@@ -84,6 +92,9 @@ void main() {
       await store.delete(7);
       // 导入批量写入（整库替换）。
       await store.importWords(const [Word(spelling: 'a'), Word(spelling: 'b')]);
+      // 导出直接使用 SQLite 表结构生成的对象，不再由 Dart 手写字段。
+      final exported = await store.exportData();
+      expect(exported['words'], hasLength(1));
       // 清空两张表。
       await store.clearAll();
       // 方法顺序证明核心操作都经过 SQLite，并且创建、更新各只需要一次通道调用。
@@ -93,6 +104,7 @@ void main() {
         'updateWord',
         'deleteWord',
         'importWords',
+        'exportData',
         'clearAllWords',
       ]);
       // 创建参数已经包含分组 id，不再另发 addGroupMember。

@@ -1476,6 +1476,15 @@ class _MemoryWordStore implements WordStore {
         spelling: word.spelling,
         meanings: word.meanings,
         difficulty: word.difficulty,
+        phoneticUk: word.phoneticUk,
+        phoneticUs: word.phoneticUs,
+        plural: word.plural,
+        thirdPersonSingular: word.thirdPersonSingular,
+        gerund: word.gerund,
+        pastTense: word.pastTense,
+        pastParticiple: word.pastParticiple,
+        comparative: word.comparative,
+        superlative: word.superlative,
         groupIds: word.groupIds,
         reviewedAt: word.reviewedAt,
         createdAt: word.createdAt ?? DateTime.now(),
@@ -1553,6 +1562,18 @@ class _MemoryWordStore implements WordStore {
       ..clear()
       ..addAll(parsed);
   }
+
+  ///
+  /// 组装内存测试所需的最小导出结构。
+  ///
+  /// @return `Future<Map<String, Object?>>`
+  ///
+  @override
+  Future<Map<String, Object?>> exportData() async => <String, Object?>{
+    'words': _words.map((word) => word.toExportMap()).toList(),
+    'groups': const <Object?>[],
+    'members': const <Object?>[],
+  };
 
   ///
   /// 清空全部内存单词。
@@ -1644,6 +1665,14 @@ class _ThrowingWordStore implements WordStore {
   @override
   Future<void> importData(Map<String, Object?> data) async =>
       throw UnimplementedError();
+
+  ///
+  /// 其余接口不属于本测试流程。
+  ///
+  /// @return `Future<Map<String, Object?>>`
+  ///
+  @override
+  Future<Map<String, Object?>> exportData() async => throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
