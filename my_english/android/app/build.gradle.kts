@@ -49,11 +49,15 @@ android {
     }
 
     buildTypes {
-        release {
-            // 使用正式签名配置（替代原来的 debug 签名）
+        debug {
+            // Debug 保留 Flutter 默认的调试能力，但改用与 Release 相同的签名。
+            // Android 因而允许两个构建类型互相覆盖安装，并保留同一私有目录中的数据库。
             signingConfig = signingConfigs.getByName("release")
-            // debuggable 临时通过 AndroidManifest.xml 的 android:debuggable="true" 控制
-            // 不在这里设 isDebuggable，否则 Flutter 会误判为 debug 模式而崩溃
+        }
+
+        release {
+            // Release 继续使用正式签名，保证以后发布的 APK 可以覆盖旧正式版。
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
