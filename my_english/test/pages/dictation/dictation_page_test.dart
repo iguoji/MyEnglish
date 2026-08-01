@@ -612,25 +612,30 @@ void main() {
     // 独立通道用内存 Map 模拟 SQLite，每个 JSON key 对应一道小题。
     const channel = MethodChannel('test/dictation_option_cache_page');
     final savedCalls = <MethodCall>[];
-    final cachedDistractors = <String, List<String>>{};
+    final cachedOptions = <String, Map<String, Object?>>{};
     messenger.setMockMethodCallHandler(channel, (call) async {
       final arguments = Map<Object?, Object?>.from(call.arguments as Map);
       final cacheKey = arguments['cacheKey']! as String;
       if (call.method == 'getDictationOptionCache') {
         // 首次读取按题型生成固定值，之后返回最近一次保存的内容，模拟真实 SQLite。
-        return cachedDistractors.putIfAbsent(
+        return cachedOptions.putIfAbsent(
           cacheKey,
-          () => cacheKey.contains('"definition"')
-              ? <String>['释义甲', '释义乙', '释义丙']
-              : <String>['abality', 'abiliti', 'abiloty'],
+          () => <String, Object?>{
+            'distractors': cacheKey.contains('"definition"')
+                ? <String>['释义甲', '释义乙', '释义丙']
+                : <String>['abality', 'abiliti', 'abiloty'],
+            // 正确答案固定显示在第三行，重建页面后也不能改变。
+            'correctIndex': 2,
+          },
         );
       }
       if (call.method == 'saveDictationOptionCache') {
         savedCalls.add(call);
         // 覆盖内存中的同一行，下次重新进入页面会读到刷新后的三项。
-        cachedDistractors[cacheKey] = List<String>.from(
-          arguments['distractors']! as List,
-        );
+        cachedOptions[cacheKey] = <String, Object?>{
+          'distractors': List<String>.from(arguments['distractors']! as List),
+          'correctIndex': arguments['correctIndex']! as int,
+        };
         return null;
       }
       throw StateError('unexpected method: ${call.method}');
@@ -653,6 +658,8 @@ void main() {
     expect(find.text('abality'), findsOneWidget);
     expect(find.text('abiliti'), findsOneWidget);
     expect(find.text('abiloty'), findsOneWidget);
+    // 缓存指定正确答案在第三行，先记录完整四项顺序供重新进入后比较。
+    expect(_visibleOptionTexts(tester)[2], 'ability');
     // 长按其中一个干扰项后显示统一刷新确认框。
     await tester.longPress(find.text('abality'));
     await tester.pumpAndSettle();
@@ -671,6 +678,8 @@ void main() {
     );
     expect(savedDistractors, hasLength(3));
     expect(savedDistractors, isNot(contains('abality')));
+    final refreshedOrder = _visibleOptionTexts(tester);
+    expect(refreshedOrder.toSet(), hasLength(4));
 
     // 重建页面模拟用户下次进入默写；三个刷新后候选必须从缓存完整恢复。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -689,6 +698,8 @@ void main() {
     for (final distractor in savedDistractors) {
       expect(find.text(distractor), findsOneWidget);
     }
+    // 不只名字恢复，A/B/C/D 四个位置也必须与刷新后完全一致。
+    expect(_visibleOptionTexts(tester), refreshedOrder);
 
     // 长按正确项也显示同一确认框；确认后正确答案只移动位置，四选一结构不能丢失。
     await tester.longPress(find.text('ability'));
@@ -699,6 +710,30 @@ void main() {
     _expectFourOptions(tester);
     expect(find.text('ability'), findsOneWidget);
     expect(savedCalls, hasLength(2));
+    // 长按正确答案会移动其位置；新位置也必须跟随三个干扰项一起写入缓存。
+    final orderAfterCorrectRefresh = _visibleOptionTexts(tester);
+    final lastSavedArguments = Map<Object?, Object?>.from(
+      savedCalls.last.arguments as Map,
+    );
+    expect(
+      lastSavedArguments['correctIndex'],
+      orderAfterCorrectRefresh.indexOf('ability'),
+    );
+
+    // 再次重建后，连“刷新正确答案导致的位置移动”也必须原样恢复。
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words,
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          optionCacheStore: const DictationOptionCacheStore(channel: channel),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(_visibleOptionTexts(tester), orderAfterCorrectRefresh);
 
     // 选择正确拼写进入释义题，第二个缓存 key 应命中稳定中文干扰项。
     await tester.tap(find.text('ability'));
@@ -706,6 +741,165 @@ void main() {
     expect(find.text('释义甲'), findsOneWidget);
     expect(find.text('释义乙'), findsOneWidget);
     expect(find.text('释义丙'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
+    'fresh start and retry preserve the first complete option order',
+    (tester) async {
+      // 内存 Map 从空缓存开始，第一次保存后模拟 App 重启仍可读取的 SQLite 行。
+      const channel = MethodChannel('test/dictation_option_stable_order');
+      final cachedOptions = <String, Map<String, Object?>>{};
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        final arguments = Map<Object?, Object?>.from(call.arguments as Map);
+        final cacheKey = arguments['cacheKey']! as String;
+        if (call.method == 'getDictationOptionCache') {
+          return cachedOptions[cacheKey];
+        }
+        if (call.method == 'saveDictationOptionCache') {
+          cachedOptions[cacheKey] = <String, Object?>{
+            'distractors': List<String>.from(arguments['distractors']! as List),
+            'correctIndex': arguments['correctIndex']! as int,
+          };
+          return null;
+        }
+        throw StateError('unexpected method: ${call.method}');
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      // 无释义单词答对后会直接显示“再试一次”，方便覆盖重试入口。
+      const words = <Word>[Word(id: 91, spelling: 'ability')];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DictationPage(
+            words: words,
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            optionCacheStore: const DictationOptionCacheStore(channel: channel),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // 第一次生成的四个名字和位置必须完整写入缓存，且自身没有重复。
+      final firstOrder = _visibleOptionTexts(tester);
+      expect(firstOrder.toSet(), hasLength(4));
+      expect(cachedOptions, hasLength(1));
+
+      // 答对后点击“再试一次”，最终恢复到第一次显示的完整顺序。
+      await tester.tap(find.text('ability'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('retry-dictation-word')));
+      await tester.pumpAndSettle();
+      expect(_visibleOptionTexts(tester), firstOrder);
+
+      // 完全销毁并新建页面模拟重新进入，而不是依赖未完成会话快照。
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DictationPage(
+            words: words,
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            optionCacheStore: const DictationOptionCacheStore(channel: channel),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_visibleOptionTexts(tester), firstOrder);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('duplicate options in a damaged session are regenerated', (
+    tester,
+  ) async {
+    // 模拟历史快照出现两个仅大小写不同的重复干扰项。
+    const session = LearningSession(
+      type: LearningSessionType.dictation,
+      wordIds: <int>[1],
+      state: <String, Object?>{
+        'wordIndex': 0,
+        'stage': 'word',
+        'isCurrentWordComplete': false,
+        'options': <Object?>[
+          <String, Object?>{'text': 'ability', 'isCorrect': true},
+          <String, Object?>{'text': 'abliity', 'isCorrect': false},
+          <String, Object?>{'text': 'ABLIITY', 'isCorrect': false},
+          <String, Object?>{'text': 'abiliti', 'isCorrect': false},
+        ],
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words.take(1).toList(),
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          initialSession: session,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 坏快照不能直接显示；页面重新生成四个大小写意义上也不重复的候选。
+    final repairedOptions = _visibleOptionTexts(tester);
+    expect(repairedOptions, hasLength(4));
+    expect(
+      repairedOptions.map((text) => text.toLowerCase()).toSet(),
+      hasLength(4),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('continue mode restores the exact saved option order', (
+    tester,
+  ) async {
+    // 继续模式携带一份合法四选一快照，顺序特意与默认生成顺序不同。
+    const expectedOrder = <String>['abiliti', 'ability', 'abality', 'abliity'];
+    const session = LearningSession(
+      type: LearningSessionType.dictation,
+      wordIds: <int>[1],
+      state: <String, Object?>{
+        'wordIndex': 0,
+        'stage': 'word',
+        'isCurrentWordComplete': false,
+        'options': <Object?>[
+          <String, Object?>{'text': 'abiliti', 'isCorrect': false},
+          <String, Object?>{'text': 'ability', 'isCorrect': true},
+          <String, Object?>{'text': 'abality', 'isCorrect': false},
+          <String, Object?>{'text': 'abliity', 'isCorrect': false},
+        ],
+      },
+    );
+    // 合法会话已经拥有精确顺序，不应再读取长期缓存覆盖它。
+    const channel = MethodChannel('test/dictation_resume_exact_order');
+    var optionCacheCalls = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      optionCacheCalls += 1;
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final sessionStore = MemoryLearningSessionStore(<LearningSession>[session]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DictationPage(
+          words: _words.take(1).toList(),
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          initialSession: session,
+          sessionStore: sessionStore,
+          optionCacheStore: const DictationOptionCacheStore(channel: channel),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_visibleOptionTexts(tester), expectedOrder);
+    expect(optionCacheCalls, 0);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -979,6 +1173,22 @@ void _expectNoOptions(WidgetTester tester) {
   for (var index = 0; index < 4; index++) {
     expect(find.byKey(Key('dictation-option-$index')), findsNothing);
   }
+}
+
+///
+/// 按 A/B/C/D 的页面顺序读取当前四个候选文本。
+///
+/// @param  WidgetTester  tester
+/// @return `List<String>` 四个候选的可见文本。
+///
+List<String> _visibleOptionTexts(WidgetTester tester) {
+  // 文本组件拥有固定下标 Key，因此不受页面其他重复文字或语义节点影响。
+  return <String>[
+    for (var index = 0; index < 4; index += 1)
+      tester
+          .widget<Text>(find.byKey(Key('dictation-option-label-$index')))
+          .data!,
+  ];
 }
 
 ///

@@ -516,7 +516,13 @@ class _DictationPageState extends State<DictationPage> {
       final correctOptions = restored
           .where((option) => option.isCorrect)
           .toList();
+      // 四个显示文本按去空格和忽略英文大小写判重，历史坏快照不能绕过去重规则。
+      final normalizedOptionTexts = restored
+          .map((option) => option.text.trim().toLowerCase())
+          .where((text) => text.isNotEmpty)
+          .toSet();
       if (restored.length == 4 &&
+          normalizedOptionTexts.length == 4 &&
           correctOptions.length == 1 &&
           correctOptions.single.text == _currentCorrectAnswer) {
         _options = List<DictationOption>.unmodifiable(restored);
@@ -640,37 +646,79 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   ///
-  /// 用指定干扰项组装一个正确答案和三个干扰答案，并打乱显示位置。
+  /// 用指定干扰项和正确答案位置组装完整四选一。
   ///
   /// @param  `List<String>?`  distractors 可复用的固定干扰项；为空时现场生成。
+  /// @param  int?  correctIndex 正确答案的固定下标；为空时只在首次生成时随机一次。
   /// @return `List<DictationOption>` 一个正确项加三个干扰项的只读列表。
   ///
-  List<DictationOption> _buildOptions({List<String>? distractors}) {
+  List<DictationOption> _buildOptions({
+    List<String>? distractors,
+    int? correctIndex,
+  }) {
     // 未传缓存时同步生成，确保页面首帧已经有完整四选一。
     final resolvedDistractors = distractors ?? _generateCurrentDistractors();
     // 候选生成器固定返回三个唯一干扰项，并优先使用同长度与相似度规则。
-    // 正确项与三个干扰项组成始终固定的四选一列表。
+    // 先保持三个干扰项的缓存顺序，稍后再把正确答案插入其固定位置。
     final options = <DictationOption>[
-      DictationOption(text: _currentCorrectAnswer, isCorrect: true),
       for (final distractor in resolvedDistractors.take(3))
         DictationOption(text: distractor, isCorrect: false),
     ];
-    // 使用页面内的固定种子随机源打乱位置，同一正确答案不会总出现在同一行。
-    options.shuffle(_random);
+    // 没有历史位置表示首次生成，用随机位置避免所有正确答案总在同一行。
+    final resolvedCorrectIndex =
+        correctIndex ?? _random.nextInt(options.length + 1);
+    // 缓存读取前已经校验范围；这里仍用 clamp 防止未来其他调用传入坏下标。
+    final safeCorrectIndex = resolvedCorrectIndex
+        .clamp(0, options.length)
+        .toInt();
+    // 正确答案文本永远取当前模型，只把位置作为缓存的一部分长期复用。
+    options.insert(
+      safeCorrectIndex,
+      DictationOption(text: _currentCorrectAnswer, isCorrect: true),
+    );
     // 再次冻结列表，状态层只在进入下一小题时整体替换它。
     return List<DictationOption>.unmodifiable(options);
   }
 
   ///
+  /// 从当前四个可见候选提取可持久化的三个干扰项和正确答案位置。
+  ///
+  /// @param  `List<DictationOption>`  options 当前完整四选一。
+  /// @return DictationOptionCacheEntry 可直接写入 SQLite 的缓存数据。
+  ///
+  DictationOptionCacheEntry _cacheEntryFromOptions(
+    List<DictationOption> options,
+  ) {
+    // 标准列表只有一个正确项；若未来调用给出坏数据，indexWhere 的 -1 会被 Store 拒绝。
+    final correctIndex = options.indexWhere((option) => option.isCorrect);
+    // 移除正确答案后，三个干扰项仍保持它们在页面上的相对顺序。
+    final distractors = options
+        .where((option) => !option.isCorrect)
+        .map((option) => option.text)
+        .toList(growable: false);
+    return DictationOptionCacheEntry(
+      distractors: List<String>.unmodifiable(distractors),
+      correctIndex: correctIndex,
+    );
+  }
+
+  ///
   /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
   ///
-  /// @param  `List<String>`  distractors 缓存中的三个干扰项。
+  /// @param  DictationOptionCacheEntry  cache 缓存中的三个干扰项和正确答案位置。
   /// @param  String  correct 当前小题正确答案。
   /// @return bool 候选数量、唯一性和排除正确答案是否全部有效。
   ///
-  bool _isValidCachedDistractors(List<String> distractors, String correct) {
+  bool _isValidCachedOptions(DictationOptionCacheEntry cache, String correct) {
+    // 取出三个干扰项，下面统一执行数量和文本检查。
+    final distractors = cache.distractors;
     // 必须精确三项，否则继续使用页面已经同步生成的标准结果。
     if (distractors.length != 3) return false;
+    // null 只允许表示旧版本缓存；已有位置必须严格处于四个按钮范围内。
+    final correctIndex = cache.correctIndex;
+    if (correctIndex != null && (correctIndex < 0 || correctIndex >= 4)) {
+      return false;
+    }
     // 英文忽略大小写，中文转换后不受影响；同时排除正确答案与重复项。
     final normalizedCorrect = correct.trim().toLowerCase();
     final normalized = distractors
@@ -691,32 +739,44 @@ class _DictationPageState extends State<DictationPage> {
     final cacheKey = _currentOptionCacheKey;
     final correct = _currentCorrectAnswer;
     final wordId = _currentWord.id;
-    final generatedDistractors = _options
-        .where((option) => !option.isCorrect)
-        .map((option) => option.text)
-        .toList(growable: false);
+    // 首帧同步生成的数据已经包含完整顺序，缓存缺失或旧缓存升级时可以直接保存。
+    final generatedCache = _cacheEntryFromOptions(_options);
     try {
-      // 从原生 SQLite 查询这道题以前使用过的干扰项。
-      final cachedDistractors = await _optionCacheStore.getDistractors(
-        cacheKey,
-      );
+      // 从原生 SQLite 查询这道题以前使用过的候选名字和正确答案位置。
+      final cachedOptions = await _optionCacheStore.getOptions(cacheKey);
       // 命中合法缓存时，只允许仍处于同一小题的请求更新页面。
-      if (cachedDistractors != null &&
-          _isValidCachedDistractors(cachedDistractors, correct)) {
+      if (cachedOptions != null &&
+          _isValidCachedOptions(cachedOptions, correct)) {
         if (!mounted || generation != _optionLoadGeneration) return;
+        // 版本 8 之前只保存三个名字；沿用当前首帧位置并在本次读取后补存。
+        final resolvedCorrectIndex =
+            cachedOptions.correctIndex ?? generatedCache.correctIndex!;
         setState(() {
-          // 正确答案继续取最新模型，仅把三个干扰项换成缓存值。
-          _options = _buildOptions(distractors: cachedDistractors);
+          // 正确答案继续取最新模型，其余名字和四个按钮位置全部按缓存恢复。
+          _options = _buildOptions(
+            distractors: cachedOptions.distractors,
+            correctIndex: resolvedCorrectIndex,
+          );
         });
         // 候选顺序属于可恢复状态，缓存替换后同步保存当前页面快照。
         unawaited(_persistSession());
+        // 旧缓存缺少正确答案位置时原地升级；三个已有干扰项不会改变。
+        if (cachedOptions.correctIndex == null) {
+          await _optionCacheStore.saveOptions(
+            cacheKey: cacheKey,
+            wordId: wordId,
+            distractors: cachedOptions.distractors,
+            correctIndex: resolvedCorrectIndex,
+          );
+        }
         return;
       }
-      // 没有缓存或缓存损坏时，保存首帧已经显示的三个生成结果。
-      await _optionCacheStore.saveDistractors(
+      // 没有缓存或缓存损坏时，保存首帧已经显示的名字和完整位置。
+      await _optionCacheStore.saveOptions(
         cacheKey: cacheKey,
         wordId: wordId,
-        distractors: generatedDistractors,
+        distractors: generatedCache.distractors,
+        correctIndex: generatedCache.correctIndex!,
       );
     } catch (error) {
       // 缓存是体验增强，不应因原生通道异常阻断答题；保留同步生成结果即可。
@@ -1075,14 +1135,12 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   ///
-  /// 把长按刷新后的三个干扰项覆盖进当前小题缓存。
+  /// 把长按刷新后的候选名字和完整顺序覆盖进当前小题缓存。
   ///
   /// @param  String  cacheKey 当前小题的稳定缓存键。
   /// @param  int?  wordId 当前单词主键。
-  /// @param  `List<String>`  distractors 刷新后的三个干扰项。
-  /// @return `Future<void>` 缓存覆盖完成后的异步结果。
-  ///
   /// @param  `List<DictationOption>`  options
+  /// @return `Future<void>` 缓存覆盖完成后的异步结果。
   ///
   Future<void> _persistRefreshedOptions({
     required String cacheKey,
@@ -1090,15 +1148,13 @@ class _DictationPageState extends State<DictationPage> {
     required List<DictationOption> options,
   }) async {
     try {
-      // 正确答案不写缓存，只提取三个干扰项。
-      final distractors = options
-          .where((option) => !option.isCorrect)
-          .map((option) => option.text)
-          .toList(growable: false);
-      await _optionCacheStore.saveDistractors(
+      // 正确答案文本不写缓存，只保存三个干扰项和正确答案当前所在位置。
+      final cache = _cacheEntryFromOptions(options);
+      await _optionCacheStore.saveOptions(
         cacheKey: cacheKey,
         wordId: wordId,
-        distractors: distractors,
+        distractors: cache.distractors,
+        correctIndex: cache.correctIndex!,
       );
     } catch (error) {
       // 页面替换已经完成；记录错误并提示缓存失败，下次进入仍可继续正常答题。

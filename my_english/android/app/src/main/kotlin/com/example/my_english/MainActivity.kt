@@ -317,7 +317,7 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 读取一道默写题已经持久化的三个干扰项。
+                    // 读取一道默写题已经持久化的三个干扰项和正确答案位置。
                     "getDictationOptionCache" -> runDatabaseCall(result) {
                         // 缓存 key 必须是非空字符串。
                         val payload = call.arguments as? Map<*, *>
@@ -325,11 +325,11 @@ class MainActivity : FlutterActivity() {
                         val cacheKey = payload["cacheKey"]?.toString()?.trim()
                             ?.takeIf { it.isNotEmpty() }
                             ?: error("getDictationOptionCache 缺少有效 cacheKey")
-                        // null 表示首次生成，List<String> 表示命中缓存。
+                        // null 表示首次生成，Map 表示命中可还原完整四选一的缓存。
                         wordsDatabase.getDictationOptionCache(cacheKey)
                     }
 
-                    // 新增或覆盖一道默写题的干扰项缓存。
+                    // 新增或覆盖一道默写题的干扰项与正确答案位置缓存。
                     "saveDictationOptionCache" -> runDatabaseCall(result) {
                         // 读取 Dart Store 提交的 key、可空单词外键与文本数组。
                         val payload = call.arguments as? Map<*, *>
@@ -341,9 +341,20 @@ class MainActivity : FlutterActivity() {
                         val distractors = (payload["distractors"] as? List<*>)
                             ?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotEmpty) }
                             ?: error("saveDictationOptionCache 缺少 distractors")
-                        // 缓存至少要有一项；Dart 页面会进一步保证标准数量为三项。
-                        if (distractors.isEmpty()) error("saveDictationOptionCache 的 distractors 不能为空")
-                        wordsDatabase.saveDictationOptionCache(cacheKey, wordId, distractors)
+                        // 标准四选一只能有三个干扰项，原生入口也拒绝不完整数据。
+                        if (distractors.size != 3) {
+                            error("saveDictationOptionCache 的 distractors 必须恰好三项")
+                        }
+                        // correctIndex 表示正确答案所在的 A/B/C/D 位置。
+                        val correctIndex = (payload["correctIndex"] as? Number)?.toInt()
+                            ?.takeIf { it in 0..3 }
+                            ?: error("saveDictationOptionCache 缺少有效 correctIndex")
+                        wordsDatabase.saveDictationOptionCache(
+                            cacheKey,
+                            wordId,
+                            distractors,
+                            correctIndex,
+                        )
                         null
                     }
 

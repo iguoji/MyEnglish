@@ -33,7 +33,8 @@ class WordsDatabase(context: Context) :
         // 解决「库已升到某版本，但 record 表因历史升级路径缺失」导致写入静默失败的问题。
         // 版本 6 新增默写候选项缓存表，让每道拼写/释义题长期复用相同干扰项。
         // 版本 7 新增学习会话表，保存随身听和默写尚未完成的列表与页面进度。
-        private const val databaseVersion = 7
+        // 版本 8 为候选缓存增加正确答案位置，使四个候选的完整顺序可以长期恢复。
+        private const val databaseVersion = 8
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -94,6 +95,13 @@ class WordsDatabase(context: Context) :
         if (oldVersion < 7 && newVersion >= 7) {
             createLearningSessionTable(db)
         }
+        // 从版本 7 升到 8：保留原有三个干扰项，只增加可空的正确答案位置。
+        if (oldVersion < 8 && newVersion >= 8) {
+            // 先兜底创建缓存表，兼容历史版本号存在但辅助表意外缺失的数据库。
+            createDictationOptionCacheTable(db)
+            // 已有行的位置先保持 null，Dart 首次读取后会用当前位置补齐并覆盖保存。
+            ensureDictationOptionCorrectIndexColumn(db)
+        }
     }
 
     /**
@@ -110,6 +118,8 @@ class WordsDatabase(context: Context) :
         createRecordTable(db)
         // 同样兜底补建候选缓存表，覆盖任何历史升级遗漏。
         createDictationOptionCacheTable(db)
+        // CREATE TABLE IF NOT EXISTS 不会给旧表补字段，因此再单独确认版本 8 的位置列。
+        ensureDictationOptionCorrectIndexColumn(db)
         // 学习会话属于辅助数据，幂等补建可覆盖跨版本升级遗漏。
         createLearningSessionTable(db)
     }
@@ -843,17 +853,51 @@ class WordsDatabase(context: Context) :
 
     /** 创建默写候选项缓存表；一个 cache_key 对应一道具体拼写题或释义题。 */
     private fun createDictationOptionCacheTable(db: SQLiteDatabase) {
-        // 干扰项使用 JSON 数组保存，保持三个文本的顺序且无需拆成额外子表。
+        // 干扰项使用 JSON 数组保存；correct_index 记录正确答案插入三个干扰项的位置。
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS dictation_option_cache (
                 cache_key TEXT PRIMARY KEY,
                 word_id INTEGER NULL,
                 distractors_json TEXT NOT NULL,
+                correct_index INTEGER NULL CHECK (correct_index BETWEEN 0 AND 3),
                 updated_at INTEGER NOT NULL,
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
             )
             """.trimIndent(),
+        )
+    }
+
+    /**
+     * 为旧候选缓存表补上正确答案位置列。
+     *
+     * SQLite 的 CREATE TABLE IF NOT EXISTS 只会跳过已存在表，不会自动补新字段，
+     * 因此升级和打开数据库时都通过 PRAGMA 检查一次。这个操作只改表结构，旧候选
+     * 名字完整保留；null 位置会在 Dart 首次读取后自动写成 0～3 的实际下标。
+     */
+    private fun ensureDictationOptionCorrectIndexColumn(db: SQLiteDatabase) {
+        // PRAGMA table_info 返回表的全部字段定义，其中 name 列保存字段名。
+        val hasCorrectIndex = db.rawQuery(
+            "PRAGMA table_info(dictation_option_cache)",
+            null,
+        ).use { cursor ->
+            // 找到 name 列，逐行确认 correct_index 是否已经存在。
+            val nameColumn = cursor.getColumnIndexOrThrow("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameColumn) == "correct_index") {
+                    found = true
+                    break
+                }
+            }
+            found
+        }
+        // 新数据库已经由建表语句包含该字段，无需重复执行 ALTER TABLE。
+        if (hasCorrectIndex) return
+        // 可空字段兼容版本 6～7 的历史行；CHECK 阻止未来写入 0～3 之外的位置。
+        db.execSQL(
+            "ALTER TABLE dictation_option_cache " +
+                "ADD COLUMN correct_index INTEGER NULL CHECK (correct_index BETWEEN 0 AND 3)",
         )
     }
 
@@ -872,12 +916,12 @@ class WordsDatabase(context: Context) :
         )
     }
 
-    /** 按小题 key 读取干扰项；没有缓存时返回 null。 */
-    fun getDictationOptionCache(cacheKey: String): List<String>? {
+    /** 按小题 key 读取干扰项及正确答案位置；没有缓存时返回 null。 */
+    fun getDictationOptionCache(cacheKey: String): Map<String, Any?>? {
         // 精确查询主键，最多只会返回一行。
         readableDatabase.query(
             "dictation_option_cache",
-            arrayOf("distractors_json"),
+            arrayOf("distractors_json", "correct_index"),
             "cache_key = ?",
             arrayOf(cacheKey),
             null,
@@ -889,18 +933,37 @@ class WordsDatabase(context: Context) :
             if (!cursor.moveToFirst()) return null
             // 把 JSON 数组还原成 MethodChannel 可直接传输的字符串列表。
             val json = JSONArray(cursor.getString(cursor.getColumnIndexOrThrow("distractors_json")))
-            return List(json.length()) { index -> json.getString(index) }
+            val distractors = List(json.length()) { index -> json.getString(index) }
+            // 版本 8 之前的历史缓存没有位置，数据库升级后该字段为 null。
+            val correctIndexColumn = cursor.getColumnIndexOrThrow("correct_index")
+            val correctIndex = if (cursor.isNull(correctIndexColumn)) {
+                null
+            } else {
+                cursor.getInt(correctIndexColumn)
+            }
+            // Map 可由 MethodChannel 直接传给 Dart，并为以后扩展缓存字段保留空间。
+            return mapOf(
+                "distractors" to distractors,
+                "correctIndex" to correctIndex,
+            )
         }
     }
 
-    /** 新增或覆盖一道题的干扰项缓存。 */
-    fun saveDictationOptionCache(cacheKey: String, wordId: Long?, distractors: List<String>) {
+    /** 新增或覆盖一道题的干扰项和正确答案位置。 */
+    fun saveDictationOptionCache(
+        cacheKey: String,
+        wordId: Long?,
+        distractors: List<String>,
+        correctIndex: Int,
+    ) {
         // ContentValues 对应缓存表的一整行。
         val values = ContentValues().apply {
             put("cache_key", cacheKey)
             // putNull 与可空外键匹配，主要兼容尚未落库的开发测试数据。
             if (wordId == null) putNull("word_id") else put("word_id", wordId)
             put("distractors_json", JSONArray(distractors).toString())
+            // 正确答案位置与干扰项一起覆盖，完整代表用户最后看到的四个按钮顺序。
+            put("correct_index", correctIndex)
             put("updated_at", System.currentTimeMillis())
         }
         // PRIMARY KEY 冲突时整体替换，长按刷新可用一次写入覆盖旧数组。
