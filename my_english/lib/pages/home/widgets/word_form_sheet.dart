@@ -42,6 +42,13 @@ const List<String> _kPosOptions = <String>[
 ];
 
 ///
+/// 词性、含义标签与含义输入框之间的统一纵向距离。
+///
+/// @var double
+///
+const double _kMeaningContentGap = 8;
+
+///
 /// 表单提交结果：首页据此调用 WordStore 创建或更新。
 ///
 class WordFormResult {
@@ -659,12 +666,19 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       children: [
         _FormLabel(text: '单词', color: tokens.textSecondary),
         const SizedBox(height: 7),
-        SizedBox(
+        Container(
+          key: const Key('form-spelling-input'),
           height: 44,
+          decoration: BoxDecoration(
+            // 与分组控件共用相同高度的外层下边线，避免 TextField 自身布局造成错位。
+            border: Border(bottom: BorderSide(color: tokens.inputBorder)),
+          ),
           child: TextField(
             key: const Key('form-spelling'),
             controller: _spelling,
             onChanged: (value) => setState(() {}),
+            // 单词只能输入一行，外层容器负责统一 44 像素高度。
+            maxLines: 1,
             textAlignVertical: TextAlignVertical.center,
             style: TextStyle(color: tokens.text, fontSize: 15, height: 1.2),
             decoration: InputDecoration(
@@ -678,14 +692,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
               filled: true,
               fillColor: tokens.card,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              // 普通状态只绘制下边线，不再显示左右边框和圆角。
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: tokens.inputBorder),
-              ),
-              // 聚焦后仍只保留下边线，并使用主题主色提示当前输入位置。
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: AppTokens.accent),
-              ),
+              // 边线交给外层固定高度容器绘制，输入框本身不再改变实际线条位置。
+              border: InputBorder.none,
             ),
           ),
         ),
@@ -714,21 +722,77 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(TablerIcons.plus, size: 17, color: tokens.textSecondary),
-                const SizedBox(width: 7),
-                Text(
-                  '添加一组词性与含义',
-                  style: TextStyle(
-                    color: tokens.textSecondary,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w500,
-                  ),
+            child: Center(
+              // WidgetSpan 按文字中线放置加号，避免图标盒与字体基线不同造成视觉错位。
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 7),
+                        child: Icon(
+                          TablerIcons.plus,
+                          key: const Key('add-meaning-icon'),
+                          size: 17,
+                          color: tokens.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const TextSpan(text: '添加一组词性与含义'),
+                  ],
                 ),
-              ],
+                key: const Key('add-meaning-label'),
+                style: TextStyle(
+                  color: tokens.textSecondary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  ///
+  /// 删除指定的词性与含义组。
+  ///
+  /// @param  int  index
+  /// @return void
+  ///
+  void _removeMeaning(int index) {
+    setState(() {
+      // 先删除对应的数据草稿。
+      _meanings.removeAt(index);
+      // 再释放并删除同位置的输入控制器，保持两个列表始终一一对应。
+      _draftControllers.removeAt(index).dispose();
+    });
+  }
+
+  ///
+  /// 构建不会撑高词性行的固定尺寸删除按钮。
+  ///
+  /// @param  int  index
+  /// @return Widget
+  ///
+  Widget _buildMeaningDeleteButton(int index) {
+    return Tooltip(
+      message: '删除词性',
+      child: Semantics(
+        button: true,
+        label: '删除第 ${index + 1} 组词性与含义',
+        child: InkWell(
+          key: Key('meaning-delete-$index'),
+          onTap: () => _removeMeaning(index),
+          borderRadius: BorderRadius.circular(6),
+          child: const SizedBox(
+            width: 30,
+            height: 30,
+            child: Icon(TablerIcons.trash, size: 17, color: AppTokens.danger),
           ),
         ),
       ),
@@ -831,47 +895,39 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 第一行：词性单选横向滑动区 + 删除块按钮。
-          Row(
-            children: [
-              // 词性单选区：占满剩余宽度，可横向滑动。
-              Expanded(
-                child: _PosSelector(
-                  tokens: tokens,
-                  // 当前选中的词性；空字符串表示未选。
-                  selected: meaning.pos,
-                  // 点击词性：再次点击已选项则取消选择(置空)，否则选中。
-                  onSelect: (pos) => setState(() {
-                    meaning.pos = meaning.pos == pos ? '' : pos;
-                  }),
-                ),
-              ),
-              // 只剩一个块时保留必需的基础录入区，不显示删除动作。
-              if (_meanings.length > 1)
-                IconButton(
-                  key: Key('meaning-delete-$index'),
-                  onPressed: () => setState(() {
-                    _meanings.removeAt(index);
-                    _draftControllers.removeAt(index).dispose();
-                  }),
-                  icon: const Icon(
-                    TablerIcons.trash,
-                    size: 17,
-                    color: AppTokens.danger,
+          // 第一行固定为 30 高，删除图标出现与否都不会改变上下位置。
+          SizedBox(
+            key: Key('meaning-pos-row-$index'),
+            height: 30,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 词性单选区：占满剩余宽度，可横向滑动。
+                Expanded(
+                  child: _PosSelector(
+                    tokens: tokens,
+                    // 当前选中的词性；空字符串表示未选。
+                    selected: meaning.pos,
+                    // 点击词性：再次点击已选项则取消选择(置空)，否则选中。
+                    onSelect: (pos) => setState(() {
+                      meaning.pos = meaning.pos == pos ? '' : pos;
+                    }),
                   ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 28,
-                  ),
-                  tooltip: '删除词性',
                 ),
-            ],
+                // 只剩一个块时保留必需的基础录入区，不显示删除动作。
+                if (_meanings.length > 1) ...[
+                  const SizedBox(width: 8),
+                  _buildMeaningDeleteButton(index),
+                ],
+              ],
+            ),
           ),
+          // 词性行与下一项始终保持统一距离。
+          const SizedBox(height: _kMeaningContentGap),
           // 已确认释义标签区域。
           if (meaning.defs.isNotEmpty) ...[
-            const SizedBox(height: 8),
             Wrap(
+              key: Key('meaning-tags-$index'),
               spacing: 6,
               runSpacing: 6,
               children: [
@@ -916,10 +972,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   ),
               ],
             ),
+            // 含义标签与输入框使用同一纵向距离。
+            const SizedBox(height: _kMeaningContentGap),
           ],
-          const SizedBox(height: 8),
           // 释义草稿输入 + 添加按钮的组合行。
           Container(
+            key: Key('meaning-input-$index'),
             height: 36,
             decoration: BoxDecoration(
               border: Border.all(color: tokens.inputBorder),
@@ -1003,7 +1061,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
 /// 词性单选横向滑动区。
 ///
 /// 按 [_kPosOptions] 顺序横向排列所有词性选项，点击即选中；
-/// 选中项使用主色描边+主色文字，未选中项使用普通边框+次要文字。
+/// 选中项使用实心主题主色与高对比文字，未选中项使用普通边框与次要文字。
 /// 区域可横向滑动，避免词性过多时溢出。
 ///
 class _PosSelector extends StatelessWidget {

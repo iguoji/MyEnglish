@@ -1134,20 +1134,44 @@ void main() {
       expect(groupBorder.right.style, BorderStyle.none);
       expect(groupBorder.bottom.style, BorderStyle.solid);
       expect(groupDecoration.borderRadius, isNull);
+      final spellingInputContainer = tester.widget<Container>(
+        find.byKey(const Key('form-spelling-input')),
+      );
+      final spellingDecoration =
+          spellingInputContainer.decoration! as BoxDecoration;
+      final spellingBorder = spellingDecoration.border! as Border;
+      expect(spellingBorder.top.style, BorderStyle.none);
+      expect(spellingBorder.left.style, BorderStyle.none);
+      expect(spellingBorder.right.style, BorderStyle.none);
+      expect(spellingBorder.bottom.style, BorderStyle.solid);
       final spellingInput = tester.widget<TextField>(
         find.byKey(const Key('form-spelling')),
       );
-      expect(
-        spellingInput.decoration!.enabledBorder,
-        isA<UnderlineInputBorder>(),
+      expect(spellingInput.decoration!.border, InputBorder.none);
+      // 两个字段由同样的 44 像素外层绘制底线，因此顶部、底部和高度完全相同。
+      final groupInputRect = tester.getRect(
+        find.byKey(const Key('form-group-input')),
       );
-      expect(
-        spellingInput.decoration!.focusedBorder,
-        isA<UnderlineInputBorder>(),
+      final spellingInputRect = tester.getRect(
+        find.byKey(const Key('form-spelling-input')),
       );
+      expect(groupInputRect.height, 44);
+      expect(spellingInputRect.height, groupInputRect.height);
+      expect(spellingInputRect.top, closeTo(groupInputRect.top, 0.1));
+      expect(spellingInputRect.bottom, closeTo(groupInputRect.bottom, 0.1));
       // 顶部关闭按钮和底部三个新增模式按钮均存在。
       expect(find.byKey(const Key('form-close')), findsOneWidget);
       expect(find.text('提交并继续'), findsOneWidget);
+
+      // 虚线新增按钮使用行内图标，并明确按文字中线对齐。
+      final addMeaningLabel = tester.widget<Text>(
+        find.byKey(const Key('add-meaning-label')),
+      );
+      final addMeaningTextSpan = addMeaningLabel.textSpan! as TextSpan;
+      final addMeaningIconSpan =
+          addMeaningTextSpan.children!.first as WidgetSpan;
+      expect(addMeaningIconSpan.alignment, PlaceholderAlignment.middle);
+      expect(find.byKey(const Key('add-meaning-icon')), findsOneWidget);
 
       // 词性上下留白减少后为 30 高，左右留白为 16；选中后使用实心 primary。
       await tester.tap(find.text('n.'));
@@ -1160,6 +1184,20 @@ void main() {
         tester.element(nounChipFinder),
       ).colorScheme.primary;
       expect((nounChip.decoration! as BoxDecoration).color, primaryColor);
+      // 默认状态下词性行固定贴着卡片 20 像素内边距，输入框与词性相距 8 像素。
+      final defaultMeaningCardRect = tester.getRect(
+        find.byKey(const Key('meaning-card-0')),
+      );
+      final defaultPosRowRect = tester.getRect(
+        find.byKey(const Key('meaning-pos-row-0')),
+      );
+      final defaultMeaningInputRect = tester.getRect(
+        find.byKey(const Key('meaning-input-0')),
+      );
+      // 卡片自身有 1 像素边框；扣除边框后，实际内边距正好为 20。
+      expect(defaultPosRowRect.top - defaultMeaningCardRect.top - 1, 20);
+      expect(defaultPosRowRect.height, 30);
+      expect(defaultMeaningInputRect.top - defaultPosRowRect.bottom, 8);
 
       // 输入并确认一条含义，生成的标签使用 Azure 浅色背景。
       await tester.enterText(find.byKey(const Key('meaning-draft-0')), '新的含义');
@@ -1172,10 +1210,40 @@ void main() {
         (meaningTag.decoration! as BoxDecoration).color,
         const Color(0x1A45AAF2),
       );
+      // 添加含义后，词性到标签、标签到输入框都保持相同的 8 像素距离。
+      final meaningTagsRect = tester.getRect(
+        find.byKey(const Key('meaning-tags-0')),
+      );
+      final taggedMeaningInputRect = tester.getRect(
+        find.byKey(const Key('meaning-input-0')),
+      );
+      expect(meaningTagsRect.top - defaultPosRowRect.bottom, 8);
+      expect(taggedMeaningInputRect.top - meaningTagsRect.bottom, 8);
       // 添加第二组后，两组都显示 Tabler 垃圾桶；删除后保留一个基础组。
       await tester.tap(find.byKey(const Key('add-meaning')));
       await tester.pump();
       expect(find.byIcon(TablerIcons.trash), findsNWidgets(2));
+      // 删除按钮固定为 30 高，不会撑高词性行或改变卡片顶部及输入框间距。
+      for (var index = 0; index < 2; index += 1) {
+        final cardRect = tester.getRect(find.byKey(Key('meaning-card-$index')));
+        final posRowRect = tester.getRect(
+          find.byKey(Key('meaning-pos-row-$index')),
+        );
+        final deleteRect = tester.getRect(
+          find.byKey(Key('meaning-delete-$index')),
+        );
+        expect(posRowRect.top - cardRect.top - 1, 20);
+        expect(posRowRect.height, 30);
+        expect(deleteRect.top, closeTo(posRowRect.top, 0.1));
+        expect(deleteRect.bottom, closeTo(posRowRect.bottom, 0.1));
+      }
+      final secondPosRowRect = tester.getRect(
+        find.byKey(const Key('meaning-pos-row-1')),
+      );
+      final secondMeaningInputRect = tester.getRect(
+        find.byKey(const Key('meaning-input-1')),
+      );
+      expect(secondMeaningInputRect.top - secondPosRowRect.bottom, 8);
       await tester.tap(find.byKey(const Key('meaning-delete-1')));
       await tester.pump();
       expect(find.byIcon(TablerIcons.trash), findsNothing);
