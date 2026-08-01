@@ -486,7 +486,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       ),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        // 标题文字与右侧 40 像素关闭按钮沿同一条水平中线排列。
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // 标题占据关闭按钮之外的剩余宽度。
           Expanded(
