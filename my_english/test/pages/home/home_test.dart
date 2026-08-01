@@ -1164,7 +1164,7 @@ void main() {
       expect(spellingInputRect.height, groupInputRect.height);
       expect(spellingInputRect.top, closeTo(groupInputRect.top, 0.1));
       expect(spellingInputRect.bottom, closeTo(groupInputRect.bottom, 0.1));
-      // 输入真实文字后，其编辑区域中心必须和左侧“未分组”文字中心保持一致。
+      // 输入真实文字后，它必须与对应 Label 左对齐，并和“未分组”文字垂直居中。
       await tester.enterText(find.byKey(const Key('form-spelling')), 'align');
       await tester.pump();
       final spellingEditable = find.descendant(
@@ -1175,9 +1175,25 @@ void main() {
         of: find.byKey(const Key('form-group-input')),
         matching: find.text('未分组'),
       );
+      final groupLabel = find.descendant(
+        of: find.byKey(const Key('form-group-field')),
+        matching: find.text('分组'),
+      );
+      final spellingLabel = find.descendant(
+        of: find.byKey(const Key('form-spelling-field')),
+        matching: find.text('单词'),
+      );
       expect(
         tester.getCenter(spellingEditable).dy,
         closeTo(tester.getCenter(groupValue).dy, 0.5),
+      );
+      expect(
+        tester.getTopLeft(groupValue).dx,
+        closeTo(tester.getTopLeft(groupLabel).dx, 0.1),
+      );
+      expect(
+        tester.getTopLeft(spellingEditable).dx,
+        closeTo(tester.getTopLeft(spellingLabel).dx, 0.1),
       );
       // 顶部关闭按钮和底部三个新增模式按钮均存在。
       expect(find.byKey(const Key('form-close')), findsOneWidget);
@@ -1193,9 +1209,7 @@ void main() {
       expect(addMeaningIconSpan.alignment, PlaceholderAlignment.middle);
       expect(find.byKey(const Key('add-meaning-icon')), findsOneWidget);
 
-      // 词性上下留白减少后为 30 高，左右留白为 16；选中后使用实心 primary。
-      await tester.tap(find.text('n.'));
-      await tester.pump();
+      // 新建词性组默认选中 n.，选中项使用实心 primary。
       final nounChipFinder = find.byKey(const Key('pos-chip-n.'));
       final nounChip = tester.widget<Container>(nounChipFinder);
       expect(tester.getSize(nounChipFinder).height, 30);
@@ -1204,7 +1218,7 @@ void main() {
         tester.element(nounChipFinder),
       ).colorScheme.primary;
       expect((nounChip.decoration! as BoxDecoration).color, primaryColor);
-      // 默认状态下词性行固定贴着卡片 20 像素内边距，输入框与词性相距 20 像素。
+      // 默认状态下词性行固定贴着卡片 20 像素内边距，输入框与词性相距 10 像素。
       final defaultMeaningCardRect = tester.getRect(
         find.byKey(const Key('meaning-card-0')),
       );
@@ -1217,7 +1231,7 @@ void main() {
       // 卡片自身有 1 像素边框；扣除边框后，实际内边距正好为 20。
       expect(defaultPosRowRect.top - defaultMeaningCardRect.top - 1, 20);
       expect(defaultPosRowRect.height, 30);
-      expect(defaultMeaningInputRect.top - defaultPosRowRect.bottom, 20);
+      expect(defaultMeaningInputRect.top - defaultPosRowRect.bottom, 10);
 
       // 输入并确认一条含义，生成的标签使用 Azure 浅色背景。
       await tester.enterText(find.byKey(const Key('meaning-draft-0')), '新的含义');
@@ -1230,15 +1244,15 @@ void main() {
         (meaningTag.decoration! as BoxDecoration).color,
         const Color(0x1A45AAF2),
       );
-      // 添加含义后，词性到标签、标签到输入框都保持相同的 20 像素距离。
+      // 添加含义后，词性到标签、标签到输入框都保持相同的 10 像素距离。
       final meaningTagsRect = tester.getRect(
         find.byKey(const Key('meaning-tags-0')),
       );
       final taggedMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-0')),
       );
-      expect(meaningTagsRect.top - defaultPosRowRect.bottom, 20);
-      expect(taggedMeaningInputRect.top - meaningTagsRect.bottom, 20);
+      expect(meaningTagsRect.top - defaultPosRowRect.bottom, 10);
+      expect(taggedMeaningInputRect.top - meaningTagsRect.bottom, 10);
       // 添加第二组后，两组都显示 Tabler 垃圾桶；删除后保留一个基础组。
       await tester.tap(find.byKey(const Key('add-meaning')));
       await tester.pump();
@@ -1263,7 +1277,7 @@ void main() {
       final secondMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-1')),
       );
-      expect(secondMeaningInputRect.top - secondPosRowRect.bottom, 20);
+      expect(secondMeaningInputRect.top - secondPosRowRect.bottom, 10);
       await tester.tap(find.byKey(const Key('meaning-delete-1')));
       await tester.pump();
       expect(find.byIcon(TablerIcons.trash), findsNothing);

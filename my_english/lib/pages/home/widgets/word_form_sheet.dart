@@ -46,7 +46,7 @@ const List<String> _kPosOptions = <String>[
 ///
 /// @var double
 ///
-const double _kMeaningContentGap = 20;
+const double _kMeaningContentGap = 10;
 
 ///
 /// 表单提交结果：首页据此调用 WordStore 创建或更新。
@@ -182,7 +182,7 @@ class _MeaningDraft {
   /// @param  String  pos
   /// @param  `List<String>?`  defs
   ///
-  _MeaningDraft({this.pos = '', List<String>? defs})
+  _MeaningDraft({this.pos = 'n.', List<String>? defs})
     : defs = defs ?? <String>[];
 
   ///
@@ -618,7 +618,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           child: Container(
             key: const Key('form-group-input'),
             height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 11),
+            // 左侧不再二次缩进，使分组值与上方 Label 共用同一条对齐线。
+            padding: const EdgeInsets.only(right: 11),
             decoration: BoxDecoration(
               color: tokens.card,
               // 分组控件只保留下边线，与右侧单词输入框使用相同结构。
@@ -673,9 +674,9 @@ class _WordFormSheetState extends State<_WordFormSheet> {
             // 与分组控件共用相同高度的外层下边线，避免 TextField 自身布局造成错位。
             border: Border(bottom: BorderSide(color: tokens.inputBorder)),
           ),
-          // 横向留白与左侧分组字段接近，纵向位置交给 Align 精确居中。
+          // 左侧不再二次缩进；右侧保留输入余量，纵向位置交给 Align 精确居中。
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.only(right: 12),
             child: Align(
               key: const Key('form-spelling-alignment'),
               alignment: Alignment.center,
