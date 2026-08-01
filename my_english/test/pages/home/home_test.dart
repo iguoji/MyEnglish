@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 // 引入 Tabler 图标，用于按图标断言页脚图标项存在。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
+// 引入页面设计令牌，核对全屏表单三段区域的实际背景色。
+import 'package:my_english/common/theme.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
@@ -964,7 +966,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证左滑露出"修改/删除"，删除需二次确认后生效。
+  // 验证左滑露出"修改/删除"，编辑使用全屏表单，删除需二次确认后生效。
   testWidgets('swipe left reveals actions and delete needs confirmation', (
     tester,
   ) async {
@@ -972,6 +974,20 @@ void main() {
     await _pumpHome(tester);
 
     // 在 ability 行上向左拖动超过阈值。
+    await tester.drag(find.text('ability'), const Offset(-80, 0));
+    await tester.pumpAndSettle();
+    // 编辑模式显示“编辑单词”和“保存”，不出现新增模式专用的“提交并继续”。
+    await tester.tap(find.byKey(const Key('swipe-edit')).first);
+    await tester.pumpAndSettle();
+    expect(find.text('编辑单词'), findsOneWidget);
+    expect(find.text('保存'), findsOneWidget);
+    expect(find.byKey(const Key('form-submit-continue')), findsNothing);
+    // 取消编辑后返回首页，原单词仍然存在。
+    await tester.tap(find.byKey(const Key('form-cancel')));
+    await tester.pumpAndSettle();
+    expect(find.text('ability'), findsOneWidget);
+
+    // 再次左滑，继续验证删除操作。
     await tester.drag(find.text('ability'), const Offset(-80, 0));
     await tester.pumpAndSettle();
     // 点击删除操作（每行都有同名 key，取第一行 ability 的那个）。
@@ -1023,6 +1039,164 @@ void main() {
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  // 验证单词表单采用全屏三段布局，并使用新版词性与含义样式。
+  testWidgets(
+    'word form uses full screen sections and refreshed meaning styles',
+    (tester) async {
+      // 打开首页和添加单词表单。
+      await _pumpHome(tester);
+      await tester.tap(find.byKey(const Key('open-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('drawer-add-word')));
+      await tester.pumpAndSettle();
+
+      // 顶部、中部、底部必须连续占满整个可用高度，中间不存在悬空间隙。
+      final headerRect = tester.getRect(
+        find.byKey(const Key('word-form-header')),
+      );
+      final bodyRect = tester.getRect(find.byKey(const Key('word-form-body')));
+      final footerRect = tester.getRect(
+        find.byKey(const Key('word-form-footer')),
+      );
+      expect(headerRect.top, closeTo(0, 0.1));
+      expect(headerRect.bottom, closeTo(bodyRect.top, 0.1));
+      expect(bodyRect.bottom, closeTo(footerRect.top, 0.1));
+      final logicalHeight =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio;
+      expect(footerRect.bottom, closeTo(logicalHeight, 0.1));
+      // 中间区域使用首页 page 背景，第一张表单卡使用 card 背景。
+      expect(
+        tester
+            .widget<ColoredBox>(find.byKey(const Key('word-form-body')))
+            .color,
+        AppTokens.light.page,
+      );
+      final primaryCard = tester.widget<Container>(
+        find.byKey(const Key('word-form-primary-card')),
+      );
+      expect(
+        (primaryCard.decoration! as BoxDecoration).color,
+        AppTokens.light.card,
+      );
+      // 分组约占 40%，单词约占 60%，两个 Label 均位于独立字段上方。
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('form-group-field')),
+          matching: find.text('分组'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('form-spelling-field')),
+          matching: find.text('单词'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('form-group-field'))).width,
+        lessThan(
+          tester.getSize(find.byKey(const Key('form-spelling-field'))).width,
+        ),
+      );
+      // 顶部关闭按钮和底部三个新增模式按钮均存在。
+      expect(find.byKey(const Key('form-close')), findsOneWidget);
+      expect(find.text('提交并继续'), findsOneWidget);
+
+      // 输入并确认一条含义，生成的标签使用 Azure 浅色背景。
+      await tester.enterText(find.byKey(const Key('meaning-draft-0')), '新的含义');
+      await tester.tap(find.byKey(const Key('meaning-add-0')));
+      await tester.pump();
+      final meaningTag = tester.widget<Container>(
+        find.byKey(const Key('meaning-tag-0-0')),
+      );
+      expect(
+        (meaningTag.decoration! as BoxDecoration).color,
+        const Color(0x1A45AAF2),
+      );
+      // 添加第二组后，两组都显示 Tabler 垃圾桶；删除后保留一个基础组。
+      await tester.tap(find.byKey(const Key('add-meaning')));
+      await tester.pump();
+      expect(find.byIcon(TablerIcons.trash), findsNWidgets(2));
+      await tester.tap(find.byKey(const Key('meaning-delete-1')));
+      await tester.pump();
+      expect(find.byIcon(TablerIcons.trash), findsNothing);
+
+      // 清理页面。
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  // 验证关闭图标和向下拖动都能退出全屏单词表单。
+  testWidgets('word form closes from header button and downward drag', (
+    tester,
+  ) async {
+    // 第一次通过右上角 Tabler X 关闭。
+    await _pumpHome(tester);
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('drawer-add-word')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('form-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('word-form-header')), findsNothing);
+
+    // 再次打开，通过用户确认保留的向下拖动手势关闭。
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('drawer-add-word')));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('word-form-header')),
+      const Offset(0, 500),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('word-form-header')), findsNothing);
+
+    // 清理页面。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证窄屏、大字体和键盘同时出现时，固定操作栏不会被遮挡或溢出。
+  testWidgets(
+    'word form keeps actions visible above keyboard on narrow screens',
+    (tester) async {
+      // 先模拟 320×600 的窄屏手机；字体放大留到表单打开后，避免把旧抽屉算入本用例。
+      tester.view.physicalSize = const Size(320, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      addTearDown(tester.view.resetViewInsets);
+
+      // 打开表单并聚焦单词输入框。
+      await _pumpHome(tester);
+      await tester.tap(find.byKey(const Key('open-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('drawer-add-word')));
+      await tester.pumpAndSettle();
+      // 表单已经打开后再模拟两倍系统字体，本用例只检查新版全屏表单。
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('form-spelling')));
+      await tester.pump();
+      // 用 220 像素底部遮挡模拟软键盘。
+      tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+      await tester.pumpAndSettle();
+
+      // 底部操作栏必须整体位于键盘顶边之上，且布局没有抛出溢出异常。
+      final footerBottom = tester
+          .getRect(find.byKey(const Key('word-form-footer')))
+          .bottom;
+      expect(footerBottom, lessThanOrEqualTo(380.1));
+      expect(find.byKey(const Key('form-submit-continue')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // 清理页面。
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   // 验证新版“学习”主按钮可以展开两个入口并显示目标数量。
   testWidgets('learning fab expands actions with target word count', (

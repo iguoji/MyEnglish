@@ -90,7 +90,7 @@ class WordFormResult {
 }
 
 ///
-/// 弹出添加/修改单词表单；onSubmit 由首页执行真正的 Store 操作。
+/// 弹出全屏添加/编辑单词表单；onSubmit 由首页执行真正的 Store 操作。
 ///
 /// @param  BuildContext  context
 /// @param  GroupStore  groups
@@ -104,10 +104,14 @@ Future<void> showWordFormSheet(
   required Future<void> Function(WordFormResult result) onSubmit,
   Word? editing,
 }) {
-  // isScrollControlled 让面板可随键盘上移并占据更大高度。
+  // 继续使用 BottomSheet 路由，保留从底部进入及向下拖动关闭的交互。
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    // SafeArea 让整屏内容从状态栏、刘海下方开始，与首页顶部位置一致。
+    useSafeArea: true,
+    // 用户确认保留向下拖动关闭；顶部、取消和系统返回也仍可关闭。
+    enableDrag: true,
     backgroundColor: Colors.transparent,
     builder: (sheetContext) =>
         _WordFormSheet(groups: groups, onSubmit: onSubmit, editing: editing),
@@ -388,306 +392,403 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     // 拼写为空时提交按钮半透明。
     final canSubmit = _spelling.text.trim().isNotEmpty;
 
-    // Padding 让面板跟随键盘上移。
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      // 顶部圆角卡片容器。
-      child: Container(
-        constraints: BoxConstraints(
-          // 最高占屏 84% 与设计稿一致。
-          maxHeight: MediaQuery.of(context).size.height * 0.84,
-        ),
-        decoration: BoxDecoration(
-          color: tokens.card,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-        ),
-        padding: const EdgeInsets.fromLTRB(0, 16, 0, 26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 面板标题。
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Text(
-                isEditing ? '修改单词' : '添加单词',
-                style: TextStyle(
-                  color: tokens.text,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            // 表单主体可滚动。
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 分组选择 + 拼写输入的组合输入行。
-                    Container(
-                      height: 40,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: tokens.inputBorder),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        // 纵向拉伸让左侧分组块与右侧输入框贴满整行高度。
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // 左侧分组选择块，点击弹出分组菜单。
-                          PopupMenuButton<int>(
-                            key: const Key('form-group-button'),
-                            position: PopupMenuPosition.under,
-                            offset: const Offset(0, 4),
-                            tooltip: '选择分组',
-                            // 选中后更新表单分组；0 代表"未分组"。
-                            onSelected: (value) => setState(() {
-                              _groupId = value == GroupStore.ungroupedId
-                                  ? null
-                                  : value;
-                            }),
-                            // 未分组 + 全部自定义分组。
-                            itemBuilder: (context) {
-                              // 当前生效的分组 id（未分组用 0 表示）。
-                              final current =
-                                  _groupId ?? GroupStore.ungroupedId;
-                              // 组装菜单项。
-                              return [
-                                for (final option in [
-                                  const WordGroup(
-                                    id: GroupStore.ungroupedId,
-                                    name: GroupStore.ungroupedName,
-                                  ),
-                                  ...widget.groups.groups,
-                                ])
-                                  PopupMenuItem<int>(
-                                    value: option.id,
-                                    height: 38,
-                                    child: Row(
-                                      children: [
-                                        // 分组名称；当前项主色加粗。
-                                        Text(
-                                          option.name,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: option.id == current
-                                                ? FontWeight.w600
-                                                : FontWeight.w400,
-                                            color: option.id == current
-                                                ? AppTokens.accent
-                                                : tokens.text,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        // 当前项显示 Tabler 勾选图标。
-                                        if (option.id == current)
-                                          const Icon(
-                                            TablerIcons.check,
-                                            size: 14,
-                                            color: AppTokens.accent,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                              ];
-                            },
-                            // 常驻外观：分组名 + Tabler 下拉图标，浅色底与右侧竖线分隔。
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 11,
-                              ),
-                              decoration: BoxDecoration(
-                                color: tokens.sub,
-                                border: Border(
-                                  right: BorderSide(color: tokens.inputBorder),
-                                ),
-                                borderRadius: const BorderRadius.horizontal(
-                                  left: Radius.circular(7),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // 当前分组名称。
-                                  Text(
-                                    widget.groups.byId(_groupId)?.name ??
-                                        GroupStore.ungroupedName,
-                                    style: TextStyle(
-                                      color: tokens.textMedium,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  // 使用 Tabler 下拉箭头，不再显示文字三角符号。
-                                  Icon(
-                                    TablerIcons.chevronDown,
-                                    size: 14,
-                                    color: tokens.textSecondary,
-                                  ),
-                                ],
-                              ),
-                            ),
+    // 键盘弹出时缩短表单可用高度，让底部操作栏停在键盘上方而不是被遮住。
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Material(
+        color: tokens.card,
+        child: SizedBox(
+          // BottomSheet 路由已经避开顶部安全区，这里占满剩余全部屏幕。
+          height: MediaQuery.sizeOf(context).height,
+          child: Column(
+            children: [
+              // 固定顶部：位置、边距和首页问候语/汉堡按钮保持一致。
+              _buildHeader(tokens, isEditing),
+              // 中部单独滚动；页面背景使用首页顶部非列表区域的 page 颜色。
+              Expanded(
+                child: ColoredBox(
+                  key: const Key('word-form-body'),
+                  color: tokens.page,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 第一部分：分组与单词两列白色卡片。
+                        _buildPrimaryCard(tokens),
+                        const SizedBox(height: 18),
+                        // 第二部分：词性与含义组。
+                        Text(
+                          '词性与含义',
+                          style: TextStyle(
+                            color: tokens.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
-                          // 拼写输入占剩余宽度。
-                          Expanded(
-                            child: TextField(
-                              key: const Key('form-spelling'),
-                              controller: _spelling,
-                              // 输入变化刷新提交按钮透明度。
-                              onChanged: (value) => setState(() {}),
-                              // expands 让输入框撑满父容器（Row 纵向拉伸出的 40 高），
-                              // 否则输入框只会取自身内容高度，文字被压在顶部且边框错位。
-                              expands: true,
-                              // expands 为 true 时 maxLines/minLines 必须为 null，
-                              // 输入框改为撑满父高度（仍为单行输入）。
-                              maxLines: null,
-                              // 文字在撑满的高度内垂直居中。
-                              textAlignVertical: TextAlignVertical.center,
-                              style: TextStyle(
-                                color: tokens.text,
-                                fontSize: 15,
-                                // 1.2 行高让字形在输入框内视觉居中。
-                                height: 1.2,
-                              ),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: '输入单词拼写',
-                                hintStyle: TextStyle(
-                                  color: tokens.muted,
-                                  fontSize: 15,
-                                  height: 1.2,
-                                ),
-                                border: InputBorder.none,
-                                // 清空默认垂直内边距，居中完全交给固定高度
-                                // 与 textAlignVertical，避免文字被压到偏上。
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                ),
-                              ),
-                            ),
-                          ),
+                        ),
+                        const SizedBox(height: 9),
+                        for (
+                          var index = 0;
+                          index < _meanings.length;
+                          index += 1
+                        ) ...[
+                          if (index > 0) const SizedBox(height: 10),
+                          _buildMeaningCard(tokens, index),
                         ],
-                      ),
+                        const SizedBox(height: 12),
+                        // 第三部分：透明底、虚线边框的大号新增按钮。
+                        _buildAddMeaningButton(tokens),
+                      ],
                     ),
-                    // 与释义区域的间距。
-                    const SizedBox(height: 14),
-                    // 释义区域小标题。
-                    Text(
-                      '词性与含义',
-                      style: TextStyle(
-                        color: tokens.textSecondary,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // 逐块渲染"词性+释义"编辑卡。
-                    for (
-                      var index = 0;
-                      index < _meanings.length;
-                      index += 1
-                    ) ...[
-                      if (index > 0) const SizedBox(height: 8),
-                      _buildMeaningCard(tokens, index),
-                    ],
-                    const SizedBox(height: 8),
-                    // 添加词性虚线按钮。
-                    InkWell(
-                      key: const Key('add-meaning'),
-                      onTap: () => setState(() {
-                        _meanings.add(_MeaningDraft());
-                        _draftControllers.add(TextEditingController());
-                      }),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: tokens.check),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              TablerIcons.plus,
-                              size: 15,
-                              color: tokens.textSecondary,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              '添加词性',
-                              style: TextStyle(
-                                color: tokens.textSecondary,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+              ),
+              // 固定底部：按钮不随中部内容滚动。
+              _buildFooter(tokens, isEditing, canSubmit),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  ///
+  /// 构建与首页顶部左右位置一致的标题栏。
+  ///
+  /// @param  AppTokens  tokens
+  /// @param  bool  isEditing
+  /// @return Widget
+  ///
+  Widget _buildHeader(AppTokens tokens, bool isEditing) {
+    // 白色标题栏固定在顶部，不跟随表单内容滚动。
+    return Container(
+      key: const Key('word-form-header'),
+      color: tokens.card,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 标题占据关闭按钮之外的剩余宽度。
+          Expanded(
+            child: Text(
+              isEditing ? '编辑单词' : '添加单词',
+              style: TextStyle(
+                color: tokens.text,
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 40×40 点击区与首页汉堡按钮尺寸一致，图标靠右对齐。
+          Semantics(
+            button: true,
+            label: '关闭单词表单',
+            child: InkWell(
+              key: const Key('form-close'),
+              onTap: () => Navigator.of(context).pop(),
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(TablerIcons.x, size: 20, color: tokens.text),
                 ),
               ),
             ),
-            // 底部按钮行。
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-              child: Row(
-                children: [
-                  // 取消按钮。
-                  Expanded(
-                    child: _FormButton(
-                      key: const Key('form-cancel'),
-                      label: '取消',
-                      background: Colors.transparent,
-                      foreground: tokens.textMedium,
-                      border: tokens.inputBorder,
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // 添加/保存主按钮。
-                  Expanded(
-                    child: Opacity(
-                      opacity: canSubmit ? 1 : 0.45,
-                      child: _FormButton(
-                        key: const Key('form-submit'),
-                        label: isEditing ? '保存' : '添加',
-                        background: AppTokens.accent,
-                        foreground: Colors.white,
-                        onTap: () => _submit(false),
-                      ),
-                    ),
-                  ),
-                  // 编辑模式没有"提交并继续添加"。
-                  if (!isEditing) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      // 设计稿此按钮更宽。
-                      flex: 2,
-                      child: Opacity(
-                        opacity: canSubmit ? 1 : 0.45,
-                        child: _FormButton(
-                          key: const Key('form-submit-continue'),
-                          label: '提交并继续添加',
-                          background: Colors.transparent,
-                          foreground: AppTokens.accent,
-                          border: AppTokens.accent,
-                          onTap: () => _submit(true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ///
+  /// 构建分组与单词输入的首张白色卡片。
+  ///
+  /// @param  AppTokens  tokens
+  /// @return Widget
+  ///
+  Widget _buildPrimaryCard(AppTokens tokens) {
+    return Container(
+      key: const Key('word-form-primary-card'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tokens.card,
+        border: Border.all(color: tokens.rowBorder),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 分组较窄，占两份宽度。
+          Expanded(flex: 2, child: _buildGroupField(tokens)),
+          const SizedBox(width: 12),
+          // 单词输入较宽，占三份宽度。
+          Expanded(flex: 3, child: _buildSpellingField(tokens)),
+        ],
+      ),
+    );
+  }
+
+  ///
+  /// 构建带 Label 的分组下拉字段。
+  ///
+  /// @param  AppTokens  tokens
+  /// @return Widget
+  ///
+  Widget _buildGroupField(AppTokens tokens) {
+    return Column(
+      key: const Key('form-group-field'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FormLabel(text: '分组', color: tokens.textSecondary),
+        const SizedBox(height: 7),
+        PopupMenuButton<int>(
+          key: const Key('form-group-button'),
+          position: PopupMenuPosition.under,
+          offset: const Offset(0, 4),
+          tooltip: '选择分组',
+          // 选中后更新表单分组；0 代表“未分组”。
+          onSelected: (value) => setState(() {
+            _groupId = value == GroupStore.ungroupedId ? null : value;
+          }),
+          itemBuilder: (context) {
+            // 当前生效的分组 id（未分组用 0 表示）。
+            final current = _groupId ?? GroupStore.ungroupedId;
+            return [
+              for (final option in [
+                const WordGroup(
+                  id: GroupStore.ungroupedId,
+                  name: GroupStore.ungroupedName,
+                ),
+                ...widget.groups.groups,
+              ])
+                PopupMenuItem<int>(
+                  value: option.id,
+                  height: 40,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          option.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: option.id == current
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: option.id == current
+                                ? AppTokens.accent
+                                : tokens.text,
+                          ),
                         ),
                       ),
+                      if (option.id == current)
+                        const Icon(
+                          TablerIcons.check,
+                          size: 14,
+                          color: AppTokens.accent,
+                        ),
+                    ],
+                  ),
+                ),
+            ];
+          },
+          // 下拉字段使用卡片同色背景，不再使用原来的灰色填充。
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            decoration: BoxDecoration(
+              color: tokens.card,
+              border: Border.all(color: tokens.inputBorder),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.groups.byId(_groupId)?.name ??
+                        GroupStore.ungroupedName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: tokens.textMedium,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
                     ),
-                  ],
-                ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  TablerIcons.chevronDown,
+                  size: 14,
+                  color: tokens.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  ///
+  /// 构建带 Label 的单词输入字段。
+  ///
+  /// @param  AppTokens  tokens
+  /// @return Widget
+  ///
+  Widget _buildSpellingField(AppTokens tokens) {
+    return Column(
+      key: const Key('form-spelling-field'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FormLabel(text: '单词', color: tokens.textSecondary),
+        const SizedBox(height: 7),
+        SizedBox(
+          height: 44,
+          child: TextField(
+            key: const Key('form-spelling'),
+            controller: _spelling,
+            onChanged: (value) => setState(() {}),
+            textAlignVertical: TextAlignVertical.center,
+            style: TextStyle(color: tokens.text, fontSize: 15, height: 1.2),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: '输入单词拼写',
+              hintStyle: TextStyle(
+                color: tokens.muted,
+                fontSize: 14,
+                height: 1.2,
+              ),
+              filled: true,
+              fillColor: tokens.card,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: tokens.inputBorder),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: AppTokens.accent),
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  ///
+  /// 构建透明背景的虚线“添加一组词性与含义”按钮。
+  ///
+  /// @param  AppTokens  tokens
+  /// @return Widget
+  ///
+  Widget _buildAddMeaningButton(AppTokens tokens) {
+    return _DashedBorder(
+      color: tokens.check,
+      radius: 8,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('add-meaning'),
+          onTap: () => setState(() {
+            _meanings.add(_MeaningDraft());
+            _draftControllers.add(TextEditingController());
+          }),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(TablerIcons.plus, size: 17, color: tokens.textSecondary),
+                const SizedBox(width: 7),
+                Text(
+                  '添加一组词性与含义',
+                  style: TextStyle(
+                    color: tokens.textSecondary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  ///
+  /// 构建固定在屏幕底部的表单操作栏。
+  ///
+  /// @param  AppTokens  tokens
+  /// @param  bool  isEditing
+  /// @param  bool  canSubmit
+  /// @return Widget
+  ///
+  Widget _buildFooter(AppTokens tokens, bool isEditing, bool canSubmit) {
+    return Container(
+      key: const Key('word-form-footer'),
+      decoration: BoxDecoration(
+        color: tokens.card,
+        border: Border(top: BorderSide(color: tokens.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: _FormButton(
+                key: const Key('form-cancel'),
+                label: '取消',
+                background: Colors.transparent,
+                foreground: tokens.textMedium,
+                border: tokens.inputBorder,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Opacity(
+                opacity: canSubmit ? 1 : 0.45,
+                child: _FormButton(
+                  key: const Key('form-submit'),
+                  label: isEditing ? '保存' : '添加',
+                  background: AppTokens.accent,
+                  foreground: Colors.white,
+                  onTap: () => _submit(false),
+                ),
+              ),
+            ),
+            if (!isEditing) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: Opacity(
+                  opacity: canSubmit ? 1 : 0.45,
+                  child: _FormButton(
+                    key: const Key('form-submit-continue'),
+                    label: '提交并继续',
+                    background: Colors.transparent,
+                    foreground: AppTokens.accent,
+                    border: AppTokens.accent,
+                    onTap: () => _submit(true),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -704,12 +805,22 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   Widget _buildMeaningCard(AppTokens tokens, int index) {
     // 当前编辑块。
     final meaning = _meanings[index];
+    // Azure 标签在深色背景上提高透明度和文字亮度，保持两个主题都清晰。
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final azureBackground = isDark
+        ? const Color(0x3345AAF2)
+        : const Color(0x1A45AAF2);
+    final azureForeground = isDark
+        ? const Color(0xFF45AAF2)
+        : const Color(0xFF2B94D4);
     // 圆角描边卡片。
     return Container(
-      padding: const EdgeInsets.all(10),
+      key: Key('meaning-card-$index'),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        color: tokens.card,
         border: Border.all(color: tokens.rowBorder),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -729,14 +840,19 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   }),
                 ),
               ),
-              // 只剩一个块时不显示删除。
+              // 只剩一个块时保留必需的基础录入区，不显示删除动作。
               if (_meanings.length > 1)
                 IconButton(
+                  key: Key('meaning-delete-$index'),
                   onPressed: () => setState(() {
                     _meanings.removeAt(index);
                     _draftControllers.removeAt(index).dispose();
                   }),
-                  icon: Icon(TablerIcons.x, size: 16, color: tokens.muted),
+                  icon: const Icon(
+                    TablerIcons.trash,
+                    size: 17,
+                    color: AppTokens.danger,
+                  ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints.tightFor(
                     width: 28,
@@ -759,9 +875,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   defIndex += 1
                 )
                   Container(
+                    key: Key('meaning-tag-$index-$defIndex'),
                     padding: const EdgeInsets.fromLTRB(10, 5, 9, 5),
                     decoration: BoxDecoration(
-                      color: tokens.sub,
+                      // 已确认含义统一使用 Tabler Azure 浅色徽章。
+                      color: azureBackground,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
@@ -771,7 +889,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                         Text(
                           meaning.defs[defIndex],
                           style: TextStyle(
-                            color: tokens.textMedium,
+                            color: azureForeground,
                             fontSize: 12.5,
                           ),
                         ),
@@ -783,7 +901,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                           }),
                           child: Icon(
                             TablerIcons.x,
-                            color: tokens.muted,
+                            color: azureForeground,
                             size: 14,
                           ),
                         ),
@@ -918,7 +1036,7 @@ class _PosSelector extends StatelessWidget {
   final void Function(String pos) onSelect;
 
   ///
-  /// 输出 23 高的可横向滑动词性 Chip 列表（原 34 缩小三分之一）。
+  /// 输出 34 高的可横向滑动词性胶囊列表。
   ///
   /// @param  BuildContext  context
   /// @return Widget
@@ -927,8 +1045,8 @@ class _PosSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     // SingleChildScrollView +横向滚动 让词性列表超出宽度时可滑动。
     return SizedBox(
-      // 高度从 34 缩小三分之一到 23。
-      height: 23,
+      // 34 高让文字拥有更大的上下留白，单手点击时也更容易命中。
+      height: 34,
       child: SingleChildScrollView(
         // 横向滚动。
         scrollDirection: Axis.horizontal,
@@ -1009,10 +1127,10 @@ class _PosChip extends StatelessWidget {
     // InkWell 提供点击反馈。
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(17),
       child: Container(
-        // 横向 8 纵向 0 内边距，高度由外层 23 控制。
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        // 横向留白增大，纵向尺寸由外层 34 高统一控制。
+        padding: const EdgeInsets.symmetric(horizontal: 13),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           // 选中项用浅主色背景，未选中用透明。
@@ -1021,8 +1139,8 @@ class _PosChip extends StatelessWidget {
           border: Border.all(
             color: isSelected ? AppTokens.accent : tokens.inputBorder,
           ),
-          // 圆角缩小到 6 匹配更小的高度。
-          borderRadius: BorderRadius.circular(6),
+          // 半高圆角形成左右完整圆弧的胶囊外观。
+          borderRadius: BorderRadius.circular(17),
         ),
         child: Text(
           // 词性统一使用小写显示；即使旧选项数据含大写，也在展示层归一化。
@@ -1030,13 +1148,176 @@ class _PosChip extends StatelessWidget {
           style: TextStyle(
             // 选中项主色加粗，未选中次要色常规。
             color: isSelected ? AppTokens.accent : tokens.textSecondary,
-            // 字号从 13 缩小到 11.5 匹配 23 高度。
-            fontSize: 11.5,
+            fontSize: 12.5,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
       ),
     );
+  }
+}
+
+///
+/// 表单字段上方的统一 Label。
+///
+class _FormLabel extends StatelessWidget {
+  ///
+  /// 创建字段 Label。
+  ///
+  /// @param  String  text
+  /// @param  Color  color
+  ///
+  const _FormLabel({required this.text, required this.color});
+
+  ///
+  /// Label 文字。
+  ///
+  /// @var String
+  ///
+  final String text;
+
+  ///
+  /// Label 颜色。
+  ///
+  /// @var Color
+  ///
+  final Color color;
+
+  ///
+  /// 输出位于输入框上一行的小标题。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+///
+/// 使用 CustomPainter 绘制圆角虚线边框，不引入额外第三方依赖。
+///
+class _DashedBorder extends StatelessWidget {
+  ///
+  /// 创建包裹任意子组件的虚线边框。
+  ///
+  /// @param  Widget  child
+  /// @param  Color  color
+  /// @param  double  radius
+  ///
+  const _DashedBorder({
+    required this.child,
+    required this.color,
+    required this.radius,
+  });
+
+  ///
+  /// 边框内部内容。
+  ///
+  /// @var Widget
+  ///
+  final Widget child;
+
+  ///
+  /// 虚线颜色。
+  ///
+  /// @var Color
+  ///
+  final Color color;
+
+  ///
+  /// 圆角半径。
+  ///
+  /// @var double
+  ///
+  final double radius;
+
+  ///
+  /// 把虚线绘制在子组件上层，避免点击水波纹覆盖边框。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      foregroundPainter: _DashedBorderPainter(color: color, radius: radius),
+      child: child,
+    );
+  }
+}
+
+///
+/// 沿圆角矩形路径逐段绘制虚线。
+///
+class _DashedBorderPainter extends CustomPainter {
+  ///
+  /// 创建虚线画笔。
+  ///
+  /// @param  Color  color
+  /// @param  double  radius
+  ///
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  ///
+  /// 边框颜色。
+  ///
+  /// @var Color
+  ///
+  final Color color;
+
+  ///
+  /// 圆角半径。
+  ///
+  /// @var double
+  ///
+  final double radius;
+
+  ///
+  /// 在组件边缘绘制 6 像素实线和 4 像素空白交替的路径。
+  ///
+  /// @param  Canvas  canvas
+  /// @param  Size  size
+  /// @return void
+  ///
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 半个线宽内缩，避免边框边缘被画布裁掉。
+    final rect = (Offset.zero & size).deflate(0.5);
+    // PathMetric 可以沿整个圆角矩形按距离提取短路径。
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + 6).clamp(0.0, metric.length).toDouble();
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += 10;
+      }
+    }
+  }
+
+  ///
+  /// 颜色或圆角改变时才要求 Flutter 重绘边框。
+  ///
+  /// @param  _DashedBorderPainter  oldDelegate
+  /// @return bool
+  ///
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.radius != radius;
   }
 }
 
@@ -1118,12 +1399,20 @@ class _FormButton extends StatelessWidget {
           border: border == null ? null : Border.all(color: border!),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+        // FittedBox 只在窄屏或大字体确实放不下时缩小，避免按钮文字越界。
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),
