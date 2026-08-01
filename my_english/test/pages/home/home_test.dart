@@ -1065,6 +1065,16 @@ void main() {
       final logicalHeight =
           tester.view.physicalSize.height / tester.view.devicePixelRatio;
       expect(footerRect.bottom, closeTo(logicalHeight, 0.1));
+      // 整个底部弹层恢复 14 像素顶部圆角，标题字号由 24 缩小为 20。
+      final formSurface = tester.widget<Material>(
+        find.byKey(const Key('word-form-surface')),
+      );
+      expect(
+        formSurface.borderRadius,
+        const BorderRadius.vertical(top: Radius.circular(14)),
+      );
+      final formTitle = tester.widget<Text>(find.text('添加单词'));
+      expect(formTitle.style!.fontSize, 20);
       // 中间区域使用首页 page 背景，第一张表单卡使用 card 背景。
       expect(
         tester
@@ -1078,6 +1088,19 @@ void main() {
       expect(
         (primaryCard.decoration! as BoxDecoration).color,
         AppTokens.light.card,
+      );
+      // 卡片距离表单内容区左右各 20 像素，卡片内部也统一留出 20 像素。
+      final primaryCardRect = tester.getRect(
+        find.byKey(const Key('word-form-primary-card')),
+      );
+      expect(primaryCardRect.left - bodyRect.left, closeTo(20, 0.1));
+      expect(bodyRect.right - primaryCardRect.right, closeTo(20, 0.1));
+      expect(primaryCard.padding, const EdgeInsets.all(20));
+      expect(
+        tester
+            .widget<Container>(find.byKey(const Key('meaning-card-0')))
+            .padding,
+        const EdgeInsets.all(20),
       );
       // 分组约占 40%，单词约占 60%，两个 Label 均位于独立字段上方。
       expect(
@@ -1100,9 +1123,43 @@ void main() {
           tester.getSize(find.byKey(const Key('form-spelling-field'))).width,
         ),
       );
+      // 分组和单词输入框均只保留下边线，不再具有四周边框或圆角。
+      final groupInput = tester.widget<Container>(
+        find.byKey(const Key('form-group-input')),
+      );
+      final groupDecoration = groupInput.decoration! as BoxDecoration;
+      final groupBorder = groupDecoration.border! as Border;
+      expect(groupBorder.top.style, BorderStyle.none);
+      expect(groupBorder.left.style, BorderStyle.none);
+      expect(groupBorder.right.style, BorderStyle.none);
+      expect(groupBorder.bottom.style, BorderStyle.solid);
+      expect(groupDecoration.borderRadius, isNull);
+      final spellingInput = tester.widget<TextField>(
+        find.byKey(const Key('form-spelling')),
+      );
+      expect(
+        spellingInput.decoration!.enabledBorder,
+        isA<UnderlineInputBorder>(),
+      );
+      expect(
+        spellingInput.decoration!.focusedBorder,
+        isA<UnderlineInputBorder>(),
+      );
       // 顶部关闭按钮和底部三个新增模式按钮均存在。
       expect(find.byKey(const Key('form-close')), findsOneWidget);
       expect(find.text('提交并继续'), findsOneWidget);
+
+      // 词性上下留白减少后为 30 高，左右留白为 16；选中后使用实心 primary。
+      await tester.tap(find.text('n.'));
+      await tester.pump();
+      final nounChipFinder = find.byKey(const Key('pos-chip-n.'));
+      final nounChip = tester.widget<Container>(nounChipFinder);
+      expect(tester.getSize(nounChipFinder).height, 30);
+      expect(nounChip.padding, const EdgeInsets.symmetric(horizontal: 16));
+      final primaryColor = Theme.of(
+        tester.element(nounChipFinder),
+      ).colorScheme.primary;
+      expect((nounChip.decoration! as BoxDecoration).color, primaryColor);
 
       // 输入并确认一条含义，生成的标签使用 Azure 浅色背景。
       await tester.enterText(find.byKey(const Key('meaning-draft-0')), '新的含义');

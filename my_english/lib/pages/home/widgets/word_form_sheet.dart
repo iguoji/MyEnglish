@@ -398,7 +398,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       curve: Curves.easeOut,
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Material(
+        key: const Key('word-form-surface'),
         color: tokens.card,
+        // 恢复旧版底部弹层的顶部圆角；底部贴紧屏幕，因此只处理上面两个角。
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+        // 裁掉圆角之外的标题栏背景，让透明路由露出真正的圆弧。
+        clipBehavior: Clip.antiAlias,
         child: SizedBox(
           // BottomSheet 路由已经避开顶部安全区，这里占满剩余全部屏幕。
           height: MediaQuery.sizeOf(context).height,
@@ -478,7 +483,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
               isEditing ? '编辑单词' : '添加单词',
               style: TextStyle(
                 color: tokens.text,
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0,
               ),
@@ -518,7 +523,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     return Container(
       key: const Key('word-form-primary-card'),
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: tokens.card,
         border: Border.all(color: tokens.rowBorder),
@@ -604,12 +609,13 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           },
           // 下拉字段使用卡片同色背景，不再使用原来的灰色填充。
           child: Container(
+            key: const Key('form-group-input'),
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 11),
             decoration: BoxDecoration(
               color: tokens.card,
-              border: Border.all(color: tokens.inputBorder),
-              borderRadius: BorderRadius.circular(8),
+              // 分组控件只保留下边线，与右侧单词输入框使用相同结构。
+              border: Border(bottom: BorderSide(color: tokens.inputBorder)),
             ),
             child: Row(
               children: [
@@ -672,13 +678,13 @@ class _WordFormSheetState extends State<_WordFormSheet> {
               filled: true,
               fillColor: tokens.card,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              enabledBorder: OutlineInputBorder(
+              // 普通状态只绘制下边线，不再显示左右边框和圆角。
+              enabledBorder: UnderlineInputBorder(
                 borderSide: BorderSide(color: tokens.inputBorder),
-                borderRadius: BorderRadius.circular(8),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: AppTokens.accent),
-                borderRadius: BorderRadius.circular(8),
+              // 聚焦后仍只保留下边线，并使用主题主色提示当前输入位置。
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: AppTokens.accent),
               ),
             ),
           ),
@@ -816,7 +822,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     // 圆角描边卡片。
     return Container(
       key: Key('meaning-card-$index'),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: tokens.card,
         border: Border.all(color: tokens.rowBorder),
@@ -1036,7 +1042,7 @@ class _PosSelector extends StatelessWidget {
   final void Function(String pos) onSelect;
 
   ///
-  /// 输出 34 高的可横向滑动词性胶囊列表。
+  /// 输出 30 高的可横向滑动词性胶囊列表。
   ///
   /// @param  BuildContext  context
   /// @return Widget
@@ -1045,8 +1051,8 @@ class _PosSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     // SingleChildScrollView +横向滚动 让词性列表超出宽度时可滑动。
     return SizedBox(
-      // 34 高让文字拥有更大的上下留白，单手点击时也更容易命中。
-      height: 34,
+      // 在原 34 高基础上，上下各减少 2 像素留白，最终高度为 30。
+      height: 30,
       child: SingleChildScrollView(
         // 横向滚动。
         scrollDirection: Axis.horizontal,
@@ -1124,30 +1130,34 @@ class _PosChip extends StatelessWidget {
   ///
   @override
   Widget build(BuildContext context) {
+    // 从当前主题读取 primary，深色模式会自动得到对应的主色和前景色。
+    final colorScheme = Theme.of(context).colorScheme;
+
     // InkWell 提供点击反馈。
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(17),
+      borderRadius: BorderRadius.circular(15),
       child: Container(
-        // 横向留白增大，纵向尺寸由外层 34 高统一控制。
-        padding: const EdgeInsets.symmetric(horizontal: 13),
+        key: Key('pos-chip-$label'),
+        // 左右在原 13 像素基础上各增加 3 像素；高度由外层 30 统一约束。
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          // 选中项用浅主色背景，未选中用透明。
-          color: isSelected ? const Color(0x1A206BC4) : Colors.transparent,
+          // 选中项使用实心主题主色，未选中项保持透明。
+          color: isSelected ? colorScheme.primary : Colors.transparent,
           // 选中项用主色描边，未选中用输入框边框色。
           border: Border.all(
-            color: isSelected ? AppTokens.accent : tokens.inputBorder,
+            color: isSelected ? colorScheme.primary : tokens.inputBorder,
           ),
-          // 半高圆角形成左右完整圆弧的胶囊外观。
-          borderRadius: BorderRadius.circular(17),
+          // 半高 15 像素圆角形成左右完整圆弧的胶囊外观。
+          borderRadius: BorderRadius.circular(15),
         ),
         child: Text(
           // 词性统一使用小写显示；即使旧选项数据含大写，也在展示层归一化。
           label.toLowerCase(),
           style: TextStyle(
-            // 选中项主色加粗，未选中次要色常规。
-            color: isSelected ? AppTokens.accent : tokens.textSecondary,
+            // 实心主色上的文字使用 onPrimary，确保明暗主题中都有足够对比度。
+            color: isSelected ? colorScheme.onPrimary : tokens.textSecondary,
             fontSize: 12.5,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
