@@ -199,6 +199,23 @@ class Word {
   DateTime? get displayDate => reviewedAt ?? createdAt ?? updatedAt;
 
   ///
+  /// 排序用的“含义数”：一个单词下所有 meaning 的 definitions 长度之和。
+  ///
+  /// 生活化解释：一个单词可能有一个词性、也可能有多个词性；每个词性下又有
+  /// 若干条中文释义。这里把“全部词性下的全部释义条数”加起来，得到一个数字，
+  /// 用来判断“这个单词的含义多不多”。含义少的单词排在前，多的排在后。
+  ///
+  /// 举例（与你确认的排序规则一致）：
+  /// - 1 个 meaning、1 条 definition → 含义数 = 1（升序里最靠前）。
+  /// - 1 个 meaning、2 条 definition → 含义数 = 2。
+  /// - 2 个 meaning、各 1 条 definition → 含义数 = 2（与上例相等）。
+  ///
+  /// @return int 全部释义条数汇总；空释义自然计 0。
+  ///
+  int get meaningCount =>
+      meanings.fold(0, (sum, meaning) => sum + meaning.definitions.length);
+
+  ///
   /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。
   ///
   /// @param  `Map<Object?, Object?>`  map 数据库行或导入文件中的单词对象。

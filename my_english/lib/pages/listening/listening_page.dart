@@ -258,6 +258,9 @@ class _ListeningPageState extends State<ListeningPage> {
   void initState() {
     // 先让 Flutter 完成 State 基础初始化。
     super.initState();
+    // 注册锁屏/通知栏/蓝牙的媒体控制回调；页面销毁时在 dispose 中注销。
+    // 原生 MediaSession 收到的播放/暂停/上一首/下一首会经此回传，由本页驱动播放。
+    NativeWordAudioPlayer.setMediaControlHandler(_onMediaControl);
     // “继续”进入时先同步恢复字段，首帧就会直接展示上次停留的单词与设置。
     _restoreInitialSession();
     // 新开始会创建记录，继续进入则刷新保存时间；失败不会阻止页面使用。
@@ -270,6 +273,8 @@ class _ListeningPageState extends State<ListeningPage> {
       if (_isPlaying) _startPlaybackLoop();
       // 首次进入不等待普通滚动动画，较快地把当前行移到列表中间。
       _centerCurrentWord(force: true);
+      // 进入页面即把当前单词同步到锁屏/通知栏，让控制立即可用。
+      _syncMediaSession();
     });
   }
 
@@ -418,6 +423,8 @@ class _ListeningPageState extends State<ListeningPage> {
           });
           // 新单词出现后把它滚动到播放列表中部。
           _centerCurrentWord();
+          // 切歌后把新单词同步到锁屏/通知栏。
+          _syncMediaSession();
         } else if (_loop) {
           // 循环模式从头开始。
           setState(() {
@@ -426,6 +433,8 @@ class _ListeningPageState extends State<ListeningPage> {
           });
           // 回到首词后同步滚动列表。
           _centerCurrentWord();
+          // 回到首词后同步锁屏/通知栏。
+          _syncMediaSession();
         } else {
           // 非循环模式停在最后一个单词。
           setState(() {
@@ -433,6 +442,8 @@ class _ListeningPageState extends State<ListeningPage> {
             _isFinished = true;
             _remainingSeconds = 0;
           });
+          // 播完后同步通知栏（显示暂停态、取消 ongoing）。
+          _syncMediaSession();
           // 非循环模式正常播完即不再属于“未完成”，首页继续入口应立即失效。
           unawaited(_deleteSession());
           // 已播完且不循环，结束异步任务。
@@ -503,6 +514,8 @@ class _ListeningPageState extends State<ListeningPage> {
     _cancelCountdown();
     // 先更新按钮和状态文字，让用户立即看到暂停结果。
     setState(() => _isPlaying = false);
+    // 暂停后同步通知栏（图标切暂停、取消 ongoing）。
+    _syncMediaSession();
     // 暂停属于用户明确选择，立即写入会话。
     unawaited(_persistSession());
     // 原生 stop 可能失败，因此使用 try/catch 隔离底层异常。
@@ -538,6 +551,7 @@ class _ListeningPageState extends State<ListeningPage> {
       // 创建新的异步播放任务。
       _startPlaybackLoop();
       // 重播分支结束，避免继续执行普通暂停/播放判断。
+      _syncMediaSession();
       return;
     }
     // 正在播放时执行异步暂停。
@@ -551,6 +565,8 @@ class _ListeningPageState extends State<ListeningPage> {
       // 再启动新的播放循环。
       _startPlaybackLoop();
     }
+    // 播放/暂停切换后同步通知栏图标与 ongoing 状态。
+    _syncMediaSession();
   }
 
   ///
@@ -585,6 +601,8 @@ class _ListeningPageState extends State<ListeningPage> {
     _centerCurrentWord(force: true);
     // 主动跳词后立即保存目标下标。
     unawaited(_persistSession());
+    // 跳词后把新单词同步到锁屏/通知栏。
+    _syncMediaSession();
     // 原本处于播放状态时才自动续播，暂停状态保持暂停。
     if (_isPlaying) _startPlaybackLoop();
   }
@@ -617,6 +635,71 @@ class _ListeningPageState extends State<ListeningPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  ///
+  /// 处理锁屏/通知栏/蓝牙耳机回传的媒体控制动作。
+  ///
+  /// 原生 MediaSession 把用户在系统界面（锁屏、通知栏、蓝牙）的操作汇总成一个
+  /// 字符串动作，这里再翻译成页面内的播放控制，做到“系统控制 ↔ App 控制”双向同步。
+  ///
+  /// @param  String  action 动作：play / pause / next / previous / stop。
+  /// @return `Future<dynamic>` 回调约定返回，实际不关心结果。
+  ///
+  Future<dynamic> _onMediaControl(String action) async {
+    // 页面已退出时不响应任何系统媒体事件，避免操作一个不存在的界面。
+    if (!mounted) return;
+    switch (action) {
+      // 播放：当前处于暂停时才需要切换为播放。
+      case 'play':
+        if (!_isPlaying) _togglePlayback();
+      // 暂停：当前正在播放时才需要切换为暂停。
+      case 'pause':
+        if (_isPlaying) _togglePlayback();
+      // 下一首：跳到列表下一词（首/末页由 _jumpTo 自动 clamp 边界）。
+      case 'next':
+        _jumpTo(_index + 1);
+      // 上一首：跳到列表上一词。
+      case 'previous':
+        _jumpTo(_index - 1);
+      // 停止：等价于暂停。
+      case 'stop':
+        if (_isPlaying) unawaited(_pausePlayback());
+    }
+  }
+
+  ///
+  /// 把当前单词拼写、首条释义与播放状态同步到锁屏/通知栏媒体会话。
+  ///
+  /// 测试环境下的音频替身实现为空操作，因此调用不会有副作用；生产环境由
+  /// NativeWordAudioPlayer 驱动 Android MediaSession 与 MediaStyle 通知。
+  ///
+  /// @return void
+  ///
+  void _syncMediaSession() {
+    // 直接交给音频接口，页面不关心底层是原生还是测试替身。
+    unawaited(
+      widget.audioPlayer.showMediaSession(
+        _currentWord.spelling,
+        _currentSubtitle,
+        _isPlaying,
+      ),
+    );
+  }
+
+  ///
+  /// 取当前单词的第一条释义作为通知副标题；没有释义时回退空串。
+  ///
+  /// 生活化解释：通知栏空间有限，只展示“第一个意思”做提示，完整释义仍在 App 内查看。
+  ///
+  /// @return String 首条释义或空串。
+  ///
+  String get _currentSubtitle {
+    // 遍历该单词的全部词性，命中第一条有释义的即可。
+    for (final meaning in _currentWord.meanings) {
+      if (meaning.definitions.isNotEmpty) return meaning.definitions.first;
+    }
+    return '';
   }
 
   ///
@@ -786,6 +869,10 @@ class _ListeningPageState extends State<ListeningPage> {
   void dispose() {
     // 系统返回或路由销毁前补写最终状态；正常播完已经删会话，不能在这里重新创建。
     if (!_isFinished) unawaited(_persistSession());
+    // 注销锁屏/通知栏的媒体控制回调，避免回传事件命中已销毁的页面。
+    NativeWordAudioPlayer.setMediaControlHandler(null);
+    // 收起锁屏/通知栏媒体控制并停用原生 MediaSession。
+    unawaited(widget.audioPlayer.releaseMediaSession().catchError((Object _) {}));
     // 结束所有旧循环并停止仍在播放的原生音频。
     ++_playSerial;
     // 取消当前一秒等待。

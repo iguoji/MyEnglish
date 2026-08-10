@@ -2,6 +2,8 @@
 import 'package:flutter_test/flutter_test.dart';
 // Word 是排序服务接收的业务模型。
 import 'package:my_english/models/word.dart';
+// Meaning 提供词性与释义，用来构造“含义数”不同的单词。
+import 'package:my_english/models/meaning.dart';
 // 引入待测试的纯首页排序服务。
 import 'package:my_english/pages/home/services/home_word_sorter.dart';
 // GroupMode 决定日期排序使用哪个时间字段。
@@ -87,5 +89,73 @@ void main() {
     expect(sorter(GroupMode.updated).dateOf(word), DateTime(2026, 2, 2));
     // 加入时间视角只读取 createdAt。
     expect(sorter(GroupMode.added).dateOf(word), DateTime(2026, 3, 3));
+  });
+
+  // 含义入口按“含义数”升序：释义少的单词排在前。
+  test('sorts by meaning count ascending', () {
+    // 单释义单词，含义数 = 1。
+    const few = Word(
+      id: 1,
+      spelling: 'apple',
+      meanings: <Meaning>[
+        Meaning(index: 0, pos: 'n.', definitions: <String>['苹果']),
+      ],
+    );
+    // 两词性共三条释义，含义数 = 3。
+    const many = Word(
+      id: 2,
+      spelling: 'set',
+      meanings: <Meaning>[
+        Meaning(index: 1, pos: 'n.', definitions: <String>['集合', '一套']),
+        Meaning(index: 0, pos: 'v.', definitions: <String>['放置']),
+      ],
+    );
+
+    const sorter = HomeWordSorter(
+      mode: GroupMode.custom,
+      field: WordSortField.meaning,
+      directions: <WordSortField, bool>{WordSortField.meaning: true},
+      query: '',
+    );
+
+    // 含义少的 apple 必然排在 set 之前。
+    expect(
+      sorter.filterAndSort(<Word>[many, few]).map((word) => word.id),
+      <int>[1, 2],
+    );
+  });
+
+  // 难度相等时，含义数作为次级规则生效（含义少的在前）。
+  test('uses meaning count as tiebreaker after difficulty', () {
+    // 两者难度相同，但释义条数不同。
+    const lowFew = Word(
+      id: 1,
+      spelling: 'alpha',
+      difficulty: 5,
+      meanings: <Meaning>[
+        Meaning(index: 0, pos: 'n.', definitions: <String>['甲']),
+      ],
+    );
+    const lowMany = Word(
+      id: 2,
+      spelling: 'bravo',
+      difficulty: 5,
+      meanings: <Meaning>[
+        Meaning(index: 0, pos: 'n.', definitions: <String>['乙', '丙']),
+      ],
+    );
+
+    const sorter = HomeWordSorter(
+      mode: GroupMode.custom,
+      field: WordSortField.difficulty,
+      directions: <WordSortField, bool>{WordSortField.difficulty: false},
+      query: '',
+    );
+
+    // 难度同为 5，按“含义升序”次级规则：单释义的 alpha 排在双释义的 bravo 之前。
+    expect(
+      sorter.filterAndSort(<Word>[lowMany, lowFew]).map((word) => word.id),
+      <int>[1, 2],
+    );
   });
 }

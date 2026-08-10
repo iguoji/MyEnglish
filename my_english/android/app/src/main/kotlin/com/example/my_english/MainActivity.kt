@@ -71,6 +71,9 @@ class MainActivity : FlutterActivity() {
     // 原生音频服务可以跨 Flutter Widget 重建持续工作。
     private lateinit var wordAudioPlayer: WordAudioPlayer
 
+    // 音频方法通道：既接收 Dart 的 play/stop，也用于把锁屏/蓝牙的媒体控制事件回传 Dart。
+    private lateinit var audioChannel: MethodChannel
+
     // SAF 请求码：导入选文件与导出写文件共用，结果里再用 pendingFileAction 区分。
     private companion object {
         const val REQUEST_CODE_FILE_IO = 1001
@@ -98,8 +101,10 @@ class MainActivity : FlutterActivity() {
         wordsDatabase = WordsDatabase(applicationContext)
         // 创建 App 私有设置 Store。
         appSettingsStore = AppSettingsStore(applicationContext)
-        // 创建下载与播放服务。
-        wordAudioPlayer = WordAudioPlayer(applicationContext)
+        // 先创建音频通道：Dart 调用播放/停止，也用于把媒体按键回传给 Dart。
+        audioChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, audioChannelName)
+        // 创建下载与播放服务，把音频通道交给它用于回传锁屏/蓝牙的媒体控制事件。
+        wordAudioPlayer = WordAudioPlayer(applicationContext, audioChannel)
 
         // 在当前 FlutterEngine 上注册 Dart ↔ Android 方法通道。
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
@@ -479,7 +484,8 @@ class MainActivity : FlutterActivity() {
             }
 
         // 注册音频通道；play 的 result 会由 WordAudioPlayer 在播放完成时返回。
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, audioChannelName)
+        // 复用已创建的 audioChannel 实例，避免重复注册通道导致 IllegalStateException。
+        audioChannel
             // 路由播放和停止方法。
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -557,6 +563,43 @@ class MainActivity : FlutterActivity() {
                             // EventSink 属于长期 Dart 订阅，清空后仍需保留供下一批复用。
                             null
                         }
+                    }
+
+                    // 显示或刷新锁屏/通知栏的媒体控制卡片（标题=拼写，副标题=首条释义）。
+                    "mediaSessionShow" -> {
+                        // 参数必须是 Dart 传来的拼写、副标题与播放状态 Map。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("mediaSessionShow 缺少参数")
+                        // 读取单词拼写（通知标题）。
+                        val spelling = payload["spelling"] as? String ?: ""
+                        // 读取首条释义（通知副标题）。
+                        val subtitle = payload["subtitle"] as? String ?: ""
+                        // 读取当前是否正在播放，决定是否显示播放/暂停图标。
+                        val isPlaying = payload["isPlaying"] as? Boolean ?: false
+                        // 交给媒体服务创建/刷新 Android MediaSession 与通知。
+                        wordAudioPlayer.showMediaSession(spelling, subtitle, isPlaying)
+                        // 该方法异步驱动 UI，立即返回成功。
+                        result.success(null)
+                    }
+
+                    // 仅切换播放/暂停状态（通常与 mediaSessionShow 合并调用，此处单独兜底）。
+                    "mediaSessionSetPlaying" -> {
+                        // 参数只需一个布尔播放状态。
+                        val payload = call.arguments as? Map<*, *>
+                        // 缺省为未播放，避免空参数导致通知状态错乱。
+                        val isPlaying = payload?.get("isPlaying") as? Boolean ?: false
+                        // 只更新播放状态与通知图标，不重建元数据。
+                        wordAudioPlayer.setMediaPlaying(isPlaying)
+                        // 立即返回成功。
+                        result.success(null)
+                    }
+
+                    // 收起媒体控制并停用会话（页面退出或停止时调用）。
+                    "mediaSessionRelease" -> {
+                        // 移除通知并释放媒体会话资源。
+                        wordAudioPlayer.releaseMediaSession()
+                        // 立即返回成功。
+                        result.success(null)
                     }
 
                     // 未登记方法按 Flutter 规范返回 notImplemented。

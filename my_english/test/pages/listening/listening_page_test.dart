@@ -348,7 +348,7 @@ final _words = <Word>[
 ///
 /// 立即完成的播放器让测试无需网络和原生 MediaPlayer。
 ///
-class _ImmediateAudioPlayer implements WordAudioPlayer {
+class _ImmediateAudioPlayer extends WordAudioPlayer {
   ///
   /// 立即完成指定单词的模拟播放。
   ///

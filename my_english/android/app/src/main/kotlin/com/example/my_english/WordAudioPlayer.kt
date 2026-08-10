@@ -29,15 +29,47 @@ import java.util.concurrent.Executors
 // AtomicLong 让主线程与 I/O 线程递增批次/缓存纪元时不会发生丢更新。
 import java.util.concurrent.atomic.AtomicLong
 
+// androidx.media 提供媒体会话与 MediaStyle 通知（锁屏/蓝牙控制的标准机制）。
+import androidx.media.MediaMetadataCompat
+import androidx.media.app.NotificationCompat.MediaStyle
+import androidx.media.session.MediaSessionCompat
+import androidx.media.session.PlaybackStateCompat
+// androidx.core 提供兼容的通知构造器。
+import androidx.core.app.NotificationCompat
+// 系统通知管理器与通知渠道所需。
+import android.app.NotificationChannel
+import android.app.NotificationManager
+// 点击通知回到 App 主界面所需的意图。
+import android.app.PendingIntent
+// 复用本包内的 Activity 类，点击通知时回到随身听页面所在的主界面。
+import android.content.Intent
+// Android 8+ 创建通知渠道需要判断系统版本。
+import android.os.Build
+
 /**
  * 单词音频下载、缓存和播放服务。
  *
  * 查找顺序固定为：口音对应的本地缓存 -> 不背单词 -> 有道。下载成功后先写临时文件，
  * 再原子替换正式缓存，避免网络中断留下一个看似存在但无法播放的残缺 mp3。
  */
-class WordAudioPlayer(context: Context) {
+class WordAudioPlayer(context: Context, channel: MethodChannel) {
     // 保存 applicationContext，生命周期独立于单个 Activity 页面。
     private val appContext = context.applicationContext
+
+    // 音频方法通道：既接收 Dart 的 play/stop，也用于把锁屏/蓝牙的媒体控制事件回传 Dart。
+    private val mediaChannel = channel
+
+    // 系统通知管理器：负责弹出/刷新/移除".media style"通知（锁屏与通知栏控制）。
+    private val notificationManager =
+        appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    // 媒体会话：Android 标准机制，把播放状态暴露给系统锁屏、通知栏与蓝牙耳机。
+    // 懒创建，首次 showMediaSession 时才初始化，避免一启动就占用系统资源。
+    private var mediaSession: MediaSessionCompat? = null
+
+    // 当前通知标题（单词拼写）与副标题（首条释义），刷新通知时复用，避免回读控制器。
+    private var currentTitle = ""
+    private var currentSubtitle = ""
 
     // 单线程让缓存写入顺序稳定，也避免同一文件被并发覆盖。
     private val downloadExecutor = Executors.newSingleThreadExecutor()
@@ -137,6 +169,8 @@ class WordAudioPlayer(context: Context) {
         pendingResult = null
         // 安全释放播放器。
         releasePlayer()
+        // 顺手收起锁屏/通知栏媒体控制，避免退出后残留控制条。
+        releaseMediaSession()
         // 不再接收新下载任务；队列中任务结束后线程自动退出。
         downloadExecutor.shutdown()
         // 同样让进行中的离线预缓存尽快退出，并释放其线程池。
@@ -564,6 +598,212 @@ class WordAudioPlayer(context: Context) {
         player?.release()
     }
 
+    /**
+     * 显示或刷新锁屏/通知栏的媒体控制卡片。
+     *
+     * 首次调用会创建 Android MediaSession 并通过 MediaStyle 通知把它挂到系统；
+     * 之后每次切歌都只更新元数据（标题=拼写、副标题=首条释义）与播放状态。
+     * 「媒体控制」类似音乐 App 在锁屏/下拉通知栏显示的播放条，蓝牙耳机也能直接操控。
+     *
+     * @param spelling 当前单词拼写（通知标题）。
+     * @param subtitle 首条释义（通知副标题）。
+     * @param isPlaying 当前是否正在播放，决定通知显示播放还是暂停图标。
+     */
+    fun showMediaSession(spelling: String, subtitle: String, isPlaying: Boolean) {
+        // 缓存标题与副标题，后续刷新通知时直接复用，不必回读 MediaController。
+        currentTitle = spelling
+        currentSubtitle = subtitle
+        // 首次进入时创建媒体会话并登记按键回调（仅一次）。
+        ensureMediaSession()
+        // 会话为空说明创建失败，直接放弃本次刷新避免空指针。
+        val session = mediaSession ?: return
+        // 组装媒体元数据：标题=拼写，专辑字段借放副标题，便于锁屏折行展示。
+        val metadata = MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, spelling)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "MyEnglish")
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, subtitle)
+            .build()
+        // 写入元数据，锁屏卡片立即显示新单词。
+        session.setMetadata(metadata)
+        // 根据播放状态刷新 PlaybackState（系统据此决定显示播放/暂停按钮）。
+        updatePlaybackState(isPlaying)
+        // 弹出或更新通知栏媒体控制。
+        postNotification(session, isPlaying)
+    }
+
+    /**
+     * 仅切换播放/暂停状态（通知图标与锁屏按钮），不重建元数据。
+     *
+     * @param isPlaying 当前是否正在播放。
+     */
+    fun setMediaPlaying(isPlaying: Boolean) {
+        // 会话不存在（用户还没播过歌）时无需操作。
+        val session = mediaSession ?: return
+        // 更新播放状态并刷新通知图标。
+        updatePlaybackState(isPlaying)
+        postNotification(session, isPlaying)
+    }
+
+    /**
+     * 收起媒体控制并停用会话：移除通知、释放 MediaSession，避免锁屏残留控制条。
+     */
+    fun releaseMediaSession() {
+        // 取出当前会话并置空，防止后续回调命中已释放对象。
+        val session = mediaSession
+        mediaSession = null
+        // 会话存在才需要停用与释放，避免重复操作。
+        if (session != null) {
+            // 先取消激活，锁屏卡片随之消失。
+            session.isActive = false
+            // 再释放底层资源。
+            session.release()
+        }
+        // 移除通知，彻底清掉通知栏媒体控制。
+        notificationManager.cancel(MEDIA_NOTIFICATION_ID)
+    }
+
+    /** 懒创建媒体会话并登记回调（只初始化一次）。 */
+    private fun ensureMediaSession() {
+        // 已存在则直接复用，不做重复创建。
+        if (mediaSession != null) return
+        // MediaSessionCompat 是 Android 媒体控制的统一入口，第二个参数是调试标签。
+        val session = MediaSessionCompat(appContext, "MyEnglishAudio")
+        // 绑定回调：锁屏/通知栏/蓝牙的播放、暂停、上下首都会进入这里。
+        session.setCallback(mediaSessionCallback)
+        // 声明本会话支持媒体按键与传输控制，系统才会把按键事件分发给我们。
+        session.setFlags(
+            MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS,
+        )
+        // 把会话置于激活态，锁屏才会显示媒体卡片。
+        session.isActive = true
+        // 保存引用供后续刷新与释放。
+        mediaSession = session
+    }
+
+    /** 媒体会话回调：把系统/蓝牙的按键事件回传给 Dart（再交给随身听页）。 */
+    private val mediaSessionCallback = object : MediaSessionCompat.Callback() {
+        // 锁屏/蓝牙“播放”键。
+        override fun onPlay() {
+            sendMediaControl("play")
+        }
+
+        // 锁屏/蓝牙“暂停”键。
+        override fun onPause() {
+            sendMediaControl("pause")
+        }
+
+        // 锁屏/蓝牙“下一首”键。
+        override fun onSkipToNext() {
+            sendMediaControl("next")
+        }
+
+        // 锁屏/蓝牙“上一首”键。
+        override fun onSkipToPrevious() {
+            sendMediaControl("previous")
+        }
+
+        // 锁屏/蓝牙“停止”键。
+        override fun onStop() {
+            sendMediaControl("stop")
+        }
+    }
+
+    /** 把媒体控制动作通过音频通道回传给 Dart；MethodChannel 会把它投递到随身听页。 */
+    private fun sendMediaControl(action: String) {
+        // invokeMethod 在任意线程调用都会被引擎安全地转交给 Dart 的接收器。
+        mediaChannel.invokeMethod("mediaControl", mapOf("action" to action))
+    }
+
+    /** 构建并设置 PlaybackState（含可用动作与当前播放/暂停）。 */
+    private fun updatePlaybackState(isPlaying: Boolean) {
+        // 会话为空说明尚未创建，直接返回。
+        val session = mediaSession ?: return
+        // 声明通知栏与锁屏将要展示的动作集合（播放/暂停/上下首/停止）。
+        val actions = PlaybackStateCompat.ACTION_PLAY
+            or PlaybackStateCompat.ACTION_PAUSE
+            or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+            or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+            or PlaybackStateCompat.ACTION_STOP
+        // 当前状态：播放中或已暂停，系统据此渲染对应按钮高亮。
+        val state = if (isPlaying) {
+            PlaybackStateCompat.STATE_PLAYING
+        } else {
+            PlaybackStateCompat.STATE_PAUSED
+        }
+        // 构建并写入状态；位置未知（我们不显示进度条），播放速度固定 1.0。
+        session.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setActions(actions)
+                .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+                .build(),
+        )
+    }
+
+    /**
+     * 构建并弹出 ".media style" 通知（锁屏/通知栏媒体控制）。
+     *
+     * 通过 MediaStyle 把媒体会话令牌挂到通知上，系统据此自动渲染播放/暂停/上下首控件，
+     * 无需我们手写每个按钮的 PendingIntent。
+     */
+    private fun postNotification(session: MediaSessionCompat, isPlaying: Boolean) {
+        // Android 8+ 必须先创建通知渠道，否则通知不会显示。
+        createNotificationChannelIfNeeded()
+        // 内容点击意图：回到 App 主界面（复用既有任务栈，不叠加新 Activity）。
+        val contentIntent = PendingIntent.getActivity(
+            appContext,
+            0,
+            Intent(appContext, MainActivity::class.java).apply {
+                // SINGLE_TOP 复用栈顶 Activity，避免从通知多次进入开堆叠页面。
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            // 现代 Android 强制 PendingIntent 不可变，避免被其他 App 篡改意图。
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        // MediaStyle 是音乐类通知的标准样式；挂上会话令牌后系统接管控件渲染。
+        val style = MediaStyle()
+            .setMediaSession(session.sessionToken)
+            // 锁屏折叠后只保留前两枚控件（播放/暂停、上一首）。
+            .setShowActionsInCompactView(0, 1)
+        // 构建通知：标题=拼写，副标题=释义，小图标用专用通知图标。
+        val notification = NotificationCompat.Builder(appContext, MEDIA_CHANNEL_ID)
+            .setContentTitle(currentTitle)
+            .setContentText(currentSubtitle)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentIntent(contentIntent)
+            .setStyle(style)
+            // PUBLIC 让锁屏也完整显示内容（单词本身非敏感）。
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            // 播放中设为常驻（滑动不消失），暂停后允许清除。
+            .setOngoing(isPlaying)
+            // 标记为媒体传输类通知，部分系统据此着色与分组。
+            .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            // 刷新时不重复响铃/震动。
+            .setOnlyAlertOnce(true)
+            .build()
+        // 用固定 id 弹出或更新通知，多次调用只更新同一张卡片。
+        notificationManager.notify(MEDIA_NOTIFICATION_ID, notification)
+    }
+
+    /** 在 Android 8+ 创建媒体通知渠道（只需一次，低版本无需）。 */
+    private fun createNotificationChannelIfNeeded() {
+        // 低于 Android 8（API 26）不存在通知渠道概念，直接跳过。
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        // 创建一个低重要级渠道：有通知但不响铃、不弹窗，适合媒体控制。
+        val channel = NotificationChannel(
+            MEDIA_CHANNEL_ID,
+            "单词播放控制",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            // 补充说明，用户长按通知可见。
+            description = "锁屏与通知栏的单词播放控制"
+            // 媒体控制不需要角标数字。
+            setShowBadge(false)
+        }
+        // 把渠道注册进系统；重复创建会自动忽略。
+        notificationManager.createNotificationChannel(channel)
+    }
+
     /** 稳定协议值和超时集中定义。 */
     private companion object {
         // 美式缓存目录名与 Dart storageValue 一致。
@@ -577,5 +817,11 @@ class WordAudioPlayer(context: Context) {
 
         // 下载时每次读取 8KB，兼顾内存与 IO 次数。
         const val DOWNLOAD_BUFFER_BYTES = 8 * 1024
+
+        // 媒体通知固定 id：多次弹出只更新同一张通知卡片。
+        const val MEDIA_NOTIFICATION_ID = 1001
+
+        // 媒体通知渠道 id：Android 8+ 必须先在系统注册该渠道。
+        const val MEDIA_CHANNEL_ID = "my_english_media_session"
     }
 }

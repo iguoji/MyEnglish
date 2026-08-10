@@ -2103,7 +2103,7 @@ class _ThrowingWordStore implements WordStore {
 ///
 /// 立即完成的静音播放器；默认注入避免测试访问原生通道。
 ///
-class _SilentAudioPlayer implements WordAudioPlayer {
+class _SilentAudioPlayer extends WordAudioPlayer {
   ///
   /// 播放立即成功。
   ///
@@ -2126,7 +2126,7 @@ class _SilentAudioPlayer implements WordAudioPlayer {
 ///
 /// 可控制完成时机的假音频播放器，避免 Widget 测试访问网络或 Android。
 ///
-class _ControlledAudioPlayer implements WordAudioPlayer {
+class _ControlledAudioPlayer extends WordAudioPlayer {
   ///
   /// 当前播放 Future 的完成器。
   ///

@@ -78,4 +78,7 @@ dependencies {
     // AndroidX 仪器测试在真实 Android SQLite 上验证建表、导入与导出。
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
+    // 媒体会话与 MediaStyle 通知：把播放控制暴露给锁屏、通知栏与蓝牙耳机。
+    // 提供 MediaSessionCompat、PlaybackStateCompat 与 androidx.media.app.NotificationCompat.MediaStyle。
+    implementation("androidx.media:media:1.7.0")
 }

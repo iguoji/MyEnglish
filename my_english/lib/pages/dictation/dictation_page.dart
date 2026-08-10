@@ -492,7 +492,7 @@ class _DictationPageState extends State<DictationPage> {
       _feedback = '本词完成！';
       _feedbackColor = const Color(0xFF2FB344);
     } else if (_wrongOptions.isNotEmpty) {
-      _feedback = '不对，再试试';
+      _feedback = '答错 · 难度将 +1';
       _feedbackColor = AppTokens.danger;
     }
     // 候选快照必须恰好四项、只有一个正确项且文本仍匹配当前正确答案。
@@ -885,7 +885,8 @@ class _DictationPageState extends State<DictationPage> {
         _errors++;
         // 当前单词的选错次数同步累加，用于落 record。
         _currentWrong++;
-        _feedback = '不对，再试试';
+        // 选错即预告难度会后 +1，与候选区上方的危险色横幅口径一致。
+        _feedback = '答错 · 难度将 +1';
         _feedbackColor = AppTokens.danger;
       });
       // 保存错项文本与错误计数，重新进入后不能通过退出页面清除错误。
@@ -1182,7 +1183,8 @@ class _DictationPageState extends State<DictationPage> {
       // 完成后不再保留可点击选项数据。
       _options = const <DictationOption>[];
       // 中间信息面板告知用户当前单词已经完成。
-      _feedback = '本词完成！';
+      // 全程零错选才是“一气呵成”，与候选区上方的成功横幅口径一致。
+      _feedback = _currentWrong == 0 ? '一气呵成 · 完美通过！' : '本词完成！';
       // 绿色只用于正确完成反馈。
       _feedbackColor = const Color(0xFF2FB344);
     });
@@ -1613,7 +1615,8 @@ class _DictationPageState extends State<DictationPage> {
           child: GestureDetector(
             key: const Key('dictation-question-audio-overlay'),
             behavior: HitTestBehavior.translucent,
-            onTap: _playAudio,
+            // 点屏幕重播：允许打断正在播放的旧发音，立即播新的，不再需等播完。
+            onTap: () => _playAudio(interrupt: true),
             child: Semantics(
               button: true,
               label: '播放当前单词发音',
@@ -1639,7 +1642,8 @@ class _DictationPageState extends State<DictationPage> {
                       revealWholeWord:
                           _stage == DictationStage.definition ||
                           _isCurrentWordComplete,
-                      onSpeakerTap: _playAudio,
+                      // 单词卡上的发音按钮同样允许打断重播。
+                      onSpeakerTap: () => _playAudio(interrupt: true),
                       isPlaying: _isPlaying,
                       prompt: _stageLabel,
                       feedback: _feedback,
@@ -1663,8 +1667,99 @@ class _DictationPageState extends State<DictationPage> {
               ? _buildNextQuestionButton(tokens)
               : _buildBottomControls(tokens),
         ),
+        // 第三层：难度提示横幅，绘制在候选区之上的悬浮层（纯界面提示，不碰数据库）。
+        // 悬浮在候选区正上方，既显眼又贴合现有卡片视觉，不与内容争夺布局空间。
+        Positioned(
+          left: DictationLayout.pageInset,
+          right: DictationLayout.pageInset,
+          // 紧贴候选控件顶边上方，露出完整横幅。
+          bottom: bottomOverlayHeight + 12,
+          child: Align(
+            alignment: Alignment.center,
+            child: _buildDifficultyHintBanner(tokens),
+          ),
+        ),
       ],
     );
+  }
+
+  ///
+  /// 在候选区正上方显示难度提示横幅（纯界面提示，完全不经过数据库）。
+  ///
+  /// 根据当前单词状态给出两种即时反馈：
+  /// - 答错后（[ _currentWrong ] > 0 且尚未完成）：危险色横幅，提示难度会后 +1；
+  /// - 完美通过（已完成且全程零错选）：成功色横幅，庆祝一次做对。
+  /// 其余状态（正在作答且尚未出错、已正常完成但有过错）返回零尺寸占位。
+  ///
+  /// 生活化解释：默写规则是“选错一次，单词难度 +1”，但难度真正变化发生在
+  /// 点“下一题”写库那一刻；这里只是基于“本次有没有选错过”的预判提示，
+  /// 让用户立刻知道刚才那一下有没有把难度推高，而不是等到下一轮才发现。
+  ///
+  /// @param  AppTokens  tokens 当前主题设计令牌。
+  /// @return Widget 提示横幅或零尺寸占位。
+  ///
+  Widget _buildDifficultyHintBanner(AppTokens tokens) {
+    // 取出当前状态对应的语义色、图标与文案；text 为 null 表示无需提示。
+    final visual = _difficultyHintVisual();
+    // 没有任何需要提示的状态时，不渲染横幅，避免占用布局与误导用户。
+    if (visual.text == null) return const SizedBox.shrink();
+
+    // Container 复用单词卡同款圆角与描边，让横幅与界面其余卡片视觉一致。
+    return Container(
+      key: const Key('dictation-difficulty-hint'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        // 危险用极淡红底，成功用极淡绿底，颜色再淡也不会丢失语义。
+        color: visual.color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+        // 同色描边强化边框，呼应 Tabler 的告警/成功徽章视觉。
+        border: Border.all(color: visual.color.withValues(alpha: 0.55)),
+      ),
+      // Row 让图标与文案水平排列，整体按内容宽度收缩并居中。
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(visual.icon, size: 16, color: visual.color),
+          const SizedBox(width: 8),
+          Text(
+            visual.text!,
+            style: TextStyle(
+              color: visual.color,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ///
+  /// 返回难度提示横幅的视觉三要素：语义色、Tabler 图标、文案。
+  ///
+  /// 文案为 null 表示当前不需要展示任何提示。
+  ///
+  /// @return `({Color color, IconData icon, String? text})` 横幅视觉元组。
+  ///
+  ({Color color, IconData icon, String? text}) _difficultyHintVisual() {
+    // 答错且尚未完成：危险色告警，明确告知难度会后 +1。
+    if (!_isCurrentWordComplete && _currentWrong > 0) {
+      return (
+        color: AppTokens.danger,
+        icon: TablerIcons.alertTriangle,
+        text: '本题已答错 · 难度将 +1',
+      );
+    }
+    // 完成且全程零错选：成功色庆祝，给出“一气呵成”的正向反馈。
+    if (_isCurrentWordComplete && _currentWrong == 0) {
+      return (
+        color: const Color(0xFF2FB344),
+        icon: TablerIcons.circleCheck,
+        text: '一气呵成 · 完美通过！',
+      );
+    }
+    // 其余状态（正在作答未出错、或完成但有过错）不提示。
+    return (color: AppTokens.danger, icon: TablerIcons.alertTriangle, text: null);
   }
 
   ///
@@ -1755,7 +1850,8 @@ class _DictationPageState extends State<DictationPage> {
                     background: AppTokens.accent,
                     height: DictationLayout.actionHeight,
                     horizontalPadding: 8,
-                    onTap: _playAudio,
+                    // 底部播放按钮允许打断重播。
+                    onTap: () => _playAudio(interrupt: true),
                   ),
                 ],
               ),

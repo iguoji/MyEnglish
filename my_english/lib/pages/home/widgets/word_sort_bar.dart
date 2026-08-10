@@ -25,6 +25,16 @@ enum WordSortField {
   alphabet,
 
   ///
+  /// 按“含义数”排序（一个单词下全部中文释义条数之和）。
+  ///
+  /// 含义少的排在前面，默认升序；作为其他排序的次级时同样永远升序，
+  /// 既不跟随主字段方向，也不单独拆分复习/更新/加入日期，与“日期”字段对齐。
+  ///
+  /// @var WordSortField
+  ///
+  meaning,
+
+  ///
   /// 按 difficulty 排序。
   ///
   /// @var WordSortField
@@ -147,6 +157,15 @@ class WordSortBar extends StatelessWidget {
                   label: '字母',
                   isSelected: selectedField == WordSortField.alphabet,
                   isAscending: directions[WordSortField.alphabet] ?? true,
+                  onPressed: onSelected,
+                ),
+                const SizedBox(width: 18),
+                // 含义排序，永远升序，因此选中后显示向上箭头。
+                _SortChip(
+                  field: WordSortField.meaning,
+                  label: '含义',
+                  isSelected: selectedField == WordSortField.meaning,
+                  isAscending: directions[WordSortField.meaning] ?? true,
                   onPressed: onSelected,
                 ),
                 const SizedBox(width: 18),

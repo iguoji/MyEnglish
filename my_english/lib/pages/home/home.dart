@@ -353,6 +353,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<WordSortField, bool> _sortDirections = <WordSortField, bool>{
     // 字母第一次点击从 A 到 Z。
     WordSortField.alphabet: true,
+    // 含义永远升序：含义少的单词排在前面。
+    WordSortField.meaning: true,
     // 难度第一次点击从高到低。
     WordSortField.difficulty: false,
     // 日期第一次点击从最近到最早。

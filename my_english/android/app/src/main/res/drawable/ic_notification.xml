@@ -1,0 +1,19 @@
+<!-- 锁屏/通知栏媒体控制使用的小图标：纯单色形状，由系统按主题着色。 -->
+<!-- 左侧为喇叭主体（填充），右侧两道弧线表示声音（描边），共同表达“音频播放”。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 喇叭主体：左侧梯形音箱 + 朝右的锥角。 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,9 L8,9 L13,5 L13,19 L8,15 L4,15 Z" />
+    <!-- 声音弧线：用描边表示声波扩散；fillColor 透明避免闭合填充。 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLinecap="round"
+        android:pathData="M16,8.5 A4.5,4.5 0 0,1 16,15.5 M18.5,6 A8,8 0 0,1 18.5,18" />
+</vector>

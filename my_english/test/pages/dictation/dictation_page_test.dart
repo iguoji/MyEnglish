@@ -112,7 +112,8 @@ void main() {
     // 固定生成的交换字母干扰项应触发红色错误反馈且累计一次。
     await tester.tap(find.text('abliity'));
     await tester.pump();
-    expect(find.text('不对，再试试'), findsOneWidget);
+    // 选错后以"答错 · 难度将 +1"提示，与新版难度告警横幅口径一致。
+    expect(find.text('答错 · 难度将 +1'), findsOneWidget);
     // 新版原型只用红色文字反馈错误，不额外绘制错误图标。
     expect(find.byIcon(TablerIcons.x), findsNothing);
 
@@ -1244,7 +1245,7 @@ final _words = <Word>[
 ///
 /// 每次播放和停止都会立即完成的测试播放器。
 ///
-class _ImmediateAudioPlayer implements WordAudioPlayer {
+class _ImmediateAudioPlayer extends WordAudioPlayer {
   ///
   /// 立即完成指定单词的模拟播放。
   ///
@@ -1267,7 +1268,7 @@ class _ImmediateAudioPlayer implements WordAudioPlayer {
 ///
 /// 记录每次播放请求并立即结束，适合验证多个点击热区复用同一播放事件。
 ///
-class _RecordingAudioPlayer implements WordAudioPlayer {
+class _RecordingAudioPlayer extends WordAudioPlayer {
   ///
   /// 按发生顺序保存被请求播放的单词。
   ///
@@ -1301,7 +1302,7 @@ class _RecordingAudioPlayer implements WordAudioPlayer {
 /// 模拟真实原生播放器：play 的 Future 会一直挂起直到音频播完，
 /// 新的 play 会把上一个请求以「已被替换」的中断异常结束（与 Android 实现一致）。
 ///
-class _PendingAudioPlayer implements WordAudioPlayer {
+class _PendingAudioPlayer extends WordAudioPlayer {
   ///
   /// 依次记录每一次被请求播放的单词，供测试断言播放顺序。
   ///

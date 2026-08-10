@@ -118,38 +118,57 @@ class HomeWordSorter {
     // 每个入口都明确列出第二、第三层规则，避免相同主字段时顺序随机跳动。
     switch (field) {
       case WordSortField.original:
-        // 默认：编号升序 -> 字母升序 -> 难度降序 -> 日期降序。
+        // 默认：编号升序 -> 字母升序 -> 难度降序 -> 含义升序 -> 日期降序。
         final byId = _compareId(first, second);
         if (byId != 0) return byId;
         final bySpelling = _compareSpelling(first, second, true);
         if (bySpelling != 0) return bySpelling;
         final byDifficulty = _compareDifficulty(first, second, false);
         if (byDifficulty != 0) return byDifficulty;
+        final byMeaning = _compareMeaningCount(first, second, true);
+        if (byMeaning != 0) return byMeaning;
         return _compareDate(first, second, false);
       case WordSortField.alphabet:
-        // 字母：当前方向 -> 难度降序 -> 日期降序 -> 编号升序。
+        // 字母：当前方向 -> 难度降序 -> 含义升序 -> 日期降序 -> 编号升序。
         final bySpelling = _compareSpelling(first, second, isAscending);
         if (bySpelling != 0) return bySpelling;
         final byDifficulty = _compareDifficulty(first, second, false);
         if (byDifficulty != 0) return byDifficulty;
+        final byMeaning = _compareMeaningCount(first, second, true);
+        if (byMeaning != 0) return byMeaning;
         final byDate = _compareDate(first, second, false);
         if (byDate != 0) return byDate;
         return _compareId(first, second);
-      case WordSortField.difficulty:
-        // 难度：当前方向 -> 日期降序 -> 字母升序 -> 编号升序。
-        final byDifficulty = _compareDifficulty(first, second, isAscending);
+      case WordSortField.meaning:
+        // 含义：当前方向(默认升) -> 难度降序 -> 日期降序 -> 字母升序 -> 编号升序。
+        final byMeaning = _compareMeaningCount(first, second, isAscending);
+        if (byMeaning != 0) return byMeaning;
+        final byDifficulty = _compareDifficulty(first, second, false);
         if (byDifficulty != 0) return byDifficulty;
         final byDate = _compareDate(first, second, false);
         if (byDate != 0) return byDate;
         final bySpelling = _compareSpelling(first, second, true);
         if (bySpelling != 0) return bySpelling;
         return _compareId(first, second);
+      case WordSortField.difficulty:
+        // 难度：当前方向 -> 含义升序 -> 日期降序 -> 字母升序 -> 编号升序。
+        final byDifficulty = _compareDifficulty(first, second, isAscending);
+        if (byDifficulty != 0) return byDifficulty;
+        final byMeaning = _compareMeaningCount(first, second, true);
+        if (byMeaning != 0) return byMeaning;
+        final byDate = _compareDate(first, second, false);
+        if (byDate != 0) return byDate;
+        final bySpelling = _compareSpelling(first, second, true);
+        if (bySpelling != 0) return bySpelling;
+        return _compareId(first, second);
       case WordSortField.date:
-        // 日期：当前方向 -> 难度降序 -> 字母升序 -> 编号升序。
+        // 日期：当前方向 -> 难度降序 -> 含义升序 -> 字母升序 -> 编号升序。
         final byDate = _compareDate(first, second, isAscending);
         if (byDate != 0) return byDate;
         final byDifficulty = _compareDifficulty(first, second, false);
         if (byDifficulty != 0) return byDifficulty;
+        final byMeaning = _compareMeaningCount(first, second, true);
+        if (byMeaning != 0) return byMeaning;
         final bySpelling = _compareSpelling(first, second, true);
         if (bySpelling != 0) return bySpelling;
         return _compareId(first, second);
@@ -187,6 +206,23 @@ class HomeWordSorter {
       second.difficulty ?? 0,
     );
     // 应用当前方向。
+    return _applyDirection(comparison, isAscending);
+  }
+
+  ///
+  /// 比较“含义数”（一个单词下全部中文释义条数之和）。
+  ///
+  /// 排序入口与次级规则都使用升序：含义少的单词排在前面，便于初学者从简单词入手。
+  ///
+  /// @param  Word  first
+  /// @param  Word  second
+  /// @param  bool  isAscending
+  /// @return int
+  ///
+  int _compareMeaningCount(Word first, Word second, bool isAscending) {
+    // meaningCount 恒为非负整数，不会出现 null。
+    final comparison = first.meaningCount.compareTo(second.meaningCount);
+    // 应用当前方向（仅“含义”入口自身使用，次级场景始终传 true）。
     return _applyDirection(comparison, isAscending);
   }
 
