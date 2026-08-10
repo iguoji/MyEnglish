@@ -30,10 +30,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 // androidx.media 提供媒体会话与 MediaStyle 通知（锁屏/蓝牙控制的标准机制）。
-import androidx.media.MediaMetadataCompat
+// 注意：这些兼容类在 androidx.media 库中仍保留历史包名 android.support.v4.media.*。
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import androidx.media.app.NotificationCompat.MediaStyle
-import androidx.media.session.MediaSessionCompat
-import androidx.media.session.PlaybackStateCompat
 // androidx.core 提供兼容的通知构造器。
 import androidx.core.app.NotificationCompat
 // 系统通知管理器与通知渠道所需。
@@ -720,11 +721,11 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         // 会话为空说明尚未创建，直接返回。
         val session = mediaSession ?: return
         // 声明通知栏与锁屏将要展示的动作集合（播放/暂停/上下首/停止）。
-        val actions = PlaybackStateCompat.ACTION_PLAY
-            or PlaybackStateCompat.ACTION_PAUSE
-            or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-            or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-            or PlaybackStateCompat.ACTION_STOP
+        val actions = PlaybackStateCompat.ACTION_PLAY or
+            PlaybackStateCompat.ACTION_PAUSE or
+            PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+            PlaybackStateCompat.ACTION_STOP
         // 当前状态：播放中或已暂停，系统据此渲染对应按钮高亮。
         val state = if (isPlaying) {
             PlaybackStateCompat.STATE_PLAYING
