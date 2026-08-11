@@ -1791,23 +1791,52 @@ class _DictationPageState extends State<DictationPage> {
               key: const Key('dictation-option-column'),
               flex: DictationLayout.optionColumnFlex,
               // 候选组外包一层 AnimatedSwitcher：进入下一小题 / 下一词 / 刷新候选时，
-              // 旧候选组先淡出下沉、新候选组再淡入上移，进出共用同一条曲线，
-              // 保证上一组离场与下一组入场顺滑衔接，不再出现生硬瞬切（仿 Duolingo / Quizlet 的整组切换）。
+              // 旧候选组向上推出、新候选组从下方升入，过渡期同时渲染两组四个按钮，
+              // 形成清晰的「上一轮离场、本轮入场」层次感，不再整体下沉再回弹（仿 Duolingo / Quizlet 的整组切换）。
               child: AnimatedSwitcher(
                 // 整组过渡时长，320ms 是答题类 App 切换选项的常见手感。
                 duration: const Duration(milliseconds: 320),
-                // 入场用缓出曲线收尾更自然，离场用缓入曲线开头更柔和。
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                // 进出都套用「淡入淡出 + 轻微纵向位移」，方向一致所以衔接顺滑。
+                // 进出用「方向一致的上推」：旧组向上淡出离场，新组从下方淡入归位，
+                // 二者在垂直方向一进一退，衔接顺滑且层次分明。
                 transitionBuilder: (child, animation) {
-                  // 入场：从下方 12% 高度上移归位并淡入；离场：反向回到下方并淡出。
-                  final slide = Tween<Offset>(
-                    begin: const Offset(0, 0.12),
-                    end: Offset.zero,
-                  ).animate(animation);
+                  // AnimatedSwitcher 对离场子组件传入反向动画（status 为 reverse），
+                  // 据此区分「离场」与「入场」并施加不同方向的位移与透明度。
+                  final isLeaving = animation.status == AnimationStatus.reverse;
+                  // 离场：从原位上移 16% 高度并淡出，像被推上去；入场：从下方 16% 升入归位并淡入。
+                  final slide = isLeaving
+                      ? Tween<Offset>(
+                          begin: Offset.zero,
+                          end: const Offset(0, -0.16),
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeInCubic,
+                          ),
+                        )
+                      : Tween<Offset>(
+                          begin: const Offset(0, 0.16),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        );
+                  final fade = isLeaving
+                      ? Tween<double>(begin: 1, end: 0).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeInCubic,
+                          ),
+                        )
+                      : Tween<double>(begin: 0, end: 1).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        );
                   return FadeTransition(
-                    opacity: animation,
+                    opacity: fade,
                     child: SlideTransition(position: slide, child: child),
                   );
                 },
