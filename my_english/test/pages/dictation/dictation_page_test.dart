@@ -153,6 +153,9 @@ void main() {
     expect(nextButtonFinder, findsOneWidget);
     expect(find.text('再试一次'), findsOneWidget);
     expect(find.text('下一题'), findsOneWidget);
+    // 错误提示：本题选错过 1 次，完成后在「再试一次 / 下一题」上方展示累计错次
+    // （不再显示旧的“难度将 +1”，且不再是完成有错就什么都不提示）。
+    expect(find.text('本题已答错 1 次'), findsOneWidget);
     // 右侧主操作仍保持蓝色实心。
     final nextButton = tester.widget<FilledButton>(nextButtonFinder);
     expect(

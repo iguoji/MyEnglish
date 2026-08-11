@@ -1684,16 +1684,17 @@ class _DictationPageState extends State<DictationPage> {
   }
 
   ///
-  /// 在候选区正上方显示难度提示横幅（纯界面提示，完全不经过数据库）。
+  /// 在底部操作区正上方显示结果提示横幅（纯界面提示，完全不经过数据库）。
+  /// 它根据当前单词状态在「错误提示」与「正确提示」之间切换：
   ///
-  /// 根据当前单词状态给出两种即时反馈：
-  /// - 答错后（[ _currentWrong ] > 0 且尚未完成）：危险色横幅，提示难度会后 +1；
-  /// - 完美通过（已完成且全程零错选）：成功色横幅，庆祝一次做对。
-  /// 其余状态（正在作答且尚未出错、已正常完成但有过错）返回零尺寸占位。
+  /// - 错误提示（[ _currentWrong ] > 0）：本题选错过即展示，文案表达“当前单词错了几次”。
+  ///   作答中途横幅位于候选区正上方；完成后若仍有错，则位于「再试一次 / 下一题」上方。
+  /// - 正确提示（[ _isCurrentWordComplete ] 且全程零错选）：成功色横幅“一气呵成 · 完美通过！”。
+  /// 其余状态（正在作答且尚未出错）返回零尺寸占位。
   ///
-  /// 生活化解释：默写规则是“选错一次，单词难度 +1”，但难度真正变化发生在
-  /// 点“下一题”写库那一刻；这里只是基于“本次有没有选错过”的预判提示，
-  /// 让用户立刻知道刚才那一下有没有把难度推高，而不是等到下一轮才发现。
+  /// 生活化解释：这道横幅是给用户看的即时反馈，不碰数据库。
+  /// “难度 +1”真正发生是在点“下一题”写库那一刻；这里只告诉用户本题到底错了几次，
+  /// 让他离场前心里有数，而不是等到下一轮才发现刚才选错过。
   ///
   /// @param  AppTokens  tokens 当前主题设计令牌。
   /// @return Widget 提示横幅或零尺寸占位。
@@ -1742,23 +1743,26 @@ class _DictationPageState extends State<DictationPage> {
   /// @return `({Color color, IconData icon, String? text})` 横幅视觉元组。
   ///
   ({Color color, IconData icon, String? text}) _difficultyHintVisual() {
-    // 答错且尚未完成：危险色告警，明确告知难度会后 +1。
-    if (!_isCurrentWordComplete && _currentWrong > 0) {
+    // 错误提示：只要本题选错过（无论是否已完成），都展示累计错误次数。
+    // - 作答中途：横幅位于候选区正上方，实时告诉用户已经错了几下；
+    // - 完成后仍有错：横幅位于「再试一次 / 下一题」上方，让用户离场前看到总错次。
+    // 文案表达“当前单词错了几次”，不再强调“难度 +1”（难度真正变化在点下一题写库时）。
+    if (_currentWrong > 0) {
       return (
         color: AppTokens.danger,
         icon: TablerIcons.alertTriangle,
-        text: '本题已答错 · 难度将 +1',
+        text: '本题已答错 $_currentWrong 次',
       );
     }
-    // 完成且全程零错选：成功色庆祝，给出“一气呵成”的正向反馈。
-    if (_isCurrentWordComplete && _currentWrong == 0) {
+    // 正确提示：完成且全程零错选，给出“一气呵成”的正向反馈（用户要求保持不变）。
+    if (_isCurrentWordComplete) {
       return (
         color: const Color(0xFF2FB344),
         icon: TablerIcons.circleCheck,
         text: '一气呵成 · 完美通过！',
       );
     }
-    // 其余状态（正在作答未出错、或完成但有过错）不提示。
+    // 其余状态（正在作答且尚未出错）不提示。
     return (color: AppTokens.danger, icon: TablerIcons.alertTriangle, text: null);
   }
 
