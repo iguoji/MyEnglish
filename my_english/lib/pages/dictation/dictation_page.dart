@@ -1790,28 +1790,53 @@ class _DictationPageState extends State<DictationPage> {
             Expanded(
               key: const Key('dictation-option-column'),
               flex: DictationLayout.optionColumnFlex,
-              // Column 让四个候选词从共同底边向上占满四行。
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  for (var index = 0; index < _options.length; index++) ...[
-                    // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
-                    _OptionCard(
-                      key: ValueKey(
-                        'dictation-option-$index-${_options[index].text}',
+              // 候选组外包一层 AnimatedSwitcher：进入下一小题 / 下一词 / 刷新候选时，
+              // 旧候选组先淡出下沉、新候选组再淡入上移，进出共用同一条曲线，
+              // 保证上一组离场与下一组入场顺滑衔接，不再出现生硬瞬切（仿 Duolingo / Quizlet 的整组切换）。
+              child: AnimatedSwitcher(
+                // 整组过渡时长，320ms 是答题类 App 切换选项的常见手感。
+                duration: const Duration(milliseconds: 320),
+                // 入场用缓出曲线收尾更自然，离场用缓入曲线开头更柔和。
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                // 进出都套用「淡入淡出 + 轻微纵向位移」，方向一致所以衔接顺滑。
+                transitionBuilder: (child, animation) {
+                  // 入场：从下方 12% 高度上移归位并淡入；离场：反向回到下方并淡出。
+                  final slide = Tween<Offset>(
+                    begin: const Offset(0, 0.12),
+                    end: Offset.zero,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: slide, child: child),
+                  );
+                },
+                // 用当前四个候选文本拼接成唯一 Key；文本变化即触发整组过渡，文本不变则不重启动画。
+                child: Column(
+                  key: ValueKey(
+                    'dictation-option-group-${_options.map((option) => option.text).join('|')}',
+                  ),
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    for (var index = 0; index < _options.length; index++) ...[
+                      // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
+                      _OptionCard(
+                        key: ValueKey(
+                          'dictation-option-$index-${_options[index].text}',
+                        ),
+                        option: _options[index],
+                        index: index,
+                        wrong: _wrongOptions.contains(_options[index].text),
+                        onTap: () => _pickOption(_options[index]),
+                        // 长按任意候选都进入同一刷新确认流程，不暴露正确答案身份。
+                        onLongPress: () => _requestOptionRefresh(index),
                       ),
-                      option: _options[index],
-                      index: index,
-                      wrong: _wrongOptions.contains(_options[index].text),
-                      onTap: () => _pickOption(_options[index]),
-                      // 长按任意候选都进入同一刷新确认流程，不暴露正确答案身份。
-                      onLongPress: () => _requestOptionRefresh(index),
-                    ),
-                    // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
-                    if (index < _options.length - 1)
-                      const SizedBox(height: DictationLayout.optionGap),
+                      // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
+                      if (index < _options.length - 1)
+                        const SizedBox(height: DictationLayout.optionGap),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             // 两栏之间只使用正常布局间距，不使用任何偏移。

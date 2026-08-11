@@ -119,11 +119,13 @@ void main() {
 
     // 正确拼写进入第一个词义的第一条释义。
     await tester.tap(find.text('ability'));
-    await tester.pump();
+    // 正确作答会触发候选组整组过渡动画（AnimatedSwitcher），需等待动画结束再断言候选数量。
+    await tester.pumpAndSettle();
     expect(find.text('n. · 选择释义 1/2'), findsOneWidget);
     _expectFourOptions(tester);
     await tester.tap(find.text('能力'));
-    await tester.pump();
+    // 同上：释义切换也触发候选组过渡，等待动画结束。
+    await tester.pumpAndSettle();
     expect(find.text('n. · 选择释义 2/2'), findsOneWidget);
     _expectFourOptions(tester);
     await tester.tap(find.text('才能'));
