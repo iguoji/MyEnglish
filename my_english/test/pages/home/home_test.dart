@@ -508,7 +508,7 @@ void main() {
 
     // 收起时第一行高度为设计稿的 36 像素标题行。
     expect(
-      tester.getSize(find.byType(WordListTile).first).height,
+      tester.getSize(find.ancestor(of: find.text('ability'), matching: find.byType(WordListTile))).height,
       WordListTile.headerHeight,
     );
 
@@ -529,7 +529,7 @@ void main() {
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整项高度大于标题行。
     expect(
-      tester.getSize(find.byType(WordListTile).first).height,
+      tester.getSize(find.ancestor(of: find.text('ability'), matching: find.byType(WordListTile))).height,
       greaterThan(WordListTile.headerHeight),
     );
 
@@ -618,26 +618,26 @@ void main() {
     await _pumpHome(tester, words: words);
 
     // 排序项本身使用纯 GestureDetector，不允许被 InkWell 包裹后产生点击背景色。
-    final alphabetSort = find.byKey(const Key('word-sort-alphabet'));
+    final defaultSort = find.byKey(const Key('word-sort-original'));
     // key 直接落在 GestureDetector 上，点击区域仍然完整可用。
-    expect(tester.widget(alphabetSort), isA<GestureDetector>());
+    expect(tester.widget(defaultSort), isA<GestureDetector>());
     // 向父级查找不到 InkWell，代表按下时不会出现 Material 水波纹或背景块。
     expect(
-      find.ancestor(of: alphabetSort, matching: find.byType(InkWell)),
+      find.ancestor(of: defaultSort, matching: find.byType(InkWell)),
       findsNothing,
     );
 
-    // 默认排序：编号升序 → 字母升序 → 难度降序 → 日期降序。
-    // 三个词 id 依次递增，编号升序即保持 Store 返回顺序。
-    _expectTextsInVerticalOrder(tester, <String>['zebra', 'apple', 'middle']);
-    // 第一次点字母是升序。
-    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
-    await tester.pump();
+    // 默认排序已对齐“字母”规则：按 spelling 升序 → 难度降序 → 含义升序 → 日期降序 → 编号升序。
+    // 三个词 spelling 各不相同，首层即决定顺序：apple < middle < zebra（默认升序）。
     _expectTextsInVerticalOrder(tester, <String>['apple', 'middle', 'zebra']);
-    // 再点字母切到降序。
-    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
+    // 点击默认项（当前已选中）切换为降序：zebra、middle、apple。
+    await tester.tap(find.byKey(const Key('word-sort-original')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['zebra', 'middle', 'apple']);
+    // 再点一次切回升序。
+    await tester.tap(find.byKey(const Key('word-sort-original')));
+    await tester.pump();
+    _expectTextsInVerticalOrder(tester, <String>['apple', 'middle', 'zebra']);
 
     // 第一次点难度默认高到低，null 难度按 0 落在最后。
     await tester.tap(find.byKey(const Key('word-sort-difficulty')));
@@ -731,8 +731,8 @@ void main() {
     ];
     // 重新打开首页。
     await _pumpHome(tester, words: sameSpellingWords);
-    // 点击字母排序；拼写完全相同，顺序由难度降序和日期降序决定。
-    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
+    // 点击默认项（字母规则）；拼写完全相同，顺序由难度降序和日期降序决定。
+    await tester.tap(find.byKey(const Key('word-sort-original')));
     await tester.pump();
     // 文字相同无法用文本定位，改为逐行读取列表项的 Word 主键。
     expect(_visibleWordIds(tester), <int>[43, 42, 41]);
@@ -756,8 +756,8 @@ void main() {
     ];
     // 重新打开首页。
     await _pumpHome(tester, words: twinWords);
-    // 点击字母排序触发完整比较链。
-    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
+    // 点击默认项（字母规则）触发完整比较链。
+    await tester.tap(find.byKey(const Key('word-sort-original')));
     await tester.pump();
     // 前三级全部打平后按编号升序。
     expect(_visibleWordIds(tester), <int>[51, 52]);
@@ -977,7 +977,15 @@ void main() {
     await tester.drag(find.text('ability'), const Offset(-80, 0));
     await tester.pumpAndSettle();
     // 编辑模式显示“编辑单词”和“保存”，不出现新增模式专用的“提交并继续”。
-    await tester.tap(find.byKey(const Key('swipe-edit')).first);
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('ability'),
+          matching: find.byType(WordListTile),
+        ),
+        matching: find.byKey(const Key('swipe-edit')),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('编辑单词'), findsOneWidget);
     expect(find.text('保存'), findsOneWidget);
@@ -991,7 +999,15 @@ void main() {
     await tester.drag(find.text('ability'), const Offset(-80, 0));
     await tester.pumpAndSettle();
     // 点击删除操作（每行都有同名 key，取第一行 ability 的那个）。
-    await tester.tap(find.byKey(const Key('swipe-delete')).first);
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('ability'),
+          matching: find.byType(WordListTile),
+        ),
+        matching: find.byKey(const Key('swipe-delete')),
+      ),
+    );
     await tester.pumpAndSettle();
     // 出现确认对话框。
     expect(find.text('删除单词'), findsOneWidget);
@@ -1004,7 +1020,15 @@ void main() {
     // 再来一次并确认删除。
     await tester.drag(find.text('ability'), const Offset(-80, 0));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('swipe-delete')).first);
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('ability'),
+          matching: find.byType(WordListTile),
+        ),
+        matching: find.byKey(const Key('swipe-delete')),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('delete-confirm')));
     await tester.pumpAndSettle();
@@ -1533,11 +1557,9 @@ void main() {
       Word(id: 22, spelling: 'apple'),
       Word(id: 23, spelling: 'middle'),
     ];
-    // 渲染首页。
+    // 渲染首页；默认排序已对齐“字母”规则，直接进入字母升序。
     await _pumpHome(tester, words: words);
-    // 切换为字母升序，当前首页列表应变为 apple、middle、zebra。
-    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
-    await tester.pump();
+    // 当前首页列表应为 apple、middle、zebra。
     expect(_visibleWordIds(tester), <int?>[22, 23, 21]);
 
     // 展开学习菜单并进入随身听。
@@ -1584,10 +1606,8 @@ void main() {
       Word(id: 22, spelling: 'apple'),
       Word(id: 23, spelling: 'middle'),
     ];
-    // 打开首页并切换到字母升序。
+    // 打开首页；默认排序已对齐“字母”规则，直接进入字母升序。
     await _pumpHome(tester, words: words);
-    await tester.tap(find.byKey(const Key('word-sort-alphabet')));
-    await tester.pump();
     // 进入选择模式。
     await tester.tap(find.byKey(const Key('toggle-select-mode')));
     await tester.pump();

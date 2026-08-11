@@ -339,7 +339,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _selectMode = false;
 
   ///
-  /// 当前使用的排序字段，默认保持 SQLite 返回顺序。
+  /// 当前使用的排序字段，默认按“字母”规则（spelling 升序）展示。
   ///
   /// @var WordSortField
   ///
@@ -351,8 +351,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @var `Map<WordSortField, bool>`
   ///
   final Map<WordSortField, bool> _sortDirections = <WordSortField, bool>{
-    // 字母第一次点击从 A 到 Z。
-    WordSortField.alphabet: true,
+    // 默认（已对齐“字母”）第一次点击从 A 到 Z。
+    WordSortField.original: true,
     // 含义永远升序：含义少的单词排在前面。
     WordSortField.meaning: true,
     // 难度第一次点击从高到低。
@@ -656,17 +656,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @return void
   ///
   void _handleSortSelected(WordSortField field) {
-    // 默认项只恢复原始顺序，没有方向可切换。
-    if (field == WordSortField.original) {
-      // 已经是默认时无需重建。
-      if (_sortField == field) return;
-      // 切回原始顺序。
-      setState(() => _sortField = field);
-      return;
-    }
     // setState 同时处理字段选择和当前字段方向翻转。
+    // 默认项现已支持升降序切换，因此与其他字段走同一套逻辑。
     setState(() {
-      // 再次点击当前非默认字段时翻转升降序。
+      // 再次点击当前字段时翻转升降序。
       if (_sortField == field) {
         _sortDirections[field] = !(_sortDirections[field] ?? true);
       } else {

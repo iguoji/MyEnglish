@@ -118,18 +118,8 @@ class HomeWordSorter {
     // 每个入口都明确列出第二、第三层规则，避免相同主字段时顺序随机跳动。
     switch (field) {
       case WordSortField.original:
-        // 默认：编号升序 -> 字母升序 -> 难度降序 -> 含义升序 -> 日期降序。
-        final byId = _compareId(first, second);
-        if (byId != 0) return byId;
-        final bySpelling = _compareSpelling(first, second, true);
-        if (bySpelling != 0) return bySpelling;
-        final byDifficulty = _compareDifficulty(first, second, false);
-        if (byDifficulty != 0) return byDifficulty;
-        final byMeaning = _compareMeaningCount(first, second, true);
-        if (byMeaning != 0) return byMeaning;
-        return _compareDate(first, second, false);
-      case WordSortField.alphabet:
-        // 字母：当前方向 -> 难度降序 -> 含义升序 -> 日期降序 -> 编号升序。
+        // 默认已对齐“字母”规则：当前方向(默认升) -> 难度降序 -> 含义升序 -> 日期降序 -> 编号升序。
+        // 与旧“字母”入口完全一致，仅入口名称不同，便于移除冗余的“字母”按钮。
         final bySpelling = _compareSpelling(first, second, isAscending);
         if (bySpelling != 0) return bySpelling;
         final byDifficulty = _compareDifficulty(first, second, false);

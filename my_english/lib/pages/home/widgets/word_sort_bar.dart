@@ -11,18 +11,11 @@ import '../../../common/theme.dart';
 ///
 enum WordSortField {
   ///
-  /// 默认原始顺序。
+  /// 默认排序；已对齐“字母”规则：按 spelling 升序为主，可点击切换升降序。
   ///
   /// @var WordSortField
   ///
   original,
-
-  ///
-  /// 按 spelling 字母排序。
-  ///
-  /// @var WordSortField
-  ///
-  alphabet,
 
   ///
   /// 按“含义数”排序（一个单词下全部中文释义条数之和）。
@@ -142,21 +135,12 @@ class WordSortBar extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                // 默认项没有方向箭头。
+                // 默认项现已对齐“字母”规则（按 spelling 排序），选中后显示方向箭头。
                 _SortChip(
                   field: WordSortField.original,
                   label: '默认',
                   isSelected: selectedField == WordSortField.original,
-                  onPressed: onSelected,
-                ),
-                // 排序项之间的固定间距。
-                const SizedBox(width: 18),
-                // 字母排序，箭头方向由首页记录。
-                _SortChip(
-                  field: WordSortField.alphabet,
-                  label: '字母',
-                  isSelected: selectedField == WordSortField.alphabet,
-                  isAscending: directions[WordSortField.alphabet] ?? true,
+                  isAscending: directions[WordSortField.original] ?? true,
                   onPressed: onSelected,
                 ),
                 const SizedBox(width: 18),
@@ -218,7 +202,7 @@ class WordSortBar extends StatelessWidget {
 ///
 class _SortChip extends StatelessWidget {
   ///
-  /// 默认项不传 isAscending，其他三项必须传入方向。
+  /// 每个排序项都传入方向；默认项现在也支持升降序切换，因此同样需要 isAscending。
   ///
   /// @param  WordSortField  field
   /// @param  String  label

@@ -25,8 +25,8 @@ void main() {
     // 默认规则最终会落到原始下标兜底。
     const sorter = HomeWordSorter(
       mode: GroupMode.custom,
-      field: WordSortField.alphabet,
-      directions: <WordSortField, bool>{WordSortField.alphabet: true},
+      field: WordSortField.original,
+      directions: <WordSortField, bool>{WordSortField.original: true},
       query: '',
     );
 
@@ -46,8 +46,8 @@ void main() {
     // 查询词使用大写转小写后的页面口径。
     const sorter = HomeWordSorter(
       mode: GroupMode.custom,
-      field: WordSortField.alphabet,
-      directions: <WordSortField, bool>{WordSortField.alphabet: true},
+      field: WordSortField.original,
+      directions: <WordSortField, bool>{WordSortField.original: true},
       query: 'a',
     );
 
