@@ -1794,8 +1794,8 @@ class _DictationPageState extends State<DictationPage> {
               // 旧候选组向上推出、新候选组从下方升入，过渡期同时渲染两组四个按钮，
               // 形成清晰的「上一轮离场、本轮入场」层次感，不再整体下沉再回弹（仿 Duolingo / Quizlet 的整组切换）。
               child: AnimatedSwitcher(
-                // 整组过渡时长，320ms 是答题类 App 切换选项的常见手感。
-                duration: const Duration(milliseconds: 320),
+                // 整组过渡时长，210ms（较原 320ms 减少约三分之一）让切换更利落。
+                duration: const Duration(milliseconds: 210),
                 // 进出用「方向一致的上推」：旧组向上淡出离场，新组从下方淡入归位，
                 // 二者在垂直方向一进一退，衔接顺滑且层次分明。
                 transitionBuilder: (child, animation) {
