@@ -20,6 +20,7 @@ pluginManagement {
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
+    // Flutter 3.44.8 仍依赖传统 Kotlin Android 插件，暂不能切到 AGP 9 内置 Kotlin。
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
 

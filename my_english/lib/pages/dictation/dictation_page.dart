@@ -808,6 +808,24 @@ class _DictationPageState extends State<DictationPage> {
     try {
       // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
       await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
+    } on WordAudioPlaybackException catch (firstError) {
+      // 原生已经删除损坏缓存；同一代次立即重试一次，触发重新下载并播放。
+      // 只重试解码失败，不重试网络失败，避免无网时让用户额外等待两轮超时。
+      if (mounted && generation == _playGeneration) {
+        try {
+          await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
+        } on WordAudioInterruptedException {
+          // 用户在重试期间切题或退出时按正常中断处理，不弹错误。
+        } catch (error) {
+          // 自动恢复仍失败时保留第二次真实原因；没有原因时回退首次解码错误。
+          if (mounted && generation == _playGeneration) {
+            Toast.show(
+              context,
+              '播放失败：${error.toString().isEmpty ? firstError : error}',
+            );
+          }
+        }
+      }
     } on WordAudioInterruptedException {
       // 页面关闭或新播放替换旧播放时无需弹出错误。
     } catch (error) {
@@ -1763,7 +1781,11 @@ class _DictationPageState extends State<DictationPage> {
       );
     }
     // 其余状态（正在作答且尚未出错）不提示。
-    return (color: AppTokens.danger, icon: TablerIcons.alertTriangle, text: null);
+    return (
+      color: AppTokens.danger,
+      icon: TablerIcons.alertTriangle,
+      text: null,
+    );
   }
 
   ///

@@ -482,7 +482,7 @@ class SettingsStore extends ChangeNotifier {
   ///
   static int _dailyGoalFromStorage(Object? value) {
     // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
-    final parsed = (value as num?)?.toInt();
+    final parsed = value is num ? value.toInt() : null;
     // 旧版本没有该字段时使用产品默认值 100。
     return parsed != null && parsed >= 0 ? parsed : 100;
   }

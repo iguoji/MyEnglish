@@ -1,3 +1,6 @@
+// dart:async 提供 Completer，用于精确控制两次异步保存的完成顺序。
+import 'dart:async';
+
 // services.dart 提供 MethodChannel 与 MethodCall，用来模拟 Android SQLite 桥接。
 import 'package:flutter/services.dart';
 // flutter_test 提供测试绑定、断言和 mock 消息桥。
@@ -135,6 +138,104 @@ void main() {
     );
     await expectLater(persistence.delete(), completes);
   });
+
+  test('persistence serializes snapshots across recreated facades', () async {
+    // 可控 Store 会暂停第一项保存，用来观察第二项是否被正确排队。
+    final store = _ControlledLearningSessionStore();
+    // 模拟页面 getter 第一次创建持久化门面并触发旧快照保存。
+    final firstPersistence = LearningSessionPersistence(
+      store: store,
+      type: LearningSessionType.dictation,
+    );
+    // 启动第一项保存但不等待，因为它会被测试 Store 主动挂起。
+    final firstSave = firstPersistence.save(
+      wordIds: <int?>[1],
+      state: <String, Object?>{'wordIndex': 0},
+    );
+    // 让 Future 队列有机会真正进入 Store.save。
+    await Future<void>.delayed(Duration.zero);
+    // 第一项已经开始执行。
+    expect(store.startedWordIndexes, <int>[0]);
+
+    // 模拟页面 getter 再次创建新门面并触发更新后的快照。
+    final secondSave = LearningSessionPersistence(
+      store: store,
+      type: LearningSessionType.dictation,
+    ).save(wordIds: <int?>[1], state: <String, Object?>{'wordIndex': 1});
+    // 再让微任务运行；若没有共享队列，第二项此时也会进入 Store。
+    await Future<void>.delayed(Duration.zero);
+    // 新快照必须仍在队尾等待，不能与旧快照并发写入。
+    expect(store.startedWordIndexes, <int>[0]);
+
+    // 放行第一项保存。
+    store.firstSave.complete();
+    // 等待两个调用都结束。
+    await Future.wait(<Future<void>>[firstSave, secondSave]);
+    // 第二项只会在第一项完成后开始，因此数据库最终状态必然是最新下标 1。
+    expect(store.startedWordIndexes, <int>[0, 1]);
+    expect(store.persistedWordIndex, 1);
+  });
+}
+
+///
+/// 可暂停首次保存的测试 Store，用于验证持久化队列不会乱序写入。
+///
+class _ControlledLearningSessionStore implements LearningSessionStore {
+  ///
+  /// 第一项保存的手动放行开关。
+  ///
+  /// @var `Completer<void>`
+  ///
+  final Completer<void> firstSave = Completer<void>();
+
+  ///
+  /// 每次真正进入 Store.save 时记录的单词下标。
+  ///
+  /// @var `List<int>`
+  ///
+  final List<int> startedWordIndexes = <int>[];
+
+  ///
+  /// 最后成功落库的单词下标。
+  ///
+  /// @var int?
+  ///
+  int? persistedWordIndex;
+
+  ///
+  /// 本用例不读取已有会话。
+  ///
+  /// @return `Future<List<LearningSession>>` 空列表。
+  ///
+  @override
+  Future<List<LearningSession>> getAll() async => const <LearningSession>[];
+
+  ///
+  /// 暂停第一项保存，第二项保存正常完成。
+  ///
+  /// @param  LearningSession  session 本次页面快照。
+  /// @return `Future<void>` 对应保存完成时机。
+  ///
+  @override
+  Future<void> save(LearningSession session) async {
+    // 取出测试状态里的单词下标。
+    final wordIndex = session.state['wordIndex']! as int;
+    // 记录真正开始执行的顺序。
+    startedWordIndexes.add(wordIndex);
+    // 第一项必须等待测试主动放行。
+    if (wordIndex == 0) await firstSave.future;
+    // 模拟 SQLite 覆盖同类型记录，最后一次完成者成为持久化结果。
+    persistedWordIndex = wordIndex;
+  }
+
+  ///
+  /// 本用例不执行删除。
+  ///
+  /// @param  LearningSessionType  type 待删除模式。
+  /// @return `Future<void>` 立即完成。
+  ///
+  @override
+  Future<void> delete(LearningSessionType type) async {}
 }
 
 ///

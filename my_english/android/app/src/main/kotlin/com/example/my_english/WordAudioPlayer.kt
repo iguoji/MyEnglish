@@ -552,8 +552,15 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
             player.setOnErrorListener { failedPlayer, what, extra ->
                 // 只处理当前播放器。
                 if (generation == requestGeneration && mediaPlayer === failedPlayer) {
-                    // 返回系统错误编号，便于真机定位格式问题。
-                    finishWithError("AUDIO_PLAYBACK_FAILED", "播放器错误 what=$what extra=$extra")
+                    // 文件头通过但解码仍失败时，缓存内容已经不可信；删除后下次会重新下载。
+                    synchronized(cacheMutationLock) {
+                        if (audioFile.exists()) audioFile.delete()
+                    }
+                    // 返回可恢复错误；Dart 默写页收到后会自动重试一次远程下载。
+                    finishWithError(
+                        "AUDIO_PLAYBACK_FAILED",
+                        "音频文件无法解码，已清除缓存，请点击重试（$what/$extra）",
+                    )
                 }
                 // true 表示错误已经由这里处理。
                 true
@@ -561,6 +568,10 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
             // prepareAsync 不阻塞 Flutter 主线程。
             player.prepareAsync()
         } catch (error: Throwable) {
+            // 同步准备失败也说明这份缓存不可播放，删除后允许下一次重新下载。
+            synchronized(cacheMutationLock) {
+                if (audioFile.exists()) audioFile.delete()
+            }
             // setDataSource 等同步错误也走统一错误出口。
             finishWithError(
                 "AUDIO_PLAYBACK_FAILED",
@@ -671,11 +682,7 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         val session = MediaSessionCompat(appContext, "MyEnglishAudio")
         // 绑定回调：锁屏/通知栏/蓝牙的播放、暂停、上下首都会进入这里。
         session.setCallback(mediaSessionCallback)
-        // 声明本会话支持媒体按键与传输控制，系统才会把按键事件分发给我们。
-        session.setFlags(
-            MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
-                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS,
-        )
+        // 可用媒体动作已在 PlaybackState 中声明；新版兼容库不再需要旧式 flags。
         // 把会话置于激活态，锁屏才会显示媒体卡片。
         session.isActive = true
         // 保存引用供后续刷新与释放。

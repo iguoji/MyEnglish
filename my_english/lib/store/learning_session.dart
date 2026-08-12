@@ -142,6 +142,17 @@ class LearningSessionPersistence {
   const LearningSessionPersistence({required this.store, required this.type});
 
   ///
+  /// 每个 Store 实例下各学习模式最后一项写任务。
+  ///
+  /// 页面 getter 会重复创建本门面，因此队列必须按 Store 身份共享，不能放在单个
+  /// 门面实例里。这样先触发的旧快照一定先完成，后触发的新快照才会最终留在数据库。
+  ///
+  /// @var `Expando<Map<LearningSessionType, Future<void>>>`
+  ///
+  static final Expando<Map<LearningSessionType, Future<void>>> _writeQueues =
+      Expando<Map<LearningSessionType, Future<void>>>('learningSessionWrites');
+
+  ///
   /// 实际读写会话的 Store。
   ///
   /// @var LearningSessionStore
@@ -154,6 +165,33 @@ class LearningSessionPersistence {
   /// @var LearningSessionType
   ///
   final LearningSessionType type;
+
+  ///
+  /// 把一次读写追加到当前 Store 与学习模式的队尾。
+  ///
+  /// 前一项即使失败也会被吞掉后继续执行下一项，避免一次辅助缓存故障让整条队列停摆。
+  ///
+  /// @param  `Future<void> Function()`  operation 实际要执行的保存或删除动作。
+  /// @return `Future<void>` 当前动作结束后的异步结果；异常已转换为调试日志。
+  ///
+  Future<void> _enqueue(Future<void> Function() operation) {
+    // 每个 Store 建立自己的模式队列表，测试 Store 与正式 Store 不会互相等待。
+    final queues = _writeQueues[store] ??=
+        <LearningSessionType, Future<void>>{};
+    // 无论前一项成功还是失败，都从同一个队尾继续本次动作。
+    final queued = (queues[type] ?? Future<void>.value()).then((_) async {
+      try {
+        // 真正的原生写入只会在上一项完成后开始。
+        await operation();
+      } catch (error) {
+        // 学习进度属于辅助缓存，失败只记录诊断信息，不打断学习页面。
+        debugPrint('${type.label}进度持久化失败：$error');
+      }
+    });
+    // 保存新队尾，之后创建的门面也能通过同一 Store 身份找到它。
+    queues[type] = queued;
+    return queued;
+  }
 
   ///
   /// 保存最新快照。
@@ -178,20 +216,14 @@ class LearningSessionPersistence {
     // 空列表或缺失主键都无法从数据库重新组装 Word，因此不写无效快照。
     if (nullableIds.isEmpty || nullableIds.any((id) => id == null)) return;
 
-    // 学习会话属于辅助缓存，写入失败不能打断用户正在进行的学习流程。
-    try {
-      // 主键已经全部校验非空，可以安全收窄成 List<int> 后创建模型。
-      await store.save(
-        LearningSession(
-          type: type,
-          wordIds: nullableIds.cast<int>(),
-          state: state,
-        ),
-      );
-    } catch (error) {
-      // 调试日志保留模式名称和原始异常，页面不再重复编写 try/catch。
-      debugPrint('保存${type.label}进度失败：$error');
-    }
+    // 入队前冻结本次页面快照，避免调用方随后修改 Map 影响尚未执行的任务。
+    final session = LearningSession(
+      type: type,
+      wordIds: List<int>.unmodifiable(nullableIds.cast<int>()),
+      state: Map<String, Object?>.unmodifiable(state),
+    );
+    // 串行追加保存，杜绝旧请求比新请求更晚完成后反向覆盖数据库。
+    await _enqueue(() => store.save(session));
   }
 
   ///
@@ -200,14 +232,8 @@ class LearningSessionPersistence {
   /// @return `Future<void>` 删除结束后的异步结果；缓存异常会在内部消化。
   ///
   Future<void> delete() async {
-    // 删除失败只会让首页暂时保留继续入口，不能影响完成页或返回流程。
-    try {
-      // 当前门面已经绑定 type，页面无需重复传入学习模式。
-      await store.delete(type);
-    } catch (error) {
-      // 仅记录诊断信息，保持与 save 相同的辅助缓存容错策略。
-      debugPrint('删除${type.label}进度失败：$error');
-    }
+    // 删除也进入同一队列，防止它越过尚未完成的保存后又被旧快照重新覆盖。
+    await _enqueue(() => store.delete(type));
   }
 }
 

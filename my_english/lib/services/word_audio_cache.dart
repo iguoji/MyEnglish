@@ -111,6 +111,13 @@ class WordAudioCache extends ChangeNotifier {
   List<String> _spellings = const <String>[];
 
   ///
+  /// 词库刷新请求代次；只有最后发起的一次原生查询可以更新当前进度。
+  ///
+  /// @var int
+  ///
+  int _wordListGeneration = 0;
+
+  ///
   /// 只读：已缓存数量。
   ///
   /// @return int
@@ -155,8 +162,12 @@ class WordAudioCache extends ChangeNotifier {
   /// @return `Future<void>`
   ///
   Future<void> setWordList(List<String> spellings) async {
+    // 复制调用方数组，避免外部后续原地修改影响正在运行的缓存任务。
+    final snapshot = List<String>.unmodifiable(spellings);
+    // 领取本次请求代次；后发请求会让此前仍在等待的请求自动失效。
+    final generation = ++_wordListGeneration;
     // 记录参与缓存的单词，供 start() 触发预缓存使用。
-    _spellings = spellings;
+    _spellings = snapshot;
     // 总数恒为单词数的两倍（美式 + 英式各一份）。
     _total = spellings.length * 2;
     // 询问原生当前已缓存数量，得到真实的初始百分比。
@@ -166,15 +177,21 @@ class WordAudioCache extends ChangeNotifier {
       // 会得到 null，把词表当成空、返回 {cached:0,total:0}，入口永远显示 0%。
       final result = await _channel.invokeMapMethod<String, Object?>(
         'getCacheProgress',
-        <String, Object?>{'spellings': spellings},
+        <String, Object?>{'spellings': snapshot},
       );
+      // 等待期间词库已再次刷新时，旧结果不能覆盖新词库的进度。
+      if (generation != _wordListGeneration) return;
       // 原生返回 {cached,total}，total 以原生实际计算为准（理论上等于两倍单词数）。
       _cached = (result?['cached'] as num?)?.toInt() ?? 0;
       _total = (result?['total'] as num?)?.toInt() ?? _total;
     } on PlatformException {
+      // 旧请求的异常同样不能把新请求已经得到的进度清零。
+      if (generation != _wordListGeneration) return;
       // 通道异常（如真机尚未编译原生代码）时保守回退 0，不影响界面。
       _cached = 0;
     } on MissingPluginException {
+      // 只处理当前仍有效的请求。
+      if (generation != _wordListGeneration) return;
       // 单元测试无原生实现时同样回退 0。
       _cached = 0;
     }

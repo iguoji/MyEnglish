@@ -1458,6 +1458,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @return void
   ///
   void _showSnackBar(String message) {
+    // 系统文件选择器或数据库操作返回时页面可能已销毁，此时不再访问 Overlay。
+    if (!mounted) return;
     // Toast 基于根 Overlay，不被任何 modal route 遮挡。
     Toast.show(context, message);
   }
@@ -1500,6 +1502,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final importedCount = words.length;
       // 文件携带 groups 才会替换分组，此时同步刷新内存列表。
       if (payload['groups'] is List) await _groups.load();
+      // 文件操作期间首页可能已退出，后续不能再更新页面状态或发起页面刷新。
+      if (!mounted) return;
       // 原生整库导入会同步清除学习会话，首页立即移除两个“继续”按钮。
       if (mounted) {
         setState(() {
@@ -1545,6 +1549,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
       // 用户取消保存不提示。
       if (savedUri == null) return;
+      // 系统保存框返回时首页可能已经销毁。
+      if (!mounted) return;
       // 提示导出数量（系统已落盘到用户指定的位置）。
       final exportedWords = payload['words'] as List? ?? const <Object?>[];
       _showSnackBar('已导出 ${exportedWords.length} 个单词');
@@ -1565,7 +1571,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 危险操作必须二次确认，避免误触。
     final confirmed = await _showClearConfirmDialog();
     // 用户取消则什么都不做。
-    if (!confirmed) return;
+    if (!confirmed || !mounted) return;
     try {
       // 清空 SQLite 全部业务数据，包含单词、释义、分组、记录、候选缓存和学习会话。
       await _store.clearAll();
@@ -1573,6 +1579,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _settings.clearAll();
       // 一并清空离线语音缓存文件（word_audio 目录下全部 mp3），并重置进度。
       await WordAudioCache.instance.clearCacheFiles();
+      // 多项原生清理完成前用户可能已经离开首页。
+      if (!mounted) return;
       // 清空内存分组；原生 group 表已由 WordStore.clearAll 在 SQLite 侧一并清空。
       _groups.clear();
       // 与原生删除保持同步，让继续入口无需等待下一次读取就立即消失。

@@ -846,6 +846,14 @@ class MainActivity : FlutterActivity() {
 
     // Activity 销毁时释放数据库和线程资源，对应小程序 onUnload 的清理阶段。
     override fun onDestroy() {
+        // 系统文件选择器尚未返回时，先把对应 Dart Future 结束为“用户取消”。
+        // 这样 Activity 因系统回收或厂商行为被销毁后，导入/导出页面不会永久等待。
+        pendingFileResult?.success(null)
+        // 清空整组临时状态，避免 Activity 销毁后继续持有大段导出 JSON 文本。
+        pendingFileResult = null
+        pendingFileAction = null
+        pendingExportText = null
+        pendingExportName = null
         // Activity 销毁后禁止任何后台任务再回传到 FlutterEngine。
         acceptsChannelResults = false
         // 先停止下载回调并释放 MediaPlayer。

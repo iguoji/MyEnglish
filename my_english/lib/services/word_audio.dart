@@ -71,6 +71,35 @@ class WordAudioInterruptedException implements Exception {
 }
 
 ///
+/// 音频缓存解码失败时使用的可重试异常。
+///
+/// 原生层已经删除损坏缓存；页面收到后可以再次调用 play，让播放器重新下载。
+///
+class WordAudioPlaybackException implements Exception {
+  ///
+  /// 保存原生返回的可读错误。
+  ///
+  /// @param  String  message 原生播放错误说明。
+  ///
+  const WordAudioPlaybackException(this.message);
+
+  ///
+  /// 用户可见的播放错误说明。
+  ///
+  /// @var String
+  ///
+  final String message;
+
+  ///
+  /// 输出简洁说明，避免提示显示“Instance of ...”。
+  ///
+  /// @return String
+  ///
+  @override
+  String toString() => message;
+}
+
+///
 /// 真正调用 Android MediaPlayer 的生产实现。
 ///
 class NativeWordAudioPlayer implements WordAudioPlayer {
@@ -111,6 +140,10 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
       // 新单词替换旧播放不是用户可见错误，转换成专用异常供页面忽略。
       if (error.code == 'AUDIO_INTERRUPTED' || error.code == 'AUDIO_STOPPED') {
         throw const WordAudioInterruptedException();
+      }
+      // 原生已删除坏缓存，转换成专用异常供页面执行一次自动重新下载。
+      if (error.code == 'AUDIO_PLAYBACK_FAILED') {
+        throw WordAudioPlaybackException(error.message ?? '音频文件无法播放');
       }
       // 下载或播放失败保留原生具体信息，首页会转成 SnackBar。
       rethrow;
@@ -195,17 +228,17 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
     Future<dynamic>? Function(String action)? handler,
   ) {
     // 同一通道同一名字，Dart 侧这里只接收原生主动发来的调用。
-    const MethodChannel('my_english/word_audio').setMethodCallHandler(
-      (call) async {
-        // 只处理媒体控制事件；其他方法调用（若有）忽略。
-        if (call.method != 'mediaControl') return;
-        // 取出动作字符串；缺失时按空串处理，避免崩溃。
-        final action =
-            (call.arguments as Map<dynamic, dynamic>?)?['action'] as String? ??
-                '';
-        // 回调可能为空（已注销），为空时直接忽略原生事件。
-        await handler?.call(action);
-      },
-    );
+    const MethodChannel('my_english/word_audio').setMethodCallHandler((
+      call,
+    ) async {
+      // 只处理媒体控制事件；其他方法调用（若有）忽略。
+      if (call.method != 'mediaControl') return;
+      // 取出动作字符串；缺失时按空串处理，避免崩溃。
+      final action =
+          (call.arguments as Map<dynamic, dynamic>?)?['action'] as String? ??
+          '';
+      // 回调可能为空（已注销），为空时直接忽略原生事件。
+      await handler?.call(action);
+    });
   }
 }

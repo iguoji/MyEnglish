@@ -66,4 +66,29 @@ void main() {
       throwsA(isA<WordAudioInterruptedException>()),
     );
   });
+
+  // 原生发现坏缓存并删除后，Dart 必须把它标记成可重试的播放异常。
+  test('native playback failure becomes a retryable exception', () async {
+    // 假原生返回与 MediaPlayer onError 一致的协议码和可读说明。
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          throw PlatformException(
+            code: 'AUDIO_PLAYBACK_FAILED',
+            message: '音频文件无法解码，已清除缓存',
+          );
+        });
+    // 创建使用测试通道的播放器。
+    const player = NativeWordAudioPlayer(channel);
+    // 页面应收到专用异常，且字符串就是可直接展示的中文原因。
+    await expectLater(
+      player.play('forest', PronunciationAccent.american),
+      throwsA(
+        isA<WordAudioPlaybackException>().having(
+          (error) => error.toString(),
+          'message',
+          contains('已清除缓存'),
+        ),
+      ),
+    );
+  });
 }

@@ -107,6 +107,23 @@ void main() {
     settings.dispose();
   });
 
+  // 损坏的旧设置可能保存成字符串，启动时也必须安全回退而不是类型转换崩溃。
+  test('non-numeric stored daily goal falls back to default', () async {
+    // 模拟原生 SharedPreferences 或迁移脚本返回错误类型的 dailyGoal。
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (call) async => <String, Object?>{'dailyGoal': 'broken'},
+        );
+
+    // 加载过程应正常完成，不向调用方抛 TypeError。
+    final settings = await SettingsStore.load(channel: channel);
+    // 非数值目标按产品默认值 100 恢复。
+    expect(settings.dailyGoal, 100);
+    // 释放 ChangeNotifier 资源。
+    settings.dispose();
+  });
+
   // 分隔符枚举必须始终输出三种全角中文标点。
   test('definition separators expose full-width Chinese symbols', () {
     // 顿号是默认值。

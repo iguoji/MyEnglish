@@ -458,8 +458,14 @@ class Word {
     required List<Meaning> meanings,
     required int? groupId,
   }) {
+    // 表单只能展示一个主分组；用户没有改变这个值时必须保留其余多对多分组。
+    final originalPrimaryGroupId = groupIds.isEmpty ? null : groupIds.first;
+    final nextGroupIds = groupId == originalPrimaryGroupId
+        ? groupIds
+        : groupId == null
+        ? const <int>[]
+        : <int>[groupId];
     // 编辑会刷新 updatedAt；创建时间与主键保持不变。
-    // 表单只选单个分组，转成单元素列表；null 表示未分组。
     return Word(
       id: id,
       spelling: spelling,
@@ -474,7 +480,7 @@ class Word {
       pastParticiple: pastParticiple,
       comparative: comparative,
       superlative: superlative,
-      groupIds: groupId == null ? const <int>[] : <int>[groupId],
+      groupIds: nextGroupIds,
       reviewedAt: reviewedAt,
       createdAt: createdAt,
       updatedAt: DateTime.now(),

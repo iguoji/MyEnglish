@@ -212,6 +212,13 @@ class _MeaningDraft {
 ///
 class _WordFormSheetState extends State<_WordFormSheet> {
   ///
+  /// 是否正在等待 Store 完成提交；用于阻止快速连点产生重复写入。
+  ///
+  /// @var bool
+  ///
+  bool _isSubmitting = false;
+
+  ///
   /// 拼写输入控制器；编辑模式带入原拼写。
   ///
   /// @var TextEditingController
@@ -357,9 +364,13 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   /// @return `Future<void>`
   ///
   Future<void> _submit(bool continueAdding) async {
+    // 上一次提交尚未结束时忽略重复点击。
+    if (_isSubmitting) return;
     // 组装结果；拼写为空时静默忽略（按钮也已用透明度提示）。
     final result = _buildResult(continueAdding);
     if (result == null) return;
+    // 立即锁定两个提交按钮，保证同一份表单结果只写入一次。
+    setState(() => _isSubmitting = true);
     // 交给首页执行 Store 操作。
     await widget.onSubmit(result);
     // 提交期间面板可能已被关闭。
@@ -367,6 +378,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     // 提交并继续：清空拼写与释义，保留分组选择。
     if (continueAdding && widget.editing == null) {
       setState(() {
+        // 本次写入已经完成，允许用户填写下一个单词并再次提交。
+        _isSubmitting = false;
         _spelling.clear();
         _meanings
           ..clear()
@@ -847,7 +860,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   label: isEditing ? '保存' : '添加',
                   background: AppTokens.accent,
                   foreground: Colors.white,
-                  onTap: () => _submit(false),
+                  onTap: _isSubmitting ? null : () => _submit(false),
                 ),
               ),
             ),
@@ -863,7 +876,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                     background: Colors.transparent,
                     foreground: AppTokens.accent,
                     border: AppTokens.accent,
-                    onTap: () => _submit(true),
+                    onTap: _isSubmitting ? null : () => _submit(true),
                   ),
                 ),
               ),
@@ -1515,7 +1528,7 @@ class _FormButton extends StatelessWidget {
   /// @param  String  label
   /// @param  Color  background
   /// @param  Color  foreground
-  /// @param  VoidCallback  onTap
+  /// @param  VoidCallback?  onTap
   /// @param  Color?  border
   /// @param  Key?  key
   ///
@@ -1561,7 +1574,7 @@ class _FormButton extends StatelessWidget {
   ///
   /// @var VoidCallback
   ///
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   ///
   /// 输出 40 高圆角按钮。
