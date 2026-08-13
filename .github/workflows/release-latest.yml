@@ -56,14 +56,35 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 密钥为空时立即停止，避免意外生成无法覆盖安装的无效 Release 包。
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
+          # 收集所有缺失项并一次性显示名称，方便直接在 GitHub 仓库设置中补齐。
+          missing_secrets=()
+          [ -n "$ANDROID_KEYSTORE_BASE64" ] || missing_secrets+=(ANDROID_KEYSTORE_BASE64)
+          [ -n "$ANDROID_KEYSTORE_PASSWORD" ] || missing_secrets+=(ANDROID_KEYSTORE_PASSWORD)
+          [ -n "$ANDROID_KEY_ALIAS" ] || missing_secrets+=(ANDROID_KEY_ALIAS)
+          [ -n "$ANDROID_KEY_PASSWORD" ] || missing_secrets+=(ANDROID_KEY_PASSWORD)
+
+          # 只显示变量名称，不会把签名文件、别名或密码写入 Actions 日志。
+          if [ "${#missing_secrets[@]}" -gt 0 ]; then
+            printf '::error::缺少 GitHub Actions Secrets：%s\n' "${missing_secrets[*]}"
+            printf '请前往仓库 Settings > Secrets and variables > Actions 添加上述 Repository secrets。\n'
+            exit 1
+          fi
 
           # Base64 只用于安全地保存二进制 keystore，解码后供 Gradle 使用。
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+          # Gradle 的 file(...) 以 android/app 为相对目录，因此签名文件必须放在 app 目录。
+          if ! printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/upload-keystore.jks; then
+            printf '::error::ANDROID_KEYSTORE_BASE64 不是有效的 Base64 内容。\n'
+            exit 1
+          fi
+
+          # 提前验证 keystore 密码和别名，避免等到 Gradle 构建时才出现模糊错误。
+          if ! keytool -list \
+            -keystore app/upload-keystore.jks \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" > /dev/null; then
+            printf '::error::无法读取 Android keystore，请检查 Base64、keystore 密码和 key alias。\n'
+            exit 1
+          fi
 
           # build.gradle.kts 会从当前目录读取这个签名配置文件。
           printf '%s\n' \
@@ -102,4 +123,3 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
