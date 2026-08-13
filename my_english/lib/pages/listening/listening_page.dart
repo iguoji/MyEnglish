@@ -110,13 +110,18 @@ class ListeningPage extends StatefulWidget {
 ///
 /// 随身听页面状态，集中管理播放流程、搜索条件和所有用户交互。
 ///
-class _ListeningPageState extends State<ListeningPage> {
+class _ListeningPageState extends State<ListeningPage>
+    with WidgetsBindingObserver {
   ///
   /// 播放列表滚动控制器，用于把当前单词自动移动到可见区域。
   ///
   /// @var ScrollController
   ///
   final ScrollController _listController = ScrollController();
+
+  /// 当前进入随身听页面后是否已经提示过系统 TTS。
+  /// @var bool
+  bool _hasShownTtsNotice = false;
 
   ///
   /// 保存搜索框输入并管理输入组件生命周期的控制器。
@@ -258,6 +263,8 @@ class _ListeningPageState extends State<ListeningPage> {
   void initState() {
     // 先让 Flutter 完成 State 基础初始化。
     super.initState();
+    // 监听 App 前后台变化，后台停止播放并让下次前台播放重新提示 TTS。
+    WidgetsBinding.instance.addObserver(this);
     // 注册锁屏/通知栏/蓝牙的媒体控制回调；页面销毁时在 dispose 中注销。
     // 原生 MediaSession 收到的播放/暂停/上一首/下一首会经此回传，由本页驱动播放。
     NativeWordAudioPlayer.setMediaControlHandler(_onMediaControl);
@@ -380,6 +387,14 @@ class _ListeningPageState extends State<ListeningPage> {
       try {
         // 播放当前拼写；Future 在原生音频结束后完成。
         await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
+        // TTS 是成功播放后的来源提示，同一页面只提示一次。
+        if (!_hasShownTtsNotice &&
+            await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
+          _hasShownTtsNotice = true;
+          if (mounted) {
+            Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
+          }
+        }
       } on WordAudioInterruptedException {
         // 用户暂停或跳转时 stop 会中断音频，这是正常控制流程。
       } catch (error) {
@@ -456,6 +471,14 @@ class _ListeningPageState extends State<ListeningPage> {
       // 每完成一轮发音就保存重复次数或新下标，应用被系统结束时也能从最近位置恢复。
       unawaited(_persistSession());
     }
+  }
+
+  /// App 离开前台时停止音频，并重置下一次提示状态。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) return;
+    _hasShownTtsNotice = false;
+    if (_isPlaying) unawaited(_pausePlayback());
   }
 
   ///
@@ -867,12 +890,16 @@ class _ListeningPageState extends State<ListeningPage> {
   ///
   @override
   void dispose() {
+    // 页面销毁前注销生命周期监听，避免回调命中已销毁 State。
+    WidgetsBinding.instance.removeObserver(this);
     // 系统返回或路由销毁前补写最终状态；正常播完已经删会话，不能在这里重新创建。
     if (!_isFinished) unawaited(_persistSession());
     // 注销锁屏/通知栏的媒体控制回调，避免回传事件命中已销毁的页面。
     NativeWordAudioPlayer.setMediaControlHandler(null);
     // 收起锁屏/通知栏媒体控制并停用原生 MediaSession。
-    unawaited(widget.audioPlayer.releaseMediaSession().catchError((Object _) {}));
+    unawaited(
+      widget.audioPlayer.releaseMediaSession().catchError((Object _) {}),
+    );
     // 结束所有旧循环并停止仍在播放的原生音频。
     ++_playSerial;
     // 取消当前一秒等待。

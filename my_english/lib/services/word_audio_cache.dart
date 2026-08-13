@@ -246,11 +246,11 @@ class WordAudioCache extends ChangeNotifier {
   Future<void> clearCacheFiles() async {
     try {
       // 通知原生删除 word_audio 目录下的全部 mp3。
-      await _channel.invokeMethod<void>('clearAudioCache');
-    } on PlatformException {
-      // 文件可能本来就不存在，忽略。
+      final result = await _channel.invokeMethod<bool>('clearAudioCache');
+      // 原生返回 false 时视为清空失败，不能把未删除的缓存显示成 0%。
+      if (result == false) throw StateError('原生未确认离线语音缓存已清空');
     } on MissingPluginException {
-      // 单元测试无原生实现时忽略。
+      // 单元测试无原生实现时仍允许只重置测试内存状态。
     }
     // 重置本地进度显示，避免抽屉仍显示旧的百分比。
     _cached = 0;

@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 下载单词发音需要访问不背单词和有道的 HTTPS 地址。 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 读取当前网络是否存在；这是普通权限，不会弹出用户授权弹窗。 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:label="MyEnglish"
@@ -50,6 +52,10 @@
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
+        </intent>
+        <!-- Android 11+ 要求声明 TTS_SERVICE 查询，才能枚举系统已安装的语音引擎。 -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 </manifest>

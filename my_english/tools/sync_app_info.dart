@@ -158,7 +158,7 @@ class AppInfo {
   ///
   /// @var String
   ///
-  static const String fullVersion = '$version+\$buildNumber';
+  static const String fullVersion = '$version+$buildNumber';
 }
 ''';
 

@@ -38,7 +38,7 @@ void main() {
           return null;
         });
     // 通过可注入的测试通道创建播放器。
-    const player = NativeWordAudioPlayer(channel);
+    final player = NativeWordAudioPlayer(channel);
     // 播放英式单词。
     await player.play('  ability  ', PronunciationAccent.british);
     // 方法名必须是 play。
@@ -50,6 +50,18 @@ void main() {
     });
   });
 
+  // Android 返回 true 时，Dart 必须识别本次由 TTS 完成，且读取一次后立即消费。
+  test('consumes the latest TTS playback source once', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async => true);
+    final player = NativeWordAudioPlayer(channel);
+
+    await player.play('ability', PronunciationAccent.american);
+
+    expect(await player.consumeLastPlaybackUsedTts(), isTrue);
+    expect(await player.consumeLastPlaybackUsedTts(), isFalse);
+  });
+
   // 新请求中断旧播放不应被首页当作音源失败。
   test('native interruption becomes a dedicated exception', () async {
     // 假原生返回约定中断码。
@@ -59,7 +71,7 @@ void main() {
           throw PlatformException(code: 'AUDIO_INTERRUPTED');
         });
     // 创建播放器。
-    const player = NativeWordAudioPlayer(channel);
+    final player = NativeWordAudioPlayer(channel);
     // Dart 层转换成专用可忽略异常。
     await expectLater(
       player.play('ability', PronunciationAccent.american),
@@ -78,7 +90,7 @@ void main() {
           );
         });
     // 创建使用测试通道的播放器。
-    const player = NativeWordAudioPlayer(channel);
+    final player = NativeWordAudioPlayer(channel);
     // 页面应收到专用异常，且字符串就是可直接展示的中文原因。
     await expectLater(
       player.play('forest', PronunciationAccent.american),
@@ -87,6 +99,56 @@ void main() {
           (error) => error.toString(),
           'message',
           contains('已清除缓存'),
+        ),
+      ),
+    );
+  });
+
+  // 没有本地英语 TTS 时，页面必须收到可直接展示的中文提示。
+  test('native unavailable TTS becomes a user-readable exception', () async {
+    // 假原生返回 TTS 能力不可用协议码。
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          throw PlatformException(
+            code: 'AUDIO_TTS_UNAVAILABLE',
+            message: '当前设备没有可用的离线英语 TTS 引擎',
+          );
+        });
+    // 创建播放器。
+    final player = NativeWordAudioPlayer(channel);
+    // Dart 层转换成专用异常，页面可以显示联网或安装语音包提示。
+    await expectLater(
+      player.play('forest', PronunciationAccent.american),
+      throwsA(
+        isA<WordAudioTtsUnavailableException>().having(
+          (error) => error.toString(),
+          'message',
+          contains('离线英语 TTS'),
+        ),
+      ),
+    );
+  });
+
+  // TTS 引擎拒绝朗读时，Dart 层不能把它误报成网络下载失败。
+  test('native TTS failure becomes a dedicated exception', () async {
+    // 假原生返回 TTS 播放失败协议码。
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          throw PlatformException(
+            code: 'AUDIO_TTS_FAILED',
+            message: '设备 TTS 引擎无法朗读当前单词',
+          );
+        });
+    // 创建播放器。
+    final player = NativeWordAudioPlayer(channel);
+    // Dart 层转换成专用异常，便于页面按 TTS 失败处理。
+    await expectLater(
+      player.play('forest', PronunciationAccent.american),
+      throwsA(
+        isA<WordAudioTtsException>().having(
+          (error) => error.toString(),
+          'message',
+          contains('TTS 引擎'),
         ),
       ),
     );

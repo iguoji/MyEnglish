@@ -478,6 +478,17 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 查询默认词库是否已经初始化；该标记独立于用户可清空的设置文件。
+                    "isDefaultVocabularyInitialized" -> runIoCall(result, "SETTINGS_ERROR") {
+                        appSettingsStore.isDefaultVocabularyInitialized()
+                    }
+
+                    // 默认词库成功导入后写入一次性标记，避免用户清空后再次自动恢复。
+                    "markDefaultVocabularyInitialized" -> runIoCall(result, "SETTINGS_ERROR") {
+                        appSettingsStore.markDefaultVocabularyInitialized()
+                        null
+                    }
+
                     // 未登记方法按 Flutter 规范返回 notImplemented。
                     else -> result.notImplemented()
                 }
@@ -558,10 +569,10 @@ class MainActivity : FlutterActivity() {
                     "clearAudioCache" -> {
                         // 递归删除目录放入 I/O 队列，避免大缓存目录让 Flutter 丢帧。
                         runIoCall(result, "AUDIO_CACHE_ERROR") {
-                            // 删除失败（如个别文件被占用）不影响主流程。
+                            // 只有原生确认目录已经删除，Dart 才会把进度显示为 0%。
                             wordAudioPlayer.clearAudioCache()
                             // EventSink 属于长期 Dart 订阅，清空后仍需保留供下一批复用。
-                            null
+                            true
                         }
                     }
 

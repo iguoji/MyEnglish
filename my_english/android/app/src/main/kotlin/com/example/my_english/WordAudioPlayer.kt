@@ -3,15 +3,26 @@ package com.example.my_english
 
 // Context 提供 App 私有缓存目录。
 import android.content.Context
+// ConnectivityManager / NetworkCapabilities 用来判断当前设备是否明确没有网络。
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 // AudioAttributes 告诉系统当前媒体属于语音内容。
 import android.media.AudioAttributes
 // MediaPlayer 使用 Android 成熟的系统解码器播放本地 mp3。
 import android.media.MediaPlayer
+// TextToSpeech 调用用户设备当前选择的系统语音引擎。
+import android.speech.tts.TextToSpeech
+// UtteranceProgressListener 接收系统 TTS 的开始、完成和失败事件。
+import android.speech.tts.UtteranceProgressListener
 // Handler 与 Looper 用来把下载结果切回 Android 主线程操作播放器。
 import android.os.Handler
 import android.os.Looper
+// Bundle 保存 TextToSpeech.speak 的参数。
+import android.os.Bundle
 // Base64 把任意拼写转换成不会破坏文件路径的缓存文件名。
 import android.util.Base64
+// Log 记录网络音频失败的时间窗口，便于真机排查网络兜底行为。
+import android.util.Log
 // MethodChannel.Result 保存 Dart 这次 play 调用，直到播放完成才返回。
 import io.flutter.plugin.common.MethodChannel
 // File 管理 App 私有音频缓存。
@@ -26,6 +37,10 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 // Executors 提供单独下载线程，避免阻塞 Flutter 页面。
 import java.util.concurrent.Executors
+// CountDownLatch 让清空缓存等待主线程完成停止播放器。
+import java.util.concurrent.CountDownLatch
+// TimeUnit 为等待主线程停止动作提供明确的时间单位。
+import java.util.concurrent.TimeUnit
 // AtomicLong 让主线程与 I/O 线程递增批次/缓存纪元时不会发生丢更新。
 import java.util.concurrent.atomic.AtomicLong
 
@@ -50,8 +65,9 @@ import android.os.Build
 /**
  * 单词音频下载、缓存和播放服务。
  *
- * 查找顺序固定为：口音对应的本地缓存 -> 不背单词 -> 有道。下载成功后先写临时文件，
- * 再原子替换正式缓存，避免网络中断留下一个看似存在但无法播放的残缺 mp3。
+ * 查找顺序固定为：口音对应的本地缓存 -> 不背单词 -> 有道 -> 本地英语 TTS。
+ * 下载成功后先写临时文件，再原子替换正式缓存，避免网络中断留下一个看似存在但无法播放
+ * 的残缺 mp3；TTS 只选择设备标记为不需要网络的英语声音。
  */
 class WordAudioPlayer(context: Context, channel: MethodChannel) {
     // 保存 applicationContext，生命周期独立于单个 Activity 页面。
@@ -102,6 +118,93 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     // 当前尚未返回 Dart 的 play 结果。
     private var pendingResult: MethodChannel.Result? = null
 
+    // 网络音频失败记录单独存放，不和用户设置、词库清空流程混在一起。
+    private val networkPreferences = appContext.getSharedPreferences(
+        "word_audio_network",
+        Context.MODE_PRIVATE,
+    )
+
+    // 内存中的失败截止时间；进程重启后从上面的私有存储恢复。
+    @Volatile
+    private var networkAudioUnavailableUntilMillis = networkPreferences.getLong(
+        NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY,
+        0L,
+    )
+
+    // 系统 TTS 实例；真正发声的引擎可能是 Google、厂商或用户安装的其他引擎。
+    private var textToSpeech: TextToSpeech? = null
+
+    // TTS 初始化成功后才能查询声音并调用 speak。
+    private var ttsInitialized = false
+
+    // 记录 TTS 初始化失败，避免每次网络失败都重复等待无效初始化。
+    private var ttsInitializationFailed = false
+
+    // TTS 初始化尚未完成时，暂存当前有效播放请求的兜底动作。
+    private var pendingTtsRequest: (() -> Unit)? = null
+
+    // 当前 TTS utterance 的唯一编号；用来过滤旧单词迟到的回调。
+    private var pendingTtsUtteranceId: String? = null
+
+    init {
+        // TTS 初始化是异步的，结果会在系统回调中返回。
+        textToSpeech = TextToSpeech(appContext) { status ->
+            // 即使厂商引擎回调线程不同，也统一切到 Android 主线程处理状态。
+            mainHandler.post {
+                if (status != TextToSpeech.SUCCESS) {
+                    // 初始化失败通常表示设备没有可用的默认 TTS 引擎。
+                    ttsInitializationFailed = true
+                    ttsInitialized = false
+                    // 初始化失败期间如果恰好有播放请求，立即结束并显示可读提示。
+                    val hasPendingTtsRequest = pendingTtsRequest != null
+                    pendingTtsRequest = null
+                    if (hasPendingTtsRequest && pendingResult != null) {
+                        finishWithError(
+                            "AUDIO_TTS_UNAVAILABLE",
+                            "当前设备没有可用的离线英语 TTS 引擎，请联网播放单词或安装英语语音包",
+                        )
+                    }
+                    return@post
+                }
+
+                // 只有初始化成功后，系统才允许查询 Voice 和语言能力。
+                ttsInitialized = true
+                ttsInitializationFailed = false
+                textToSpeech?.setOnUtteranceProgressListener(ttsProgressListener)
+                // 如果网络下载失败时 TTS 已经初始化，现在继续处理暂存的兜底请求。
+                val request = pendingTtsRequest
+                pendingTtsRequest = null
+                request?.invoke()
+            }
+        }
+    }
+
+    // TTS 回调统一交给下面的函数处理，避免完成和失败逻辑散落在多个回调里。
+    private val ttsProgressListener = object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String) {
+            // 开始事件不需要额外更新 UI；Dart Future 仍保持等待直到 onDone。
+        }
+
+        override fun onDone(utteranceId: String) {
+            mainHandler.post {
+                finishTtsSuccessfully(utteranceId)
+            }
+        }
+
+        @Suppress("DEPRECATION")
+        override fun onError(utteranceId: String) {
+            mainHandler.post {
+                finishTtsWithError(utteranceId, null)
+            }
+        }
+
+        override fun onError(utteranceId: String, errorCode: Int) {
+            mainHandler.post {
+                finishTtsWithError(utteranceId, errorCode)
+            }
+        }
+    }
+
     /** 开始播放；同一个页面后来的请求会立即替换先前请求。 */
     fun play(spelling: String, accent: String, result: MethodChannel.Result) {
         // 清理首尾空格，防止生成无意义 URL。
@@ -129,8 +232,29 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         // 下载和文件 IO 放入后台线程。
         downloadExecutor.execute {
             try {
+                // 先查本地 MP3；已有缓存不需要网络，也不受失败记录影响。
+                val cachedAudioFile = findCachedAudioFile(normalizedSpelling, accent)
+                if (cachedAudioFile != null) {
+                    mainHandler.post {
+                        if (generation != requestGeneration) return@post
+                        startPlayer(cachedAudioFile, generation)
+                    }
+                    return@execute
+                }
+
+                // 明确没有网络，或最近 5 分钟网络音频已失败，直接走离线 TTS。
+                if (shouldSkipNetworkAudio()) {
+                    mainHandler.post {
+                        if (generation != requestGeneration) return@post
+                        startTtsFallback(normalizedSpelling, accent, generation)
+                    }
+                    return@execute
+                }
+
                 // 先查缓存，没有时依次请求两个来源。
                 val audioFile = resolveAudioFile(normalizedSpelling, accent, generation)
+                // 网络音频成功，说明之前的失败记录已经过时，允许后续继续尝试 MP3。
+                clearNetworkAudioFailure()
                 // MediaPlayer 必须回到主线程创建和启动。
                 mainHandler.post {
                     // 若用户期间点击了其他单词，旧文件只保留缓存但绝不播放。
@@ -139,14 +263,16 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
                     startPlayer(audioFile, generation)
                 }
             } catch (error: Throwable) {
-                // 下载异常同样切回主线程，只结束仍属于当前编号的请求。
+                // 用户已切换单词时不记录旧请求的失败，避免污染新请求的网络状态。
+                if (generation == requestGeneration && error is NetworkResolutionException) {
+                    // 两个网络来源均失败，记录 5 分钟，后续单词直接使用 TTS。
+                    recordNetworkAudioFailure(error)
+                }
+                // 两个网络音源都失败后，切回主线程尝试设备本地英语 TTS。
                 mainHandler.post {
                     if (generation != requestGeneration) return@post
-                    // 把两个音源最终失败原因返回 Dart SnackBar。
-                    finishWithError(
-                        "AUDIO_DOWNLOAD_FAILED",
-                        error.message ?: error.javaClass.simpleName,
-                    )
+                    // 网络失败优先走离线 TTS；TTS 不可用时再返回明确的用户提示。
+                    startTtsFallback(normalizedSpelling, accent, generation)
                 }
             }
         }
@@ -168,6 +294,14 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         requestGeneration += 1
         // 销毁阶段不再向已经关闭的 Dart 引擎发送结果。
         pendingResult = null
+        // 取消等待中的 TTS 兜底请求。
+        pendingTtsRequest = null
+        pendingTtsUtteranceId = null
+        // 先停止并关闭系统 TTS，释放厂商引擎持有的资源。
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        ttsInitialized = false
         // 安全释放播放器。
         releasePlayer()
         // 顺手收起锁屏/通知栏媒体控制，避免退出后残留控制条。
@@ -183,6 +317,86 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     private fun resolveAudioFile(spelling: String, accent: String, generation: Long): File {
         // 播放路径需要响应用户切换单词的中断，因此开启请求取消检查。
         return resolveAudioFileInternal(spelling, accent, generation, cancelEnabled = true)
+    }
+
+    /** 查找有效的本地 MP3；只读检查，不创建目录，也不触发网络请求。 */
+    private fun findCachedAudioFile(spelling: String, accent: String): File? {
+        // expectedCacheFile 使用与下载完全相同的文件名规则。
+        val file = expectedCacheFile(spelling, accent)
+        // 文件头有效才交给 MediaPlayer，避免把残缺文件当作离线缓存。
+        return file.takeIf { isLikelyMp3(it) }
+    }
+
+    /** 判断这一次播放是否应跳过网络，直接使用系统离线 TTS。 */
+    private fun shouldSkipNetworkAudio(): Boolean {
+        // 最近一次网络失败仍在有效期内，直接兜底，避免每个单词重复等待 1 秒 × 2。
+        if (System.currentTimeMillis() < networkAudioUnavailableUntilMillis) return true
+        // 过期记录只清掉，不影响本次对网络状态的重新判断。
+        if (networkAudioUnavailableUntilMillis != 0L) clearNetworkAudioFailure()
+
+        // 只有系统明确报告“没有活动网络”时才跳过网络；无法判断仍尝试一次。
+        return when (readNetworkState()) {
+            NetworkState.UNAVAILABLE -> true
+            NetworkState.AVAILABLE,
+            NetworkState.UNKNOWN,
+            -> false
+        }
+    }
+
+    /** 读取 Android 当前网络状态；UNKNOWN 表示不能自信地下结论。 */
+    private fun readNetworkState(): NetworkState {
+        val connectivityManager =
+            appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return NetworkState.UNKNOWN
+        return try {
+            // 没有活动网络时可以明确判断为离线。
+            val activeNetwork = connectivityManager.activeNetwork ?: return NetworkState.UNAVAILABLE
+            // 能拿到网络但能力对象缺失，属于无法检测，仍应尝试一次网络。
+            val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+                ?: return NetworkState.UNKNOWN
+            // 没有 INTERNET 能力时明确不可联网。
+            if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                return NetworkState.UNAVAILABLE
+            }
+            // VALIDATED 表示系统已验证能访问互联网；未验证时保守视为未知。
+            if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                NetworkState.AVAILABLE
+            } else {
+                NetworkState.UNKNOWN
+            }
+        } catch (_: Throwable) {
+            // 厂商 ROM 查询网络能力异常时不能误判离线，交给网络请求自行验证。
+            NetworkState.UNKNOWN
+        }
+    }
+
+    /** 记录网络音频失败，并把相同判断暂存 5 分钟。 */
+    private fun recordNetworkAudioFailure(error: Throwable) {
+        // 使用墙上时钟便于跨进程重启后恢复同一条 5 分钟记录。
+        val unavailableUntil = System.currentTimeMillis() + NETWORK_FAILURE_TTL_MILLIS
+        networkAudioUnavailableUntilMillis = unavailableUntil
+        // apply 异步落盘，不阻塞当前播放线程；内存值立即生效。
+        networkPreferences.edit()
+            .putLong(NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY, unavailableUntil)
+            .apply()
+        Log.i(
+            LOG_TAG,
+            "网络音频失败，${NETWORK_FAILURE_TTL_MILLIS / 60_000} 分钟内使用系统 TTS：" +
+                (error.message ?: error.javaClass.simpleName),
+        )
+    }
+
+    /** 清除已经恢复的网络音频失败记录。 */
+    private fun clearNetworkAudioFailure() {
+        networkAudioUnavailableUntilMillis = 0L
+        networkPreferences.edit().remove(NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY).apply()
+    }
+
+    /** 网络状态枚举：只有 UNAVAILABLE 才表示可以确信当前没有网络。 */
+    private enum class NetworkState {
+        AVAILABLE,
+        UNAVAILABLE,
+        UNKNOWN,
     }
 
     /** 仅下载并缓存、不触发播放；复用与播放相同的来源与校验（供离线预缓存使用）。 */
@@ -260,9 +474,12 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
                 failures += "$sourceName：${error.message ?: error.javaClass.simpleName}"
             }
         }
-        // 两个来源都失败才抛出汇总错误。
-        error(failures.joinToString("；"))
+        // 两个网络来源都失败才抛出专用异常，外层据此记录 5 分钟网络失败状态。
+        throw NetworkResolutionException(failures.joinToString("；"))
     }
+
+    /** 标记两个网络音源均已实际请求但都不可用。 */
+    private class NetworkResolutionException(message: String) : RuntimeException(message)
 
     /** 根据口音生成“不背单词 -> 有道”的准确 HTTPS URL。 */
     private fun buildSources(spelling: String, accent: String): List<Pair<String, String>> {
@@ -468,15 +685,17 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     /**
      * 清空全部离线语音缓存：删除 word_audio 目录（含美式/英式子目录与所有 mp3）。
      *
-     * 先让进行中的预缓存批次退出，避免删目录时并发写文件产生半截文件。删除只在
-     * word_audio 目录内进行，绝不会向上误删 applicationContext.cacheDir 的其它内容。
-     * 删除失败（如文件正被系统占用）不会抛异常，保证"清空数据"流程始终能走完。
+     * 先让进行中的预缓存批次退出，再在 Android 主线程停止 MediaPlayer/TTS，避免
+     * 文件虽被删除但已经打开的播放器仍继续发声。删除失败必须抛异常，让 Dart 不会
+     * 把未真正清空的缓存错误显示成 0%。
      */
-    fun clearAudioCache() {
+    fun clearAudioCache(): Boolean {
         // 让尚未执行的预缓存任务直接退出，不再往目录里写新文件。
         precacheGeneration.incrementAndGet()
         // 让所有已开始下载的任务在最终替换前发现缓存已被清空。
         cacheEpoch.incrementAndGet()
+        // 播放器资源由 Android 主线程管理；这里等待它完成停止后再删文件。
+        stopPlaybackOnMainThread()
         // 与正式文件替换互斥，保证清空返回后没有旧下载重新写回。
         synchronized(cacheMutationLock) {
             // 仅清空本服务负责的 word_audio 目录；其余缓存（如图片）不受影响。
@@ -484,10 +703,39 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
             // 防御：路径必须位于 cacheDir 之内，防止任何意外越界删除。
             val cacheRoot = appContext.cacheDir
             if (!root.absolutePath.startsWith(cacheRoot.absolutePath + File.separator)) {
-                return
+                error("离线语音缓存路径不安全")
             }
-            // deleteRecursively 会递归删除目录及其内容；失败返回 false，此处忽略。
-            runCatching { root.deleteRecursively() }
+            // 目录本来不存在也代表已经清空；存在时必须确认递归删除成功。
+            if (root.exists()) {
+                check(root.deleteRecursively() && !root.exists()) {
+                    "无法完整删除离线语音缓存目录"
+                }
+            }
+        }
+        // true 表示目录已经不存在，Dart 才可以把界面进度重置为 0%。
+        return true
+    }
+
+    /** 在 Android 主线程停止当前 MP3/TTS，保证清空缓存时没有旧声音继续播放。 */
+    private fun stopPlaybackOnMainThread() {
+        // 当前已经在主线程时直接停止，避免等待自己造成死锁。
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            interruptCurrent("AUDIO_STOPPED", "播放已停止")
+            return
+        }
+        // 清空动作运行在 MainActivity 的 I/O 线程，需要同步等待主线程处理完成。
+        val latch = CountDownLatch(1)
+        mainHandler.post {
+            try {
+                interruptCurrent("AUDIO_STOPPED", "播放已停止")
+            } finally {
+                // 无论播放器是否已有异常，都必须释放等待中的清空线程。
+                latch.countDown()
+            }
+        }
+        // 主线程异常卡死时也不能让清空请求永久等待；后续删除会继续由文件系统负责。
+        check(latch.await(2, TimeUnit.SECONDS)) {
+            "停止当前音频超时，无法安全清空离线语音缓存"
         }
     }
 
@@ -543,7 +791,8 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
                     // 先释放播放器。
                     releasePlayer()
                     // 再向 Dart 返回成功。
-                    pendingResult?.success(null)
+                    // false 表示本次使用的是本地或远程 MP3，而不是 TTS。
+                    pendingResult?.success(false)
                     // 清空结果避免重复回传。
                     pendingResult = null
                 }
@@ -580,10 +829,117 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         }
     }
 
+    /** 网络音频失败后，选择设备上不需要网络的英语 TTS 声音并开始朗读。 */
+    private fun startTtsFallback(spelling: String, accent: String, generation: Long) {
+        // 新单词已经替换当前请求时，不能让旧请求突然开始朗读。
+        if (generation != requestGeneration) return
+
+        // TTS 初始化尚未结束时，先保存动作；初始化回调完成后会继续执行它。
+        if (!ttsInitialized) {
+            if (ttsInitializationFailed) {
+                finishWithError(
+                    "AUDIO_TTS_UNAVAILABLE",
+                    "当前设备没有可用的离线英语 TTS 引擎，请联网播放单词或安装英语语音包",
+                )
+                return
+            }
+            pendingTtsRequest = {
+                if (generation == requestGeneration) {
+                    startTtsFallback(spelling, accent, generation)
+                }
+            }
+            return
+        }
+
+        // 根据当前设置选择美式或英式英语区域。
+        val targetLocale = if (accent == AMERICAN) Locale.US else Locale.UK
+        // 只接受引擎明确标记为“不需要网络”的英语声音，避免离线时再次卡住。
+        val localVoices = textToSpeech?.voices
+            ?.filter { candidate ->
+                // 只接受英语且明确不依赖网络的声音。
+                !candidate.isNetworkConnectionRequired &&
+                    candidate.locale.language == targetLocale.language
+            }
+            .orEmpty()
+        // 优先使用当前口音对应的国家/地区；部分国产引擎只提供通用 en，因此允许降级。
+        val voice = localVoices.firstOrNull { candidate ->
+            candidate.locale.country == targetLocale.country
+        } ?: localVoices.firstOrNull()
+
+        // 没有本地英语声音时，不调用可能依赖网络的 speak，直接给用户明确提示。
+        if (voice == null) {
+            finishWithError(
+                "AUDIO_TTS_UNAVAILABLE",
+                "当前设备没有可用的离线英语 TTS 引擎，请联网播放单词或安装英语语音包",
+            )
+            return
+        }
+
+        try {
+            // 切换到检测到的具体声音，口音由 Voice 的 Locale 决定。
+            textToSpeech?.voice = voice
+            // 每次朗读使用唯一编号，过滤旧单词的迟到回调。
+            val utteranceId = "my_english_tts_${generation}_${System.nanoTime()}"
+            pendingTtsUtteranceId = utteranceId
+            // QUEUE_FLUSH 确保新单词不会排在旧 TTS 后面等待。
+            val result = textToSpeech?.speak(
+                spelling,
+                TextToSpeech.QUEUE_FLUSH,
+                Bundle(),
+                utteranceId,
+            ) ?: TextToSpeech.ERROR
+            // 引擎拒绝朗读时立即返回统一的 TTS 失败错误，避免 Future 永久等待。
+            if (result != TextToSpeech.SUCCESS) {
+                pendingTtsUtteranceId = null
+                finishWithError(
+                    "AUDIO_TTS_FAILED",
+                    "设备 TTS 引擎无法朗读当前单词",
+                )
+            }
+        } catch (error: Throwable) {
+            // 厂商引擎异常也转换成用户可理解的错误。
+            pendingTtsUtteranceId = null
+            finishWithError(
+                "AUDIO_TTS_FAILED",
+                error.message ?: "设备 TTS 引擎无法朗读当前单词",
+            )
+        }
+    }
+
+    /** TTS 成功完成时结束 Dart 的播放 Future。 */
+    private fun finishTtsSuccessfully(utteranceId: String) {
+        // 旧单词回调到达时不能结束新单词的 Future。
+        if (pendingTtsUtteranceId != utteranceId) return
+        // 清除当前 TTS 状态，防止重复回调重复完成结果。
+        pendingTtsUtteranceId = null
+        // 朗读完成后通知 Flutter 页面收起播放动画。
+        // true 告诉 Flutter 本次实际由本地英语 TTS 完成朗读。
+        pendingResult?.success(true)
+        pendingResult = null
+    }
+
+    /** TTS 失败时结束 Dart 的播放 Future。 */
+    private fun finishTtsWithError(utteranceId: String, errorCode: Int?) {
+        // 旧单词回调到达时直接忽略。
+        if (pendingTtsUtteranceId != utteranceId) return
+        // 清除当前 TTS 状态，避免后续错误回调重复返回。
+        pendingTtsUtteranceId = null
+        // 保留系统错误码，方便真机排查厂商引擎差异。
+        val suffix = errorCode?.let { "（错误码 $it）" }.orEmpty()
+        finishWithError(
+            "AUDIO_TTS_FAILED",
+            "设备 TTS 引擎无法朗读当前单词$suffix",
+        )
+    }
+
     /** 停掉旧播放器并结束旧的 Dart play Future。 */
     private fun interruptCurrent(code: String, message: String) {
         // 先释放系统音频资源。
         releasePlayer()
+        // 同时停止系统 TTS，避免旧单词在新请求后继续出声。
+        textToSpeech?.stop()
+        pendingTtsRequest = null
+        pendingTtsUtteranceId = null
         // 如果旧请求仍在等待，明确告诉它已被替换或停止。
         pendingResult?.error(code, message, null)
         // MethodChannel.Result 只能回传一次，因此立即清空引用。
@@ -820,8 +1176,17 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         // 英式缓存目录名与 Dart storageValue 一致。
         const val BRITISH = "british"
 
-        // 每个网络来源最多等待 8 秒。
-        const val NETWORK_TIMEOUT_MILLIS = 8_000
+        // 每个网络来源最多等待 1 秒；超时后立即尝试下一个音源或后续 TTS 兜底。
+        const val NETWORK_TIMEOUT_MILLIS = 1_000
+
+        // 网络音频失败记录有效 5 分钟，避免每个单词重复请求两个网络音源。
+        const val NETWORK_FAILURE_TTL_MILLIS = 5 * 60 * 1_000L
+
+        // SharedPreferences 中保存网络音频失败截止时间的键名。
+        const val NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY = "networkAudioUnavailableUntilMillis"
+
+        // 便于从 adb logcat 中筛选本功能的网络兜底日志。
+        const val LOG_TAG = "MyEnglishAudio"
 
         // 下载时每次读取 8KB，兼顾内存与 IO 次数。
         const val DOWNLOAD_BUFFER_BYTES = 8 * 1024

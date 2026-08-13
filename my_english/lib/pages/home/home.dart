@@ -231,6 +231,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   late final WordAudioPlayer _audioPlayer;
 
+  /// 当前前台会话是否已经提示过系统 TTS。
+  /// @var bool
+  bool _hasShownTtsNotice = false;
+
   ///
   /// 原生 SAF 文件读写服务：导入选 JSON、导出写文件。
   /// 默认走 Android 原生通道；测试可注入假通道避免真正弹出系统选择器。
@@ -407,7 +411,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 生产环境使用 MainApp 注入值，独立 Widget 测试使用默认内存设置。
     _settings = widget.settings ?? SettingsStore.inMemory();
     // 生产环境默认走 Android 原生服务，测试可以注入立即完成的假播放器。
-    _audioPlayer = widget.audioPlayer ?? const NativeWordAudioPlayer();
+    _audioPlayer = widget.audioPlayer ?? NativeWordAudioPlayer();
     // 生产环境默认走 Android 原生 SAF 通道，测试可以注入假文件服务。
     _fileIo = widget.fileIo ?? const NativeFileIo();
     // 生产环境复用 SQLite 单例，测试可用内存 Store 精确控制“继续”入口。
@@ -1020,6 +1024,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 防止继续执行下面停止逻辑。
       return;
     }
+    // 离开前台后，下次播放要重新提示一次 TTS 兜底来源。
+    _hasShownTtsNotice = false;
     // 离开前台时停止发音，避免 App 隐藏后继续播。
     unawaited(_stopAudio());
   }
@@ -1117,6 +1123,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final accent = _settings.accent;
       // 原生先查口音缓存，再按不背单词、有道顺序下载并播放。
       await _audioPlayer.play(word.spelling, accent);
+      // 只有真正使用本地 TTS 并成功朗读后，才在本次前台会话第一次提示。
+      if (!_hasShownTtsNotice &&
+          await _audioPlayer.consumeLastPlaybackUsedTts()) {
+        _hasShownTtsNotice = true;
+        if (mounted) {
+          Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
+        }
+      }
     } on WordAudioInterruptedException {
       // 点击其他单词或页面进入后台属于正常中断，不显示错误。
     } catch (error, stackTrace) {

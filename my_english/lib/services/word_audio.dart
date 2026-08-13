@@ -28,6 +28,16 @@ abstract class WordAudioPlayer {
   Future<void> stop();
 
   ///
+  /// 读取并消费最近一次播放是否由本地 TTS 完成。
+  ///
+  /// 测试替身和旧播放器默认返回 false；Android 原生实现返回本次 play 的真实来源。
+  /// 页面据此只在当前页面第一次使用 TTS 时显示提示。
+  ///
+  /// @return `Future<bool>` true 表示本次使用了本地 TTS。
+  ///
+  Future<bool> consumeLastPlaybackUsedTts() async => false;
+
+  ///
   /// 显示或刷新锁屏/通知栏的媒体控制（标题=拼写，副标题=首条释义）。
   ///
   /// 默认空实现：只有 NativeWordAudioPlayer 会真正驱动 Android MediaSession；
@@ -100,6 +110,62 @@ class WordAudioPlaybackException implements Exception {
 }
 
 ///
+/// 设备没有可用的离线英语 TTS 引擎或语音数据。
+///
+/// 网络音频已经失败时，页面可以据此显示“需要联网或安装英语语音包”的提示。
+///
+class WordAudioTtsUnavailableException implements Exception {
+  ///
+  /// 保存原生层返回的用户可读原因。
+  ///
+  /// @param  String  message 原生 TTS 能力检测结果。
+  ///
+  const WordAudioTtsUnavailableException(this.message);
+
+  ///
+  /// 用户可见的 TTS 不可用说明。
+  ///
+  /// @var String
+  ///
+  final String message;
+
+  ///
+  /// 输出可直接展示的中文提示。
+  ///
+  /// @return String
+  ///
+  @override
+  String toString() => message;
+}
+
+///
+/// 设备 TTS 引擎存在，但拒绝朗读当前单词。
+///
+class WordAudioTtsException implements Exception {
+  ///
+  /// 保存原生返回的用户可读原因。
+  ///
+  /// @param  String  message 原生 TTS 错误说明。
+  ///
+  const WordAudioTtsException(this.message);
+
+  ///
+  /// 用户可见的 TTS 错误说明。
+  ///
+  /// @var String
+  ///
+  final String message;
+
+  ///
+  /// 输出可直接展示的中文提示。
+  ///
+  /// @return String
+  ///
+  @override
+  String toString() => message;
+}
+
+///
 /// 真正调用 Android MediaPlayer 的生产实现。
 ///
 class NativeWordAudioPlayer implements WordAudioPlayer {
@@ -108,7 +174,7 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
   ///
   /// @param  MethodChannel  _channel
   ///
-  const NativeWordAudioPlayer([
+  NativeWordAudioPlayer([
     this._channel = const MethodChannel('my_english/word_audio'),
   ]);
 
@@ -120,6 +186,13 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
   final MethodChannel _channel;
 
   ///
+  /// 最近一次已经完成的播放是否使用了本地 TTS。
+  ///
+  /// @var bool?
+  ///
+  bool? _lastPlaybackUsedTts;
+
+  ///
   /// 把拼写和口音发送给 Android；原生 Future 会持续到音频播放结束。
   ///
   /// @param  String  spelling
@@ -128,14 +201,21 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
   ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {
+    // 新请求开始时丢弃上一条尚未消费的来源，避免异常流程遗留旧状态。
+    _lastPlaybackUsedTts = null;
     try {
       // Map 类似小程序调用插件时传入的 options 对象。
-      await _channel.invokeMethod<void>('play', <String, Object?>{
-        // trim 防止数据源首尾空格进入 URL 和缓存文件名。
-        'spelling': spelling.trim(),
-        // 使用稳定英文值区分美式与英式缓存目录。
-        'accent': accent.storageValue,
-      });
+      final usedTts = await _channel.invokeMethod<bool>(
+        'play',
+        <String, Object?>{
+          // trim 防止数据源首尾空格进入 URL 和缓存文件名。
+          'spelling': spelling.trim(),
+          // 使用稳定英文值区分美式与英式缓存目录。
+          'accent': accent.storageValue,
+        },
+      );
+      // Android 返回 true 表示本次由离线 TTS 完成，null 按网络 MP3 兼容处理。
+      _lastPlaybackUsedTts = usedTts ?? false;
     } on PlatformException catch (error) {
       // 新单词替换旧播放不是用户可见错误，转换成专用异常供页面忽略。
       if (error.code == 'AUDIO_INTERRUPTED' || error.code == 'AUDIO_STOPPED') {
@@ -145,9 +225,32 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
       if (error.code == 'AUDIO_PLAYBACK_FAILED') {
         throw WordAudioPlaybackException(error.message ?? '音频文件无法播放');
       }
+      // 没有本地英语 TTS 时，提示用户联网播放或安装英语语音包。
+      if (error.code == 'AUDIO_TTS_UNAVAILABLE') {
+        throw WordAudioTtsUnavailableException(
+          error.message ?? '当前设备没有可用的离线英语 TTS 引擎，请联网播放单词或安装英语语音包',
+        );
+      }
+      // TTS 引擎拒绝朗读时，保留原生返回的可读错误。
+      if (error.code == 'AUDIO_TTS_FAILED') {
+        throw WordAudioTtsException(error.message ?? '设备 TTS 引擎无法朗读当前单词');
+      }
       // 下载或播放失败保留原生具体信息，首页会转成 SnackBar。
       rethrow;
     }
+  }
+
+  ///
+  /// Android 原生在 play Future 结束时把播放来源保存于通道结果；本方法读取该结果。
+  ///
+  /// @return `Future<bool>` 当前实现暂由通道结果直接返回，默认 false。
+  ///
+  @override
+  Future<bool> consumeLastPlaybackUsedTts() async {
+    // 读取后立即清空，避免下一个 MP3 播放误继承上一次 TTS 状态。
+    final usedTts = _lastPlaybackUsedTts ?? false;
+    _lastPlaybackUsedTts = null;
+    return usedTts;
   }
 
   ///

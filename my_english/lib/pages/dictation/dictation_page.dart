@@ -185,7 +185,8 @@ class DictationPage extends StatefulWidget {
 ///
 /// 管理默写页面的题目进度、候选项、播放状态和会话持久化。
 ///
-class _DictationPageState extends State<DictationPage> {
+class _DictationPageState extends State<DictationPage>
+    with WidgetsBindingObserver {
   ///
   /// 使用固定种子生成稳定且可复现的候选顺序。
   ///
@@ -290,6 +291,10 @@ class _DictationPageState extends State<DictationPage> {
   /// @var int
   ///
   int _playGeneration = 0;
+
+  /// 当前进入默写页面后是否已经提示过系统 TTS。
+  /// @var bool
+  bool _hasShownTtsNotice = false;
 
   ///
   /// 中间信息面板当前展示的反馈文案。
@@ -401,6 +406,8 @@ class _DictationPageState extends State<DictationPage> {
   @override
   void initState() {
     super.initState();
+    // 监听 App 前后台变化，后台停止音频并让下次播放重新提示 TTS。
+    WidgetsBinding.instance.addObserver(this);
     // 继续模式先恢复小题下标、错误和候选顺序；新开始则保留默认字段。
     _restoreInitialSession();
     // 完成待提交态没有候选；普通状态若快照无合法候选则同步生成标准四选一。
@@ -808,12 +815,28 @@ class _DictationPageState extends State<DictationPage> {
     try {
       // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
       await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
+      // 只有真正由离线 TTS 成功朗读时才显示一次来源提示。
+      if (!_hasShownTtsNotice &&
+          await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
+        _hasShownTtsNotice = true;
+        if (mounted) {
+          Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
+        }
+      }
     } on WordAudioPlaybackException catch (firstError) {
       // 原生已经删除损坏缓存；同一代次立即重试一次，触发重新下载并播放。
       // 只重试解码失败，不重试网络失败，避免无网时让用户额外等待两轮超时。
       if (mounted && generation == _playGeneration) {
         try {
           await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
+          // 解码失败重试成功后，同样检查真实播放来源。
+          if (!_hasShownTtsNotice &&
+              await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
+            _hasShownTtsNotice = true;
+            if (mounted) {
+              Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
+            }
+          }
         } on WordAudioInterruptedException {
           // 用户在重试期间切题或退出时按正常中断处理，不弹错误。
         } catch (error) {
@@ -839,6 +862,19 @@ class _DictationPageState extends State<DictationPage> {
         setState(() => _isPlaying = false);
       }
     }
+  }
+
+  /// App 离开前台时停止当前发音，并重置下一次播放的 TTS 提示状态。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) return;
+    _hasShownTtsNotice = false;
+    ++_playGeneration;
+    if (mounted) {
+      // 退后台时同步更新内存和界面状态，回到前台后播放按钮保持暂停样式。
+      setState(() => _isPlaying = false);
+    }
+    unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
   }
 
   ///
@@ -1485,6 +1521,8 @@ class _DictationPageState extends State<DictationPage> {
   ///
   @override
   void dispose() {
+    // 页面销毁前注销生命周期监听，避免后台回调访问已释放页面。
+    WidgetsBinding.instance.removeObserver(this);
     // 系统返回或路由销毁前补写最终答题状态；完成页已经删除会话，不能重新创建。
     if (!_isDone) unawaited(_persistSession());
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
