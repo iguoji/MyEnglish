@@ -44,15 +44,83 @@ jobs:
           channel: stable
           cache: true
 
+      # 将 GitHub Secrets 中的正式签名文件临时恢复到构建机。
+      # Secrets 是 GitHub 提供的加密变量，不会写入仓库，也不会作为构建产物上传。
+      - name: Restore Android signing files
+        working-directory: my_english/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # 收集所有缺失项并一次性显示名称，方便直接在 GitHub 仓库设置中补齐。
+          missing_secrets=()
+          [ -n "$ANDROID_KEYSTORE_BASE64" ] || missing_secrets+=(ANDROID_KEYSTORE_BASE64)
+          [ -n "$ANDROID_KEYSTORE_PASSWORD" ] || missing_secrets+=(ANDROID_KEYSTORE_PASSWORD)
+          [ -n "$ANDROID_KEY_ALIAS" ] || missing_secrets+=(ANDROID_KEY_ALIAS)
+          [ -n "$ANDROID_KEY_PASSWORD" ] || missing_secrets+=(ANDROID_KEY_PASSWORD)
+
+          # 只显示变量名称，不会把签名文件、别名或密码写入 Actions 日志。
+          if [ "${#missing_secrets[@]}" -gt 0 ]; then
+            printf '::error::缺少 GitHub Actions Secrets：%s\n' "${missing_secrets[*]}"
+            printf '请前往仓库 Settings > Secrets and variables > Actions 添加上述 Repository secrets。\n'
+            exit 1
+          fi
+
+          # 把 keystore 放在 Runner 临时目录，避免 Flutter 刷新 Android 工程时影响签名文件。
+          # 先解码到临时文件，再原子替换，避免留下半截 keystore。
+          keystore_path="$RUNNER_TEMP/myenglish-upload-keystore.jks"
+          temporary_keystore="$keystore_path.tmp"
+          if ! printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$temporary_keystore"; then
+            rm -f "$temporary_keystore"
+            printf '::error::ANDROID_KEYSTORE_BASE64 不是有效的 Base64 内容。\n'
+            exit 1
+          fi
+          test -s "$temporary_keystore"
+          mv "$temporary_keystore" "$keystore_path"
+
+          # 提前验证 keystore 密码和别名，避免等到 Gradle 构建时才出现模糊错误。
+          if ! keytool -list \
+            -keystore "$keystore_path" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" > /dev/null; then
+            printf '::error::无法读取 Android keystore，请检查 Base64、keystore 密码和 key alias。\n'
+            exit 1
+          fi
+
+          # build.gradle.kts 会从当前目录读取这个签名配置文件。
+          printf '%s\n' \
+            "storePassword=$ANDROID_KEYSTORE_PASSWORD" \
+            "keyPassword=$ANDROID_KEY_PASSWORD" \
+            "keyAlias=$ANDROID_KEY_ALIAS" \
+            "storeFile=$keystore_path" > key.properties
+
+          # 在进入 Gradle 前再次确认两个签名输入都存在，错误会更容易定位。
+          test -s key.properties
+          test -s "$keystore_path"
+
       # 安装 Dart 依赖。
       - name: Install Flutter dependencies
         working-directory: my_english
         run: flutter pub get
 
-      # 生成 Android Release APK（使用默认的 Debug 证书进行通用签名）。
+      # 生成使用正式签名的 Android Release APK。
       - name: Build release APK
         working-directory: my_english
-        run: flutter build apk --release
+        run: |
+          set -euo pipefail
+
+          # 读取 Gradle 即将使用的实际路径，并在构建前最后确认 keystore 没有消失。
+          keystore_path="$(sed -n 's/^storeFile=//p' android/key.properties | tail -n 1)"
+          if [ -z "$keystore_path" ] || [ ! -s "$keystore_path" ]; then
+            printf '::error::构建前找不到 Android keystore：%s\n' "$keystore_path"
+            exit 1
+          fi
+
+          flutter build apk --release
 
       # 使用稳定、易识别的文件名，便于用户在 Release 页面下载。
       - name: Rename APK
