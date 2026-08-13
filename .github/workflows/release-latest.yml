@@ -1,0 +1,105 @@
+name: Build and publish latest release
+
+on:
+  # 只有推送名称恰好为 latest 的标签时，才自动发布一个版本。
+  push:
+    tags:
+      - latest
+
+  # 首次配置 Secrets 后，可以从 Actions 页面手动检查构建流程。
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub Release 使用的标签名称
+        required: true
+        default: latest
+
+# 发布 Release 需要写入仓库内容的权限。
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    name: Build Android release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 把触发本次流程的提交取到构建机中。
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 项目的 Gradle 配置使用 Java 17，Android 构建必须保持这个版本一致。
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # 使用项目当前开发环境对应的 Flutter 版本，减少 SDK 版本差异造成的构建问题。
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      # 将 GitHub Secrets 中的签名文件临时恢复到构建机。
+      # Secrets 是 GitHub 提供的加密变量，不会写入仓库，也不会作为构建产物上传。
+      - name: Restore Android signing files
+        working-directory: my_english/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # 密钥为空时立即停止，避免意外生成无法覆盖安装的无效 Release 包。
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+
+          # Base64 只用于安全地保存二进制 keystore，解码后供 Gradle 使用。
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+
+          # build.gradle.kts 会从当前目录读取这个签名配置文件。
+          printf '%s\n' \
+            "storePassword=$ANDROID_KEYSTORE_PASSWORD" \
+            "keyPassword=$ANDROID_KEY_PASSWORD" \
+            "keyAlias=$ANDROID_KEY_ALIAS" \
+            'storeFile=upload-keystore.jks' > key.properties
+
+      # 安装 Dart 依赖。项目的 Tabler 图标包使用本地 path 依赖，不依赖额外的图标网络下载。
+      - name: Install Flutter dependencies
+        working-directory: my_english
+        run: flutter pub get
+
+      # 生成签名的 Android Release APK。
+      - name: Build release APK
+        working-directory: my_english
+        run: flutter build apk --release
+
+      # 使用稳定、易识别的文件名，便于用户在 Release 页面下载。
+      - name: Rename APK
+        working-directory: my_english
+        run: cp build/app/outputs/flutter-apk/app-release.apk MyEnglish-latest.apk
+
+      # 创建或更新 latest Release，并将 APK 作为公开下载附件上传。
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || 'latest' }}
+          name: MyEnglish latest
+          body: |
+            MyEnglish Android Release
+
+            本版本由 GitHub Actions 自动构建。
+          files: my_english/MyEnglish-latest.apk
+          fail_on_unmatched_files: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
