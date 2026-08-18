@@ -1780,6 +1780,11 @@ Future<void> _pumpHome(
   );
   // 内存 Future 在微任务队列完成，额外 pump 让 setState 生效。
   await tester.pump();
+  // 新版首页把单词列表放入底部抽屉，默认收起；测试需要先展开抽屉。
+  final sheetState = tester.state(find.byKey(const Key('word-library-sheet')));
+  // 通过公有方法展开抽屉，避免依赖私有字段。
+  (sheetState as dynamic).expand();
+  await tester.pumpAndSettle();
 }
 
 ///

@@ -1,0 +1,98 @@
+// material.dart 提供布局与滚动组件。
+import 'package:flutter/material.dart';
+
+// 引入设计稿色板令牌。
+import '../../../../common/theme.dart';
+// 引入首页顶部问候与统计行。
+import '../home_header.dart';
+// 趋势曲线卡片。
+import 'review_trend_chart.dart';
+// 打卡热力图卡片。
+import 'checkin_heatmap_card.dart';
+// 复习模式 2x2 网格。
+import 'review_mode_grid.dart';
+
+///
+/// 首页上层仪表盘：问候 → 统计 → 趋势曲线 → 打卡卡片 → 复习模式入口。
+///
+/// 仪表盘自身可滚动，底部留出抽屉手柄的视觉空间。
+///
+class HomeDashboard extends StatelessWidget {
+  /// 创建仪表盘。
+  const HomeDashboard({
+    required this.now,
+    required this.wordCount,
+    required this.dailyGoal,
+    required this.reviewCount,
+    required this.onMenuPressed,
+    required this.targetCount,
+    required this.onOpenCards,
+    required this.onOpenSpelling,
+    required this.onComingSoon,
+    super.key,
+  });
+
+  /// 当前时间，用于问候语。
+  final DateTime now;
+
+  /// 已收录单词总数。
+  final int wordCount;
+
+  /// 每日复习目标。
+  final int dailyGoal;
+
+  /// 今日已完成复习数。
+  final int reviewCount;
+
+  /// 点击汉堡菜单。
+  final VoidCallback onMenuPressed;
+
+  /// 当前学习范围的单词数。
+  final int targetCount;
+
+  /// 打开卡片速记。
+  final VoidCallback onOpenCards;
+
+  /// 打开拼写巩固。
+  final VoidCallback onOpenSpelling;
+
+  /// 未实现模式提示。
+  final void Function(String feature) onComingSoon;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    return Container(
+      color: tokens.page,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+        children: [
+          // 顶部问候与统计行。
+          HomeHeader(
+            now: now,
+            wordCount: wordCount,
+            dailyGoal: dailyGoal,
+            reviewCount: reviewCount,
+            onMenuPressed: onMenuPressed,
+          ),
+          const SizedBox(height: 20),
+          // 趋势曲线（含时间范围 tabs）。
+          const ReviewTrendChart(),
+          const SizedBox(height: 20),
+          // 30 天打卡质量卡片。
+          const CheckinHeatmapCard(),
+          const SizedBox(height: 24),
+          // 复习模式入口。
+          ReviewModeGrid(
+            targetCount: targetCount,
+            reviewCount: reviewCount,
+            dailyGoal: dailyGoal,
+            onOpenCards: onOpenCards,
+            onOpenSpelling: onOpenSpelling,
+            onComingSoon: onComingSoon,
+          ),
+        ],
+      ),
+    );
+  }
+}

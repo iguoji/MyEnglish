@@ -46,8 +46,6 @@ import '../../store/learning_session.dart';
 import 'widgets/group_filter_bar.dart';
 // 右侧抽屉菜单。
 import 'widgets/home_drawer.dart';
-// 顶部问候与汉堡按钮。
-import 'widgets/home_header.dart';
 // 右下角可展开的新版学习入口。
 import 'widgets/learning_fab.dart';
 // 分组管理面板。
@@ -58,12 +56,14 @@ import 'widgets/group_picker_sheet.dart';
 import 'widgets/word_form_sheet.dart';
 // 设计稿风格的单词行。
 import 'widgets/word_list_tile.dart';
-// 固定 40 高搜索框组件。
-import 'widgets/word_search_field.dart';
 // 排序行与选择模式工具行。
 import 'widgets/word_sort_bar.dart';
 // 纯排序服务负责搜索过滤和多级稳定排序，页面只提供当前交互参数。
 import 'services/home_word_sorter.dart';
+// 仪表盘：趋势曲线 + 打卡热力图 + 复习模式入口。
+import 'widgets/dashboard/home_dashboard.dart';
+// 底部词库抽屉。
+import 'widgets/word_library_sheet.dart';
 
 ///
 /// 首页组件，结构类似小程序一个 page 目录下的 Page 实例。
@@ -2126,142 +2126,121 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
       // SafeArea 避开状态栏、刘海和底部手势区。
       body: SafeArea(
-        // Stack 让底部浮动按钮悬浮在列表之上。
+        // Stack 让底部抽屉悬浮在仪表盘之上。
         child: Stack(
           children: [
-            // 主内容：上方工具区 + 下方列表。
-            Column(
-              children: [
-                // 标题、搜索框、分组行与排序行保留左右 20 边距。
-                Padding(
-                  // 顶部 20、底部 10，让排序行贴近列表。
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                  child: Column(
-                    // 左对齐标题。
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 顶部问候与汉堡按钮。
-                      HomeHeader(
-                        now: DateTime.now(),
-                        wordCount: _allWords.length,
-                        dailyGoal: _settings.dailyGoal,
-                        // 传入真实今日复习数，替换此前写死的 0。
-                        reviewCount: _reviewCount,
-                        // 打开右侧抽屉。
-                        onMenuPressed: () =>
-                            _scaffoldKey.currentState?.openEndDrawer(),
-                      ),
-                      // 标题与搜索框间距。
-                      const SizedBox(height: 16),
-                      // 固定 40 像素搜索框。
-                      WordSearchField(onChanged: _handleSearchChanged),
-                      // 搜索与分组行间距。
-                      const SizedBox(height: 14),
-                      // 分组视角、筛选 chips 与分组管理。
-                      GroupFilterBar(
-                        mode: _mode,
-                        chips: chips,
-                        // 切换视角时清空筛选。
-                        onModeSelected: (mode) => setState(() {
-                          _mode = mode;
-                          _filterKey = null;
-                        }),
-                        // 点击 chip 切换筛选。
-                        onChipSelected: (key) =>
-                            setState(() => _filterKey = key),
-                        // 仅自定义分组模式可打开分组管理。
-                        onOpenManage: () {
-                          if (_mode != GroupMode.custom) return;
-                          unawaited(showManageGroupsSheet(context, _groups));
-                        },
-                      ),
-                      // 分组行与排序行间距。
-                      const SizedBox(height: 12),
-                      // 排序行 + 折叠/选择动作。
-                      WordSortBar(
-                        selectedField: _sortField,
-                        directions: _sortDirections,
-                        onSelected: _handleSortSelected,
-                        // 全部折叠时按钮显示"展开"。
-                        collapseLabel: allCollapsed ? '展开' : '折叠',
-                        onToggleCollapseAll: () => setState(() {
-                          if (allCollapsed) {
-                            // 展开全部。
-                            for (final section in shownSections) {
-                              _collapsedKeys.remove(section.key);
-                            }
-                          } else {
-                            // 折叠全部。
-                            for (final section in shownSections) {
-                              _collapsedKeys.add(section.key);
+            // 上层：仪表盘（问候 + 趋势 + 打卡 + 复习模式入口）。
+            HomeDashboard(
+              now: DateTime.now(),
+              wordCount: _allWords.length,
+              dailyGoal: _settings.dailyGoal,
+              reviewCount: _reviewCount,
+              onMenuPressed: () =>
+                  _scaffoldKey.currentState?.openEndDrawer(),
+              targetCount: targetCount,
+              onOpenCards: () {
+                // 卡片速记 → 映射到随身听。
+                if (learningWords.isEmpty) {
+                  _showComingSoon('当前列表没有可学习单词');
+                  return;
+                }
+                unawaited(_openListening(learningWords));
+              },
+              onOpenSpelling: () {
+                // 拼写巩固 → 映射到默写。
+                if (learningWords.isEmpty) {
+                  _showComingSoon('当前列表没有可学习单词');
+                  return;
+                }
+                unawaited(_openDictation(learningWords));
+              },
+              onComingSoon: (feature) => _showComingSoon(feature),
+            ),
+            // 下层：底部词库抽屉。
+            WordLibrarySheet(
+              key: const Key('word-library-sheet'),
+                onSearchChanged: _handleSearchChanged,
+                groupFilterBar: GroupFilterBar(
+                  mode: _mode,
+                  chips: chips,
+                  onModeSelected: (mode) => setState(() {
+                    _mode = mode;
+                    _filterKey = null;
+                  }),
+                  onChipSelected: (key) =>
+                      setState(() => _filterKey = key),
+                  onOpenManage: () {
+                    if (_mode != GroupMode.custom) return;
+                    unawaited(showManageGroupsSheet(context, _groups));
+                  },
+                ),
+                wordSortBar: WordSortBar(
+                  selectedField: _sortField,
+                  directions: _sortDirections,
+                  onSelected: _handleSortSelected,
+                  collapseLabel: allCollapsed ? '展开' : '折叠',
+                  onToggleCollapseAll: () => setState(() {
+                    if (allCollapsed) {
+                      for (final section in shownSections) {
+                        _collapsedKeys.remove(section.key);
+                      }
+                    } else {
+                      for (final section in shownSections) {
+                        _collapsedKeys.add(section.key);
+                      }
+                    }
+                  }),
+                  selectLabel: _selectMode ? '完成' : '选择',
+                  onToggleSelectMode: () => setState(() {
+                    _selectMode = !_selectMode;
+                    _selectedWords.clear();
+                    _swipedWord = null;
+                  }),
+                ),
+                selectionBar: _selectMode
+                    ? WordSelectionBar(
+                        selectedCount: _selectedWords.length,
+                        onSelectAll: () => setState(
+                          () => _selectedWords.addAll(visibleWords),
+                        ),
+                        onInvertSelection: () => setState(() {
+                          for (final word in visibleWords) {
+                            if (!_selectedWords.remove(word)) {
+                              _selectedWords.add(word);
                             }
                           }
                         }),
-                        // 选择模式切换。
-                        selectLabel: _selectMode ? '完成' : '选择',
-                        onToggleSelectMode: () => setState(() {
-                          _selectMode = !_selectMode;
-                          // 进出选择模式都清空选择与滑动状态。
-                          _selectedWords.clear();
-                          _swipedWord = null;
-                        }),
+                        onMove: () =>
+                            unawaited(_pickGroupAndApply(isCopy: false)),
+                        onCopy: () =>
+                            unawaited(_pickGroupAndApply(isCopy: true)),
+                      )
+                    : const SizedBox.shrink(),
+                listContent: ColoredBox(
+                  color: tokens.card,
+                  child: DecoratedBox(
+                    key: const Key('word-list'),
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: tokens.border, width: 1),
                       ),
-                      // 选择模式下追加第二行工具。
-                      if (_selectMode) ...[
-                        const SizedBox(height: 10),
-                        WordSelectionBar(
-                          selectedCount: _selectedWords.length,
-                          // 全选当前可见单词。
-                          onSelectAll: () => setState(
-                            () => _selectedWords.addAll(visibleWords),
-                          ),
-                          // 反选当前可见单词。
-                          onInvertSelection: () => setState(() {
-                            for (final word in visibleWords) {
-                              if (!_selectedWords.remove(word)) {
-                                _selectedWords.add(word);
-                              }
-                            }
-                          }),
-                          // 移动与复制。
-                          onMove: () =>
-                              unawaited(_pickGroupAndApply(isCopy: false)),
-                          onCopy: () =>
-                              unawaited(_pickGroupAndApply(isCopy: true)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                // 列表占满剩余高度并贴屏左右边缘。
-                Expanded(
-                  // ColoredBox 只负责先绘制列表白底；类似小程序中先设置容器 background。
-                  child: ColoredBox(
-                    color: tokens.card,
-                    // 单独用前景 DecoratedBox 绘制边框，不能把白色背景也放进前景装饰，
-                    // 否则白色会像一层遮罩盖住 loading、空状态和全部单词行。
-                    child: DecoratedBox(
-                      // key 供 Widget 测试准确定位。
-                      key: const Key('word-list'),
-                      // 前景装饰会在滚动内容之后绘制，避免列表白底把顶部线盖住。
-                      position: DecorationPosition.foreground,
-                      // 整个列表容器只有顶部一条外边框，对齐 HTML 原型(--cBd/#e6e7e9)。
-                      decoration: BoxDecoration(
-                        border: Border(
-                          // 明确使用 1 个逻辑像素，让高分辨率真机也能稳定绘制清晰横线。
-                          top: BorderSide(color: tokens.border, width: 1),
-                        ),
-                      ),
-                      // 根据加载状态返回对应内容。
-                      child: _buildListContent(
-                        shownSections,
-                        visibleWords.isNotEmpty,
-                      ),
+                    ),
+                    child: _buildListContent(
+                      shownSections,
+                      visibleWords.isNotEmpty,
                     ),
                   ),
                 ),
-              ],
-            ),
+                onFabTap: () {
+                  if (learningWords.isEmpty) {
+                    _showComingSoon('当前列表没有可学习单词');
+                    return;
+                  }
+                  unawaited(_openDictation(learningWords));
+                },
+                fabLabel: '学习',
+              ),
             // 展开学习菜单后增加轻量遮罩；点击空白处即可收起。
             if (_learningMenuOpen)
               Positioned.fill(
@@ -2269,8 +2248,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   key: const Key('learning-menu-backdrop'),
                   behavior: HitTestBehavior.opaque,
                   onTap: () => setState(() => _learningMenuOpen = false),
-                  // 保留点击空白收起菜单的命中层，但颜色改为完全透明，
-                  // 不再用半透明黑色遮挡，避免界面与手机顶部状态栏被视觉割裂。
                   child: const ColoredBox(color: Colors.transparent),
                 ),
               ),

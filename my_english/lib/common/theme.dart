@@ -311,6 +311,12 @@ class AppTokens {
   /// @param  Color  check
   /// @param  Color  listDate
   /// @param  Color  listDateEmpty
+  /// @param  Color  checkinLevel0
+  /// @param  Color  checkinLevel1
+  /// @param  Color  checkinLevel2
+  /// @param  Color  checkinLevel3
+  /// @param  Color  checkinLevel4
+  /// @param  Color  cardShadow
   ///
   const AppTokens._({
     required this.page,
@@ -327,6 +333,12 @@ class AppTokens {
     required this.check,
     required this.listDate,
     required this.listDateEmpty,
+    required this.checkinLevel0,
+    required this.checkinLevel1,
+    required this.checkinLevel2,
+    required this.checkinLevel3,
+    required this.checkinLevel4,
+    required this.cardShadow,
   });
 
   ///
@@ -427,6 +439,24 @@ class AppTokens {
   ///
   final Color listDateEmpty;
 
+  /// 打卡梯度色：第 0 档（未复习）。对应原型 --level-0。
+  final Color checkinLevel0;
+
+  /// 打卡梯度色：第 1 档（少量/未达标）。对应原型 --level-1。
+  final Color checkinLevel1;
+
+  /// 打卡梯度色：第 2 档（刚好达标）。对应原型 --level-2。
+  final Color checkinLevel2;
+
+  /// 打卡梯度色：第 3 档（达标偏多）。对应原型 --level-3。
+  final Color checkinLevel3;
+
+  /// 打卡梯度色：第 4 档（超额完成）。对应原型 --level-4。
+  final Color checkinLevel4;
+
+  /// 卡片轻阴影色，对应原型 box-shadow 的投影。
+  final Color cardShadow;
+
   ///
   /// 品牌主色，与设计稿 accent 一致。
   ///
@@ -463,6 +493,13 @@ class AppTokens {
     listDate: Color(0xFF7E868F),
     // 无日期占位"00.00"比有日期更淡，接近背景几乎不可见。
     listDateEmpty: Color(0xFFE0E4E9),
+    // 打卡梯度色与原型 --level-0..4 对齐。
+    checkinLevel0: Color(0xFFEBEDF0),
+    checkinLevel1: Color(0xFFC6E4FF),
+    checkinLevel2: Color(0xFF73B3F3),
+    checkinLevel3: Color(0xFF2B7DE9),
+    checkinLevel4: Color(0xFF0066CC),
+    cardShadow: Color(0x0A000000),
   );
 
   ///
@@ -487,6 +524,13 @@ class AppTokens {
     listDate: Color(0xFF98A4B2),
     // 无日期占位"00.00"比有日期更暗，融入深色背景几乎不可见。
     listDateEmpty: Color(0xFF3A4350),
+    // 深色打卡梯度色：在深色表面上仍保持从暗到亮的可辨识梯度。
+    checkinLevel0: Color(0xFF2A323D),
+    checkinLevel1: Color(0xFF1E3A5F),
+    checkinLevel2: Color(0xFF2F6FB0),
+    checkinLevel3: Color(0xFF4A95E0),
+    checkinLevel4: Color(0xFF6EA8E5),
+    cardShadow: Color(0x33000000),
   );
 
   ///
