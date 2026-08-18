@@ -62,34 +62,51 @@ class HomeDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    // 页面安全边界线：问候语与汉堡菜单距屏幕左右边缘的距离。
+    // ListView 本身不再带水平内边距，改由各子块自行留边——
+    // 这样趋势曲线图才能铺满整行宽，让曲线、渐变、分割线画到屏幕边缘。
+    const edgeInset = 20.0;
+    // 统一的水平留边：给不需要全出血的内容块使用。
+    const horizontalPadding = EdgeInsets.symmetric(horizontal: edgeInset);
     return Container(
       color: tokens.page,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+        padding: const EdgeInsets.fromLTRB(0, 20, 0, 140),
         children: [
-          // 顶部问候与统计行。
-          HomeHeader(
-            now: now,
-            wordCount: wordCount,
-            dailyGoal: dailyGoal,
-            reviewCount: reviewCount,
-            onMenuPressed: onMenuPressed,
+          // 顶部问候与统计行（留在安全边界内）。
+          Padding(
+            padding: horizontalPadding,
+            child: HomeHeader(
+              now: now,
+              wordCount: wordCount,
+              dailyGoal: dailyGoal,
+              reviewCount: reviewCount,
+              onMenuPressed: onMenuPressed,
+            ),
           ),
           const SizedBox(height: 20),
-          // 趋势曲线（含时间范围 tabs）。
+          // 趋势曲线（含时间范围 tabs）：整体铺满屏幕宽度；
+          // 图内部自行把 tabs 与节点文字约束在安全边界内，
+          // 只有曲线、渐变、分割线突破边界抵达屏幕边缘。
           const ReviewTrendChart(),
           const SizedBox(height: 20),
-          // 30 天打卡质量卡片。
-          const CheckinHeatmapCard(),
+          // 30 天打卡质量卡片（留在安全边界内）；传入每日目标用于分档。
+          Padding(
+            padding: horizontalPadding,
+            child: CheckinHeatmapCard(dailyGoal: dailyGoal),
+          ),
           const SizedBox(height: 24),
-          // 复习模式入口。
-          ReviewModeGrid(
-            targetCount: targetCount,
-            reviewCount: reviewCount,
-            dailyGoal: dailyGoal,
-            onOpenCards: onOpenCards,
-            onOpenSpelling: onOpenSpelling,
-            onComingSoon: onComingSoon,
+          // 复习模式入口（留在安全边界内）。
+          Padding(
+            padding: horizontalPadding,
+            child: ReviewModeGrid(
+              targetCount: targetCount,
+              reviewCount: reviewCount,
+              dailyGoal: dailyGoal,
+              onOpenCards: onOpenCards,
+              onOpenSpelling: onOpenSpelling,
+              onComingSoon: onComingSoon,
+            ),
           ),
         ],
       ),

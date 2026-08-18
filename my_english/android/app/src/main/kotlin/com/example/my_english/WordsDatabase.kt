@@ -1512,6 +1512,99 @@ class WordsDatabase(context: Context) :
     }
 
     /**
+     * 按天统计复习单词数（每天按单词去重），供首页趋势曲线与打卡质量卡使用。
+     *
+     * SQL 直接 GROUP BY created_date 并 COUNT(DISTINCT word_id)：
+     * - 走 record_created_date 索引，本地库量级（一年几万条）下为毫秒级；
+     * - 聚合在原生完成，只把"日期 → 数量"的少量结果送回 Dart。
+     *
+     * @param sinceDate 起始日期（含），格式 yyyy-MM-dd；传 null 表示统计全部历史。
+     * @return 按日期升序的列表，每项形如 {date: "2026-08-18", count: 12}。
+     */
+    fun getDailyReviewCounts(sinceDate: String?): List<Map<String, Any?>> {
+        // 只读连接即可。
+        val db = readableDatabase
+        // 结果列表：一天一个 Entry。
+        val result = ArrayList<Map<String, Any?>>()
+        // 有起始日期就带上 WHERE 过滤，否则统计全部；占位符防注入。
+        val cursor = if (sinceDate == null) {
+            db.rawQuery(
+                """
+                SELECT created_date, COUNT(DISTINCT word_id)
+                FROM record
+                GROUP BY created_date
+                ORDER BY created_date ASC
+                """.trimIndent(),
+                null,
+            )
+        } else {
+            db.rawQuery(
+                """
+                SELECT created_date, COUNT(DISTINCT word_id)
+                FROM record
+                WHERE created_date >= ?
+                GROUP BY created_date
+                ORDER BY created_date ASC
+                """.trimIndent(),
+                arrayOf(sinceDate),
+            )
+        }
+        cursor.use {
+            // 逐行读取"日期 + 去重数量"。
+            while (it.moveToNext()) {
+                result.add(
+                    mapOf(
+                        "date" to it.getString(0),
+                        "count" to it.getInt(1),
+                    ),
+                )
+            }
+        }
+        return result
+    }
+
+    /**
+     * 按月统计复习单词数（每月按单词去重），供趋势曲线"半年/一年"档使用。
+     *
+     * 用 substr(created_date, 1, 7) 截取 'yyyy-MM' 作为月份键；按月去重可以
+     * 正确处理"同一个词在同一个月的不同天各复习一遍"——不能把每日去重数
+     * 简单相加，否则会重复计数。
+     *
+     * @param sinceYearMonth 起始月份（含），格式 yyyy-MM；传 null 表示统计全部历史。
+     * @return 按月份升序的列表，每项形如 {month: "2026-08", count: 34}。
+     */
+    fun getMonthlyReviewCounts(sinceYearMonth: String?): List<Map<String, Any?>> {
+        // 只读连接即可。
+        val db = readableDatabase
+        // 结果列表：一月一个 Entry。
+        val result = ArrayList<Map<String, Any?>>()
+        // 月份键截取前 7 位；WHERE 同样按月份键比较，保持口径一致。
+        val whereClause = if (sinceYearMonth == null) "" else "WHERE substr(created_date, 1, 7) >= ?"
+        val args = if (sinceYearMonth == null) null else arrayOf(sinceYearMonth)
+        db.rawQuery(
+            """
+            SELECT substr(created_date, 1, 7), COUNT(DISTINCT word_id)
+            FROM record
+            $whereClause
+            GROUP BY substr(created_date, 1, 7)
+            ORDER BY substr(created_date, 1, 7) ASC
+            """.trimIndent(),
+            args,
+        ).use { cursor ->
+            // 逐行读取"月份 + 去重数量"。
+            while (cursor.moveToNext()) {
+                result.add(
+                    mapOf(
+                        "month" to cursor.getString(0),
+                        "count" to cursor.getInt(1),
+                    ),
+                )
+            }
+        }
+        return result
+    }
+
+    /**
      * 读取今日全部默写记录，供"今日复习"展示。
      *
      * 返回完整记录 Map 列表（每条含 word_id 等），Dart 端再去重出单词列表。

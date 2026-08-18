@@ -136,4 +136,87 @@ class RecordStore {
     // 原生空返回按 0 处理，避免首页统计中断。
     return count ?? 0;
   }
+
+  ///
+  /// 按天统计复习单词数（每天按单词去重），供趋势曲线与打卡质量卡使用。
+  ///
+  /// 聚合（GROUP BY + COUNT(DISTINCT)）在原生 SQLite 完成，走
+  /// created_date 索引，本地库量级下为毫秒级；Dart 只拿到
+  /// 「日期 → 数量」的小表。没有记录的日期不会出现在结果里，
+  /// 调用方按需补 0。
+  ///
+  /// @param  DateTime?  since 起始日期（含）；null 表示统计全部历史。
+  /// @return `Future<Map<String, int>>` 键为 'yyyy-MM-dd'，值为当天去重单词数。
+  ///
+  Future<Map<String, int>> getDailyReviewCounts({DateTime? since}) async {
+    // 起始日期格式化成原生一致的 'yyyy-MM-dd'；null 表示不限。
+    final args = since == null
+        ? null
+        : <String, Object?>{
+            'since': _dateKey(since),
+          };
+    // 原生返回 [{date: 'yyyy-MM-dd', count: n}]；null 按空列表处理。
+    final raw = await _channel.invokeListMethod<Object?>(
+      'getDailyReviewCounts',
+      args,
+    );
+    // 组装成按日期索引的 Map，方便调用方 O(1) 查某一天。
+    final counts = <String, int>{};
+    if (raw == null) return counts;
+    for (final item in raw) {
+      // 跳过类型不正确的元素，避免原生异常数据牵连整个统计。
+      if (item is! Map) continue;
+      final date = item['date'];
+      final count = item['count'];
+      if (date is! String || count is! int) continue;
+      counts[date] = count;
+    }
+    return counts;
+  }
+
+  ///
+  /// 按月统计复习单词数（每月按单词去重），供趋势曲线"半年/一年"档使用。
+  ///
+  /// 按月去重才是正确口径：同一个词在同月的两天各复习一遍，月度只应
+  /// 算 1 次——所以不能把每日去重数相加，而由 SQLite 直接按月 GROUP BY。
+  ///
+  /// @param  DateTime?  since 起始月份（含，取其年月部分）；null 表示全部历史。
+  /// @return `Future<Map<String, int>>` 键为 'yyyy-MM'，值为当月去重单词数。
+  ///
+  Future<Map<String, int>> getMonthlyReviewCounts({DateTime? since}) async {
+    // 起始月份格式化成原生一致的 'yyyy-MM'；null 表示不限。
+    final args = since == null
+        ? null
+        : <String, Object?>{
+            'since': '${since.year.toString().padLeft(4, '0')}-'
+                '${since.month.toString().padLeft(2, '0')}',
+          };
+    // 原生返回 [{month: 'yyyy-MM', count: n}]；null 按空列表处理。
+    final raw = await _channel.invokeListMethod<Object?>(
+      'getMonthlyReviewCounts',
+      args,
+    );
+    // 组装成按月份索引的 Map。
+    final counts = <String, int>{};
+    if (raw == null) return counts;
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final month = item['month'];
+      final count = item['count'];
+      if (month is! String || count is! int) continue;
+      counts[month] = count;
+    }
+    return counts;
+  }
+
+  ///
+  /// 把日期格式化成与原生一致的 'yyyy-MM-dd' 键。
+  ///
+  /// @param  DateTime  d
+  /// @return String
+  ///
+  String _dateKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 }

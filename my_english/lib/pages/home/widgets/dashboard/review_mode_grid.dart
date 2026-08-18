@@ -59,7 +59,7 @@ class ReviewModeGrid extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '专项复习模式',
+              '开始复习',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -77,58 +77,74 @@ class ReviewModeGrid extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        // 2×2 网格。
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          // 宽高比 1:1（正方形卡片）：内容含图标行 + 名称 + 两行描述 +
-          // 进度条，1.1 的扁卡在大字体下会溢出约 1px，方形留足余量。
-          childAspectRatio: 1.0,
-          children: [
-            _ModeCard(
-              icon: TablerIcons.cards,
-              badge: '$reviewCount/$dailyGoal',
-              isActive: true,
-              name: '卡片速记',
-              desc: '看词识义 · 快速建立词感',
-              progressPercent: progressPercent,
-              onTap: onOpenCards,
-              tokens: tokens,
-            ),
-            _ModeCard(
-              icon: TablerIcons.pencil,
-              badge: '$reviewCount/$dailyGoal',
-              isActive: false,
-              name: '拼写巩固',
-              desc: '听写拼词 · 强化肌肉记忆',
-              progressPercent: progressPercent,
-              onTap: onOpenSpelling,
-              tokens: tokens,
-            ),
-            _ModeCard(
-              icon: TablerIcons.headphones,
-              badge: '0/20',
-              isActive: false,
-              name: '听音辨义',
-              desc: '纯听力辨析 · 摆脱视觉依赖',
-              progressPercent: 0,
-              onTap: () => onComingSoon('听音辨义'),
-              tokens: tokens,
-            ),
-            _ModeCard(
-              icon: TablerIcons.book2,
-              badge: '0/30',
-              isActive: false,
-              name: '真题例句',
-              desc: '语境选词 · 掌握真实搭配',
-              progressPercent: 0,
-              onTap: () => onComingSoon('真题例句'),
-              tokens: tokens,
-            ),
-          ],
+        // 2×2 网格：改为两行「IntrinsicHeight + Row(Expanded)」的手动网格。
+        // 原先用 GridView 固定 1:1 宽高比，卡片被强行撑成正方形，内容贴顶后
+        // 底部留一大片空白；现在卡片高度由内容自然撑开、行内取较高者对齐，
+        // 任何字体缩放下都不会溢出，也不会产生多余空白。
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _ModeCard(
+                  icon: TablerIcons.cards,
+                  badge: '$reviewCount/$dailyGoal',
+                  isActive: true,
+                  name: '卡片速记',
+                  desc: '看词识义 · 快速建立词感',
+                  progressPercent: progressPercent,
+                  onTap: onOpenCards,
+                  tokens: tokens,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ModeCard(
+                  icon: TablerIcons.pencil,
+                  badge: '$reviewCount/$dailyGoal',
+                  isActive: false,
+                  name: '拼写巩固',
+                  desc: '听写拼词 · 强化肌肉记忆',
+                  progressPercent: progressPercent,
+                  onTap: onOpenSpelling,
+                  tokens: tokens,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _ModeCard(
+                  icon: TablerIcons.headphones,
+                  badge: '0/20',
+                  isActive: false,
+                  name: '听音辨义',
+                  desc: '纯听力辨析 · 摆脱视觉依赖',
+                  progressPercent: 0,
+                  onTap: () => onComingSoon('听音辨义'),
+                  tokens: tokens,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ModeCard(
+                  icon: TablerIcons.book2,
+                  badge: '0/30',
+                  isActive: false,
+                  name: '真题例句',
+                  desc: '语境选词 · 掌握真实搭配',
+                  progressPercent: 0,
+                  onTap: () => onComingSoon('真题例句'),
+                  tokens: tokens,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -161,34 +177,32 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MediaQuery.withClampedTextScaling(
-      // 卡片是紧凑型装饰组件，字号放大上限钳制到 1.25 倍：
-      // 既保留弱视用户适度放大的无障碍能力，又避免系统超大字体
-      // 把固定宽高比的网格卡片内容撑爆（横向/纵向溢出）。
-      maxScaleFactor: 1.25,
-      child: Material(
-        color: tokens.card,
-        borderRadius: BorderRadius.circular(18),
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: tokens.cardShadow,
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
+    // 卡片高度不再用固定宽高比强撑，改由内容自然撑开（见上方的
+    // IntrinsicHeight 网格），因此无需再钳制字体缩放：系统大字体只会
+    // 让卡片跟着变高，不会再有溢出风险，无障碍体验也更完整。
+    return Material(
+      color: tokens.card,
+      borderRadius: BorderRadius.circular(8),
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            // 显式填上白色卡片底色（深色主题下自动是对应的深色表面）。
+            color: tokens.card,
+            // 描边代替阴影：用分隔线色勾出轮廓，不再使用投影。
+            border: Border.all(color: tokens.border),
+            // 只保留一点点圆角。
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 改为顶部对齐 + 固定间距：原本 spaceBetween 会让 4 行内容在方形卡里
+              // 被拉得过于分散；现在内容紧凑贴在顶部，行间距收拢、不再空旷。
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 // 顶部：图标 + 徽章。徽章文本包 Flexible 省略收缩，
                 // 防止长文案在窄卡片上把图标行撑出横向溢出。
@@ -227,6 +241,8 @@ class _ModeCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                // 图标行与名称之间留出固定间距，避免过于紧凑也避免被拉散。
+                const SizedBox(height: 10),
                 // 名称。
                 Text(
                   name,
@@ -238,6 +254,8 @@ class _ModeCard extends StatelessWidget {
                     color: tokens.text,
                   ),
                 ),
+                // 名称与描述之间紧凑一点。
+                const SizedBox(height: 4),
                 // 描述。
                 Text(
                   desc,
@@ -249,6 +267,8 @@ class _ModeCard extends StatelessWidget {
                     height: 1.3,
                   ),
                 ),
+                // 描述与进度条之间留出间距。
+                const SizedBox(height: 10),
                 // 进度条。
                 ClipRRect(
                   borderRadius: BorderRadius.circular(2),
@@ -269,7 +289,6 @@ class _ModeCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
           ),
         ),
       ),

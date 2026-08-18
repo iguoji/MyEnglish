@@ -314,7 +314,6 @@ class AppTokens {
   /// @param  Color  checkinLevel0
   /// @param  Color  checkinLevel1
   /// @param  Color  checkinLevel2
-  /// @param  Color  checkinLevel3
   /// @param  Color  checkinLevel4
   /// @param  Color  cardShadow
   ///
@@ -336,7 +335,6 @@ class AppTokens {
     required this.checkinLevel0,
     required this.checkinLevel1,
     required this.checkinLevel2,
-    required this.checkinLevel3,
     required this.checkinLevel4,
     required this.cardShadow,
   });
@@ -448,10 +446,8 @@ class AppTokens {
   /// 打卡梯度色：第 2 档（刚好达标）。对应原型 --level-2。
   final Color checkinLevel2;
 
-  /// 打卡梯度色：第 3 档（达标偏多）。对应原型 --level-3。
-  final Color checkinLevel3;
-
-  /// 打卡梯度色：第 4 档（超额完成）。对应原型 --level-4。
+  /// 打卡梯度色：最高档（超额完成）。对应原型 --level-4。
+  /// 原型中间的 --level-3 已按需求收敛：色块只保留 4 档。
   final Color checkinLevel4;
 
   /// 卡片轻阴影色，对应原型 box-shadow 的投影。
@@ -497,7 +493,6 @@ class AppTokens {
     checkinLevel0: Color(0xFFEBEDF0),
     checkinLevel1: Color(0xFFC6E4FF),
     checkinLevel2: Color(0xFF73B3F3),
-    checkinLevel3: Color(0xFF2B7DE9),
     checkinLevel4: Color(0xFF0066CC),
     cardShadow: Color(0x0A000000),
   );
@@ -528,7 +523,6 @@ class AppTokens {
     checkinLevel0: Color(0xFF2A323D),
     checkinLevel1: Color(0xFF1E3A5F),
     checkinLevel2: Color(0xFF2F6FB0),
-    checkinLevel3: Color(0xFF4A95E0),
     checkinLevel4: Color(0xFF6EA8E5),
     cardShadow: Color(0x33000000),
   );

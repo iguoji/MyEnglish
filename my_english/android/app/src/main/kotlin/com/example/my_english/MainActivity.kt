@@ -400,6 +400,20 @@ class MainActivity : FlutterActivity() {
                         wordsDatabase.getTodayReviewWordCount()
                     }
 
+                    // 按天统计复习单词数（每天去重），供趋势曲线与打卡质量卡使用。
+                    "getDailyReviewCounts" -> runDatabaseCall(result) {
+                        // 可选参数：起始日期 yyyy-MM-dd；null 表示统计全部历史。
+                        val since = (call.arguments as? Map<*, *>)?.get("since") as? String
+                        wordsDatabase.getDailyReviewCounts(since)
+                    }
+
+                    // 按月统计复习单词数（每月去重），供趋势曲线"半年/一年"档使用。
+                    "getMonthlyReviewCounts" -> runDatabaseCall(result) {
+                        // 可选参数：起始月份 yyyy-MM；null 表示统计全部历史。
+                        val since = (call.arguments as? Map<*, *>)?.get("since") as? String
+                        wordsDatabase.getMonthlyReviewCounts(since)
+                    }
+
                     // 按 id 读取指定单词，供复习后只回刷相关单词。
                     "getWordsByIds" -> runDatabaseCall(result) {
                         // 读取 Dart 传来的 id 列表。
