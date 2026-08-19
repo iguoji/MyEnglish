@@ -19,12 +19,6 @@ class AppSettingsStore(context: Context) {
         Context.MODE_PRIVATE,
     )
 
-    // 默认词库初始化标记使用独立文件，用户点击「清空数据」时不会被删除。
-    private val bootstrapPreferences = context.applicationContext.getSharedPreferences(
-        "app_bootstrap",
-        Context.MODE_PRIVATE,
-    )
-
     /** 返回 Dart 启动阶段需要的一次性设置快照。 */
     fun getSettings(): Map<String, Any> {
         // mapOf 会通过 MethodChannel 转成 Dart Map。
@@ -101,20 +95,6 @@ class AppSettingsStore(context: Context) {
         }
     }
 
-    /** 返回默认词库是否已经成功初始化。 */
-    fun isDefaultVocabularyInitialized(): Boolean {
-        return bootstrapPreferences.getBoolean(DEFAULT_VOCABULARY_INITIALIZED_KEY, false)
-    }
-
-    /** 记录默认词库已经成功导入，之后用户清空数据也保持空库。 */
-    fun markDefaultVocabularyInitialized() {
-        check(
-            bootstrapPreferences.edit()
-                .putBoolean(DEFAULT_VOCABULARY_INITIALIZED_KEY, true)
-                .commit(),
-        ) { "默认词库初始化标记写入失败" }
-    }
-
     /** 所有稳定键值集中在 companion object，类似 PHP 类常量。 */
     private companion object {
         // SharedPreferences 口音键。
@@ -128,9 +108,6 @@ class AppSettingsStore(context: Context) {
 
         // SharedPreferences 每日复习目标键。
         const val DAILY_GOAL_KEY = "dailyGoal"
-
-        // 默认词库是否已经完成首次导入。
-        const val DEFAULT_VOCABULARY_INITIALIZED_KEY = "defaultVocabularyInitialized"
 
         // 首次安装和旧版本升级后的默认每日目标。
         const val DEFAULT_DAILY_GOAL = 100

@@ -9,10 +9,20 @@ import '../../../models/word.dart';
 ///
 abstract final class DailyReviewSelector {
   ///
+  /// 当前选词规则的持久化版本。
+  ///
+  /// 每次改变比较字段或优先级时递增此值。首页发现当天计划仍是旧版本时，
+  /// 会保留当天已经冻结的目标数量，并用新规则重新生成一次公共词单。
+  ///
+  /// @var int
+  ///
+  static const int selectionVersion = 1;
+
+  ///
   /// 从完整词库中选出指定数量的每日复习单词。
   ///
-  /// 固定比较链：未复习优先 → 业务日期升序 → 释义条数升序 →
-  /// 释义字符数升序 → 难度降序 → 字母升序 → 编号升序。
+  /// 固定比较链：未复习优先 → 释义条数升序 → 释义字符数升序 →
+  /// 难度降序 → 业务日期升序 → 字母升序 → 编号升序。
   ///
   /// @param  `List<Word>`  words 完整且未软删除的本地词库。
   /// @param  int  limit 当天首次生成词单时冻结的目标数量。
@@ -44,13 +54,7 @@ abstract final class DailyReviewSelector {
     final byReviewed = firstReviewedRank.compareTo(secondReviewedRank);
     if (byReviewed != 0) return byReviewed;
 
-    // 未复习词使用“更新 → 加入”的回退日期；已复习词使用最近复习日期。
-    final firstDate = first.reviewedAt ?? first.updatedAt ?? first.createdAt;
-    final secondDate =
-        second.reviewedAt ?? second.updatedAt ?? second.createdAt;
-    final byDate = _compareNullableDate(firstDate, secondDate);
-    if (byDate != 0) return byDate;
-
+    // 同一复习状态内先判断学习内容是否简单，不能让较早日期的多释义词抢到前面。
     // 统一比较器固定执行“释义数量 → 释义字符数”，两层都采用升序。
     final byMeaning = first.compareMeaningComplexityTo(second);
     if (byMeaning != 0) return byMeaning;
@@ -60,6 +64,14 @@ abstract final class DailyReviewSelector {
       first.difficulty ?? 0,
     );
     if (byDifficulty != 0) return byDifficulty;
+
+    // 含义复杂度和难度都相同后才比较时间：未复习词使用“更新 → 加入”回退，
+    // 已复习词使用最近复习时间；时间越早，越需要先进入今天的复习词单。
+    final firstDate = first.reviewedAt ?? first.updatedAt ?? first.createdAt;
+    final secondDate =
+        second.reviewedAt ?? second.updatedAt ?? second.createdAt;
+    final byDate = _compareNullableDate(firstDate, secondDate);
+    if (byDate != 0) return byDate;
 
     // 英文拼写忽略大小写后按 A 到 Z 排列。
     final bySpelling = first.spelling.toLowerCase().compareTo(

@@ -40,7 +40,8 @@ class WordsDatabase(context: Context) :
         // 版本 8 为候选缓存增加正确答案位置，使四个候选的完整顺序可以长期恢复。
         // 版本 9 以 README 为业务字段标准，重建词库并统一 JSON/SQLite 命名。
         // 版本 10 新增每日公共复习词单表，四种复习模式当天共用同一批单词。
-        private const val databaseVersion = 10
+        // 版本 11 为每日词单增加选词规则版本，规则变化后旧顺序只重建一次。
+        private const val databaseVersion = 11
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -84,6 +85,10 @@ class WordsDatabase(context: Context) :
         }
         // 版本 10 只增加独立辅助表，不改动现有词库和复习记录。
         if (oldVersion < 10 && newVersion >= 10) createDailyReviewPlanTable(db)
+        // 版本 11 只给辅助表补一列；默认 0 代表旧规则，词库和复习记录不受影响。
+        if (oldVersion < 11 && newVersion >= 11) {
+            ensureDailyReviewPlanSelectionVersionColumn(db)
+        }
     }
 
     /**
@@ -106,6 +111,8 @@ class WordsDatabase(context: Context) :
         createLearningSessionTable(db)
         // 每日公共词单同样使用幂等建表，覆盖任何历史升级遗漏。
         createDailyReviewPlanTable(db)
+        // CREATE TABLE IF NOT EXISTS 不会给旧表补字段，因此打开时再做一次幂等检查。
+        ensureDailyReviewPlanSelectionVersionColumn(db)
         // 分组排序表只是内部实现，幂等补建不会改动 group 业务字段。
         createGroupPositionsTable(db)
     }
@@ -1225,9 +1232,39 @@ class WordsDatabase(context: Context) :
                 plan_date TEXT PRIMARY KEY,
                 daily_goal INTEGER NOT NULL CHECK (daily_goal >= 0),
                 word_ids_json TEXT NOT NULL,
+                selection_version INTEGER NOT NULL DEFAULT 0 CHECK (selection_version >= 0),
                 created_at INTEGER NOT NULL
             )
             """.trimIndent(),
+        )
+    }
+
+    /** 为版本 10 的每日词单表补上选词规则版本列；重复调用不会再次修改结构。 */
+    private fun ensureDailyReviewPlanSelectionVersionColumn(db: SQLiteDatabase) {
+        // PRAGMA table_info 读取真实列名，作用类似先检查 PHP 数据库迁移是否已经执行。
+        val hasSelectionVersion = db.rawQuery(
+            "PRAGMA table_info(daily_review_plans)",
+            null,
+        ).use { cursor ->
+            // name 列保存每一项字段名。
+            val nameColumn = cursor.getColumnIndexOrThrow("name")
+            // 默认尚未找到，逐行遇到目标字段后立即停止。
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameColumn) == "selection_version") {
+                    found = true
+                    break
+                }
+            }
+            found
+        }
+        // 新安装或已经升级过的数据库无需执行 ALTER TABLE。
+        if (hasSelectionVersion) return
+        // 历史计划统一写入 0，Dart 会据此使用当前规则重建一次并覆盖为新版本。
+        db.execSQL(
+            "ALTER TABLE daily_review_plans " +
+                "ADD COLUMN selection_version INTEGER NOT NULL DEFAULT 0 " +
+                "CHECK (selection_version >= 0)",
         )
     }
 
@@ -1237,7 +1274,13 @@ class WordsDatabase(context: Context) :
         val today = localDateString()
         readableDatabase.query(
             "daily_review_plans",
-            arrayOf("plan_date", "daily_goal", "word_ids_json", "created_at"),
+            arrayOf(
+                "plan_date",
+                "daily_goal",
+                "word_ids_json",
+                "selection_version",
+                "created_at",
+            ),
             "plan_date = ?",
             arrayOf(today),
             null,
@@ -1253,14 +1296,22 @@ class WordsDatabase(context: Context) :
                 "plan_date" to cursor.getString(cursor.getColumnIndexOrThrow("plan_date")),
                 "daily_goal" to cursor.getInt(cursor.getColumnIndexOrThrow("daily_goal")),
                 "word_ids" to wordIds,
+                "selection_version" to cursor.getInt(
+                    cursor.getColumnIndexOrThrow("selection_version"),
+                ),
                 "created_at" to cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
             )
         }
     }
 
     /** 保存今天的公共词单并删除其他日期的过期计划，返回实际保存的数据。 */
-    fun saveTodayReviewPlan(dailyGoal: Int, wordIds: List<Long>): Map<String, Any?> {
+    fun saveTodayReviewPlan(
+        dailyGoal: Int,
+        wordIds: List<Long>,
+        selectionVersion: Int,
+    ): Map<String, Any?> {
         if (dailyGoal < 0) error("每日复习量不能为负数")
+        if (selectionVersion < 0) error("选词规则版本不能为负数")
         // 主键必须全部为正数；无效 id 会让四个模式都无法恢复同一份词单。
         if (wordIds.any { it <= 0 }) error("每日复习计划包含无效单词 id")
         val db = writableDatabase
@@ -1274,6 +1325,7 @@ class WordsDatabase(context: Context) :
                 put("plan_date", today)
                 put("daily_goal", dailyGoal)
                 put("word_ids_json", JSONArray(wordIds).toString())
+                put("selection_version", selectionVersion)
                 put("created_at", now)
             }
             db.insertWithOnConflict(
@@ -1290,6 +1342,7 @@ class WordsDatabase(context: Context) :
             "plan_date" to today,
             "daily_goal" to dailyGoal,
             "word_ids" to wordIds,
+            "selection_version" to selectionVersion,
             "created_at" to now,
         )
     }

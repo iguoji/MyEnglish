@@ -923,9 +923,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @return `Future<DailyReviewPlan?>` 没有可复习单词或保存失败时返回 null。
   ///
   Future<DailyReviewPlan?> _resolveDailyReviewPlan() {
-    // 内存已恢复今天计划时直接返回，不再访问原生数据库；跨天旧值不能复用。
+    // 内存计划必须同时属于今天且由当前规则生成，才可直接返回而不访问原生数据库。
     final cached = _dailyReviewPlan;
-    if (cached != null && cached.planDate == _localDateKey(DateTime.now())) {
+    if (cached != null &&
+        cached.planDate == _localDateKey(DateTime.now()) &&
+        cached.selectionVersion == DailyReviewSelector.selectionVersion) {
       return Future<DailyReviewPlan?>.value(cached);
     }
     // 已经有读取或创建任务时直接共用，避免快速点击不同卡片产生竞态。
@@ -955,7 +957,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (word.id != null) word.id!: word,
       };
 
-      if (stored != null) {
+      if (stored != null &&
+          stored.selectionVersion == DailyReviewSelector.selectionVersion) {
         // 保留仍存在单词的原始顺序；被软删除的主键直接剔除。
         final repairedIds = <int>[
           for (final id in stored.wordIds)
@@ -981,16 +984,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             : await _dailyReviewPlanStore.saveToday(
                 dailyGoal: stored.dailyGoal,
                 wordIds: repairedIds,
+                selectionVersion: DailyReviewSelector.selectionVersion,
               );
         if (mounted) setState(() => _dailyReviewPlan = plan);
         return plan;
       }
 
-      // 今天第一次进入任意复习模块：按设置目标从完整词库固定选取。
-      final selected = DailyReviewSelector.select(
-        _allWords,
-        limit: _settings.dailyGoal,
-      );
+      // 今天第一次进入任意复习模块使用当前设置目标；旧版计划需要重建时，
+      // 继续保留当天首次冻结的目标数量，避免一次规则升级偷偷改变今日任务量。
+      final dailyGoal = stored?.dailyGoal ?? _settings.dailyGoal;
+      // 新计划或旧规则计划都按当前固定比较链重新选取完整顺序。
+      final selected = DailyReviewSelector.select(_allWords, limit: dailyGoal);
       final ids = <int>[
         for (final word in selected)
           if (word.id != null) word.id!,
@@ -1000,8 +1004,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return null;
       }
       final plan = await _dailyReviewPlanStore.saveToday(
-        dailyGoal: _settings.dailyGoal,
+        dailyGoal: dailyGoal,
         wordIds: ids,
+        selectionVersion: DailyReviewSelector.selectionVersion,
       );
       if (mounted) setState(() => _dailyReviewPlan = plan);
       return plan;

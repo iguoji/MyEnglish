@@ -2,7 +2,8 @@
 /// 当天四种复习模式共用的固定单词计划。
 ///
 /// [wordIds] 的顺序就是四个模块当天共同使用的答题顺序；[dailyGoal]
-/// 在首次生成时冻结，设置中途变化只影响第二天的新计划。
+/// 在首次生成时冻结，设置中途变化只影响第二天的新计划。[selectionVersion]
+/// 用来识别这批顺序由哪一版选词规则生成，规则升级时可以可靠重建一次。
 ///
 class DailyReviewPlan {
   /// 创建一份每日公共复习计划。
@@ -10,6 +11,7 @@ class DailyReviewPlan {
     required this.planDate,
     required this.dailyGoal,
     required this.wordIds,
+    required this.selectionVersion,
     this.createdAt,
   });
 
@@ -21,6 +23,9 @@ class DailyReviewPlan {
 
   /// 当天共用的单词主键快照，顺序不可变。
   final List<int> wordIds;
+
+  /// 生成这份固定顺序时使用的选词规则版本；0 表示升级前的历史计划。
+  final int selectionVersion;
 
   /// 原生数据库创建计划的时间，仅用于诊断。
   final DateTime? createdAt;
@@ -45,11 +50,17 @@ class DailyReviewPlan {
       if (value is! num) throw const FormatException('每日复习计划单词 id 必须是数字');
       ids.add(value.toInt());
     }
+    // 版本 11 以前没有 selection_version，缺失时按 0 处理以触发一次规则升级。
+    final rawSelectionVersion = map['selection_version'] ?? 0;
+    if (rawSelectionVersion is! num || rawSelectionVersion.toInt() < 0) {
+      throw const FormatException('每日复习计划 selection_version 无效');
+    }
     final rawCreatedAt = map['created_at'];
     return DailyReviewPlan(
       planDate: planDate,
       dailyGoal: rawGoal.toInt(),
       wordIds: List<int>.unmodifiable(ids),
+      selectionVersion: rawSelectionVersion.toInt(),
       createdAt: rawCreatedAt is num
           ? DateTime.fromMillisecondsSinceEpoch(rawCreatedAt.toInt())
           : null,

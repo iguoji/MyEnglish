@@ -5,10 +5,6 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 // 引入全局设置 Store；启动时要先从 Android 本地存储读取它。
 import 'store/settings.dart';
-// default_vocabulary.dart 提供首次安装时的离线词库初始化流程。
-import 'services/default_vocabulary.dart';
-// word.dart 提供 Android SQLite Store 实现。
-import 'store/word.dart';
 
 ///
 /// Dart 程序固定从 main 函数开始执行，对应 PHP 请求进入 index.php 的第一行。
@@ -20,14 +16,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // 等待本地设置读取完成，避免先闪一次 Light 再突然切换 Dark。
   final settings = await SettingsStore.load();
-  // 在首页创建前先导入内置词库，避免首屏先显示空列表。
-  try {
-    await DefaultVocabularyService.initialize(store: LocalWordStore.instance);
-  } catch (error, stackTrace) {
-    // 初始化失败不阻止用户进入 App；首页仍可使用手动导入功能。
-    debugPrint('内置词库初始化失败：$error');
-    debugPrintStack(stackTrace: stackTrace);
-  }
-  // runApp 把 MainApp 挂到屏幕，并把已经读取好的设置传给全局应用。
+  // 应用不附带默认词库；runApp 直接进入首页，用户可手动添加或导入自己的数据。
   runApp(MainApp(settings: settings));
 }

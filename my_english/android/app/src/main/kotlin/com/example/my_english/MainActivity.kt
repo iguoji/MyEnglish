@@ -339,13 +339,20 @@ class MainActivity : FlutterActivity() {
                             ?: error("saveTodayReviewPlan 缺少参数")
                         val dailyGoal = (payload["dailyGoal"] as? Number)?.toInt()
                             ?: error("saveTodayReviewPlan 缺少有效 dailyGoal")
+                        // 规则版本让 Dart 能识别并一次性重建旧算法生成的当天顺序。
+                        val selectionVersion = (payload["selectionVersion"] as? Number)?.toInt()
+                            ?: error("saveTodayReviewPlan 缺少有效 selectionVersion")
                         val wordIds = (payload["wordIds"] as? List<*>)
                             ?.map { value ->
                                 (value as? Number)?.toLong()
                                     ?: error("saveTodayReviewPlan 的 wordIds 必须全部是数字")
                             }
                             ?: error("saveTodayReviewPlan 缺少 wordIds")
-                        wordsDatabase.saveTodayReviewPlan(dailyGoal, wordIds)
+                        wordsDatabase.saveTodayReviewPlan(
+                            dailyGoal,
+                            wordIds,
+                            selectionVersion,
+                        )
                     }
 
                     // 读取一道默写题已经持久化的三个干扰项和正确答案位置。
@@ -525,17 +532,6 @@ class MainActivity : FlutterActivity() {
                         // 删除 SharedPreferences 中的全部键值。
                         appSettingsStore.clearAll()
                         // 返回 null 通知 Dart 清空完成。
-                        null
-                    }
-
-                    // 查询默认词库是否已经初始化；该标记独立于用户可清空的设置文件。
-                    "isDefaultVocabularyInitialized" -> runIoCall(result, "SETTINGS_ERROR") {
-                        appSettingsStore.isDefaultVocabularyInitialized()
-                    }
-
-                    // 默认词库成功导入后写入一次性标记，避免用户清空后再次自动恢复。
-                    "markDefaultVocabularyInitialized" -> runIoCall(result, "SETTINGS_ERROR") {
-                        appSettingsStore.markDefaultVocabularyInitialized()
                         null
                     }
 

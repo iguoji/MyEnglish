@@ -1,5 +1,5 @@
 name: my_english
-description: "MyEnglish: a personal English vocabulary app with built-in word library, pronunciation settings, and daily review goals."
+description: "MyEnglish: a local-first personal English vocabulary and review app."
 publish_to: 'none'
 version: 0.22.9+9
 
@@ -30,4 +30,3 @@ flutter:
   # 修改 logo 后只需替换文件，无需改代码。
   assets:
     - assets/logo/app_logo.png
-    - assets/data/words.json

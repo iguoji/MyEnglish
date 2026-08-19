@@ -18,6 +18,7 @@ abstract interface class DailyReviewPlanStore {
   Future<DailyReviewPlan> saveToday({
     required int dailyGoal,
     required List<int> wordIds,
+    required int selectionVersion,
   });
 }
 
@@ -57,21 +58,31 @@ class LocalDailyReviewPlanStore implements DailyReviewPlanStore {
   ///
   /// @param  int  dailyGoal 当天冻结的目标数量。
   /// @param  `List<int>`  wordIds 固定顺序的单词主键。
+  /// @param  int  selectionVersion 生成固定顺序时采用的规则版本。
   /// @return `Future<DailyReviewPlan>` 原生实际保存后的计划。
   ///
   @override
   Future<DailyReviewPlan> saveToday({
     required int dailyGoal,
     required List<int> wordIds,
+    required int selectionVersion,
   }) async {
     if (dailyGoal < 0) {
       throw ArgumentError.value(dailyGoal, 'dailyGoal', '每日复习量不能为负数');
+    }
+    if (selectionVersion < 0) {
+      throw ArgumentError.value(
+        selectionVersion,
+        'selectionVersion',
+        '选词规则版本不能为负数',
+      );
     }
     final raw = await _channel.invokeMapMethod<Object?, Object?>(
       'saveTodayReviewPlan',
       <String, Object?>{
         'dailyGoal': dailyGoal,
         'wordIds': List<int>.unmodifiable(wordIds),
+        'selectionVersion': selectionVersion,
       },
     );
     if (raw == null) throw const FormatException('原生没有返回已保存的每日复习计划');
