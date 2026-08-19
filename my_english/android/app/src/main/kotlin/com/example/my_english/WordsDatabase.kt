@@ -39,7 +39,8 @@ class WordsDatabase(context: Context) :
         // 版本 7 新增学习会话表，保存随身听和默写尚未完成的列表与页面进度。
         // 版本 8 为候选缓存增加正确答案位置，使四个候选的完整顺序可以长期恢复。
         // 版本 9 以 README 为业务字段标准，重建词库并统一 JSON/SQLite 命名。
-        private const val databaseVersion = 9
+        // 版本 10 新增每日公共复习词单表，四种复习模式当天共用同一批单词。
+        private const val databaseVersion = 10
     }
 
     // 每次打开连接时启用外键约束，保证 meaning.word_id 必须指向真实 word。
@@ -68,6 +69,8 @@ class WordsDatabase(context: Context) :
         createDictationOptionCacheTable(db)
         // 创建未完成学习会话表。
         createLearningSessionTable(db)
+        // 创建四种复习模式当天共用的固定词单表。
+        createDailyReviewPlanTable(db)
         // 最后建立查询索引。
         createIndexes(db)
     }
@@ -78,8 +81,9 @@ class WordsDatabase(context: Context) :
         // 同时维护 sort_index/definitions_json 等历史别名与新字段的复杂迁移。
         if (oldVersion < 9 && newVersion >= 9) {
             rebuildVocabularySchema(db)
-            return
         }
+        // 版本 10 只增加独立辅助表，不改动现有词库和复习记录。
+        if (oldVersion < 10 && newVersion >= 10) createDailyReviewPlanTable(db)
     }
 
     /**
@@ -100,6 +104,8 @@ class WordsDatabase(context: Context) :
         ensureDictationOptionCorrectIndexColumn(db)
         // 学习会话属于辅助数据，幂等补建可覆盖跨版本升级遗漏。
         createLearningSessionTable(db)
+        // 每日公共词单同样使用幂等建表，覆盖任何历史升级遗漏。
+        createDailyReviewPlanTable(db)
         // 分组排序表只是内部实现，幂等补建不会改动 group 业务字段。
         createGroupPositionsTable(db)
     }
@@ -216,6 +222,7 @@ class WordsDatabase(context: Context) :
         // 先删除引用 words/groups 的子表，再删父表，符合外键依赖顺序。
         db.execSQL("DROP TABLE IF EXISTS dictation_option_cache")
         db.execSQL("DROP TABLE IF EXISTS learning_sessions")
+        db.execSQL("DROP TABLE IF EXISTS daily_review_plans")
         db.execSQL("DROP TABLE IF EXISTS record")
         db.execSQL("DROP TABLE IF EXISTS group_positions")
         db.execSQL("DROP TABLE IF EXISTS group_members")
@@ -231,6 +238,7 @@ class WordsDatabase(context: Context) :
         createRecordTable(db)
         createDictationOptionCacheTable(db)
         createLearningSessionTable(db)
+        createDailyReviewPlanTable(db)
         createIndexes(db)
     }
 
@@ -431,7 +439,7 @@ class WordsDatabase(context: Context) :
             db.delete("meanings", "word_id = ?", arrayOf(id.toString()))
             // 拼写或释义可能已经变化，旧候选项不能继续复用。
             db.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
-            // 会话中的当前题状态也可能引用旧拼写或释义，编辑后统一作废最稳妥。
+            // 会话可能引用旧题目内容，编辑后作废；公共词单只存 id，继续保留当天批次。
             db.delete("learning_sessions", null, null)
             replaceMeanings(db, id, payload["meanings"])
             // 分组关系也属于本次保存；失败时主体和 Meaning 同时回滚。
@@ -480,6 +488,7 @@ class WordsDatabase(context: Context) :
             // 先清空候选缓存、学习会话与其他子表，再清空父表，避免遗留失效快照。
             db.delete("dictation_option_cache", null, null)
             db.delete("learning_sessions", null, null)
+            db.delete("daily_review_plans", null, null)
             db.delete("group_members", null, null)
             db.delete("groups", null, null)
             db.delete("meanings", null, null)
@@ -698,6 +707,8 @@ class WordsDatabase(context: Context) :
             // 导入会替换词库，与旧单词主键绑定的记录、候选和会话也失效。
             db.delete("dictation_option_cache", null, null)
             db.delete("learning_sessions", null, null)
+            // 公共词单保存的是旧词库主键，整库替换后必须同时作废。
+            db.delete("daily_review_plans", null, null)
             db.delete("group_members", null, null)
             db.delete("meanings", null, null)
             db.delete("words", null, null)
@@ -1205,6 +1216,84 @@ class WordsDatabase(context: Context) :
         )
     }
 
+    /** 创建每日公共复习词单表；任意时刻只需要保留设备本地当天的一行。 */
+    private fun createDailyReviewPlanTable(db: SQLiteDatabase) {
+        // JSON 数组保留选词顺序；daily_goal 保存首次生成时冻结的目标数量。
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS daily_review_plans (
+                plan_date TEXT PRIMARY KEY,
+                daily_goal INTEGER NOT NULL CHECK (daily_goal >= 0),
+                word_ids_json TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /** 读取设备本地今天的公共复习词单；尚未创建时返回 null。 */
+    fun getTodayReviewPlan(): Map<String, Any?>? {
+        // 原生日期与 record.created_date 使用同一个方法，跨午夜时口径一致。
+        val today = localDateString()
+        readableDatabase.query(
+            "daily_review_plans",
+            arrayOf("plan_date", "daily_goal", "word_ids_json", "created_at"),
+            "plan_date = ?",
+            arrayOf(today),
+            null,
+            null,
+            null,
+            "1",
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            // MethodChannel 可直接传 List<Long>，Dart 端统一转成 int。
+            val json = JSONArray(cursor.getString(cursor.getColumnIndexOrThrow("word_ids_json")))
+            val wordIds = List(json.length()) { index -> json.getLong(index) }
+            return linkedMapOf(
+                "plan_date" to cursor.getString(cursor.getColumnIndexOrThrow("plan_date")),
+                "daily_goal" to cursor.getInt(cursor.getColumnIndexOrThrow("daily_goal")),
+                "word_ids" to wordIds,
+                "created_at" to cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
+            )
+        }
+    }
+
+    /** 保存今天的公共词单并删除其他日期的过期计划，返回实际保存的数据。 */
+    fun saveTodayReviewPlan(dailyGoal: Int, wordIds: List<Long>): Map<String, Any?> {
+        if (dailyGoal < 0) error("每日复习量不能为负数")
+        // 主键必须全部为正数；无效 id 会让四个模式都无法恢复同一份词单。
+        if (wordIds.any { it <= 0 }) error("每日复习计划包含无效单词 id")
+        val db = writableDatabase
+        val today = localDateString()
+        val now = System.currentTimeMillis()
+        db.beginTransaction()
+        try {
+            // 计划只在当天有效，写入新计划前清掉昨天及更早的数据。
+            db.delete("daily_review_plans", "plan_date <> ?", arrayOf(today))
+            val values = ContentValues().apply {
+                put("plan_date", today)
+                put("daily_goal", dailyGoal)
+                put("word_ids_json", JSONArray(wordIds).toString())
+                put("created_at", now)
+            }
+            db.insertWithOnConflict(
+                "daily_review_plans",
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return linkedMapOf(
+            "plan_date" to today,
+            "daily_goal" to dailyGoal,
+            "word_ids" to wordIds,
+            "created_at" to now,
+        )
+    }
+
     /** 按小题 key 读取干扰项及正确答案位置；没有缓存时返回 null。 */
     fun getDictationOptionCache(cacheKey: String): Map<String, Any?>? {
         // 精确查询主键，最多只会返回一行。
@@ -1357,6 +1446,7 @@ class WordsDatabase(context: Context) :
      * @param isCorrect 本次是否没有选错候选项。
      * @param wrongCount 本次选错候选项的次数。
      * @param hintCount 本次点击提示的次数。
+     * @param module 本次记录所属的稳定复习模式标识。
      * @return Unit
      */
     fun addDictationRecord(
@@ -1364,6 +1454,7 @@ class WordsDatabase(context: Context) :
         isCorrect: Boolean,
         wrongCount: Int,
         hintCount: Int,
+        module: String,
     ) {
         // 写连接与事务保证"插记录 + 改难度"原子，要么都成要么都回滚。
         val db = writableDatabase
@@ -1390,7 +1481,8 @@ class WordsDatabase(context: Context) :
             // 插入本次记录（不再判断今天是否已有）。
             val now = System.currentTimeMillis()
             val values = ContentValues().apply {
-                put("module", "dictation")
+                // 不再写死 dictation，让首页四种模式可以分别按该字段统计进度。
+                put("module", module)
                 put("word_id", wordId)
                 put("is_correct", if (isCorrect) 1 else 0)
                 put("wrong_count", wrongCount)
@@ -1509,6 +1601,52 @@ class WordsDatabase(context: Context) :
         }
         // 理论上不会走到这里，兜底返回 0。
         return 0
+    }
+
+    /**
+     * 按复习模式统计今日完成的单词数，每个模式内部按单词去重。
+     *
+     * 普通默写使用 dictation，它不属于首页四种复习模块，因此查询只接收四个
+     * 稳定模块键。升级前的普通默写记录仍参与首页总复习量，但不会冒充听音辨义。
+     *
+     * @return 按模块标识升序的列表，每项形如 {module: "listening_meaning", count: 12}。
+     */
+    fun getTodayReviewCountsByModule(): List<Map<String, Any?>> {
+        // 只读连接即可，不会改变任何历史记录。
+        val db = readableDatabase
+        // 本机时区下的“今天”，与写入 created_date 时使用同一套格式。
+        val today = localDateString()
+        // MethodChannel 能直接传输 List<Map>，Dart 端再转成按键读取的 Map。
+        val result = ArrayList<Map<String, Any?>>()
+        db.rawQuery(
+            """
+            SELECT
+                module AS review_module,
+                COUNT(DISTINCT word_id)
+            FROM record
+            WHERE created_date = ?
+              AND module IN (
+                  'listening_meaning',
+                  'meaning_match',
+                  'spelling_reinforcement',
+                  'meaning_word_choice'
+              )
+            GROUP BY review_module
+            ORDER BY review_module ASC
+            """.trimIndent(),
+            arrayOf(today),
+        ).use { cursor ->
+            // 每个模块只返回一行，未产生记录的模块不会出现在结果里。
+            while (cursor.moveToNext()) {
+                result.add(
+                    mapOf(
+                        "module" to cursor.getString(0),
+                        "count" to cursor.getInt(1),
+                    ),
+                )
+            }
+        }
+        return result
     }
 
     /**

@@ -52,13 +52,24 @@ extension CheckinLevelColor on CheckinLevel {
 ///
 class CheckinDay {
   /// 创建一天数据。
-  const CheckinDay({required this.date, required this.level});
+  ///
+  /// @param  DateTime      date        当天日期。
+  /// @param  CheckinLevel  level       当天质量分档。
+  /// @param  int           reviewCount 当天去重复习单词数。
+  const CheckinDay({
+    required this.date,
+    required this.level,
+    required this.reviewCount,
+  });
 
   /// 当天日期。
   final DateTime date;
 
   /// 当天质量分档。
   final CheckinLevel level;
+
+  /// 当天去重复习的单词数量；点击日期后直接显示这个数字。
+  final int reviewCount;
 }
 
 ///
@@ -90,6 +101,9 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
   /// 选中月份每天的打卡数据；初始为全"未复习"骨架，色块永不消失。
   List<CheckinDay> _days = const [];
 
+  /// 当前被点击的具体日期；为空表示暂时不展示任何一天的复习数量。
+  DateTime? _selectedDate;
+
   @override
   void initState() {
     super.initState();
@@ -119,13 +133,19 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
       setState(() {
         _days = [
           for (var i = 1; i <= dayCount; i++)
-            CheckinDay(
-              date: DateTime(month.year, month.month, i),
-              level: _levelFor(
-                counts[_dateKey(DateTime(month.year, month.month, i))] ?? 0,
-                widget.dailyGoal,
-              ),
-            ),
+            () {
+              // 先建立当天日期，避免日期键和数据对象分别重复创建。
+              final date = DateTime(month.year, month.month, i);
+              // 原生没有返回该日期时，说明当天复习数量为 0。
+              final reviewCount = counts[_dateKey(date)] ?? 0;
+              return CheckinDay(
+                date: date,
+                // 颜色档位仍然按照原有每日目标规则计算。
+                level: _levelFor(reviewCount, widget.dailyGoal),
+                // 同时保留原始数字，供点击日期后就地展示。
+                reviewCount: reviewCount,
+              );
+            }(),
         ];
       });
     } catch (error) {
@@ -146,8 +166,21 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
     setState(() {
       _month = month;
       _days = _zeroDays(month);
+      // 新月份还没有用户选择，清掉旧月份的日期与数量提示。
+      _selectedDate = null;
     });
     _load();
+  }
+
+  ///
+  /// 选中一个具体日期，让月历只在该日期旁显示当天复习数量。
+  ///
+  /// @param  DateTime  date 被点击的日期。
+  /// @return void
+  ///
+  void _selectDate(DateTime date) {
+    // 日期格每次点击都把展示目标切换到当前日期。
+    setState(() => _selectedDate = date);
   }
 
   ///
@@ -172,6 +205,8 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
         CheckinDay(
           date: DateTime(month.year, month.month, i),
           level: CheckinLevel.zero,
+          // 骨架阶段尚未查到记录，先按 0 展示；真实查询完成后整体替换。
+          reviewCount: 0,
         ),
     ];
   }
@@ -378,7 +413,12 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
           ),
           const SizedBox(height: 6),
           // 日历主体：按周分行，每格一个色块，色块中间是几号。
-          _CalendarGrid(days: _days, tokens: tokens),
+          _CalendarGrid(
+            days: _days,
+            selectedDate: _selectedDate,
+            onDateTap: _selectDate,
+            tokens: tokens,
+          ),
           const SizedBox(height: 14),
           // 统计分布条：超额 → 达标 → 少量 → 未复习，从左到右四段。
           ClipRRect(
@@ -461,13 +501,24 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
 /// 首行前的空位留白；今天之后的日子画成无底色的灰色数字（未来占位）。
 ///
 class _CalendarGrid extends StatelessWidget {
-  const _CalendarGrid({required this.days, required this.tokens});
+  const _CalendarGrid({
+    required this.days,
+    required this.selectedDate,
+    required this.onDateTap,
+    required this.tokens,
+  });
 
   /// 色块边长：接近上一版 16px 色块的紧凑观感，略放大以容纳两位日期数字。
   static const double _cellSize = 20;
 
   /// 当月每天的数据（1 日..月末，连续无空洞）。
   final List<CheckinDay> days;
+
+  /// 当前选中的日期；其余日期只显示几号，不显示复习数量。
+  final DateTime? selectedDate;
+
+  /// 点击具体日期时通知卡片更新选中状态。
+  final ValueChanged<DateTime> onDateTap;
 
   /// 色板令牌。
   final AppTokens tokens;
@@ -532,37 +583,93 @@ class _CalendarGrid extends StatelessWidget {
     final day = cells[index] as CheckinDay;
     // 今天之后的未来日子：只画灰色数字，不铺复习色。
     final isFuture = day.date.isAfter(today);
+    // 年、月、日同时相同才视为选中，避免跨月份误命中相同日号。
+    final isSelected =
+        selectedDate?.year == day.date.year &&
+        selectedDate?.month == day.date.month &&
+        selectedDate?.day == day.date.day;
+    // 日期键用于稳定定位每一个具体日期及其点击后出现的数量。
+    final dateKey = _dateKey(day.date);
+
+    // 先沿用日期原有样式，再统一包进可点击的一列网格中。
+    final Widget dateNumber;
 
     if (isFuture) {
       // 未来占位：极淡数字，无底色。
-      return Text(
-        '${day.date.day}',
-        style: TextStyle(fontSize: 11, color: tokens.listDateEmpty),
-      );
-    }
-
-    // 已过去的日子：按分档铺底色，固定小方块正中显示几号。
-    return SizedBox(
-      width: _cellSize,
-      height: _cellSize,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: day.level.color(tokens),
-          borderRadius: BorderRadius.circular(5),
-        ),
+      dateNumber = SizedBox(
+        width: _cellSize,
         child: Center(
           child: Text(
             '${day.date.day}',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              // 深蓝底用白字，浅蓝/灰底用主文字色，保证可读。
-              color: day.level == CheckinLevel.three
-                  ? Colors.white
-                  : day.level == CheckinLevel.zero
-                  ? tokens.textSecondary
-                  : tokens.text,
+            style: TextStyle(fontSize: 11, color: tokens.listDateEmpty),
+          ),
+        ),
+      );
+    } else {
+      // 已过去的日子：按分档铺底色，固定小方块正中显示几号。
+      dateNumber = SizedBox(
+        width: _cellSize,
+        height: _cellSize,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: day.level.color(tokens),
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Center(
+            child: Text(
+              '${day.date.day}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                // 深蓝底用白字，浅蓝/灰底用主文字色，保证可读。
+                color: day.level == CheckinLevel.three
+                    ? Colors.white
+                    : day.level == CheckinLevel.zero
+                    ? tokens.textSecondary
+                    : tokens.text,
+              ),
             ),
+          ),
+        ),
+      );
+    }
+
+    return Semantics(
+      // 读屏软件会把日期格识别成可点击按钮，并读出完整日期。
+      button: true,
+      label: '${day.date.year}年${day.date.month}月${day.date.day}日',
+      // 选中后把复习数量加入读屏值，视觉上仍只额外显示一个数字。
+      value: isSelected ? '${day.reviewCount}' : null,
+      child: GestureDetector(
+        key: Key('checkin-day-$dateKey'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onDateTap(day.date),
+        child: SizedBox(
+          // 占满日历列宽，数字出现时不会改变网格的行列位置。
+          height: _cellSize,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              dateNumber,
+              if (isSelected) ...[
+                const SizedBox(width: 3),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${day.reviewCount}',
+                      key: Key('checkin-count-$dateKey'),
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: tokens.text,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),

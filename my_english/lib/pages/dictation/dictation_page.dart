@@ -98,6 +98,8 @@ class DictationPage extends StatefulWidget {
   /// @param  WordAudioPlayer  audioPlayer 单词发音服务。
   /// @param  PronunciationAccent  accent 当前发音口音。
   /// @param  RecordStore?  recordStore 可替换的默写记录 Store。
+  /// @param  String  recordModule 本轮完成记录所属的复习模式。
+  /// @param  LearningSessionType  sessionType 本页面独立保存进度时使用的会话类型。
   /// @param  DictationOptionCacheStore?  optionCacheStore 可替换的候选缓存 Store。
   /// @param  LearningSession?  initialSession 需要恢复的历史会话。
   /// @param  LearningSessionStore?  sessionStore 可替换的学习会话 Store。
@@ -110,6 +112,8 @@ class DictationPage extends StatefulWidget {
     required this.audioPlayer,
     required this.accent,
     this.recordStore,
+    this.recordModule = 'dictation',
+    this.sessionType = LearningSessionType.dictation,
     this.optionCacheStore,
     this.initialSession,
     this.sessionStore,
@@ -144,6 +148,20 @@ class DictationPage extends StatefulWidget {
   /// @var RecordStore?
   ///
   final RecordStore? recordStore;
+
+  ///
+  /// 本轮完成记录写入 record.module 时使用的稳定模块标识。
+  ///
+  /// @var String
+  ///
+  final String recordModule;
+
+  ///
+  /// 当前入口专用的学习会话类型；普通默写与听音辨义互不覆盖进度。
+  ///
+  /// @var LearningSessionType
+  ///
+  final LearningSessionType sessionType;
 
   ///
   /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
@@ -376,7 +394,7 @@ class _DictationPageState extends State<DictationPage>
   LearningSessionPersistence get _sessionPersistence =>
       LearningSessionPersistence(
         store: _sessionStore,
-        type: LearningSessionType.dictation,
+        type: widget.sessionType,
       );
 
   ///
@@ -437,7 +455,7 @@ class _DictationPageState extends State<DictationPage>
   void _restoreInitialSession() {
     // 没有会话就是一次全新的默写。
     final session = widget.initialSession;
-    if (session == null || session.type != LearningSessionType.dictation) {
+    if (session == null || session.type != widget.sessionType) {
       return;
     }
     // 先恢复单词下标，后续释义边界都依赖当前单词。
@@ -1277,6 +1295,8 @@ class _DictationPageState extends State<DictationPage>
         isCorrect: _currentWrong == 0,
         wrongCount: _currentWrong,
         hintCount: _currentHints,
+        // 当前页面虽然复用旧默写流程，但首页统计时归属于明确的复习模式。
+        module: widget.recordModule,
       );
       // 只有事务成功后才把 id 带回首页，避免首页回刷一条并未更新的数据。
       _reviewedWordIds.add(wordId);

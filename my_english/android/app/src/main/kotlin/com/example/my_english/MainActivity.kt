@@ -328,6 +328,26 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 读取设备本地今天四种复习模式共用的固定词单。
+                    "getTodayReviewPlan" -> runDatabaseCall(result) {
+                        wordsDatabase.getTodayReviewPlan()
+                    }
+
+                    // 保存今天首次选出的公共词单；日期由原生按设备时区生成。
+                    "saveTodayReviewPlan" -> runDatabaseCall(result) {
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("saveTodayReviewPlan 缺少参数")
+                        val dailyGoal = (payload["dailyGoal"] as? Number)?.toInt()
+                            ?: error("saveTodayReviewPlan 缺少有效 dailyGoal")
+                        val wordIds = (payload["wordIds"] as? List<*>)
+                            ?.map { value ->
+                                (value as? Number)?.toLong()
+                                    ?: error("saveTodayReviewPlan 的 wordIds 必须全部是数字")
+                            }
+                            ?: error("saveTodayReviewPlan 缺少 wordIds")
+                        wordsDatabase.saveTodayReviewPlan(dailyGoal, wordIds)
+                    }
+
                     // 读取一道默写题已经持久化的三个干扰项和正确答案位置。
                     "getDictationOptionCache" -> runDatabaseCall(result) {
                         // 缓存 key 必须是非空字符串。
@@ -383,8 +403,18 @@ class MainActivity : FlutterActivity() {
                         // 错误次数与提示次数缺省为 0。
                         val wrongCount = (payload["wrongCount"] as? Number)?.toInt() ?: 0
                         val hintCount = (payload["hintCount"] as? Number)?.toInt() ?: 0
+                        // 模块键必须是非空字符串；旧版 Dart 未传时仍兼容旧的 dictation。
+                        val module = payload["module"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: "dictation"
                         // 写入记录并刷新难度，返回 null 对应 Dart Future<void>。
-                        wordsDatabase.addDictationRecord(wordId, isCorrect, wrongCount, hintCount)
+                        wordsDatabase.addDictationRecord(
+                            wordId,
+                            isCorrect,
+                            wrongCount,
+                            hintCount,
+                            module,
+                        )
                         null
                     }
 
@@ -398,6 +428,12 @@ class MainActivity : FlutterActivity() {
                     "getTodayReviewWordCount" -> runDatabaseCall(result) {
                         // 原生用 COUNT(DISTINCT word_id) 聚合，避免把整天记录搬到 Dart 再去重。
                         wordsDatabase.getTodayReviewWordCount()
+                    }
+
+                    // 今日四种复习模式分别完成多少单词，供首页四张卡片独立显示进度。
+                    "getTodayReviewCountsByModule" -> runDatabaseCall(result) {
+                        // 原生只统计四个正式模块键，普通默写不会占用听音辨义进度。
+                        wordsDatabase.getTodayReviewCountsByModule()
                     }
 
                     // 按天统计复习单词数（每天去重），供趋势曲线与打卡质量卡使用。

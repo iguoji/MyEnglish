@@ -16,7 +16,28 @@ enum LearningSessionType {
   ///
   /// @var LearningSessionType
   ///
-  dictation('dictation');
+  dictation('dictation'),
+
+  /// 听音辨义模块当天的独立答题进度。
+  listeningMeaning('review_listening_meaning'),
+
+  /// 词义连连模块当天的独立答题进度。
+  meaningMatch('review_meaning_match'),
+
+  /// 拼写巩固模块当天的独立答题进度。
+  spellingReinforcement('review_spelling_reinforcement'),
+
+  /// 看义选词模块当天的独立答题进度。
+  meaningWordChoice('review_meaning_word_choice');
+
+  /// 四种首页复习模块都只允许恢复设备本地当天保存的状态。
+  bool get isDailyReviewModule => switch (this) {
+    listeningMeaning ||
+    meaningMatch ||
+    spellingReinforcement ||
+    meaningWordChoice => true,
+    listening || dictation => false,
+  };
 
   ///
   /// 绑定不受枚举重命名影响的数据库键。

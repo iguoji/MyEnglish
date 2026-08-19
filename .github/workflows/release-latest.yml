@@ -1,16 +1,17 @@
-name: Build and publish latest release
+name: Build and publish Android release
 
 on:
-  # 只有推送名称恰好为 latest 的标签时，才自动发布一个版本。
+  # 兼容原来的 latest 标签，同时支持 v0.22.9 这类正式版本标签。
   push:
     tags:
       - latest
+      - 'v*'
 
   # 允许在 Actions 页面手动触发构建流程。
   workflow_dispatch:
     inputs:
       release_tag:
-        description: GitHub Release 使用的标签名称
+        description: GitHub Release 标签（latest 或 vX.Y.Z）
         required: true
         default: latest
 
@@ -27,6 +28,48 @@ jobs:
       # 把触发本次流程的提交取到构建机中。
       - name: Checkout source code
         uses: actions/checkout@v4
+
+      # 解析 pubspec 版本，并保证 v 标签与安装包版本完全一致。
+      - name: Resolve and validate release version
+        id: release_metadata
+        working-directory: my_english
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Flutter 版本必须同时包含三段版本名和正整数构建号，例如 0.22.9+9。
+          package_version="$(sed -nE 's/^version:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\1/p' pubspec.yaml | head -n 1)"
+          if [[ ! "$package_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$ ]]; then
+            printf '::error::pubspec.yaml 的 version 必须使用 X.Y.Z+N 格式，当前为：%s\n' "$package_version"
+            exit 1
+          fi
+
+          version_name="${package_version%%+*}"
+          build_number="${package_version##*+}"
+          expected_version_tag="v$version_name"
+
+          # 手动触发同样只接受 latest 或标准 v 版本，避免误建难以识别的 Release。
+          if [[ "$REQUESTED_TAG" != "latest" && ! "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '::error::发布标签必须是 latest 或 vX.Y.Z，当前为：%s\n' "$REQUESTED_TAG"
+            exit 1
+          fi
+
+          # v 标签就是本次公开版本名，必须与 pubspec 的 X.Y.Z 部分完全相等。
+          if [[ "$REQUESTED_TAG" == v* && "$REQUESTED_TAG" != "$expected_version_tag" ]]; then
+            printf '::error::标签 %s 与 pubspec 版本 %s 不一致，应使用标签 %s。\n' \
+              "$REQUESTED_TAG" "$package_version" "$expected_version_tag"
+            exit 1
+          fi
+
+          # 输出供重命名 APK 和发布 Release 的后续步骤使用。
+          apk_name="MyEnglish-${expected_version_tag}-build${build_number}.apk"
+          release_title="MyEnglish ${expected_version_tag} (Build ${build_number})"
+          printf 'release_tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+          printf 'version_name=%s\n' "$version_name" >> "$GITHUB_OUTPUT"
+          printf 'build_number=%s\n' "$build_number" >> "$GITHUB_OUTPUT"
+          printf 'apk_name=%s\n' "$apk_name" >> "$GITHUB_OUTPUT"
+          printf 'release_title=%s\n' "$release_title" >> "$GITHUB_OUTPUT"
 
       # 项目的 Gradle 配置使用 Java 17，Android 构建必须保持这个版本一致。
       - name: Set up Java 17
@@ -107,6 +150,17 @@ jobs:
         working-directory: my_english
         run: flutter pub get
 
+      # app_info.dart 负责应用内版本展示；必须和 pubspec 单一数据源保持同步。
+      - name: Verify generated app metadata
+        working-directory: my_english
+        run: |
+          set -euo pipefail
+          dart run tools/sync_app_info.dart
+          if ! git diff --exit-code -- lib/common/app_info.dart; then
+            printf '::error::应用内版本信息未同步，请在 my_english 目录执行 dart run tools/sync_app_info.dart 后提交结果。\n'
+            exit 1
+          fi
+
       # 生成使用正式签名的 Android Release APK。
       - name: Build release APK
         working-directory: my_english
@@ -125,19 +179,24 @@ jobs:
       # 使用稳定、易识别的文件名，便于用户在 Release 页面下载。
       - name: Rename APK
         working-directory: my_english
-        run: cp build/app/outputs/flutter-apk/app-release.apk MyEnglish-latest.apk
+        env:
+          APK_NAME: ${{ steps.release_metadata.outputs.apk_name }}
+        run: cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
 
-      # 创建或更新 latest Release，并将 APK 作为公开下载附件上传。
+      # 创建或更新对应标签的 Release，并将带版本名的 APK 作为公开下载附件上传。
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || 'latest' }}
-          name: MyEnglish latest
+          tag_name: ${{ steps.release_metadata.outputs.release_tag }}
+          name: ${{ steps.release_metadata.outputs.release_title }}
           body: |
             MyEnglish Android Release
 
+            版本：v${{ steps.release_metadata.outputs.version_name }}
+            构建号：${{ steps.release_metadata.outputs.build_number }}
+
             本版本由 GitHub Actions 自动构建。
-          files: my_english/MyEnglish-latest.apk
+          files: my_english/${{ steps.release_metadata.outputs.apk_name }}
           fail_on_unmatched_files: true
           make_latest: true
         env:

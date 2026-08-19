@@ -90,6 +90,36 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // 验证未开放复习模式在真实首页中会显示统一提示。
+  testWidgets('unavailable review mode shows the coming-soon toast', (
+    tester,
+  ) async {
+    // 使用接近真机比例的高屏幕，让首行复习卡片无需滚动即可接受点击。
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    // 用例结束后恢复测试框架默认屏幕参数，避免影响后续测试。
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    // 保持词库默认隐藏，直接操作首页上的复习模式入口。
+    await _pumpHome(tester, expandWordLibrary: false);
+    // 未开放状态不再占用右上角徽章；点击前页面中没有提示文字。
+    expect(find.text('暂未开放'), findsNothing);
+    // 点击整张“词义连连”卡片中的标题。
+    await tester.tap(find.text('词义连连'));
+    // 第一帧插入顶层 Toast，后续 250 毫秒完成淡入动画。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    // 首页应明确提示该模式尚未开放。
+    expect(find.text('暂未开放'), findsOneWidget);
+
+    // 等待 Toast 自动退出，避免测试结束后残留延迟任务。
+    await tester.pump(const Duration(seconds: 3));
+    // 清理页面；底部提示图标是循环动画，因此不使用 pumpAndSettle。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 验证点击作者邮箱会自动复制并弹出提示。
   testWidgets('tapping author email copies it and shows a snackbar', (
     tester,
@@ -437,13 +467,63 @@ void main() {
     );
     // 两者必须共享同一个控制器，拖动才会真正改变列表位置。
     expect(scrollbar.controller, same(scrollView.controller));
-    // 最后一段 SliverPadding 继续为悬浮学习按钮保留 116 像素空间。
+    // 学习入口已移到列表外部，末尾只保留 12 像素正常呼吸空间。
     final bottomPadding = scrollView.slivers.last as SliverPadding;
-    expect(bottomPadding.padding, const EdgeInsets.only(bottom: 116));
+    expect(bottomPadding.padding, const EdgeInsets.only(bottom: 12));
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  // 验证词库默认完全隐藏，并可从首页任意位置上滑展开。
+  testWidgets(
+    'word library starts hidden and opens from a global upward swipe',
+    (tester) async {
+      // 本用例必须观察默认状态，因此不调用测试 helper 的自动展开步骤。
+      await _pumpHome(tester, expandWordLibrary: false);
+
+      // 收起时只显示底部动画图标，旧的文字提示不再占据一整条白色面板。
+      expect(
+        find.byKey(const Key('word-library-swipe-indicator')),
+        findsOneWidget,
+      );
+      expect(find.text('上滑查看词库'), findsNothing);
+      // 词库表面完整位于可视区域下方，没有露出搜索框或白色抽屉。
+      final logicalWidth =
+          tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      final logicalHeight =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio;
+      final hiddenSurfaceTop = tester.getTopLeft(
+        find.byKey(const Key('word-library-surface')),
+      );
+      expect(hiddenSurfaceTop.dy, greaterThanOrEqualTo(logicalHeight));
+
+      // 从屏幕中部上滑，而不是依赖底部图标或抽屉手柄。
+      await tester.dragFrom(
+        Offset(logicalWidth / 2, logicalHeight / 2),
+        const Offset(0, -220),
+      );
+      // 先刷新一帧，让首页状态传到抽屉并正式创建滑入动画。
+      await tester.pump();
+      // 再推进超过抽屉 300 毫秒的固定时长；若手势未触发展开，底部提示图标会
+      // 继续循环动画，因此不能使用会一直等待动画停止的 pumpAndSettle。
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // 面板进入屏幕、底部提示图标消失，证明全屏区域确实接受了手势。
+      final visibleSurfaceTop = tester.getTopLeft(
+        find.byKey(const Key('word-library-surface')),
+      );
+      expect(visibleSurfaceTop.dy, lessThan(logicalHeight));
+      expect(
+        find.byKey(const Key('word-library-swipe-indicator')),
+        findsNothing,
+      );
+      expect(find.text('搜索单词'), findsOneWidget);
+
+      // 清理页面。
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   // 验证搜索防抖后仍忽略大小写及首尾空格。
   testWidgets('search ignores case and surrounding whitespace', (tester) async {
@@ -508,7 +588,14 @@ void main() {
 
     // 收起时第一行高度为设计稿的 36 像素标题行。
     expect(
-      tester.getSize(find.ancestor(of: find.text('ability'), matching: find.byType(WordListTile))).height,
+      tester
+          .getSize(
+            find.ancestor(
+              of: find.text('ability'),
+              matching: find.byType(WordListTile),
+            ),
+          )
+          .height,
       WordListTile.headerHeight,
     );
 
@@ -529,7 +616,14 @@ void main() {
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整项高度大于标题行。
     expect(
-      tester.getSize(find.ancestor(of: find.text('ability'), matching: find.byType(WordListTile))).height,
+      tester
+          .getSize(
+            find.ancestor(
+              of: find.text('ability'),
+              matching: find.byType(WordListTile),
+            ),
+          )
+          .height,
       greaterThan(WordListTile.headerHeight),
     );
 
@@ -1465,39 +1559,32 @@ void main() {
     },
   );
 
-  // 验证新版“学习”主按钮可以展开两个入口并显示目标数量。
-  testWidgets('learning fab expands actions with target word count', (
+  // 验证词库底部直接平铺两个入口并显示目标数量。
+  testWidgets('word library shows flat learning actions with target count', (
     tester,
   ) async {
     // 打开首页（两个单词）。
     await _pumpHome(tester);
 
-    // 默认只显示一个“学习”主按钮，具体入口尚未占用列表空间。
-    expect(find.text('学习'), findsOneWidget);
-    expect(find.text('随身听 · 2'), findsNothing);
-    expect(find.text('默写 · 2'), findsNothing);
-
-    // 点击主按钮后向上展开两个新版入口。
-    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
-    await tester.pumpAndSettle();
-    expect(find.text('收起'), findsOneWidget);
+    // 不再显示悬浮“学习”按钮，两个入口固定在单词列表底部安全区。
+    expect(find.text('学习'), findsNothing);
     expect(find.text('随身听 · 2'), findsOneWidget);
     expect(find.text('默写 · 2'), findsOneWidget);
     // 没有本地未完成会话时，右侧不能预留空的继续按钮或间距。
-    expect(find.byKey(const Key('continue-player')), findsNothing);
-    expect(find.byKey(const Key('continue-dictation')), findsNothing);
-
-    // 点击遮罩应收起菜单。
-    await tester.tap(find.byKey(const Key('learning-menu-backdrop')));
-    await tester.pumpAndSettle();
-    expect(find.text('学习'), findsOneWidget);
-    expect(find.text('随身听 · 2'), findsNothing);
+    expect(
+      find.byKey(const Key('word-library-listening-continue')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('word-library-dictation-continue')),
+      findsNothing,
+    );
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('learning fab shows spaced resume buttons and restores history', (
+  testWidgets('flat learning actions expose and restore saved sessions', (
     tester,
   ) async {
     // 两种学习方式都准备一条未完成记录；随身听列表故意使用与首页相反的顺序。
@@ -1521,19 +1608,23 @@ void main() {
     ]);
     await _pumpHome(tester, sessionStore: sessionStore);
 
-    // 展开菜单后，两行右侧都动画显示继续按钮。
-    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
-    await tester.pumpAndSettle();
-    final playerAction = tester.getRect(find.byKey(const Key('open-player')));
-    final playerContinue = tester.getRect(
-      find.byKey(const Key('continue-player')),
+    // 两个平铺入口的右侧都直接显示独立继续按钮。
+    final playerAction = tester.getRect(
+      find.byKey(const Key('word-library-listening-action')),
     );
-    expect(find.byKey(const Key('continue-dictation')), findsOneWidget);
-    // 继续按钮严格位于主入口右侧，并保留至少 8 像素防误触间距。
-    expect(playerContinue.left - playerAction.right, greaterThanOrEqualTo(8));
+    final playerContinue = tester.getRect(
+      find.byKey(const Key('word-library-listening-continue')),
+    );
+    expect(
+      find.byKey(const Key('word-library-dictation-continue')),
+      findsOneWidget,
+    );
+    // 继续按钮固定在随身听入口的最右侧，并保持 40 像素独立点击宽度。
+    expect(playerContinue.right, closeTo(playerAction.right, 0.1));
+    expect(playerContinue.width, 40);
 
     // 点击随身听继续后，恢复列表必须使用历史顺序，而非首页当前顺序。
-    await tester.tap(find.byKey(const Key('continue-player')));
+    await tester.tap(find.byKey(const Key('word-library-listening-continue')));
     await tester.pumpAndSettle();
     final listeningPage = tester.widget<ListeningPage>(
       find.byType(ListeningPage),
@@ -1562,10 +1653,8 @@ void main() {
     // 当前首页列表应为 apple、middle、zebra。
     expect(_visibleWordIds(tester), <int?>[22, 23, 21]);
 
-    // 展开学习菜单并进入随身听。
-    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('open-player')));
+    // 从底部平铺入口进入随身听。
+    await tester.tap(find.byKey(const Key('word-library-listening-action')));
     await tester.pumpAndSettle();
     // 直接读取随身听 Widget 接收的 Word 对象顺序。
     final listeningPage = tester.widget<ListeningPage>(
@@ -1579,10 +1668,8 @@ void main() {
     await tester.tap(find.byKey(const Key('close-listening')));
     await tester.pumpAndSettle();
 
-    // 再次展开同一菜单并进入默写。
-    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('open-dict')));
+    // 从另一个平铺入口进入默写。
+    await tester.tap(find.byKey(const Key('word-library-dictation-action')));
     await tester.pumpAndSettle();
     // 默写的真正学习列表必须与刚才的随身听完全相同。
     final dictationPage = tester.widget<DictationPage>(
@@ -1619,9 +1706,7 @@ void main() {
     expect(find.text('已选 2'), findsOneWidget);
 
     // 打开随身听。
-    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('open-player')));
+    await tester.tap(find.byKey(const Key('word-library-listening-action')));
     await tester.pumpAndSettle();
     // 不能使用点击顺序 zebra、middle，而必须使用首页顺序 middle、zebra。
     final listeningPage = tester.widget<ListeningPage>(
@@ -1636,9 +1721,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 打开默写。
-    await tester.tap(find.byKey(const Key('toggle-learning-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('open-dict')));
+    await tester.tap(find.byKey(const Key('word-library-dictation-action')));
     await tester.pumpAndSettle();
     // 默写收到的学习列表必须与随身听一致。
     final dictationPage = tester.widget<DictationPage>(
@@ -1760,6 +1843,7 @@ Future<void> _pumpHome(
   SettingsStore? settings,
   WordAudioPlayer? audioPlayer,
   LearningSessionStore? sessionStore,
+  bool expandWordLibrary = true,
 }) async {
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
@@ -1780,6 +1864,8 @@ Future<void> _pumpHome(
   );
   // 内存 Future 在微任务队列完成，额外 pump 让 setState 生效。
   await tester.pump();
+  // 大多数既有测试需要操作词库内容；仅验证默认首页时由参数跳过展开。
+  if (!expandWordLibrary) return;
   // 新版首页把单词列表放入底部抽屉，默认收起；测试需要先展开抽屉。
   final sheetState = tester.state(find.byKey(const Key('word-library-sheet')));
   // 通过公有方法展开抽屉，避免依赖私有字段。

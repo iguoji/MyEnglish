@@ -114,9 +114,7 @@ class _TrendChartState extends State<TrendChart>
     }
     // 全部相等（如空数据全 0）：位置统一取 0（贴底水平直线）。
     if (maxV == minV) return List.filled(values.length, 0.0);
-    return [
-      for (final v in values) (v - minV) / (maxV - minV),
-    ];
+    return [for (final v in values) (v - minV) / (maxV - minV)];
   }
 
   @override
@@ -125,9 +123,7 @@ class _TrendChartState extends State<TrendChart>
     // vsync 参数让动画只在屏幕可见时刷新，避免后台空转耗电。
     _controller = AnimationController(vsync: this, duration: widget.duration);
     // 初始没有动画：起点 = 终点 = 传入数据的位置（如全 0 的空数据 → 底部直线）。
-    _toFractions = _fractionsFor(
-      widget.data.map((d) => d.value).toList(),
-    );
+    _toFractions = _fractionsFor(widget.data.map((d) => d.value).toList());
     _fromFractions = List.of(_toFractions);
     // 默认选中最后一个节点。
     _selectedIndex = math.max(0, widget.data.length - 1);
@@ -138,9 +134,10 @@ class _TrendChartState extends State<TrendChart>
     super.didUpdateWidget(oldWidget);
     final newValues = widget.data.map((d) => d.value).toList();
     final newFractions = _fractionsFor(newValues);
-    // 位置没有实际变化（父级只是普通重建）时不重播动画、不重置选中，
-    // 否则每次页面刷新都会把用户点选的节点弹回最后一个。
-    if (_sameList(newFractions, _toFractions)) return;
+    // 原始数值与标签都没变化时才视为普通父级重建。
+    // 不能只比较归一化位置：例如 [0, 10] 与 [0, 100] 的位置形状相同，
+    // 但数值刻度已经变化，仍需要让下面的状态完整接收这次数据更新。
+    if (_sameData(oldWidget.data, widget.data)) return;
 
     if (newFractions.length != _toFractions.length) {
       // 节点数量变了，无法逐点插值，直接跳变到新位置。
@@ -163,15 +160,17 @@ class _TrendChartState extends State<TrendChart>
     super.dispose();
   }
 
-  /// 逐项比较两组数字是否完全一致。
+  /// 逐项比较两组曲线原始数据是否完全一致。
   ///
-  /// @param  `List<double>`  a
-  /// @param  `List<double>`  b
+  /// 标签或数值任一变化都属于一组新数据；只有全部相同才跳过动画与选中重置。
+  ///
+  /// @param  `List<TrendDataPoint>`  a 旧数据。
+  /// @param  `List<TrendDataPoint>`  b 新数据。
   /// @return bool
-  bool _sameList(List<double> a, List<double> b) {
+  bool _sameData(List<TrendDataPoint> a, List<TrendDataPoint> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+      if (a[i].label != b[i].label || a[i].value != b[i].value) return false;
     }
     return true;
   }
@@ -267,9 +266,7 @@ class _TrendChartState extends State<TrendChart>
 
             // 目标数据的取值范围：把位置反算成数值，保证选中节点
             // 上方的数字与节点高度始终一致（动画期间数字跟着位置走）。
-            final targetValues = widget.data
-                .map((d) => d.value)
-                .toList();
+            final targetValues = widget.data.map((d) => d.value).toList();
             var targetMin = 0.0;
             var targetMax = 0.0;
             if (targetValues.isNotEmpty) {
@@ -447,22 +444,22 @@ class _TrendChartPainter extends CustomPainter {
     final valueSpan = TextSpan(
       // 四舍五入取整显示。
       text: data[selectedIndex].value.round().toString(),
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: color,
-      ),
+      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
     );
     final valuePainter = TextPainter(
       text: valueSpan,
       textDirection: TextDirection.ltr,
     )..layout();
     // 水平：以节点为中心；贴边节点做钳制，避免文字画出屏幕。
-    final valueDx = (xs[selectedIndex] - valuePainter.width / 2)
-        .clamp(2.0, w - valuePainter.width - 2.0);
+    final valueDx = (xs[selectedIndex] - valuePainter.width / 2).clamp(
+      2.0,
+      w - valuePainter.width - 2.0,
+    );
     // 垂直：位于节点上方 6px；节点已在顶部时钳制到 0，防止裁切。
-    final valueDy = (ys[selectedIndex] - valuePainter.height - 6)
-        .clamp(0.0, double.infinity);
+    final valueDy = (ys[selectedIndex] - valuePainter.height - 6).clamp(
+      0.0,
+      double.infinity,
+    );
     valuePainter.paint(canvas, Offset(valueDx, valueDy));
 
     // 横轴标签：绘制全部节点的 label（7 个数据点就显示 7 个日期/文字）。

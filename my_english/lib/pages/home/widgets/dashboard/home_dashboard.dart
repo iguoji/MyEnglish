@@ -15,7 +15,7 @@ import 'review_mode_grid.dart';
 ///
 /// 首页上层仪表盘：问候 → 统计 → 趋势曲线 → 打卡卡片 → 复习模式入口。
 ///
-/// 仪表盘自身可滚动，底部留出抽屉手柄的视觉空间。
+/// 仪表盘自身可滚动，底部只为上滑箭头保留必要的点击与安全空间。
 ///
 class HomeDashboard extends StatelessWidget {
   /// 创建仪表盘。
@@ -23,12 +23,14 @@ class HomeDashboard extends StatelessWidget {
     required this.now,
     required this.wordCount,
     required this.dailyGoal,
+    required this.reviewModeDailyGoal,
     required this.reviewCount,
+    required this.reviewCountsByModule,
     required this.onMenuPressed,
-    required this.targetCount,
-    required this.onOpenCards,
-    required this.onOpenSpelling,
-    required this.onComingSoon,
+    required this.onOpenListeningMeaning,
+    required this.onOpenMeaningMatch,
+    required this.onOpenSpellingReinforcement,
+    required this.onOpenMeaningWordChoice,
     super.key,
   });
 
@@ -41,23 +43,29 @@ class HomeDashboard extends StatelessWidget {
   /// 每日复习目标。
   final int dailyGoal;
 
+  /// 四种复习模式当天冻结的共同目标。
+  final int reviewModeDailyGoal;
+
   /// 今日已完成复习数。
   final int reviewCount;
+
+  /// 四种复习模式各自的今日完成量。
+  final Map<String, int> reviewCountsByModule;
 
   /// 点击汉堡菜单。
   final VoidCallback onMenuPressed;
 
-  /// 当前学习范围的单词数。
-  final int targetCount;
+  /// 打开听音辨义；当前复用已有默写流程。
+  final VoidCallback onOpenListeningMeaning;
 
-  /// 打开卡片速记。
-  final VoidCallback onOpenCards;
+  /// 打开词义连连页面。
+  final VoidCallback onOpenMeaningMatch;
 
-  /// 打开拼写巩固。
-  final VoidCallback onOpenSpelling;
+  /// 打开拼写巩固页面。
+  final VoidCallback onOpenSpellingReinforcement;
 
-  /// 未实现模式提示。
-  final void Function(String feature) onComingSoon;
+  /// 打开看义选词页面。
+  final VoidCallback onOpenMeaningWordChoice;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +79,9 @@ class HomeDashboard extends StatelessWidget {
     return Container(
       color: tokens.page,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(0, 20, 0, 140),
+        // 底部 72 = 40 像素箭头点击区 + 18 像素安全距离 + 14 像素呼吸空间。
+        // 原来的 140 同时照顾旧悬浮学习按钮；按钮移除后不再保留那块大空白。
+        padding: const EdgeInsets.fromLTRB(0, 20, 0, 72),
         children: [
           // 顶部问候与统计行（留在安全边界内）。
           Padding(
@@ -100,12 +110,12 @@ class HomeDashboard extends StatelessWidget {
           Padding(
             padding: horizontalPadding,
             child: ReviewModeGrid(
-              targetCount: targetCount,
-              reviewCount: reviewCount,
-              dailyGoal: dailyGoal,
-              onOpenCards: onOpenCards,
-              onOpenSpelling: onOpenSpelling,
-              onComingSoon: onComingSoon,
+              reviewCountsByModule: reviewCountsByModule,
+              dailyGoal: reviewModeDailyGoal,
+              onOpenListeningMeaning: onOpenListeningMeaning,
+              onOpenMeaningMatch: onOpenMeaningMatch,
+              onOpenSpellingReinforcement: onOpenSpellingReinforcement,
+              onOpenMeaningWordChoice: onOpenMeaningWordChoice,
             ),
           ),
         ],

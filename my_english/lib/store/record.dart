@@ -3,6 +3,26 @@ import 'package:flutter/services.dart';
 import '../models/record.dart';
 
 ///
+/// 复习记录使用的稳定模块标识。
+///
+/// 这些值会直接写入 SQLite 的 record.module 字段，界面名称以后即使调整，
+/// 数据库里的统计口径也不会跟着变化。
+///
+abstract final class ReviewModule {
+  /// 听音辨义：当前复用已有默写流程。
+  static const String listeningMeaning = 'listening_meaning';
+
+  /// 词义连连：入口已展示，玩法尚未开放。
+  static const String meaningMatch = 'meaning_match';
+
+  /// 拼写巩固：入口已展示，玩法尚未开放。
+  static const String spellingReinforcement = 'spelling_reinforcement';
+
+  /// 看义选词：入口已展示，玩法尚未开放。
+  static const String meaningWordChoice = 'meaning_word_choice';
+}
+
+///
 /// 默写记录 Store：记录写入与「今日复习」查询都走原生 word_store 通道。
 ///
 /// 每次默写提交都会新增记录；复习时间和难度由原生数据库在同一事务更新。
@@ -56,6 +76,7 @@ class RecordStore {
   /// @param  bool  isCorrect 本次是否没有选错候选项。
   /// @param  int  wrongCount 本次选错候选项的次数。
   /// @param  int  hintCount 本次点击提示的次数。
+  /// @param  String  module 本次记录所属的复习模式。
   /// @return `Future<void>` 原生事务完成后的异步结果。
   ///
   Future<void> addCompletion({
@@ -63,6 +84,7 @@ class RecordStore {
     required bool isCorrect,
     required int wrongCount,
     required int hintCount,
+    String module = 'dictation',
   }) async {
     // 参数 Map 类似 Laravel Service 接收的 DTO，一次性交给原生事务处理。
     await _channel.invokeMethod<void>('addDictationRecord', <String, Object?>{
@@ -74,6 +96,8 @@ class RecordStore {
       'wrongCount': wrongCount,
       // 提示次数只记录行为，不直接改变正误结果。
       'hintCount': hintCount,
+      // 稳定模块键让四种模式可以各自统计今日完成量。
+      'module': module,
     });
   }
 
@@ -138,6 +162,36 @@ class RecordStore {
   }
 
   ///
+  /// 按复习模式读取今日完成的单词数，每个模式内部按单词去重。
+  ///
+  /// 原生只返回首页四种复习模块的稳定键；普通 `dictation` 默写记录仍会
+  /// 进入全局今日复习量，但不会占用“听音辨义”自己的完成进度。
+  ///
+  /// @return `Future<Map<String, int>>` 模块标识到今日去重单词数的映射。
+  ///
+  Future<Map<String, int>> getTodayReviewCountsByModule() async {
+    // 原生返回 [{module: 'listening_meaning', count: 12}]；null 按空列表处理。
+    final raw = await _channel.invokeListMethod<Object?>(
+      'getTodayReviewCountsByModule',
+    );
+    // 先创建可写 Map，逐项过滤通道中可能出现的异常类型。
+    final counts = <String, int>{};
+    if (raw == null) return const <String, int>{};
+    for (final item in raw) {
+      // 每一项都必须是原生传回的 Map。
+      if (item is! Map) continue;
+      // 模块键与数量必须分别是 String 和 int，类型不符则跳过该项。
+      final module = item['module'];
+      final count = item['count'];
+      if (module is! String || count is! int) continue;
+      // 同一个模块理论上只有一行；赋值形式也能安全覆盖异常重复行。
+      counts[module] = count;
+    }
+    // 页面只读取统计结果，不允许调用方误改 Store 返回的数据。
+    return Map<String, int>.unmodifiable(counts);
+  }
+
+  ///
   /// 按天统计复习单词数（每天按单词去重），供趋势曲线与打卡质量卡使用。
   ///
   /// 聚合（GROUP BY + COUNT(DISTINCT)）在原生 SQLite 完成，走
@@ -152,9 +206,7 @@ class RecordStore {
     // 起始日期格式化成原生一致的 'yyyy-MM-dd'；null 表示不限。
     final args = since == null
         ? null
-        : <String, Object?>{
-            'since': _dateKey(since),
-          };
+        : <String, Object?>{'since': _dateKey(since)};
     // 原生返回 [{date: 'yyyy-MM-dd', count: n}]；null 按空列表处理。
     final raw = await _channel.invokeListMethod<Object?>(
       'getDailyReviewCounts',
@@ -188,7 +240,8 @@ class RecordStore {
     final args = since == null
         ? null
         : <String, Object?>{
-            'since': '${since.year.toString().padLeft(4, '0')}-'
+            'since':
+                '${since.year.toString().padLeft(4, '0')}-'
                 '${since.month.toString().padLeft(2, '0')}',
           };
     // 原生返回 [{month: 'yyyy-MM', count: n}]；null 按空列表处理。

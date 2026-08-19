@@ -288,6 +288,7 @@ void main() {
       'isCorrect': false,
       'wrongCount': 1,
       'hintCount': 1,
+      'module': 'listening_meaning',
     });
 
     // 事务完成后页面才切换到 abandon。

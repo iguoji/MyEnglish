@@ -2,7 +2,7 @@
 import 'package:flutter_test/flutter_test.dart';
 // Word 是排序服务接收的业务模型。
 import 'package:my_english/models/word.dart';
-// Meaning 提供词性与释义，用来构造“含义数”不同的单词。
+// Meaning 提供词性与释义，用来构造含义数量或字符总数不同的单词。
 import 'package:my_english/models/meaning.dart';
 // 引入待测试的纯首页排序服务。
 import 'package:my_english/pages/home/services/home_word_sorter.dart';
@@ -91,7 +91,7 @@ void main() {
     expect(sorter(GroupMode.added).dateOf(word), DateTime(2026, 3, 3));
   });
 
-  // 含义入口按“含义数”升序：释义少的单词排在前。
+  // 含义入口先按释义数量升序：数量少的单词排在前。
   test('sorts by meaning count ascending', () {
     // 单释义单词，含义数 = 1。
     const few = Word(
@@ -125,7 +125,40 @@ void main() {
     );
   });
 
-  // 难度相等时，含义数作为次级规则生效（含义少的在前）。
+  // 释义条数相同时继续比较全部释义正文的字符总数，短释义排在前面。
+  test('uses meaning character count after meaning count', () {
+    // 两个单词都只有一条释义，单靠 meaningCount 无法区分先后。
+    const shortMeaning = Word(
+      id: 1,
+      spelling: 'brief',
+      meanings: <Meaning>[
+        Meaning(index: 0, pos: 'n.', definitions: <String>['力']),
+      ],
+    );
+    const longMeaning = Word(
+      id: 2,
+      spelling: 'verbose',
+      meanings: <Meaning>[
+        Meaning(index: 0, pos: 'n.', definitions: <String>['完成某件事情的能力']),
+      ],
+    );
+    const sorter = HomeWordSorter(
+      mode: GroupMode.custom,
+      field: WordSortField.meaning,
+      directions: <WordSortField, bool>{WordSortField.meaning: true},
+      query: '',
+    );
+
+    // 即使输入顺序相反，单字符释义仍应排在长释义前面。
+    expect(
+      sorter
+          .filterAndSort(<Word>[longMeaning, shortMeaning])
+          .map((word) => word.id),
+      <int>[1, 2],
+    );
+  });
+
+  // 难度相等时，含义复杂度作为次级规则生效（先数量、再字符数）。
   test('uses meaning count as tiebreaker after difficulty', () {
     // 两者难度相同，但释义条数不同。
     const lowFew = Word(

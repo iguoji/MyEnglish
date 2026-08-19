@@ -5,52 +5,48 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
+// 复习模式的稳定键与 record.module 保持一致。
+import '../../../../store/record.dart';
 
 ///
 /// 复习模式快速入口：2×2 卡片网格。
 ///
-/// 卡片速记与拼写巩固映射到现有随身听/默写；听音辨义与真题例句暂未实现，
-/// 点击时调用 onComingSoon 回调提示「即将上线」。
+/// 听音辨义映射到现有默写流程；词义连连、拼写巩固与看义选词进入各自的
+/// 未开放页面。四个回调相互独立，便于每个入口先准备当天共用词单。
 ///
 class ReviewModeGrid extends StatelessWidget {
   /// 创建网格。
   const ReviewModeGrid({
-    required this.targetCount,
-    required this.reviewCount,
+    required this.reviewCountsByModule,
     required this.dailyGoal,
-    required this.onOpenCards,
-    required this.onOpenSpelling,
-    required this.onComingSoon,
+    required this.onOpenListeningMeaning,
+    required this.onOpenMeaningMatch,
+    required this.onOpenSpellingReinforcement,
+    required this.onOpenMeaningWordChoice,
     super.key,
   });
 
-  /// 当前学习范围的单词数，用于卡片速记/拼写巩固徽章。
-  final int targetCount;
-
-  /// 今日已完成复习数。
-  final int reviewCount;
+  /// 四种复习模式各自的今日完成量。
+  final Map<String, int> reviewCountsByModule;
 
   /// 每日复习目标。
   final int dailyGoal;
 
-  /// 打开卡片速记（映射到随身听）。
-  final VoidCallback onOpenCards;
+  /// 打开听音辨义（复用当前默写页面）。
+  final VoidCallback onOpenListeningMeaning;
 
-  /// 打开拼写巩固（映射到默写）。
-  final VoidCallback onOpenSpelling;
+  /// 打开词义连连对应页面。
+  final VoidCallback onOpenMeaningMatch;
 
-  /// 未实现模式的统一提示回调。
-  final void Function(String feature) onComingSoon;
+  /// 打开拼写巩固对应页面。
+  final VoidCallback onOpenSpellingReinforcement;
+
+  /// 打开看义选词对应页面。
+  final VoidCallback onOpenMeaningWordChoice;
 
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
-    // 今日进度比例。
-    final progress = dailyGoal > 0
-        ? (reviewCount / dailyGoal).clamp(0.0, 1.0)
-        : 0.0;
-    final progressPercent = (progress * 100).round();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -68,7 +64,7 @@ class ReviewModeGrid extends StatelessWidget {
             ),
             Flexible(
               child: Text(
-                '计入今日 $reviewCount/$dailyGoal 目标',
+                '每种模式目标 $dailyGoal 个',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: tokens.textSecondary),
@@ -87,26 +83,27 @@ class ReviewModeGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _ModeCard(
-                  icon: TablerIcons.cards,
-                  badge: '$reviewCount/$dailyGoal',
-                  isActive: true,
-                  name: '卡片速记',
-                  desc: '看词识义 · 快速建立词感',
-                  progressPercent: progressPercent,
-                  onTap: onOpenCards,
+                  icon: TablerIcons.headphones,
+                  name: '听音辨义',
+                  desc: '听音选词 · 辨别正确含义',
+                  reviewCount:
+                      reviewCountsByModule[ReviewModule.listeningMeaning] ?? 0,
+                  dailyGoal: dailyGoal,
+                  onTap: onOpenListeningMeaning,
                   tokens: tokens,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _ModeCard(
-                  icon: TablerIcons.pencil,
-                  badge: '$reviewCount/$dailyGoal',
-                  isActive: false,
-                  name: '拼写巩固',
-                  desc: '听写拼词 · 强化肌肉记忆',
-                  progressPercent: progressPercent,
-                  onTap: onOpenSpelling,
+                  icon: TablerIcons.link,
+                  name: '词义连连',
+                  // 保持单行短句，避免两列卡片中出现不一致的描述高度。
+                  desc: '释义配对 · 连续匹配',
+                  reviewCount:
+                      reviewCountsByModule[ReviewModule.meaningMatch] ?? 0,
+                  dailyGoal: dailyGoal,
+                  onTap: onOpenMeaningMatch,
                   tokens: tokens,
                 ),
               ),
@@ -120,26 +117,28 @@ class ReviewModeGrid extends StatelessWidget {
             children: [
               Expanded(
                 child: _ModeCard(
-                  icon: TablerIcons.headphones,
-                  badge: '0/20',
-                  isActive: false,
-                  name: '听音辨义',
-                  desc: '纯听力辨析 · 摆脱视觉依赖',
-                  progressPercent: 0,
-                  onTap: () => onComingSoon('听音辨义'),
+                  icon: TablerIcons.pencil,
+                  name: '拼写巩固',
+                  desc: '拼写训练 · 强化单词记忆',
+                  reviewCount:
+                      reviewCountsByModule[ReviewModule
+                          .spellingReinforcement] ??
+                      0,
+                  dailyGoal: dailyGoal,
+                  onTap: onOpenSpellingReinforcement,
                   tokens: tokens,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _ModeCard(
-                  icon: TablerIcons.book2,
-                  badge: '0/30',
-                  isActive: false,
-                  name: '真题例句',
-                  desc: '语境选词 · 掌握真实搭配',
-                  progressPercent: 0,
-                  onTap: () => onComingSoon('真题例句'),
+                  icon: TablerIcons.listCheck,
+                  name: '看义选词',
+                  desc: '根据含义 · 选出正确单词',
+                  reviewCount:
+                      reviewCountsByModule[ReviewModule.meaningWordChoice] ?? 0,
+                  dailyGoal: dailyGoal,
+                  onTap: onOpenMeaningWordChoice,
                   tokens: tokens,
                 ),
               ),
@@ -157,26 +156,37 @@ class ReviewModeGrid extends StatelessWidget {
 class _ModeCard extends StatelessWidget {
   const _ModeCard({
     required this.icon,
-    required this.badge,
-    required this.isActive,
     required this.name,
     required this.desc,
-    required this.progressPercent,
+    required this.reviewCount,
+    required this.dailyGoal,
     required this.onTap,
     required this.tokens,
   });
 
   final IconData icon;
-  final String badge;
-  final bool isActive;
   final String name;
   final String desc;
-  final int progressPercent;
+  final int reviewCount;
+  final int dailyGoal;
   final VoidCallback onTap;
   final AppTokens tokens;
 
   @override
   Widget build(BuildContext context) {
+    // 每张卡片只读取自己所属模块的完成量，目标都取设置中的每日复习量。
+    final progress = dailyGoal > 0
+        ? (reviewCount / dailyGoal).clamp(0.0, 1.0)
+        : 0.0;
+    // 百分比向下取整：只要还差一个单词，就不会提前显示成红色的“100%”。
+    final progressPercent = (progress * 100).floor();
+    // 目标必须大于 0 且完成量达到目标才显示绿色“已完成”。
+    final isCompleted = dailyGoal > 0 && reviewCount >= dailyGoal;
+    // 未完成使用 Tabler 红色制造明确压力；完成后切换为 Tabler 成功绿。
+    final badgeColor = isCompleted
+        ? const Color(0xFF2FB344)
+        : Theme.of(context).colorScheme.error;
+    final badgeText = isCompleted ? '已完成' : '$progressPercent%';
     // 卡片高度不再用固定宽高比强撑，改由内容自然撑开（见上方的
     // IntrinsicHeight 网格），因此无需再钳制字体缩放：系统大字体只会
     // 让卡片跟着变高，不会再有溢出风险，无障碍体验也更完整。
@@ -199,96 +209,96 @@ class _ModeCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              // 改为顶部对齐 + 固定间距：原本 spaceBetween 会让 4 行内容在方形卡里
-              // 被拉得过于分散；现在内容紧凑贴在顶部，行间距收拢、不再空旷。
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                // 顶部：图标 + 徽章。徽章文本包 Flexible 省略收缩，
-                // 防止长文案在窄卡片上把图标行撑出横向溢出。
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Icon(icon, size: 20, color: tokens.text),
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? AppTokens.accent.withValues(alpha: 0.12)
-                              : tokens.sub,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          badge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontFamily: 'monospace',
-                            fontWeight: isActive
-                                ? FontWeight.bold
-                                : FontWeight.w400,
-                            color: isActive
-                                ? AppTokens.accent
-                                : tokens.textSecondary,
-                          ),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            // 改为顶部对齐 + 固定间距：原本 spaceBetween 会让 4 行内容在方形卡里
+            // 被拉得过于分散；现在内容紧凑贴在顶部，行间距收拢、不再空旷。
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              // 顶部：图标 + 徽章。徽章文本包 Flexible 省略收缩，
+              // 防止长文案在窄卡片上把图标行撑出横向溢出。
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(icon, size: 20, color: tokens.text),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.13),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        badgeText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                          color: badgeColor,
                         ),
                       ),
                     ),
-                  ],
-                ),
-                // 图标行与名称之间留出固定间距，避免过于紧凑也避免被拉散。
-                const SizedBox(height: 10),
-                // 名称。
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: tokens.text,
                   ),
+                ],
+              ),
+              // 图标行与名称之间留出固定间距，避免过于紧凑也避免被拉散。
+              const SizedBox(height: 10),
+              // 名称。
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: tokens.text,
                 ),
-                // 名称与描述之间紧凑一点。
-                const SizedBox(height: 4),
-                // 描述。
-                Text(
-                  desc,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: tokens.textSecondary,
-                    height: 1.3,
-                  ),
-                ),
-                // 描述与进度条之间留出间距。
-                const SizedBox(height: 10),
-                // 进度条。
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: SizedBox(
-                    height: 4,
-                    child: Stack(
-                      children: [
-                        // 背景。
-                        Container(color: tokens.sub),
-                        // 填充。
-                        FractionallySizedBox(
-                          widthFactor:
-                              (progressPercent / 100).clamp(0.0, 1.0),
-                          child: Container(color: AppTokens.accent),
-                        ),
-                      ],
+              ),
+              // 名称与描述之间紧凑一点。
+              const SizedBox(height: 4),
+              // 描述固定为单行；屏幕特别窄或系统字体较大时整体缩小，
+              // 不允许换行改变同一行两张卡片的内容高度。
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    desc,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: tokens.textSecondary,
+                      height: 1.3,
                     ),
                   ),
                 ),
-              ],
+              ),
+              // 描述与进度条之间留出间距。
+              const SizedBox(height: 10),
+              // 进度条。
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: SizedBox(
+                  height: 4,
+                  child: Stack(
+                    children: [
+                      // 背景。
+                      Container(color: tokens.sub),
+                      // 填充。
+                      FractionallySizedBox(
+                        widthFactor: (progressPercent / 100).clamp(0.0, 1.0),
+                        child: Container(color: AppTokens.accent),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

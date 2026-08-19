@@ -22,6 +22,8 @@ import '../../common/date.dart';
 import '../../models/word.dart';
 // 学习会话模型用于判断随身听和默写是否存在未完成历史。
 import '../../models/learning_session.dart';
+// 每日公共复习计划保存四个模块当天共用的单词主键与冻结目标。
+import '../../models/daily_review_plan.dart';
 // 音频服务由首页、随身听和默写共同复用。
 import '../../services/word_audio.dart';
 // 离线语音缓存进度服务：首页加载词库后把单词列表交给它，供抽屉"离线语音"使用。
@@ -32,6 +34,8 @@ import '../../services/file_io.dart';
 import '../dictation/dictation_page.dart';
 // 全屏随身听页。
 import '../listening/listening_page.dart';
+// 三个未开发复习模块使用各自标题的独立占位页面。
+import '../review/review_unavailable_page.dart';
 // 分组 Store 通过原生 SQLite 提供持久化的自定义分组数据。
 import '../../store/group.dart';
 // 设置 Store 提供持久化口音、主题与每日复习目标。
@@ -42,12 +46,12 @@ import '../../store/word.dart';
 import '../../store/record.dart';
 // 学习会话 Store 负责读取和删除本地恢复点。
 import '../../store/learning_session.dart';
+// 每日公共复习词单 Store 独立于普通随身听/默写会话。
+import '../../store/daily_review_plan.dart';
 // 分组行：模式切换、筛选 chips 与分组管理入口。
 import 'widgets/group_filter_bar.dart';
 // 右侧抽屉菜单。
 import 'widgets/home_drawer.dart';
-// 右下角可展开的新版学习入口。
-import 'widgets/learning_fab.dart';
 // 分组管理面板。
 import 'widgets/manage_groups_sheet.dart';
 // 移动/复制目标选择面板。
@@ -60,6 +64,8 @@ import 'widgets/word_list_tile.dart';
 import 'widgets/word_sort_bar.dart';
 // 纯排序服务负责搜索过滤和多级稳定排序，页面只提供当前交互参数。
 import 'services/home_word_sorter.dart';
+// 固定每日选词规则不受首页临时筛选和排序状态影响。
+import 'services/daily_review_selector.dart';
 // 仪表盘：趋势曲线 + 打卡热力图 + 复习模式入口。
 import 'widgets/dashboard/home_dashboard.dart';
 // 底部词库抽屉。
@@ -78,6 +84,7 @@ class HomePage extends StatefulWidget {
   /// @param  WordAudioPlayer?  audioPlayer
   /// @param  NativeFileIo?  fileIo
   /// @param  LearningSessionStore?  sessionStore
+  /// @param  DailyReviewPlanStore?  dailyReviewPlanStore
   ///
   const HomePage({
     super.key,
@@ -86,6 +93,7 @@ class HomePage extends StatefulWidget {
     this.audioPlayer,
     this.fileIo,
     this.sessionStore,
+    this.dailyReviewPlanStore,
   });
 
   ///
@@ -122,6 +130,9 @@ class HomePage extends StatefulWidget {
   /// @var LearningSessionStore?
   ///
   final LearningSessionStore? sessionStore;
+
+  /// 每日公共复习词单接口允许测试注入内存实现；正式 App 使用 SQLite。
+  final DailyReviewPlanStore? dailyReviewPlanStore;
 
   ///
   /// 为页面创建保存 data 和生命周期的 State。
@@ -181,6 +192,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @var `GlobalKey<ScaffoldState>`
   ///
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// 底部词库是否已经展开；默认 false，确保词库面板完全位于屏幕下方。
+  ///
+  /// @var bool
+  ///
+  bool _wordLibraryExpanded = false;
+
+  /// 当前这次全屏触摸累计的纵向移动量；负数表示向上滑。
+  ///
+  /// @var double
+  ///
+  double _globalVerticalDrag = 0;
+
+  /// 当前手势是否已经触发过词库展开，避免同一次滑动重复调用。
+  ///
+  /// @var bool
+  ///
+  bool _globalSwipeHandled = false;
+
+  /// 全屏上滑需要累计达到的距离；180 明显高于普通浏览时的一小段滚动，
+  /// 只有一次较长、明确的上滑才会展开词库。
+  ///
+  /// @var double
+  ///
+  static const double _wordLibrarySwipeDistance = 180;
 
   ///
   /// Scrollbar 和 CustomScrollView 必须共享同一个控制器，滑块才可以被直接拖动。
@@ -250,6 +286,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   late final LearningSessionStore _sessionStore;
 
+  /// 四种复习模块当天共用的固定词单持久化接口。
+  late final DailyReviewPlanStore _dailyReviewPlanStore;
+
   ///
   /// 自定义分组 Store；分组与成员关系均由原生 SQLite 持久化。
   ///
@@ -272,6 +311,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _reviewCount = 0;
 
   ///
+  /// 今日四种复习模式各自完成的单词数（每个模式内部按单词去重）。
+  ///
+  /// @var `Map<String, int>`
+  ///
+  Map<String, int> _reviewCountsByModule = const <String, int>{};
+
+  /// 今天已经生成的公共复习词单；null 表示今天尚未点击过任何复习模块。
+  DailyReviewPlan? _dailyReviewPlan;
+
+  /// 正在读取或创建每日词单的共享任务，阻止快速连点生成两批不同单词。
+  Future<DailyReviewPlan?>? _dailyReviewPlanRequest;
+
+  ///
   /// 保存已展开的 Word 对象；spelling 可重复，所以不能把拼写当作行身份。
   ///
   /// @var `Set<Word>`
@@ -284,13 +336,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @var `Set<Word>`
   ///
   final Set<Word> _selectedWords = <Word>{};
-
-  ///
-  /// 新版学习悬浮按钮是否已经展开。
-  ///
-  /// @var bool
-  ///
-  bool _learningMenuOpen = false;
 
   ///
   /// 本地尚未完成的学习会话；两种类型各自最多一条。
@@ -357,7 +402,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<WordSortField, bool> _sortDirections = <WordSortField, bool>{
     // 默认（已对齐“字母”）第一次点击从 A 到 Z。
     WordSortField.original: true,
-    // 含义永远升序：含义少的单词排在前面。
+    // 含义永远升序：先按释义数量，再按释义字符总数，简单单词排在前面。
     WordSortField.meaning: true,
     // 难度第一次点击从高到低。
     WordSortField.difficulty: false,
@@ -416,6 +461,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _fileIo = widget.fileIo ?? const NativeFileIo();
     // 生产环境复用 SQLite 单例，测试可用内存 Store 精确控制“继续”入口。
     _sessionStore = widget.sessionStore ?? LocalLearningSessionStore.instance;
+    // 每日公共词单使用独立 Store，不与普通学习会话混为一种数据。
+    _dailyReviewPlanStore =
+        widget.dailyReviewPlanStore ?? LocalDailyReviewPlanStore.instance;
     // 初始化列表年份参考。
     _dateReference = initialTime;
     // 注册 App 前后台观察者。
@@ -429,7 +477,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 异步加载全部 Word/Meaning；方法内部完成 setState。
     unawaited(_loadWords());
     // 读取今日复习数量，让副标题的「今日复习 X/目标」显示真实数据而非写死的 0。
-    unawaited(_loadReviewCount());
+    unawaited(_loadReviewProgress());
+    // 若今天已经生成过公共词单，先恢复冻结目标供四张卡片展示。
+    unawaited(_loadDailyReviewPlan());
     // 独立读取未完成会话，不让辅助数据阻塞首页单词列表首屏。
     unawaited(_loadLearningSessions());
   }
@@ -778,6 +828,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final words = await _store.getAll();
     // 页面可能已销毁。
     if (!mounted) return;
+    // 建立仍然存在的数据库主键集合，用来检查当天公共词单是否需要补位。
+    final existingWordIds = <int>{
+      for (final word in words)
+        if (word.id != null) word.id!,
+    };
     // 与 _loadWords 相同的状态清理。
     setState(() {
       _allWords = words;
@@ -785,6 +840,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _selectedWords.removeWhere((word) => !words.contains(word));
       if (_swipedWord != null && !words.contains(_swipedWord)) {
         _swipedWord = null;
+      }
+      // 计划中的单词被删除时只释放内存缓存，不直接丢掉数据库中的其余顺序。
+      // 下次进入任意复习模块会读取原计划、保留有效 id，再按固定规则补足缺口。
+      final plan = _dailyReviewPlan;
+      if (plan != null &&
+          plan.wordIds.any((id) => !existingWordIds.contains(id))) {
+        _dailyReviewPlan = null;
       }
     });
     // 增删改后同样刷新离线语音缓存服务的总数与已缓存百分比。
@@ -798,23 +860,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 读取今日复习的单词数（按词去重），用于副标题「今日复习 X/目标」刷新。
+  /// 读取今日总复习数与四种模式各自的完成量。
   ///
   /// 数据来自原生 record 表；通道不可用（如单元测试）时静默回退为 0，
   /// 不影响首页其余功能。方法末尾统一做 mounted 守卫，避免已卸载时 setState。
   ///
   /// @return `Future<void>`
   ///
-  Future<void> _loadReviewCount() async {
+  Future<void> _loadReviewProgress() async {
     // try/catch 兜底原生通道异常，保证首页在测试或异常环境下不崩溃。
     try {
-      // 直接向原生要「今天 · 按单词去重」后的数量：同一个词今天练了几遍都只算 1。
-      // 聚合在 SQL 里完成（COUNT(DISTINCT word_id)），不用把整天记录搬到 Dart。
+      // 总数仍按“今天 + 单词”去重，不把同一个词跨模式重复累加。
       final count = await RecordStore.instance.getTodayReviewWordCount();
+      // 每个模块内部独立按单词去重，目标都使用设置中的每日复习量。
+      final moduleCounts = await RecordStore.instance
+          .getTodayReviewCountsByModule();
       // 页面可能在异步期间被关闭。
       if (!mounted) return;
       // 更新副标题展示的复习进度。
-      setState(() => _reviewCount = count);
+      setState(() {
+        _reviewCount = count;
+        _reviewCountsByModule = moduleCounts;
+      });
     } catch (error, stackTrace) {
       // 调试输出保留完整错误与堆栈，方便真机日志定位。
       debugPrint('读取今日复习数失败：$error');
@@ -822,8 +889,161 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 页面已销毁则不处理 UI。
       if (!mounted) return;
       // 通道异常时回退为 0，副标题仍可正常显示。
-      setState(() => _reviewCount = 0);
+      setState(() {
+        _reviewCount = 0;
+        _reviewCountsByModule = const <String, int>{};
+      });
     }
+  }
+
+  ///
+  /// 读取今天已经存在的公共复习词单，只恢复数据，不主动创建新计划。
+  ///
+  /// @return `Future<void>` 读取结束后的异步结果。
+  ///
+  Future<void> _loadDailyReviewPlan() async {
+    try {
+      // null 表示今天还没有点击过四种复习模块，继续使用设置中的目标展示。
+      final plan = await _dailyReviewPlanStore.getToday();
+      if (!mounted) return;
+      // 原生没有返回计划时也要清掉内存旧值，避免跨天后仍显示昨天冻结的目标。
+      setState(() => _dailyReviewPlan = plan);
+    } catch (error) {
+      // 公共词单属于辅助状态，读取失败不应阻断首页和底部普通学习入口。
+      debugPrint('读取今日公共复习词单失败：$error');
+    }
+  }
+
+  ///
+  /// 获取今天共用的复习词单；尚未创建时按固定规则生成并可靠落盘。
+  ///
+  /// 多个模块快速连点会复用同一个 Future，因此同一天不可能并发选出两批词。
+  /// 已有计划中若某个单词被删除，则保留其余顺序，并从固定排序结果末尾补足。
+  ///
+  /// @return `Future<DailyReviewPlan?>` 没有可复习单词或保存失败时返回 null。
+  ///
+  Future<DailyReviewPlan?> _resolveDailyReviewPlan() {
+    // 内存已恢复今天计划时直接返回，不再访问原生数据库；跨天旧值不能复用。
+    final cached = _dailyReviewPlan;
+    if (cached != null && cached.planDate == _localDateKey(DateTime.now())) {
+      return Future<DailyReviewPlan?>.value(cached);
+    }
+    // 已经有读取或创建任务时直接共用，避免快速点击不同卡片产生竞态。
+    final running = _dailyReviewPlanRequest;
+    if (running != null) return running;
+
+    final request = _resolveDailyReviewPlanInternal();
+    _dailyReviewPlanRequest = request;
+    // 请求完成后释放临时引用；下一次调用会命中已保存的 _dailyReviewPlan。
+    unawaited(
+      request.whenComplete(() {
+        if (identical(_dailyReviewPlanRequest, request)) {
+          _dailyReviewPlanRequest = null;
+        }
+      }),
+    );
+    return request;
+  }
+
+  /// 执行每日公共词单的读取、修复或首次创建。
+  Future<DailyReviewPlan?> _resolveDailyReviewPlanInternal() async {
+    try {
+      // 先查 SQLite，确保重启应用后仍复用今天第一次选出的单词。
+      final stored = await _dailyReviewPlanStore.getToday();
+      final wordsById = <int, Word>{
+        for (final word in _allWords)
+          if (word.id != null) word.id!: word,
+      };
+
+      if (stored != null) {
+        // 保留仍存在单词的原始顺序；被软删除的主键直接剔除。
+        final repairedIds = <int>[
+          for (final id in stored.wordIds)
+            if (wordsById.containsKey(id)) id,
+        ];
+        // 词库删除单词后，从同一套固定排序中补足当天冻结的目标数量。
+        if (repairedIds.length < stored.dailyGoal) {
+          final existing = repairedIds.toSet();
+          final candidates = DailyReviewSelector.select(
+            _allWords,
+            limit: _allWords.length,
+          );
+          for (final word in candidates) {
+            final id = word.id;
+            if (id == null || !existing.add(id)) continue;
+            repairedIds.add(id);
+            if (repairedIds.length >= stored.dailyGoal) break;
+          }
+        }
+        // 没有发生删除或补位时，直接复用数据库原对象。
+        final plan = _sameIntList(repairedIds, stored.wordIds)
+            ? stored
+            : await _dailyReviewPlanStore.saveToday(
+                dailyGoal: stored.dailyGoal,
+                wordIds: repairedIds,
+              );
+        if (mounted) setState(() => _dailyReviewPlan = plan);
+        return plan;
+      }
+
+      // 今天第一次进入任意复习模块：按设置目标从完整词库固定选取。
+      final selected = DailyReviewSelector.select(
+        _allWords,
+        limit: _settings.dailyGoal,
+      );
+      final ids = <int>[
+        for (final word in selected)
+          if (word.id != null) word.id!,
+      ];
+      if (ids.isEmpty) {
+        if (mounted) Toast.show(context, '当前词库没有可复习单词');
+        return null;
+      }
+      final plan = await _dailyReviewPlanStore.saveToday(
+        dailyGoal: _settings.dailyGoal,
+        wordIds: ids,
+      );
+      if (mounted) setState(() => _dailyReviewPlan = plan);
+      return plan;
+    } catch (error, stackTrace) {
+      debugPrint('创建今日公共复习词单失败：$error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) Toast.show(context, '创建今日复习词单失败，请重试');
+      return null;
+    }
+  }
+
+  /// 按计划主键固定顺序组装最新 Word 数据。
+  List<Word> _wordsForDailyReviewPlan(DailyReviewPlan plan) {
+    final wordsById = <int, Word>{
+      for (final word in _allWords)
+        if (word.id != null) word.id!: word,
+    };
+    return List<Word>.unmodifiable(
+      plan.wordIds.map((id) => wordsById[id]).whereType<Word>(),
+    );
+  }
+
+  /// 逐项比较两个整数列表，供判断每日词单是否真的需要覆盖保存。
+  bool _sameIntList(List<int> first, List<int> second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index += 1) {
+      if (first[index] != second[index]) return false;
+    }
+    return true;
+  }
+
+  ///
+  /// 把本地时间转换成每日计划使用的 yyyy-MM-dd 键。
+  ///
+  /// @param  DateTime  dateTime 需要转换的设备本地时间。
+  /// @return String 与 Android SQLite 完全一致的日期主键。
+  ///
+  String _localDateKey(DateTime dateTime) {
+    // padLeft 相当于 PHP str_pad，保证月份和日期始终占两位。
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    return '${dateTime.year}-$month-$day';
   }
 
   ///
@@ -833,12 +1053,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   Future<void> _loadLearningSessions() async {
     try {
-      // 原生最多返回两条记录，转成按类型索引的 Map 供 build 常数时间读取。
+      // 普通学习进度长期有效；四种复习模块只保留设备本地今天的状态。
       final sessions = await _sessionStore.getAll();
+      final now = DateTime.now();
+      final activeSessions = <LearningSession>[];
+      for (final session in sessions) {
+        final isExpiredDailySession =
+            session.type.isDailyReviewModule &&
+            (session.updatedAt == null ||
+                !DateUtils.isSameDay(session.updatedAt, now));
+        if (isExpiredDailySession) {
+          // 过期状态立即删除，第二天进入模块时从今日公共词单的第一个词开始。
+          await _sessionStore.delete(session.type);
+        } else {
+          activeSessions.add(session);
+        }
+      }
       if (!mounted) return;
       setState(() {
         _learningSessions = <LearningSessionType, LearningSession>{
-          for (final session in sessions) session.type: session,
+          for (final session in activeSessions) session.type: session,
         };
       });
     } catch (error, stackTrace) {
@@ -883,8 +1117,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     List<Word> words, {
     LearningSession? session,
   }) async {
-    // 路由打开前收起学习菜单，返回首页时保持界面整洁。
-    setState(() => _learningMenuOpen = false);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ListeningPage(
@@ -911,15 +1143,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _openDictation(
     List<Word> words, {
     LearningSession? session,
+    String recordModule = 'dictation',
+    LearningSessionType sessionType = LearningSessionType.dictation,
   }) async {
-    // 与随身听一致，进入全屏页前先收起悬浮菜单。
-    setState(() => _learningMenuOpen = false);
     final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute<dynamic>(
         builder: (_) => DictationPage(
           words: words,
           audioPlayer: _audioPlayer,
           accent: _settings.accent,
+          // 普通默写和首页听音辨义传入不同模块键，今日完成量不会相互串用。
+          recordModule: recordModule,
+          // 会话类型也保持独立，两个入口可以分别记住各自的答题位置。
+          sessionType: sessionType,
           definitionSeparator: _settings.definitionSeparator.symbol,
           initialSession: session,
           sessionStore: _sessionStore,
@@ -934,7 +1170,69 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_refreshWords());
     }
     // 今日复习数与继续入口都可能在默写过程中改变。
-    unawaited(_loadReviewCount());
+    unawaited(_loadReviewProgress());
+    await _loadLearningSessions();
+  }
+
+  ///
+  /// 打开首页四种复习模块，并在跳转前解析当天共用的固定词单。
+  ///
+  /// 听音辨义进入已有答题页；其余三种模式进入各自占位页。即使玩法尚未开放，
+  /// 点击入口也会先创建公共计划，因此当天后续打开任意模块都会复用同一批单词。
+  ///
+  /// @param  LearningSessionType  type 当前复习模式的独立会话类型。
+  /// @param  String  title 目标页面显示的模块名称。
+  /// @return `Future<void>` 页面关闭并完成首页状态回刷后的异步结果。
+  ///
+  Future<void> _openReviewModule({
+    required LearningSessionType type,
+    required String title,
+  }) async {
+    // 第一次点击按固定排序选词并落盘，之后所有模块直接复用同一计划。
+    final plan = await _resolveDailyReviewPlan();
+    if (!mounted || plan == null) return;
+    final words = _wordsForDailyReviewPlan(plan);
+    if (words.isEmpty) {
+      Toast.show(context, '今日复习词单为空');
+      return;
+    }
+
+    // 只恢复当前模块自己的进度，其他模块即使使用相同词单也互不影响。
+    var session = _learningSessions[type];
+    // 删除或替换词库后，旧进度可能与修复后的公共词单不一致，此时从头开始最可靠。
+    if (session != null && !_sameIntList(session.wordIds, plan.wordIds)) {
+      await _sessionStore.delete(type);
+      if (!mounted) return;
+      session = null;
+      setState(() {
+        final next = Map<LearningSessionType, LearningSession>.from(
+          _learningSessions,
+        );
+        next.remove(type);
+        _learningSessions = next;
+      });
+    }
+
+    if (type == LearningSessionType.listeningMeaning) {
+      // 听音辨义复用成熟的默写流程，但使用首页模块专属记录键和会话键。
+      await _openDictation(
+        words,
+        session: session,
+        recordModule: ReviewModule.listeningMeaning,
+        sessionType: LearningSessionType.listeningMeaning,
+      );
+      return;
+    }
+
+    // 尚未实现的玩法仍进入独立页面，让页面结构与未来正式路由保持一致。
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ReviewUnavailablePage(title: title, wordCount: words.length),
+      ),
+    );
+    // 原生编辑、删除等操作可能已经清空失效会话；首页内存必须同步刷新，
+    // 否则底部仍会短暂显示一个数据库中已经不存在的“继续”入口。
     await _loadLearningSessions();
   }
 
@@ -1018,9 +1316,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 获取恢复时真实时间。
       final resumedAt = DateTime.now();
       // 跨年后重新构建静态列表日期；问候语也顺带刷新。
-      setState(() => _dateReference = resumedAt);
+      setState(() {
+        _dateReference = resumedAt;
+        // 日期已经变化时先同步清空旧计划，避免原生异步读取完成前误用昨天词单。
+        if (_dailyReviewPlan?.planDate != _localDateKey(resumedAt)) {
+          _dailyReviewPlan = null;
+        }
+      });
       // 回到前台时重新拉取今日复习数（跨天或后台产生过记录时保持准确）。
-      unawaited(_loadReviewCount());
+      unawaited(_loadReviewProgress());
+      // 重新读取当天公共词单与四模块进度，跨午夜后自然从新目标和首题开始。
+      unawaited(_loadDailyReviewPlan());
+      unawaited(_loadLearningSessions());
       // 防止继续执行下面停止逻辑。
       return;
     }
@@ -1522,6 +1829,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _learningSessions = const <LearningSessionType, LearningSession>{};
+          // 整库导入会清空原生公共词单，内存也必须同步失效。
+          _dailyReviewPlan = null;
         });
       }
       // 重新加载首页列表，让新数据立即显示。
@@ -1600,6 +1909,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 与原生删除保持同步，让继续入口无需等待下一次读取就立即消失。
       setState(() {
         _learningSessions = const <LearningSessionType, LearningSession>{};
+        // 原生已清空每日计划，避免卡片继续显示旧的冻结目标。
+        _dailyReviewPlan = null;
       });
       // 重新加载空列表。
       unawaited(_loadWords());
@@ -1907,8 +2218,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
               ],
             ),
-          // 底部留白避免最后几行被“学习”悬浮按钮遮住。
-          const SliverPadding(padding: EdgeInsets.only(bottom: 116)),
+          // 操作栏已经位于列表外部，列表末尾只保留正常呼吸空间即可。
+          const SliverPadding(padding: EdgeInsets.only(bottom: 12)),
         ],
       ),
     );
@@ -2094,6 +2405,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final hasDictationSession = _learningSessions.containsKey(
       LearningSessionType.dictation,
     );
+    // 四种复习模块首次生成词单后冻结目标；顶部总目标仍即时反映设置值。
+    final reviewModeDailyGoal =
+        _dailyReviewPlan?.dailyGoal ?? _settings.dailyGoal;
     // 全部可见分组是否都已折叠，决定按钮文案。
     final allCollapsed =
         shownSections.isNotEmpty &&
@@ -2125,169 +2439,203 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         onCopyEmail: () => unawaited(_copyEmail()),
       ),
       // SafeArea 避开状态栏、刘海和底部手势区。
-      body: SafeArea(
-        // Stack 让底部抽屉悬浮在仪表盘之上。
-        child: Stack(
-          children: [
-            // 上层：仪表盘（问候 + 趋势 + 打卡 + 复习模式入口）。
-            HomeDashboard(
-              now: DateTime.now(),
-              wordCount: _allWords.length,
-              dailyGoal: _settings.dailyGoal,
-              reviewCount: _reviewCount,
-              onMenuPressed: () =>
-                  _scaffoldKey.currentState?.openEndDrawer(),
-              targetCount: targetCount,
-              onOpenCards: () {
-                // 卡片速记 → 映射到随身听。
-                if (learningWords.isEmpty) {
-                  _showComingSoon('当前列表没有可学习单词');
-                  return;
+      body: PopScope<void>(
+        // 词库展开时，系统返回手势先执行“收起词库”；收起后才允许离开首页。
+        canPop: !_wordLibraryExpanded,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop || !_wordLibraryExpanded) return;
+          setState(() => _wordLibraryExpanded = false);
+        },
+        child: SafeArea(
+          // Listener 包住整棵页面内容，只旁听已经命中的原始触摸事件，不会像
+          // Stack 顶层透明组件那样挡住下面的菜单按钮、卡片和滚动区域。
+          child: Listener(
+            key: const Key('home-global-swipe-listener'),
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) {
+              // 新触摸开始时清空上一次累计距离与触发标记。
+              _globalVerticalDrag = 0;
+              _globalSwipeHandled = false;
+            },
+            onPointerMove: (event) {
+              // 累加每一小段纵向位移，向上移动会得到负数。
+              _globalVerticalDrag += event.delta.dy;
+              // 一次手势累计上滑达到 180 像素才展开；普通滚动首页通常不会
+              // 在单次触摸中越过这个距离，因此可以先查看下方复习卡片。
+              if (!_globalSwipeHandled &&
+                  _globalVerticalDrag <= -_wordLibrarySwipeDistance) {
+                _globalSwipeHandled = true;
+                // 词库已经展开时无需重复重建；收起状态才更新页面。
+                if (!_wordLibraryExpanded) {
+                  setState(() => _wordLibraryExpanded = true);
                 }
-                unawaited(_openListening(learningWords));
-              },
-              onOpenSpelling: () {
-                // 拼写巩固 → 映射到默写。
-                if (learningWords.isEmpty) {
-                  _showComingSoon('当前列表没有可学习单词');
-                  return;
-                }
-                unawaited(_openDictation(learningWords));
-              },
-              onComingSoon: (feature) => _showComingSoon(feature),
-            ),
-            // 下层：底部词库抽屉。
-            WordLibrarySheet(
-              key: const Key('word-library-sheet'),
-                onSearchChanged: _handleSearchChanged,
-                groupFilterBar: GroupFilterBar(
-                  mode: _mode,
-                  chips: chips,
-                  onModeSelected: (mode) => setState(() {
-                    _mode = mode;
-                    _filterKey = null;
-                  }),
-                  onChipSelected: (key) =>
-                      setState(() => _filterKey = key),
-                  onOpenManage: () {
-                    if (_mode != GroupMode.custom) return;
-                    unawaited(showManageGroupsSheet(context, _groups));
+              }
+            },
+            onPointerUp: (_) {
+              // 手指离开后结束本次识别，下一次触摸会重新累计。
+              _globalVerticalDrag = 0;
+              _globalSwipeHandled = false;
+            },
+            onPointerCancel: (_) {
+              // 系统取消手势时同样清理临时数据。
+              _globalVerticalDrag = 0;
+              _globalSwipeHandled = false;
+            },
+            // Stack 让底部抽屉悬浮在仪表盘之上。
+            child: Stack(
+              children: [
+                // 上层：仪表盘（问候 + 趋势 + 打卡 + 复习模式入口）。
+                HomeDashboard(
+                  now: DateTime.now(),
+                  wordCount: _allWords.length,
+                  dailyGoal: _settings.dailyGoal,
+                  reviewModeDailyGoal: reviewModeDailyGoal,
+                  reviewCount: _reviewCount,
+                  reviewCountsByModule: _reviewCountsByModule,
+                  onMenuPressed: () =>
+                      _scaffoldKey.currentState?.openEndDrawer(),
+                  onOpenListeningMeaning: () {
+                    unawaited(
+                      _openReviewModule(
+                        type: LearningSessionType.listeningMeaning,
+                        title: '听音辨义',
+                      ),
+                    );
+                  },
+                  onOpenMeaningMatch: () {
+                    unawaited(
+                      _openReviewModule(
+                        type: LearningSessionType.meaningMatch,
+                        title: '词义连连',
+                      ),
+                    );
+                  },
+                  onOpenSpellingReinforcement: () {
+                    unawaited(
+                      _openReviewModule(
+                        type: LearningSessionType.spellingReinforcement,
+                        title: '拼写巩固',
+                      ),
+                    );
+                  },
+                  onOpenMeaningWordChoice: () {
+                    unawaited(
+                      _openReviewModule(
+                        type: LearningSessionType.meaningWordChoice,
+                        title: '看义选词',
+                      ),
+                    );
                   },
                 ),
-                wordSortBar: WordSortBar(
-                  selectedField: _sortField,
-                  directions: _sortDirections,
-                  onSelected: _handleSortSelected,
-                  collapseLabel: allCollapsed ? '展开' : '折叠',
-                  onToggleCollapseAll: () => setState(() {
-                    if (allCollapsed) {
-                      for (final section in shownSections) {
-                        _collapsedKeys.remove(section.key);
-                      }
-                    } else {
-                      for (final section in shownSections) {
-                        _collapsedKeys.add(section.key);
-                      }
+                // 下层：底部词库抽屉。
+                WordLibrarySheet(
+                  key: const Key('word-library-sheet'),
+                  expanded: _wordLibraryExpanded,
+                  onExpandedChanged: (expanded) {
+                    // 子组件的点击/下拉与首页全屏上滑都汇总到同一份状态。
+                    if (_wordLibraryExpanded != expanded) {
+                      setState(() => _wordLibraryExpanded = expanded);
                     }
-                  }),
-                  selectLabel: _selectMode ? '完成' : '选择',
-                  onToggleSelectMode: () => setState(() {
-                    _selectMode = !_selectMode;
-                    _selectedWords.clear();
-                    _swipedWord = null;
-                  }),
-                ),
-                selectionBar: _selectMode
-                    ? WordSelectionBar(
-                        selectedCount: _selectedWords.length,
-                        onSelectAll: () => setState(
-                          () => _selectedWords.addAll(visibleWords),
-                        ),
-                        onInvertSelection: () => setState(() {
-                          for (final word in visibleWords) {
-                            if (!_selectedWords.remove(word)) {
-                              _selectedWords.add(word);
+                  },
+                  onSearchChanged: _handleSearchChanged,
+                  groupFilterBar: GroupFilterBar(
+                    mode: _mode,
+                    chips: chips,
+                    onModeSelected: (mode) => setState(() {
+                      _mode = mode;
+                      _filterKey = null;
+                    }),
+                    onChipSelected: (key) => setState(() => _filterKey = key),
+                    onOpenManage: () {
+                      if (_mode != GroupMode.custom) return;
+                      unawaited(showManageGroupsSheet(context, _groups));
+                    },
+                  ),
+                  wordSortBar: WordSortBar(
+                    selectedField: _sortField,
+                    directions: _sortDirections,
+                    onSelected: _handleSortSelected,
+                    collapseLabel: allCollapsed ? '展开' : '折叠',
+                    onToggleCollapseAll: () => setState(() {
+                      if (allCollapsed) {
+                        for (final section in shownSections) {
+                          _collapsedKeys.remove(section.key);
+                        }
+                      } else {
+                        for (final section in shownSections) {
+                          _collapsedKeys.add(section.key);
+                        }
+                      }
+                    }),
+                    selectLabel: _selectMode ? '完成' : '选择',
+                    onToggleSelectMode: () => setState(() {
+                      _selectMode = !_selectMode;
+                      _selectedWords.clear();
+                      _swipedWord = null;
+                    }),
+                  ),
+                  selectionBar: _selectMode
+                      ? WordSelectionBar(
+                          selectedCount: _selectedWords.length,
+                          onSelectAll: () => setState(
+                            () => _selectedWords.addAll(visibleWords),
+                          ),
+                          onInvertSelection: () => setState(() {
+                            for (final word in visibleWords) {
+                              if (!_selectedWords.remove(word)) {
+                                _selectedWords.add(word);
+                              }
                             }
-                          }
-                        }),
-                        onMove: () =>
-                            unawaited(_pickGroupAndApply(isCopy: false)),
-                        onCopy: () =>
-                            unawaited(_pickGroupAndApply(isCopy: true)),
-                      )
-                    : const SizedBox.shrink(),
-                listContent: ColoredBox(
-                  color: tokens.card,
-                  child: DecoratedBox(
-                    key: const Key('word-list'),
-                    position: DecorationPosition.foreground,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: tokens.border, width: 1),
+                          }),
+                          onMove: () =>
+                              unawaited(_pickGroupAndApply(isCopy: false)),
+                          onCopy: () =>
+                              unawaited(_pickGroupAndApply(isCopy: true)),
+                        )
+                      : const SizedBox.shrink(),
+                  listContent: ColoredBox(
+                    color: tokens.card,
+                    child: DecoratedBox(
+                      key: const Key('word-list'),
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: tokens.border, width: 1),
+                        ),
+                      ),
+                      child: _buildListContent(
+                        shownSections,
+                        visibleWords.isNotEmpty,
                       ),
                     ),
-                    child: _buildListContent(
-                      shownSections,
-                      visibleWords.isNotEmpty,
-                    ),
+                  ),
+                  targetCount: targetCount,
+                  hasListeningSession: hasListeningSession,
+                  hasDictationSession: hasDictationSession,
+                  onOpenListening: () {
+                    if (learningWords.isEmpty) {
+                      _showComingSoon('当前列表没有可学习单词');
+                      return;
+                    }
+                    unawaited(_openListening(learningWords));
+                  },
+                  onOpenDictation: () {
+                    if (learningWords.isEmpty) {
+                      _showComingSoon('当前列表没有可学习单词');
+                      return;
+                    }
+                    unawaited(_openDictation(learningWords));
+                  },
+                  onContinueListening: () => unawaited(
+                    _continueLearning(LearningSessionType.listening),
+                  ),
+                  onContinueDictation: () => unawaited(
+                    _continueLearning(LearningSessionType.dictation),
                   ),
                 ),
-                onFabTap: () {
-                  if (learningWords.isEmpty) {
-                    _showComingSoon('当前列表没有可学习单词');
-                    return;
-                  }
-                  unawaited(_openDictation(learningWords));
-                },
-                fabLabel: '学习',
-              ),
-            // 展开学习菜单后增加轻量遮罩；点击空白处即可收起。
-            if (_learningMenuOpen)
-              Positioned.fill(
-                child: GestureDetector(
-                  key: const Key('learning-menu-backdrop'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => _learningMenuOpen = false),
-                  child: const ColoredBox(color: Colors.transparent),
-                ),
-              ),
-            // 页面仅常驻一个“学习”按钮，展开后向上显示两个具体入口。
-            Positioned(
-              key: const Key('learning-fab'),
-              right: 20,
-              bottom: 32,
-              child: LearningFab(
-                isOpen: _learningMenuOpen,
-                targetCount: targetCount,
-                showPlayerResume: hasListeningSession,
-                showDictationResume: hasDictationSession,
-                onToggle: () =>
-                    setState(() => _learningMenuOpen = !_learningMenuOpen),
-                onContinuePlayer: () =>
-                    unawaited(_continueLearning(LearningSessionType.listening)),
-                onContinueDictation: () =>
-                    unawaited(_continueLearning(LearningSessionType.dictation)),
-                onOpenPlayer: () {
-                  // 没有可学习单词时不打开空页面。
-                  if (learningWords.isEmpty) {
-                    _showComingSoon('当前列表没有可学习单词');
-                    return;
-                  }
-                  // 普通入口明确开始新一轮，并覆盖旧的同类型恢复点。
-                  unawaited(_openListening(learningWords));
-                },
-                onOpenDictation: () {
-                  // 默写同样遵循“已选择优先，否则当前可见”的范围规则。
-                  if (learningWords.isEmpty) {
-                    _showComingSoon('当前列表没有可学习单词');
-                    return;
-                  }
-                  // 普通入口明确开始新一轮，并覆盖旧的同类型恢复点。
-                  unawaited(_openDictation(learningWords));
-                },
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

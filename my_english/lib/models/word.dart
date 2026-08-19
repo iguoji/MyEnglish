@@ -216,6 +216,44 @@ class Word {
       meanings.fold(0, (sum, meaning) => sum + meaning.definitions.length);
 
   ///
+  /// 排序用的“释义总字符数”：全部中文释义去掉首尾空白后的字符数量之和。
+  ///
+  /// [meaningCount] 只能区分释义有几条；当两个单词都只有一条释义时，
+  /// 本字段继续区分“能力”和“进行某项工作的能力”这类复杂度差异。
+  /// Dart 的 runes 按完整 Unicode 字符计数，中文不会被拆成错误的字节数。
+  ///
+  /// @return int 全部释义正文的字符数量；空白释义自然计 0。
+  ///
+  int get meaningCharacterCount => meanings.fold(
+    0,
+    (sum, meaning) =>
+        sum +
+        meaning.definitions.fold(
+          0,
+          (definitionSum, definition) =>
+              definitionSum + definition.trim().runes.length,
+        ),
+  );
+
+  ///
+  /// 按统一业务规则比较两个单词的含义复杂度。
+  ///
+  /// 所有需要让“含义”参与单词排序的地方都必须调用本方法：第一层先比较
+  /// 全部释义条数，只有条数相同时才比较全部释义正文的字符总数。这里不处理
+  /// 升降序，调用方只需在最终结果上应用自己的方向，便不会让两层方向分裂。
+  ///
+  /// @param  Word  other 需要与当前单词比较的另一个单词。
+  /// @return int 负数表示当前单词含义更少或更短，应在升序中排在前面。
+  ///
+  int compareMeaningComplexityTo(Word other) {
+    // 第一层固定比较释义数量，这是所有含义排序不可跳过的首要条件。
+    final byCount = meaningCount.compareTo(other.meaningCount);
+    if (byCount != 0) return byCount;
+    // 数量完全相同后，才用释义正文字符总数继续区分复杂度。
+    return meaningCharacterCount.compareTo(other.meaningCharacterCount);
+  }
+
+  ///
   /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。
   ///
   /// @param  `Map<Object?, Object?>`  map 数据库行或导入文件中的单词对象。

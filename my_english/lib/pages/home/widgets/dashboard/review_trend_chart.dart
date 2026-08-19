@@ -7,7 +7,7 @@ import 'dart:async';
 import '../../../../common/theme.dart';
 // 引入可复用的曲线图组件（纯展示，不绑定业务）。
 import 'trend_chart.dart';
-// 引入默写记录 Store：按天/按月的复习量聚合查询都走这里。
+// 引入默写记录 Store：7 天与 30 天的每日复习量聚合查询都走这里。
 import '../../../../store/record.dart';
 
 ///
@@ -19,15 +19,6 @@ enum TrendRange {
 
   /// 近 30 天。
   month,
-
-  /// 近半年（最近七个月）。
-  halfYear,
-
-  /// 近一年。
-  year,
-
-  /// 全部历史（首条记录月份到本月，按月汇总）。
-  all,
 }
 
 ///
@@ -38,16 +29,13 @@ extension TrendRangeLabel on TrendRange {
   String get label => switch (this) {
     TrendRange.week => '7天',
     TrendRange.month => '30天',
-    TrendRange.halfYear => '半年',
-    TrendRange.year => '一年',
-    TrendRange.all => '全部',
   };
 }
 
 ///
 /// 顶部仪表盘第一块：时间范围 tab + 平滑趋势曲线。
 ///
-/// 数据来自原生 record 表的真实聚合（按天或按月去重单词数）：
+/// 数据来自原生 record 表的真实聚合（每天按单词去重）：
 /// 进入页面时先渲染"空数据"（全 0 的水平直线），异步查询完成后由
 /// [TrendChart] 内部把节点平滑滑动到目标位置。
 ///
@@ -101,15 +89,14 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
     super.dispose();
   }
 
-  /// 切换范围：先立刻切到新范围的空数据直线，再马上发起查询。
+  /// 切换范围：保留当前曲线，查询完成后直接过渡到新范围数据。
   void _selectRange(TrendRange range) {
     if (range == _range) return;
     setState(() {
       _range = range;
-      // 先展示该档的空数据骨架，数据到达后节点再滑动上来。
-      _points = _flatPoints(range);
     });
-    // 查询是毫秒级，切换后立即加载，不额外加延迟。
+    // 查询完成后一次性替换为新数据，TrendChart 会从当前画面平滑过渡，
+    // 不再经过“先归零”的中间状态。
     _load();
   }
 
@@ -140,11 +127,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   ///
   /// 按范围查询真实数据并组装成曲线节点。
   ///
-  /// - 7天 / 30天：日粒度，走 [RecordStore.getDailyReviewCounts]；
-  /// - 半年 / 一年 / 全部：月粒度，走 [RecordStore.getMonthlyReviewCounts]
-  ///   （按月去重才是正确口径，不能把每日去重数相加）。
-  ///   「全部」不限起始月份，用首条与末条记录所在月份作为首尾端点均分节点；
-  ///   一年与全部跨度大，label 统一用「XX年X月」格式。
+  /// 7天 / 30天都使用日粒度，走 [RecordStore.getDailyReviewCounts]。
   ///
   /// @param  TrendRange  range 时间范围。
   /// @return `Future<List<TrendDataPoint>>` 7 个节点的真实数据。
@@ -177,75 +160,12 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
         return [
           for (var i = 0; i < _nodeCount; i++)
             () {
-              final dayOffset =
-                  ((_nodeCount - 1 - i) * 30 / (_nodeCount - 1)).round();
+              final dayOffset = ((_nodeCount - 1 - i) * 30 / (_nodeCount - 1))
+                  .round();
               final d = today.subtract(Duration(days: dayOffset));
               return TrendDataPoint(
                 label: _dayLabel(today, d),
                 value: (counts[_dateKey(d)] ?? 0).toDouble(),
-              );
-            }(),
-        ];
-
-      case TrendRange.halfYear:
-        // 半年：最近七个月，按月均分节点（本月往前数 6 个月到本月）。
-        final counts = await store.getMonthlyReviewCounts(
-          since: _addMonths(today, -(_nodeCount - 1)),
-        );
-        // 跨年时整段 label 统一带年份（XX年X月），避免"12月/1月"分不清是哪年。
-        final withYear =
-            _addMonths(today, -(_nodeCount - 1)).year != today.year;
-        return [
-          for (var i = 0; i < _nodeCount; i++)
-            () {
-              final d = _addMonths(today, -(_nodeCount - 1 - i));
-              return TrendDataPoint(
-                label: _monthLabel(d, withYear: withYear),
-                value: (counts[_monthKey(d)] ?? 0).toDouble(),
-              );
-            }(),
-        ];
-
-      case TrendRange.year:
-        // 一年：本月与去年本月为首尾，中间月份均分；12 个月跨度必跨年。
-        final counts = await store.getMonthlyReviewCounts(
-          since: _addMonths(today, -12),
-        );
-        return [
-          for (var i = 0; i < _nodeCount; i++)
-            () {
-              final monthOffset = -12 * (_nodeCount - 1 - i) ~/ (_nodeCount - 1);
-              final d = _addMonths(today, monthOffset);
-              return TrendDataPoint(
-                label: _monthLabel(d, withYear: true),
-                value: (counts[_monthKey(d)] ?? 0).toDouble(),
-              );
-            }(),
-        ];
-
-      case TrendRange.all:
-        // 全部：按月聚合、不限起始月份；原生按月份升序返回，Map 保持
-        // 插入顺序，首个键即首条记录所在月份、末个键即最近记录所在月份。
-        final counts = await store.getMonthlyReviewCounts();
-        // 一条记录都没有：回退为「最近十二个月」的空数据骨架。
-        if (counts.isEmpty) return _flatPoints(range);
-        // 首尾端点 = 第一条与最后一条记录所在的月份。
-        final first = _parseMonth(counts.keys.first);
-        final last = _parseMonth(counts.keys.last);
-        // 两个月份之间的总月数（0 表示只在同一个月内有记录）。
-        final totalMonths =
-            (last.year - first.year) * 12 + (last.month - first.month);
-        return [
-          for (var i = 0; i < _nodeCount; i++)
-            () {
-              final d = _addMonths(
-                first,
-                (totalMonths * i / (_nodeCount - 1)).round(),
-              );
-              return TrendDataPoint(
-                // 全部跨度大且通常跨年：统一用「XX年X月」格式。
-                label: _monthLabel(d, withYear: true),
-                value: (counts[_monthKey(d)] ?? 0).toDouble(),
               );
             }(),
         ];
@@ -254,9 +174,6 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 
   ///
   /// 生成某个范围的空数据骨架：label 按该档粒度排好，value 全 0。
-  ///
-  /// 「全部」在拿到真实首尾记录前无法确定节点日期，先用「去年到今天」
-  /// 的默认跨度占位；查询回来后会被真实节点替换。
   ///
   /// @param  TrendRange  range 时间范围。
   /// @return `List<TrendDataPoint>` 全 0 的 7 个节点。
@@ -272,36 +189,14 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
         }
       case TrendRange.month:
         for (var i = 0; i < _nodeCount; i++) {
-          final dayOffset =
-              ((_nodeCount - 1 - i) * 30 / (_nodeCount - 1)).round();
+          final dayOffset = ((_nodeCount - 1 - i) * 30 / (_nodeCount - 1))
+              .round();
           final d = today.subtract(Duration(days: dayOffset));
           labels.add(_dayLabel(today, d));
         }
-      case TrendRange.halfYear:
-        final withYear =
-            _addMonths(today, -(_nodeCount - 1)).year != today.year;
-        for (var i = 0; i < _nodeCount; i++) {
-          final d = _addMonths(today, -(_nodeCount - 1 - i));
-          labels.add(_monthLabel(d, withYear: withYear));
-        }
-      case TrendRange.year:
-        for (var i = 0; i < _nodeCount; i++) {
-          final monthOffset = -12 * (_nodeCount - 1 - i) ~/ (_nodeCount - 1);
-          final d = _addMonths(today, monthOffset);
-          labels.add(_monthLabel(d, withYear: true));
-        }
-      case TrendRange.all:
-        // 全部（无记录时）：按「最近十二个月」铺月度骨架占位，与一年档一致。
-        for (var i = 0; i < _nodeCount; i++) {
-          final monthOffset = -12 * (_nodeCount - 1 - i) ~/ (_nodeCount - 1);
-          final d = _addMonths(today, monthOffset);
-          labels.add(_monthLabel(d, withYear: true));
-        }
     }
     // value 全 0：一条贴着分割线的水平直线。
-    return [
-      for (final label in labels) TrendDataPoint(label: label, value: 0),
-    ];
+    return [for (final label in labels) TrendDataPoint(label: label, value: 0)];
   }
 
   @override
@@ -311,11 +206,11 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
       children: [
         // 头部行：左侧"复习量"标题徽章 + 右侧时间选择器。
         // 字号约定：时间选择器 13（与首页"已收录 xx 个单词"副标题一致），
-        // 复习量徽章 11（比它小 2px）。五个 tab 直接平铺，不进滚动容器、
+        // 复习量徽章 11（比它小 2px）。两个 tab 直接平铺，不进滚动容器、
         // 也不套 FittedBox 之类的整体缩放，保证字号所见即所得。
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: _edgeInset),
-          // 仅在系统超大字体（无障碍）时钳制放大上限，防止五个 tab 撑爆整行；
+          // 仅在系统超大字体（无障碍）时钳制放大上限，防止 tab 撑爆整行；
           // 常规字号（1.0 倍）下钳制完全不生效，不存在任何缩放。
           // 1.15 的上限经 320px + 2 倍字体用例验证仍有约 10px 余量。
           child: MediaQuery.withClampedTextScaling(
@@ -344,7 +239,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
                 ),
                 // 弹性占位：把时间选择器推到右边缘。
                 const Spacer(),
-                // 时间选择器：五个 tab 一次性全部展示，无滚动、无缩放。
+                // 时间选择器：两个 tab 一次性全部展示，无滚动、无缩放。
                 Row(
                   children: [
                     for (final range in TrendRange.values) ...[
@@ -390,31 +285,6 @@ String _dayLabel(DateTime now, DateTime d) {
 }
 
 ///
-/// 把日期格式化为月粒度横轴标签。
-///
-/// 未跨年的范围显示 "M月"（如 8月）；跨年的范围（一年/全部）统一显示
-/// "XX年X月"（如 25年8月），长跨度下每个节点都能看清年份。
-///
-/// @param  DateTime  d          要格式化的日期
-/// @param  bool      withYear   是否带年份（一年/全部档恒为 true）
-/// @return String
-///
-String _monthLabel(DateTime d, {required bool withYear}) =>
-    withYear ? '${d.year % 100}年${d.month}月' : '${d.month}月';
-
-///
-/// 解析原生月度聚合键 'yyyy-MM' 为该月 1 号的 DateTime。
-///
-/// @param  String  ym 形如 '2026-08' 的月份键
-/// @return DateTime 该月 1 号
-///
-DateTime _parseMonth(String ym) {
-  // 按 '-' 拆成年与月两段。
-  final parts = ym.split('-');
-  return DateTime(int.parse(parts[0]), int.parse(parts[1]));
-}
-
-///
 /// 日期键：与原生 record 表 created_date 完全一致的 'yyyy-MM-dd'。
 ///
 /// @param  DateTime  d
@@ -424,37 +294,6 @@ String _dateKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
-
-///
-/// 月份键：与原生月度聚合一致的 'yyyy-MM'。
-///
-/// @param  DateTime  d
-/// @return String
-///
-String _monthKey(DateTime d) =>
-    '${d.year.toString().padLeft(4, '0')}-'
-    '${d.month.toString().padLeft(2, '0')}';
-
-///
-/// 在给定日期上增减月份，自动处理跨年与月末溢出（如 1月31日 -1 月 → 2月末）。
-///
-DateTime _addMonths(DateTime d, int delta) {
-  var m = d.month + delta;
-  var y = d.year;
-  // 月份可能越界，循环进位/借位到合法区间 1..12。
-  while (m <= 0) {
-    m += 12;
-    y -= 1;
-  }
-  while (m > 12) {
-    m -= 12;
-    y += 1;
-  }
-  // 目标月可能没有原日期（如 31 号落到只有 28/30 天的月），钳制到月末。
-  final lastDay = DateTime(y, m + 1, 0).day;
-  final day = d.day > lastDay ? lastDay : d.day;
-  return DateTime(y, m, day);
-}
 
 ///
 /// 单个范围 tab；选中时底部出现主色下划线。
