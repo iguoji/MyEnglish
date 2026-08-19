@@ -2,7 +2,7 @@
 
 MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用。词库、分组、复习记录和学习进度主要保存在手机本地，不需要注册账号。
 
-当前版本：`v0.22.9`（构建号 `9`）
+当前版本：`v0.22.10`（构建号 `10`）
 
 > 当前只提供 Android 版本，暂不支持 iPhone 和 iPad。
 
@@ -135,11 +135,11 @@ TTS 是手机系统提供的文字转语音功能。应用只选择系统标记�
 | Dart SDK 约束 | `^3.12.2` |
 | Java | `17` |
 | Gradle | `9.1.0` |
-| 应用版本 | `0.22.9+9` |
+| 应用版本 | `0.22.10+10` |
 | SQLite 结构版本 | `11` |
 | Android applicationId | `com.example.my_english` |
 
-`0.22.9+9` 中，加号前是用户看到的版本名，加号后是 Android 构建号。代码改动不会让版本号自动变化，发布前需要手动更新 `pubspec.yaml`。
+`0.22.10+10` 中，加号前是用户看到的版本名，加号后是 Android 构建号。代码改动不会让版本号自动变化，发布前需要手动更新 `pubspec.yaml`。
 
 ## 技术架构
 
@@ -313,7 +313,7 @@ my_english/build/app/outputs/flutter-apk/app-release.apk
 `my_english/pubspec.yaml` 是应用版本号的唯一手工数据源：
 
 ```yaml
-version: 0.22.9+9
+version: 0.22.10+10
 ```
 
 修改后同步应用内展示信息：
