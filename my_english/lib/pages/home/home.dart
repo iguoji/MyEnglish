@@ -34,6 +34,8 @@ import '../../services/file_io.dart';
 import '../dictation/dictation_page.dart';
 // 全屏随身听页。
 import '../listening/listening_page.dart';
+// 词义连连骨架页（顶部框架已就位，候选词区域待接入）。
+import '../meaning_match/meaning_match_page.dart';
 // 三个未开发复习模块使用各自标题的独立占位页面。
 import '../review/review_unavailable_page.dart';
 // 分组 Store 通过原生 SQLite 提供持久化的自定义分组数据。
@@ -1168,14 +1170,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
     if (!mounted) return;
-    // 带回 id 时只回刷本轮已提交单词；系统返回等其他情况沿用整库刷新。
     if (result is List<int>) {
+      // 正常返回（顶部箭头）：DictationPage 调用 pop 并带回 id 列表，只回刷新单词即可。
       unawaited(_mergeReviewedWords(result));
     } else {
-      unawaited(_refreshWords());
+      // 手势返回（PopScope 无 id）时，也走轻量刷新而非整库 _refreshWords()，
+      // 避免把用户带回"加载圈+黑屏"状态，这是返回动画被隐藏延迟的主因。
+      // DictationPage.dispose 中已同步写入 _persistSession()，下面读取应该刚更新完。
+      unawaited(_loadLearningSessions());
+      unawaited(_loadReviewProgress());
+      unawaited(_loadDailyReviewPlan()); // 确保今日目标在会话/难度变化后也能正确回刷
     }
-    // 今日复习数与继续入口都可能在默写过程中改变。
-    unawaited(_loadReviewProgress());
     await _loadLearningSessions();
   }
 
@@ -1226,6 +1231,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         recordModule: ReviewModule.listeningMeaning,
         sessionType: LearningSessionType.listeningMeaning,
       );
+      return;
+    }
+
+    if (type == LearningSessionType.meaningMatch) {
+      // 词义连连本轮仅接入顶部框架，候选词区域留空；直接打开真实页面替换占位页。
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => MeaningMatchPage(words: words, title: title),
+        ),
+      );
+      // 原生编辑、删除等操作可能已经清空失效会话；首页内存必须同步刷新。
+      await _loadLearningSessions();
       return;
     }
 

@@ -1540,11 +1540,33 @@ class _DictationPageState extends State<DictationPage>
   /// @return void
   ///
   @override
+  void deactivate() {
+    // 路由刚被移出导航栈（手势/按钮返回的转场动画一开始）就立即作废在途异步任务，
+    // 把主线程让给返回动画，避免“划动手势卡顿/掉帧”的问题。
+    // 生活化解释：和随身听页退出时停掉自动播放是同一类处理——
+    // 只要页面开始滑走，就不再允许后台的候选加载或发音回调去 setState 抢帧。
+    // 注意：此时 State 仍是 mounted，若只靠 dispose 取消，转场动画期间仍在跑，
+    // 所以必须在 deactivate（转场起点）就作废代次并把音频停下。
+    // 让尚未结束的候选缓存读取失效，回调回来后不再改写已滑走的页面。
+    _optionLoadGeneration++;
+    // 让尚未结束的发音回调失效，避免转场期间再触发 setState。
+    _playGeneration++;
+    // 顺手停止可能仍在播放的发音，让位给返回动画。
+    unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     // 页面销毁前注销生命周期监听，避免后台回调访问已释放页面。
     WidgetsBinding.instance.removeObserver(this);
-    // 系统返回或路由销毁前补写最终答题状态；完成页已经删除会话，不能重新创建。
-    if (!_isDone) unawaited(_persistSession());
+    // 系统返回（手势或返回键）时触发最后一博：立即把当前答题快照写入数据库。
+    // _persistSession 内部本身是轻量的（key-value 存储），直接同步 await 不会显著阻塞转场，
+    // 但能确保用户手势返回时，首页能在同一帧读到最新会话并立即重建「继续」入口卡片。
+    if (!_isDone) {
+      // ignore: discarded_futures —— dispose 中必须同步完成保存，不能丢
+      _persistSession();
+    }
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
     super.dispose();
   }

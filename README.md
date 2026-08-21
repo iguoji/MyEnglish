@@ -2,7 +2,7 @@
 
 MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用。词库、分组、复习记录和学习进度主要保存在手机本地，不需要注册账号。
 
-当前版本：`v0.22.10`（构建号 `10`）
+当前版本：`v0.23.4`（构建号 `16`）
 
 > 当前只提供 Android 版本，暂不支持 iPhone 和 iPad。
 
@@ -135,11 +135,11 @@ TTS 是手机系统提供的文字转语音功能。应用只选择系统标记�
 | Dart SDK 约束 | `^3.12.2` |
 | Java | `17` |
 | Gradle | `9.1.0` |
-| 应用版本 | `0.22.10+10` |
+| 应用版本 | `0.23.4+16` |
 | SQLite 结构版本 | `11` |
 | Android applicationId | `com.example.my_english` |
 
-`0.22.10+10` 中，加号前是用户看到的版本名，加号后是 Android 构建号。代码改动不会让版本号自动变化，发布前需要手动更新 `pubspec.yaml`。
+`0.22.11+11` 中，加号前是用户看到的版本名，加号后是 Android 构建号。代码改动不会让版本号自动变化，发布前需要手动更新 `pubspec.yaml`。
 
 ## 技术架构
 
@@ -243,6 +243,8 @@ reviewedAt 是否为空
 
 当天首次打开任意复习模块时生成 `daily_review_plans`；此后四个模块复用相同 `word_ids` 顺序。每个模式通过独立的 `LearningSessionType` 保存进度，通过独立的 `record.module` 统计完成量。
 
+首页统计（顶部「今日复习 X/目标」、复习量趋势曲线、月历打卡热力图）只统计已开发模块的数据。当前仅 `listening_meaning` 参与统计，并兼容旧的 `dictation` 默写记录；未开放的 `meaning_match` / `spelling_reinforcement` / `meaning_word_choice` 即使写入数据也不会影响整体进度。未来某个玩法开放时，只需把它的 `module` 加入原生统计的白名单即可。
+
 ## 音频实现
 
 Flutter 通过 `my_english/word_audio` MethodChannel 调用 `WordAudioPlayer`。Android 侧负责：
@@ -313,7 +315,7 @@ my_english/build/app/outputs/flutter-apk/app-release.apk
 `my_english/pubspec.yaml` 是应用版本号的唯一手工数据源：
 
 ```yaml
-version: 0.22.10+10
+version: 0.23.4+16
 ```
 
 修改后同步应用内展示信息：
