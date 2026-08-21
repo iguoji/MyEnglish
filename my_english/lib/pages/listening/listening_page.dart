@@ -888,6 +888,23 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// @return void
   ///
+  ///
+  /// 页面即将被路由移除（手势返回松手、按钮返回、或被新页面替换）时调用。
+  ///
+  /// 生活化解释：相当于“页面要走了”。趁返回转场动画还没开始，先停掉后台的
+  /// 自动播放循环和每秒倒计时，把主线程让给动画——否则动画会和每秒一次的
+  /// 界面刷新抢同一帧，表现在手势返回上就是卡顿、不跟手。
+  ///
+  @override
+  void deactivate() {
+    // 序号自增后，正在跑的 _runPlayback 循环下一次检查即退出，不再播放新词。
+    ++_playSerial;
+    // 取消每秒倒计时定时器，停止每秒 setState 更新剩余秒数，释放主线程。
+    _cancelCountdown();
+    // 交给父类完成剩余离场清理。
+    super.deactivate();
+  }
+
   @override
   void dispose() {
     // 页面销毁前注销生命周期监听，避免回调命中已销毁 State。

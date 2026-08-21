@@ -153,6 +153,15 @@ abstract final class AppTheme {
   static final ThemeData light = ThemeData(
     // 正式启用 Material 3；旧代码关闭它只是为了暂时规避默认尺寸变化。
     useMaterial3: true,
+    // 让 Android 边缘手势返回支持“预测返回”（predictive back）：
+    // 手指从左边缘右滑时，当前页面会跟着手指实时滑动后退，
+    // 与左上角返回按钮的观感一致。若不配置，Flutter 默认转场在手势越过
+    // 阈值时会直接瞬间 pop 掉页面，在真机上表现为“划一下突然消失”不跟手。
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+      },
+    ),
     // 注入上面定义的完整浅色色板。
     colorScheme: _lightScheme,
     // 页面外围使用略灰背景，内容列表仍使用白色 surface。
@@ -225,6 +234,13 @@ abstract final class AppTheme {
   static final ThemeData dark = ThemeData(
     // 深色同样使用 Material 3，避免两种主题组件行为不一致。
     useMaterial3: true,
+    // 与浅色主题一致：让 Android 边缘手势返回支持“预测返回”，
+    // 页面跟随手指滑动后退，避免手势越过阈值时瞬间 pop 造成的卡顿感。
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+      },
+    ),
     // 注入深色色板。
     colorScheme: _darkScheme,
     // 页面外围使用比列表更深的背景。

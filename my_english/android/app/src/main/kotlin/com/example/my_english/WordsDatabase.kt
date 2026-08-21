@@ -1645,8 +1645,15 @@ class WordsDatabase(context: Context) :
         // 本机时区下的"今天"。
         val today = localDateString()
         // rawQuery 直接执行聚合 SQL，参数用占位符防注入。
+        // 只统计"已开发的复习模块"：未开放玩法（词义连连等）即使以后误写入，
+        // 也不会让首页"今日复习 X/目标"提前虚涨。兼容历史 dictation 记录。
         db.rawQuery(
-            "SELECT COUNT(DISTINCT word_id) FROM record WHERE created_date = ?",
+            """
+            SELECT COUNT(DISTINCT word_id)
+            FROM record
+            WHERE created_date = ?
+              AND module IN ('listening_meaning', 'dictation')
+            """.trimIndent(),
             arrayOf(today),
         ).use { cursor ->
             // 聚合查询必定返回一行一列，取第 0 列即为去重后的单词数。
@@ -1717,12 +1724,16 @@ class WordsDatabase(context: Context) :
         val db = readableDatabase
         // 结果列表：一天一个 Entry。
         val result = ArrayList<Map<String, Any?>>()
+        // 模块白名单：曲线 / 打卡质量只统计已开发玩法，未开放模块的记录
+        // 不参与总趋势，避免以后接入新玩法时旧图表口径悄悄变化。
+        val moduleFilter = "AND module IN ('listening_meaning', 'dictation')"
         // 有起始日期就带上 WHERE 过滤，否则统计全部；占位符防注入。
         val cursor = if (sinceDate == null) {
             db.rawQuery(
                 """
                 SELECT created_date, COUNT(DISTINCT word_id)
                 FROM record
+                WHERE 1 = 1 $moduleFilter
                 GROUP BY created_date
                 ORDER BY created_date ASC
                 """.trimIndent(),
@@ -1734,6 +1745,7 @@ class WordsDatabase(context: Context) :
                 SELECT created_date, COUNT(DISTINCT word_id)
                 FROM record
                 WHERE created_date >= ?
+                  $moduleFilter
                 GROUP BY created_date
                 ORDER BY created_date ASC
                 """.trimIndent(),
@@ -1770,13 +1782,20 @@ class WordsDatabase(context: Context) :
         // 结果列表：一月一个 Entry。
         val result = ArrayList<Map<String, Any?>>()
         // 月份键截取前 7 位；WHERE 同样按月份键比较，保持口径一致。
+        // 同样只统计已开发模块，与日粒度口径对齐。
+        val moduleFilter = "AND module IN ('listening_meaning', 'dictation')"
         val whereClause = if (sinceYearMonth == null) "" else "WHERE substr(created_date, 1, 7) >= ?"
+        val finalWhere = if (whereClause.isEmpty()) {
+            "WHERE 1 = 1 $moduleFilter"
+        } else {
+            "$whereClause $moduleFilter"
+        }
         val args = if (sinceYearMonth == null) null else arrayOf(sinceYearMonth)
         db.rawQuery(
             """
             SELECT substr(created_date, 1, 7), COUNT(DISTINCT word_id)
             FROM record
-            $whereClause
+            $finalWhere
             GROUP BY substr(created_date, 1, 7)
             ORDER BY substr(created_date, 1, 7) ASC
             """.trimIndent(),

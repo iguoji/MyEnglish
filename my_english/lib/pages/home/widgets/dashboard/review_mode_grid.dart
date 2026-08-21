@@ -64,7 +64,9 @@ class ReviewModeGrid extends StatelessWidget {
             ),
             Flexible(
               child: Text(
-                '每种模式目标 $dailyGoal 个',
+                // 当前仅「听音辨义」已开发，总目标即该模块目标；
+                // 等更多玩法开放后，这里可以再展示分模块目标说明。
+                '今日目标 $dailyGoal 个',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: tokens.textSecondary),
@@ -89,6 +91,7 @@ class ReviewModeGrid extends StatelessWidget {
                   reviewCount:
                       reviewCountsByModule[ReviewModule.listeningMeaning] ?? 0,
                   dailyGoal: dailyGoal,
+                  isAvailable: true,
                   onTap: onOpenListeningMeaning,
                   tokens: tokens,
                 ),
@@ -103,6 +106,7 @@ class ReviewModeGrid extends StatelessWidget {
                   reviewCount:
                       reviewCountsByModule[ReviewModule.meaningMatch] ?? 0,
                   dailyGoal: dailyGoal,
+                  isAvailable: true,
                   onTap: onOpenMeaningMatch,
                   tokens: tokens,
                 ),
@@ -125,6 +129,7 @@ class ReviewModeGrid extends StatelessWidget {
                           .spellingReinforcement] ??
                       0,
                   dailyGoal: dailyGoal,
+                  isAvailable: false,
                   onTap: onOpenSpellingReinforcement,
                   tokens: tokens,
                 ),
@@ -138,6 +143,7 @@ class ReviewModeGrid extends StatelessWidget {
                   reviewCount:
                       reviewCountsByModule[ReviewModule.meaningWordChoice] ?? 0,
                   dailyGoal: dailyGoal,
+                  isAvailable: false,
                   onTap: onOpenMeaningWordChoice,
                   tokens: tokens,
                 ),
@@ -160,6 +166,7 @@ class _ModeCard extends StatelessWidget {
     required this.desc,
     required this.reviewCount,
     required this.dailyGoal,
+    required this.isAvailable,
     required this.onTap,
     required this.tokens,
   });
@@ -169,6 +176,12 @@ class _ModeCard extends StatelessWidget {
   final String desc;
   final int reviewCount;
   final int dailyGoal;
+
+  /// 该玩法是否已经开发完成并开放使用。
+  ///
+  /// 未开放时不显示进度条与百分比，避免「0%」让用户误以为没背够。
+  final bool isAvailable;
+
   final VoidCallback onTap;
   final AppTokens tokens;
 
@@ -182,11 +195,18 @@ class _ModeCard extends StatelessWidget {
     final progressPercent = (progress * 100).floor();
     // 目标必须大于 0 且完成量达到目标才显示绿色“已完成”。
     final isCompleted = dailyGoal > 0 && reviewCount >= dailyGoal;
-    // 未完成使用 Tabler 红色制造明确压力；完成后切换为 Tabler 成功绿。
-    final badgeColor = isCompleted
+    // 未开放模块直接显示「即将开放」灰色徽章，不给用户虚假进度压力。
+    // 已开放模块：未完成用 Tabler 红色制造压力，完成后切换为成功绿。
+    final badgeColor = !isAvailable
+        ? tokens.textSecondary
+        : isCompleted
         ? const Color(0xFF2FB344)
         : Theme.of(context).colorScheme.error;
-    final badgeText = isCompleted ? '已完成' : '$progressPercent%';
+    final badgeText = !isAvailable
+        ? '即将开放'
+        : isCompleted
+        ? '已完成'
+        : '$progressPercent%';
     // 卡片高度不再用固定宽高比强撑，改由内容自然撑开（见上方的
     // IntrinsicHeight 网格），因此无需再钳制字体缩放：系统大字体只会
     // 让卡片跟着变高，不会再有溢出风险，无障碍体验也更完整。
@@ -281,23 +301,29 @@ class _ModeCard extends StatelessWidget {
               // 描述与进度条之间留出间距。
               const SizedBox(height: 10),
               // 进度条。
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: SizedBox(
-                  height: 4,
-                  child: Stack(
-                    children: [
-                      // 背景。
-                      Container(color: tokens.sub),
-                      // 填充。
-                      FractionallySizedBox(
-                        widthFactor: (progressPercent / 100).clamp(0.0, 1.0),
-                        child: Container(color: AppTokens.accent),
-                      ),
-                    ],
+              // 未开放模块不渲染真实进度条，避免 0% 的误导；
+              // 用一条占位的细分隔线保持卡片视觉高度一致。
+              if (isAvailable)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: SizedBox(
+                    height: 4,
+                    child: Stack(
+                      children: [
+                        // 背景。
+                        Container(color: tokens.sub),
+                        // 填充。
+                        FractionallySizedBox(
+                          widthFactor: (progressPercent / 100).clamp(0.0, 1.0),
+                          child: Container(color: AppTokens.accent),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                )
+              else
+                // 占位分隔线：高度与真实进度条一致，保持四张卡片同高。
+                Container(height: 4, color: tokens.sub),
             ],
           ),
         ),
