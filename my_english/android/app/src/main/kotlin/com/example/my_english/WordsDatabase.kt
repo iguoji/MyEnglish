@@ -32,11 +32,11 @@ class WordsDatabase(context: Context) :
         // 数据库文件保存在 Android App 私有目录，卸载应用时由系统删除。
         private const val databaseName = "my_english.db"
         // 版本 3 新增 group 与 groupMember 两张表，让单词-分组关系持久化。
-        // 版本 4 新增 record 表，记录单词默写结果并驱动难度变化。
+        // 版本 4 新增 record 表，记录单词听音辨义结果并驱动难度变化。
         // 版本 5 不再新建表，仅补强 record 表的创建时机（onOpen 兜底建表），
         // 解决「库已升到某版本，但 record 表因历史升级路径缺失」导致写入静默失败的问题。
-        // 版本 6 新增默写候选项缓存表，让每道拼写/释义题长期复用相同干扰项。
-        // 版本 7 新增学习会话表，保存随身听和默写尚未完成的列表与页面进度。
+        // 版本 6 新增听音辨义候选项缓存表，让每道拼写/释义题长期复用相同干扰项。
+        // 版本 7 新增学习会话表，保存随身听和听音辨义尚未完成的列表与页面进度。
         // 版本 8 为候选缓存增加正确答案位置，使四个候选的完整顺序可以长期恢复。
         // 版本 9 以 README 为业务字段标准，重建词库并统一 JSON/SQLite 命名。
         // 版本 10 新增每日公共复习词单表，四种复习模式当天共用同一批单词。
@@ -64,10 +64,10 @@ class WordsDatabase(context: Context) :
         createGroupPositionsTable(db)
         // 创建单词-分组关联表（多对多）。
         createGroupMembersTable(db)
-        // 创建单词默写记录表（每次默写一条，允许同一天重复复习并驱动难度变化）。
+        // 创建单词听音辨义记录表（每次听音辨义一条，允许同一天重复复习并驱动难度变化）。
         createRecordTable(db)
-        // 创建默写候选项缓存表。
-        createDictationOptionCacheTable(db)
+        // 创建听音辨义候选项缓存表。
+        createListeningMeaningOptionCacheTable(db)
         // 创建未完成学习会话表。
         createLearningSessionTable(db)
         // 创建四种复习模式当天共用的固定词单表。
@@ -95,7 +95,7 @@ class WordsDatabase(context: Context) :
      * 每次打开数据库连接时兜底：只要 record 表缺失就补建。
      *
      * 这是防止「库版本已升级，但 record 表因历史原因没建出来」的最后一道保险，
-     * 避免 addDictationRecord 因 no such table 静默失败、默写数据无法持久化。
+     * 避免 addListeningMeaningRecord 因 no such table 静默失败、听音辨义数据无法持久化。
      * onCreate / onUpgrade 之后必然走到这里，配合 CREATE TABLE IF NOT EXISTS 重复调用也安全。
      */
     override fun onOpen(db: SQLiteDatabase) {
@@ -104,9 +104,9 @@ class WordsDatabase(context: Context) :
         // 兜底补建 record 表（建表语句已用 IF NOT EXISTS，存在则无操作）。
         createRecordTable(db)
         // 同样兜底补建候选缓存表，覆盖任何历史升级遗漏。
-        createDictationOptionCacheTable(db)
+        createListeningMeaningOptionCacheTable(db)
         // CREATE TABLE IF NOT EXISTS 不会给旧表补字段，因此再单独确认版本 8 的位置列。
-        ensureDictationOptionCorrectIndexColumn(db)
+        ensureListeningMeaningOptionCorrectIndexColumn(db)
         // 学习会话属于辅助数据，幂等补建可覆盖跨版本升级遗漏。
         createLearningSessionTable(db)
         // 每日公共词单同样使用幂等建表，覆盖任何历史升级遗漏。
@@ -227,7 +227,7 @@ class WordsDatabase(context: Context) :
     /** 丢弃旧词库并按 README 字段重建全部相关表。 */
     private fun rebuildVocabularySchema(db: SQLiteDatabase) {
         // 先删除引用 words/groups 的子表，再删父表，符合外键依赖顺序。
-        db.execSQL("DROP TABLE IF EXISTS dictation_option_cache")
+        db.execSQL("DROP TABLE IF EXISTS listening_meaning_option_cache")
         db.execSQL("DROP TABLE IF EXISTS learning_sessions")
         db.execSQL("DROP TABLE IF EXISTS daily_review_plans")
         db.execSQL("DROP TABLE IF EXISTS record")
@@ -243,7 +243,7 @@ class WordsDatabase(context: Context) :
         createGroupPositionsTable(db)
         createGroupMembersTable(db)
         createRecordTable(db)
-        createDictationOptionCacheTable(db)
+        createListeningMeaningOptionCacheTable(db)
         createLearningSessionTable(db)
         createDailyReviewPlanTable(db)
         createIndexes(db)
@@ -445,7 +445,7 @@ class WordsDatabase(context: Context) :
             // 删除旧 Meaning 后按新提交列表重建，保持操作简单且原子。
             db.delete("meanings", "word_id = ?", arrayOf(id.toString()))
             // 拼写或释义可能已经变化，旧候选项不能继续复用。
-            db.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
+            db.delete("listening_meaning_option_cache", "word_id = ?", arrayOf(id.toString()))
             // 会话可能引用旧题目内容，编辑后作废；公共词单只存 id，继续保留当天批次。
             db.delete("learning_sessions", null, null)
             replaceMeanings(db, id, payload["meanings"])
@@ -480,7 +480,7 @@ class WordsDatabase(context: Context) :
         // 单词软删除后不再属于任何分组，直接清理其全部关联行。
         writableDatabase.delete("group_members", "word_id = ?", arrayOf(id.toString()))
         // 软删除不会触发外键级联，因此显式删除该词全部候选缓存。
-        writableDatabase.delete("dictation_option_cache", "word_id = ?", arrayOf(id.toString()))
+        writableDatabase.delete("listening_meaning_option_cache", "word_id = ?", arrayOf(id.toString()))
         // 会话列表可能包含这个单词；删除后无法完整恢复，因此清掉未完成会话。
         writableDatabase.delete("learning_sessions", null, null)
     }
@@ -493,7 +493,7 @@ class WordsDatabase(context: Context) :
         db.beginTransaction()
         try {
             // 先清空候选缓存、学习会话与其他子表，再清空父表，避免遗留失效快照。
-            db.delete("dictation_option_cache", null, null)
+            db.delete("listening_meaning_option_cache", null, null)
             db.delete("learning_sessions", null, null)
             db.delete("daily_review_plans", null, null)
             db.delete("group_members", null, null)
@@ -712,7 +712,7 @@ class WordsDatabase(context: Context) :
         db.beginTransaction()
         try {
             // 导入会替换词库，与旧单词主键绑定的记录、候选和会话也失效。
-            db.delete("dictation_option_cache", null, null)
+            db.delete("listening_meaning_option_cache", null, null)
             db.delete("learning_sessions", null, null)
             // 公共词单保存的是旧词库主键，整库替换后必须同时作废。
             db.delete("daily_review_plans", null, null)
@@ -1124,9 +1124,9 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 创建单词默写记录表（幂等：用 IF NOT EXISTS，可重复调用）。
+     * 创建单词听音辨义记录表（幂等：用 IF NOT EXISTS，可重复调用）。
      *
-     * 每次默写提交都新增一条记录，同一单词同一天可以有多条。`created_date`
+     * 每次听音辨义提交都新增一条记录，同一单词同一天可以有多条。`created_date`
      * 使用本机时区的 'YYYY-MM-DD' 字符串，供今日记录查询和去重统计使用。
      *
      * @param db 需要创建记录表和索引的 SQLite 连接。
@@ -1158,12 +1158,12 @@ class WordsDatabase(context: Context) :
         db.execSQL("CREATE INDEX IF NOT EXISTS record_word_id_seq ON record(word_id, id)")
     }
 
-    /** 创建默写候选项缓存表；一个 cache_key 对应一道具体拼写题或释义题。 */
-    private fun createDictationOptionCacheTable(db: SQLiteDatabase) {
+    /** 创建听音辨义候选项缓存表；一个 cache_key 对应一道具体拼写题或释义题。 */
+    private fun createListeningMeaningOptionCacheTable(db: SQLiteDatabase) {
         // 干扰项使用 JSON 数组保存；correct_index 记录正确答案插入三个干扰项的位置。
         db.execSQL(
             """
-            CREATE TABLE IF NOT EXISTS dictation_option_cache (
+            CREATE TABLE IF NOT EXISTS listening_meaning_option_cache (
                 cache_key TEXT PRIMARY KEY,
                 word_id INTEGER NULL,
                 distractors_json TEXT NOT NULL,
@@ -1182,10 +1182,10 @@ class WordsDatabase(context: Context) :
      * 因此升级和打开数据库时都通过 PRAGMA 检查一次。这个操作只改表结构，旧候选
      * 名字完整保留；null 位置会在 Dart 首次读取后自动写成 0～3 的实际下标。
      */
-    private fun ensureDictationOptionCorrectIndexColumn(db: SQLiteDatabase) {
+    private fun ensureListeningMeaningOptionCorrectIndexColumn(db: SQLiteDatabase) {
         // PRAGMA table_info 返回表的全部字段定义，其中 name 列保存字段名。
         val hasCorrectIndex = db.rawQuery(
-            "PRAGMA table_info(dictation_option_cache)",
+            "PRAGMA table_info(listening_meaning_option_cache)",
             null,
         ).use { cursor ->
             // 找到 name 列，逐行确认 correct_index 是否已经存在。
@@ -1203,12 +1203,12 @@ class WordsDatabase(context: Context) :
         if (hasCorrectIndex) return
         // 可空字段兼容版本 6～7 的历史行；CHECK 阻止未来写入 0～3 之外的位置。
         db.execSQL(
-            "ALTER TABLE dictation_option_cache " +
+            "ALTER TABLE listening_meaning_option_cache " +
                 "ADD COLUMN correct_index INTEGER NULL CHECK (correct_index BETWEEN 0 AND 3)",
         )
     }
 
-    /** 创建学习会话表；随身听和默写各自最多保存一条未完成记录。 */
+    /** 创建学习会话表；随身听和听音辨义各自最多保存一条未完成记录。 */
     private fun createLearningSessionTable(db: SQLiteDatabase) {
         // 单词 id 列表和页面状态都使用 JSON 文本，既保留顺序，也允许两种页面保存不同字段。
         db.execSQL(
@@ -1348,10 +1348,10 @@ class WordsDatabase(context: Context) :
     }
 
     /** 按小题 key 读取干扰项及正确答案位置；没有缓存时返回 null。 */
-    fun getDictationOptionCache(cacheKey: String): Map<String, Any?>? {
+    fun getListeningMeaningOptionCache(cacheKey: String): Map<String, Any?>? {
         // 精确查询主键，最多只会返回一行。
         readableDatabase.query(
-            "dictation_option_cache",
+            "listening_meaning_option_cache",
             arrayOf("distractors_json", "correct_index"),
             "cache_key = ?",
             arrayOf(cacheKey),
@@ -1381,7 +1381,7 @@ class WordsDatabase(context: Context) :
     }
 
     /** 新增或覆盖一道题的干扰项和正确答案位置。 */
-    fun saveDictationOptionCache(
+    fun saveListeningMeaningOptionCache(
         cacheKey: String,
         wordId: Long?,
         distractors: List<String>,
@@ -1399,14 +1399,14 @@ class WordsDatabase(context: Context) :
         }
         // PRIMARY KEY 冲突时整体替换，长按刷新可用一次写入覆盖旧数组。
         writableDatabase.insertWithOnConflict(
-            "dictation_option_cache",
+            "listening_meaning_option_cache",
             null,
             values,
             SQLiteDatabase.CONFLICT_REPLACE,
         )
     }
 
-    /** 读取全部未完成学习会话；当前最多返回随身听和默写两行。 */
+    /** 读取全部未完成学习会话；当前最多返回随身听和听音辨义两行。 */
     fun getLearningSessions(): List<Map<String, Any?>> {
         // 返回顺序按最近更新时间排列，未来首页若展示时间可直接复用。
         val sessions = ArrayList<Map<String, Any?>>()
@@ -1483,11 +1483,11 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 记录一次单词默写结果，并在同一事务内更新单词难度与复习时间。
+     * 记录一次单词听音辨义结果，并在同一事务内更新单词难度与复习时间。
      *
      * 规则：
      * 1. 每次提交都插入新记录，并更新单词的 reviewed_at。
-     * 2. 同一天重复默写同一个词会保留多条独立记录。
+     * 2. 同一天重复听音辨义同一个词会保留多条独立记录。
      * 3. 难度调整：
      *    - 本次错误（isCorrect = false，即中途选错过）→ 难度 +1；
      *    - 本次正确 → 从本次向前数「连续完美（无错）」的记录条数，再把本次计入总数。
@@ -1495,14 +1495,14 @@ class WordsDatabase(context: Context) :
      *      其余情况不动。遇到一次有错误的记录即终止计数，链条被错误打断就不再累加。
      *    - 难度有下限 0（words 表的 CHECK 约束不允许负数）。
      *
-     * @param wordId 本次完成默写的单词主键。
+     * @param wordId 本次完成听音辨义的单词主键。
      * @param isCorrect 本次是否没有选错候选项。
      * @param wrongCount 本次选错候选项的次数。
      * @param hintCount 本次点击提示的次数。
      * @param module 本次记录所属的稳定复习模式标识。
      * @return Unit
      */
-    fun addDictationRecord(
+    fun addListeningMeaningRecord(
         wordId: Long,
         isCorrect: Boolean,
         wrongCount: Int,
@@ -1520,7 +1520,7 @@ class WordsDatabase(context: Context) :
             // 先以当前难度作基准，下面再决定增减。
             var newDiff = curDiff
             if (!isCorrect) {
-                // 本次默写出过错：难度 +1，下次会更早被安排复习。
+                // 本次听音辨义出过错：难度 +1，下次会更早被安排复习。
                 newDiff = curDiff + 1
             } else {
                 // 本次正确：先数「本次之前」连续完美的历史条数（查询时本次记录尚未插入，天然不含本次）。
@@ -1534,7 +1534,7 @@ class WordsDatabase(context: Context) :
             // 插入本次记录（不再判断今天是否已有）。
             val now = System.currentTimeMillis()
             val values = ContentValues().apply {
-                // 不再写死 dictation，让首页四种模式可以分别按该字段统计进度。
+                // 不再写死 listeningMeaning，让首页四种模式可以分别按该字段统计进度。
                 put("module", module)
                 put("word_id", wordId)
                 put("is_correct", if (isCorrect) 1 else 0)
@@ -1588,14 +1588,14 @@ class WordsDatabase(context: Context) :
      * 调用方在插入「本次记录」之前调用本函数，因此按 id 倒序取到的记录全是本次之前的，
      * 天然不含本次；是否再降难度由调用方把本次累加后用「总数 > 1 且为 5 的倍数」判断。
      *
-     * 注意这里按"记录条"而不是"天"统计：一天内多次默写会产生多条记录，每条都算数。
+     * 注意这里按"记录条"而不是"天"统计：一天内多次听音辨义会产生多条记录，每条都算数。
      * 按 id 倒序（等价于写入顺序倒序）从最新往前数，遇到第一条错误立即停止——
      * 连续链条一旦被错误打断，更久以前的正确记录不再计入。
      *
      * 查询不加 LIMIT：必须数到第一条错误才停，截断会漏掉打断点导致计数偏多、
      * 进而误判"又是 5 的倍数"重复减难度。由于遇到错误即停，正常数据量下返回不会很大。
      *
-     * @param db 当前默写事务使用的 SQLite 连接。
+     * @param db 当前听音辨义事务使用的 SQLite 连接。
      * @param wordId 需要统计连续正确次数的单词主键。
      * @return 本次记录写入前连续完美的历史记录数量。
      */
@@ -1634,10 +1634,10 @@ class WordsDatabase(context: Context) :
      * 今日复习的单词数量：按天 + 按单词汇总。
      *
      * 首页副标题「今日复习 X/目标」用的就是它。由于同一个词一天可能有多条记录
-     * （重复默写、再试一次），必须用 COUNT(DISTINCT word_id) 去重，
+     * （重复听音辨义、再试一次），必须用 COUNT(DISTINCT word_id) 去重，
      * 否则同一个词练两遍会被算成两个词。
      *
-     * @return 今日完成过默写的不同单词数量。
+     * @return 今日完成过听音辨义的不同单词数量。
      */
     fun getTodayReviewWordCount(): Int {
         // 只读连接即可。
@@ -1646,13 +1646,13 @@ class WordsDatabase(context: Context) :
         val today = localDateString()
         // rawQuery 直接执行聚合 SQL，参数用占位符防注入。
         // 只统计"已开发的复习模块"：未开放玩法（词义连连等）即使以后误写入，
-        // 也不会让首页"今日复习 X/目标"提前虚涨。兼容历史 dictation 记录。
+        // 也不会让首页"今日复习 X/目标"提前虚涨。兼容历史 listeningMeaning 记录。
         db.rawQuery(
             """
             SELECT COUNT(DISTINCT word_id)
             FROM record
             WHERE created_date = ?
-              AND module IN ('listening_meaning', 'dictation')
+              AND module IN ('listening_meaning', 'listeningMeaning')
             """.trimIndent(),
             arrayOf(today),
         ).use { cursor ->
@@ -1666,8 +1666,8 @@ class WordsDatabase(context: Context) :
     /**
      * 按复习模式统计今日完成的单词数，每个模式内部按单词去重。
      *
-     * 普通默写使用 dictation，它不属于首页四种复习模块，因此查询只接收四个
-     * 稳定模块键。升级前的普通默写记录仍参与首页总复习量，但不会冒充听音辨义。
+     * 普通听音辨义使用 listeningMeaning，它不属于首页四种复习模块，因此查询只接收四个
+     * 稳定模块键。升级前的普通听音辨义记录仍参与首页总复习量，但不会冒充听音辨义。
      *
      * @return 按模块标识升序的列表，每项形如 {module: "listening_meaning", count: 12}。
      */
@@ -1726,7 +1726,7 @@ class WordsDatabase(context: Context) :
         val result = ArrayList<Map<String, Any?>>()
         // 模块白名单：曲线 / 打卡质量只统计已开发玩法，未开放模块的记录
         // 不参与总趋势，避免以后接入新玩法时旧图表口径悄悄变化。
-        val moduleFilter = "AND module IN ('listening_meaning', 'dictation')"
+        val moduleFilter = "AND module IN ('listening_meaning', 'listeningMeaning')"
         // 有起始日期就带上 WHERE 过滤，否则统计全部；占位符防注入。
         val cursor = if (sinceDate == null) {
             db.rawQuery(
@@ -1783,7 +1783,7 @@ class WordsDatabase(context: Context) :
         val result = ArrayList<Map<String, Any?>>()
         // 月份键截取前 7 位；WHERE 同样按月份键比较，保持口径一致。
         // 同样只统计已开发模块，与日粒度口径对齐。
-        val moduleFilter = "AND module IN ('listening_meaning', 'dictation')"
+        val moduleFilter = "AND module IN ('listening_meaning', 'listeningMeaning')"
         val whereClause = if (sinceYearMonth == null) "" else "WHERE substr(created_date, 1, 7) >= ?"
         val finalWhere = if (whereClause.isEmpty()) {
             "WHERE 1 = 1 $moduleFilter"
@@ -1815,11 +1815,11 @@ class WordsDatabase(context: Context) :
     }
 
     /**
-     * 读取今日全部默写记录，供"今日复习"展示。
+     * 读取今日全部听音辨义记录，供"今日复习"展示。
      *
      * 返回完整记录 Map 列表（每条含 word_id 等），Dart 端再去重出单词列表。
      *
-     * @return 今日全部默写记录，按写入时间升序排列。
+     * @return 今日全部听音辨义记录，按写入时间升序排列。
      */
     fun getTodayReviewWords(): List<Map<String, Any?>> {
         // 只读连接即可。

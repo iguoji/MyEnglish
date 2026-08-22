@@ -72,7 +72,7 @@ class HomeDashboard extends StatelessWidget {
   /// 点击汉堡菜单。
   final VoidCallback onMenuPressed;
 
-  /// 打开听音辨义；当前复用已有默写流程。
+  /// 打开听音辨义；当前复用已有听音辨义流程。
   final VoidCallback onOpenListeningMeaning;
 
   /// 打开词义连连页面。

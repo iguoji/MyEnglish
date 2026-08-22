@@ -22,18 +22,18 @@ import '../../common/toast.dart';
 import '../../common/date.dart';
 // Word 是全应用共享模型，不属于首页私有文件。
 import '../../models/word.dart';
-// 学习会话模型用于判断随身听和默写是否存在未完成历史。
+// 学习会话模型用于判断随身听和听音辨义是否存在未完成历史。
 import '../../models/learning_session.dart';
 // 每日公共复习计划保存四个模块当天共用的单词主键与冻结目标。
 import '../../models/daily_review_plan.dart';
-// 音频服务由首页、随身听和默写共同复用。
+// 音频服务由首页、随身听和听音辨义共同复用。
 import '../../services/word_audio.dart';
 // 离线语音缓存进度服务：首页加载词库后把单词列表交给它，供抽屉"离线语音"使用。
 import '../../services/word_audio_cache.dart';
 // 原生 SAF 文件读写服务：导入选 JSON、导出写文件，不依赖第三方 file_picker。
 import '../../services/file_io.dart';
-// 全屏默写页。
-import '../dictation/dictation_page.dart';
+// 全屏听音辨义页。
+import '../listening_meaning/listening_meaning_page.dart';
 // 全屏随身听页。
 import '../listening/listening_page.dart';
 // 词义连连骨架页（顶部框架已就位，候选词区域待接入）。
@@ -46,11 +46,11 @@ import '../../store/group.dart';
 import '../../store/settings.dart';
 // 单词 Store 同样放在页面目录之外，其他页面可以直接复用。
 import '../../store/word.dart';
-// 默写记录 Store：今日复习数量从真实 record 读取，而非写死 0。
+// 听音辨义记录 Store：今日复习数量从真实 record 读取，而非写死 0。
 import '../../store/record.dart';
 // 学习会话 Store 负责读取和删除本地恢复点。
 import '../../store/learning_session.dart';
-// 每日公共复习词单 Store 独立于普通随身听/默写会话。
+// 每日公共复习词单 Store 独立于普通随身听/听音辨义会话。
 import '../../store/daily_review_plan.dart';
 // 分组行：模式切换、筛选 chips 与分组管理入口。
 import 'widgets/group_filter_bar.dart';
@@ -284,7 +284,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late final NativeFileIo _fileIo;
 
   ///
-  /// 随身听和默写共用的学习会话持久化接口。
+  /// 随身听和听音辨义共用的学习会话持久化接口。
   ///
   /// @var LearningSessionStore
   ///
@@ -1094,7 +1094,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 读取随身听与默写的未完成会话，失败时只隐藏“继续”按钮，不影响首页主体。
+  /// 读取随身听与听音辨义的未完成会话，失败时只隐藏“继续”按钮，不影响首页主体。
   ///
   /// @return `Future<void>`
   ///
@@ -1212,25 +1212,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 打开一轮默写，并保留原有的复习数据定向回刷逻辑。
+  /// 打开一轮听音辨义，并保留原有的复习数据定向回刷逻辑。
   ///
   /// @param  `List<Word>`  words
   /// @param  LearningSession?  session
   /// @return `Future<void>`
   ///
-  Future<void> _openDictation(
+  Future<void> _openListeningMeaning(
     List<Word> words, {
     LearningSession? session,
-    String recordModule = 'dictation',
-    LearningSessionType sessionType = LearningSessionType.dictation,
+    String recordModule = 'listeningMeaning',
+    LearningSessionType sessionType = LearningSessionType.listeningMeaning,
   }) async {
     final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute<dynamic>(
-        builder: (_) => DictationPage(
+        builder: (_) => ListeningMeaningPage(
           words: words,
           audioPlayer: _audioPlayer,
           accent: _settings.accent,
-          // 普通默写和首页听音辨义传入不同模块键，今日完成量不会相互串用。
+          // 普通听音辨义和首页听音辨义传入不同模块键，今日完成量不会相互串用。
           recordModule: recordModule,
           // 会话类型也保持独立，两个入口可以分别记住各自的答题位置。
           sessionType: sessionType,
@@ -1242,7 +1242,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
     if (!mounted) return;
     if (result is List<int>) {
-      // 正常返回（顶部箭头）：DictationPage 调用 pop 并带回 id 列表，只回刷新单词即可。
+      // 正常返回（顶部箭头）：ListeningMeaningPage 调用 pop 并带回 id 列表，只回刷新单词即可。
       unawaited(_mergeReviewedWords(result));
     }
     // 无论顶部箭头还是手势返回，仪表盘上的四类进度都必须重算一次：
@@ -1290,13 +1290,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
     }
 
-    if (type == LearningSessionType.listeningMeaning) {
-      // 听音辨义复用成熟的默写流程，但使用首页模块专属记录键和会话键。
-      await _openDictation(
+    if (type == LearningSessionType.listeningMeaningReview) {
+      // 听音辨义复用成熟的听音辨义流程，但使用首页模块专属记录键和会话键。
+      await _openListeningMeaning(
         words,
         session: session,
         recordModule: ReviewModule.listeningMeaning,
-        sessionType: LearningSessionType.listeningMeaning,
+        sessionType: LearningSessionType.listeningMeaningReview,
       );
       return;
     }
@@ -1361,14 +1361,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (type == LearningSessionType.listening) {
       await _openListening(words, session: session);
     } else {
-      await _openDictation(words, session: session);
+      await _openListeningMeaning(words, session: session);
     }
   }
 
   ///
-  /// 默写返回后只回刷本次复习涉及的单词，避免重新加载整库。
+  /// 听音辨义返回后只回刷本次复习涉及的单词，避免重新加载整库。
   ///
-  /// [ids] 是本次默写完成过的单词主键集合；只向原生请求这些单词的最新数据
+  /// [ids] 是本次听音辨义完成过的单词主键集合；只向原生请求这些单词的最新数据
   /// （含更新后的 difficulty / reviewedAt），再用新对象原地替换 [_allWords] 中
   /// 同 id 的项，其余单词保持原位与顺序。原生或通道异常时静默忽略，界面不崩。
   ///
@@ -2461,7 +2461,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           .where((section) => section.words.isNotEmpty)
           .toList();
     }
-    // 当前可见（参与全选与随身听/默写目标）的全部单词。
+    // 当前可见（参与全选与随身听/听音辨义目标）的全部单词。
     final visibleWords = <Word>[
       for (final section in shownSections) ...section.words,
     ];
@@ -2481,7 +2481,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           isActive: activeFilter == section.key,
         ),
     ];
-    // 随身听/默写的目标数量：有勾选用勾选数，否则用全部可见数。
+    // 随身听/听音辨义的目标数量：有勾选用勾选数，否则用全部可见数。
     final selectedVisible = visibleWords.where(_selectedWords.contains).length;
     final targetCount = selectedVisible > 0
         ? selectedVisible
@@ -2496,8 +2496,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final hasListeningSession = _learningSessions.containsKey(
       LearningSessionType.listening,
     );
-    final hasDictationSession = _learningSessions.containsKey(
-      LearningSessionType.dictation,
+    final hasListeningMeaningSession = _learningSessions.containsKey(
+      LearningSessionType.listeningMeaning,
     );
     // 四种复习模块首次生成词单后冻结目标；顶部总目标仍即时反映设置值。
     final reviewModeDailyGoal =
@@ -2595,7 +2595,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   onOpenListeningMeaning: () {
                     unawaited(
                       _openReviewModule(
-                        type: LearningSessionType.listeningMeaning,
+                        type: LearningSessionType.listeningMeaningReview,
                         title: '听音辨义',
                       ),
                     );
@@ -2709,7 +2709,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                   targetCount: targetCount,
                   hasListeningSession: hasListeningSession,
-                  hasDictationSession: hasDictationSession,
+                  hasListeningMeaningSession: hasListeningMeaningSession,
                   onOpenListening: () {
                     if (learningWords.isEmpty) {
                       _showComingSoon('当前列表没有可学习单词');
@@ -2717,18 +2717,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     }
                     unawaited(_openListening(learningWords));
                   },
-                  onOpenDictation: () {
+                  onOpenListeningMeaning: () {
                     if (learningWords.isEmpty) {
                       _showComingSoon('当前列表没有可学习单词');
                       return;
                     }
-                    unawaited(_openDictation(learningWords));
+                    unawaited(_openListeningMeaning(learningWords));
                   },
                   onContinueListening: () => unawaited(
                     _continueLearning(LearningSessionType.listening),
                   ),
-                  onContinueDictation: () => unawaited(
-                    _continueLearning(LearningSessionType.dictation),
+                  onContinueListeningMeaning: () => unawaited(
+                    _continueLearning(LearningSessionType.listeningMeaning),
                   ),
                 ),
               ],

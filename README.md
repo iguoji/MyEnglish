@@ -2,7 +2,7 @@
 
 MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用。词库、分组、复习记录和学习进度主要保存在手机本地，不需要注册账号。
 
-当前版本：`v0.25.1`（构建号 `19`）
+当前版本：`v0.25.2`（构建号 `20`）
 
 > 当前只提供 Android 版本，暂不支持 iPhone 和 iPad。
 
@@ -47,7 +47,7 @@ MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用�
 
 “含义”排序会先比较释义数量；数量相同时，再比较全部释义文字的字符总数。
 
-## 随身听与默写
+## 随身听与听音辨义
 
 词库底部提供两个普通学习入口。没有勾选单词时使用当前可见列表；勾选后只使用已选单词。
 
@@ -60,13 +60,13 @@ MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用�
 - 支持锁屏、通知栏和蓝牙耳机媒体控制。
 - 退出后保存进度，可从词库底部继续。
 
-### 默写
+### 听音辨义
 
 - 先根据发音选择正确的英文单词。
 - 再依次选择对应的中文释义。
 - 记录错误次数、提示次数和答题结果。
 - 错误会提高单词难度；连续正确达到规则要求后会降低难度。
-- 候选项和未完成进度会保存在本地，可在当天之外继续普通默写。
+- 候选项和未完成进度会保存在本地，可在当天之外继续普通听音辨义。
 
 ## 今日复习
 
@@ -74,7 +74,7 @@ MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用�
 
 | 模式 | 当前状态 | 说明 |
 |---|---|---|
-| 听音辨义 | 可用 | 复用成熟的默写流程，完成量单独计入该模式 |
+| 听音辨义 | 可用 | 首页复习入口与词库底部普通听音辨义共用同一套流程，完成量单独计入该模式 |
 | 词义连连 | 可用 | 限时把英文和中文释义两两连线，界面复刻 `ui/词义连连.html` 原型 |
 | 拼写巩固 | 暂未开放 | 当前进入独立占位页 |
 | 看义选词 | 暂未开放 | 当前进入独立占位页 |
@@ -160,7 +160,7 @@ TTS 是手机系统提供的文字转语音功能。应用只选择系统标记�
 | Dart SDK 约束 | `^3.12.2` |
 | Java | `17` |
 | Gradle | `9.1.0` |
-| 应用版本 | `0.25.1+19` |
+| 应用版本 | `0.25.2+20` |
 | SQLite 结构版本 | `11` |
 | Android applicationId | `com.example.my_english` |
 
@@ -172,7 +172,7 @@ TTS 是手机系统提供的文字转语音功能。应用只选择系统标记�
 Flutter 页面
 ├── HomePage：首页仪表盘、词库抽屉与数据管理
 ├── ListeningPage：随身听
-├── DictationPage：普通默写与听音辨义
+├── ListeningMeaningPage：普通听音辨义与首页听音辨义复习
 └── ReviewUnavailablePage：三个未开放复习模式的占位页
       │
       ├── Dart models：业务数据模型
@@ -214,9 +214,9 @@ Flutter 页面
 | `groups` | 自定义分组 |
 | `group_positions` | 分组在界面中的顺序 |
 | `group_members` | 单词与分组的多对多关系 |
-| `record` | 每次默写结果、模块、错误、提示与难度变化 |
-| `dictation_option_cache` | 每道默写题的候选项和正确答案位置 |
-| `learning_sessions` | 随身听、普通默写和四种复习模块的进度 |
+| `record` | 每次听音辨义结果、模块、错误、提示与难度变化 |
+| `listening_meaning_option_cache` | 每道听音辨义题的候选项和正确答案位置 |
+| `learning_sessions` | 随身听、普通听音辨义和四种复习模块的进度 |
 | `daily_review_plans` | 当天四种复习模块共用的单词主键顺序 |
 
 数据库版本 11 为 `daily_review_plans` 增加 `selection_version`。选词规则变化时递增 Dart 侧 `DailyReviewSelector.selectionVersion`，旧计划会保留当天目标数量并按新规则重建一次。
@@ -268,7 +268,7 @@ reviewedAt 是否为空
 
 当天首次打开任意复习模块时生成 `daily_review_plans`；此后四个模块复用相同 `word_ids` 顺序。每个模式通过独立的 `LearningSessionType` 保存进度，通过独立的 `record.module` 统计完成量。
 
-首页统计（顶部「今日复习 X/目标」、复习量趋势曲线、月历打卡热力图）只统计已开发模块的数据。当前仅 `listening_meaning` 参与统计，并兼容旧的 `dictation` 默写记录；未开放的 `meaning_match` / `spelling_reinforcement` / `meaning_word_choice` 即使写入数据也不会影响整体进度。未来某个玩法开放时，只需把它的 `module` 加入原生统计的白名单即可。
+首页统计（顶部「今日复习 X/目标」、复习量趋势曲线、月历打卡热力图）只统计已开发模块的数据。当前仅 `listening_meaning` 参与统计，并兼容旧的 `listeningMeaning` 听音辨义记录；未开放的 `meaning_match` / `spelling_reinforcement` / `meaning_word_choice` 即使写入数据也不会影响整体进度。未来某个玩法开放时，只需把它的 `module` 加入原生统计的白名单即可。
 
 ## 音频实现
 
@@ -340,7 +340,7 @@ my_english/build/app/outputs/flutter-apk/app-release.apk
 `my_english/pubspec.yaml` 是应用版本号的唯一手工数据源：
 
 ```yaml
-version: 0.25.1+19
+version: 0.25.2+20
 ```
 
 修改后同步应用内展示信息：

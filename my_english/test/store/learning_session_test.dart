@@ -66,15 +66,15 @@ void main() {
     expect(sessions.single.state['isPlaying'], isFalse);
     expect(sessions.single.updatedAt?.millisecondsSinceEpoch, 1234);
 
-    // 保存默写状态，确认复杂字段仍以 JSON 字符串传输。
+    // 保存听音辨义状态，确认复杂字段仍以 JSON 字符串传输。
     await store.save(
       const LearningSession(
-        type: LearningSessionType.dictation,
+        type: LearningSessionType.listeningMeaning,
         wordIds: <int>[3, 9],
         state: <String, Object?>{'wordIndex': 1, 'stage': 'definition'},
       ),
     );
-    await store.delete(LearningSessionType.dictation);
+    await store.delete(LearningSessionType.listeningMeaning);
 
     expect(calls.first, isMethodCall('getLearningSessions', arguments: null));
     expect(
@@ -82,7 +82,7 @@ void main() {
       isMethodCall(
         'saveLearningSession',
         arguments: <String, Object?>{
-          'session_type': 'dictation',
+          'session_type': 'listeningMeaning',
           'word_ids_json': '[3,9]',
           'state_json': '{"wordIndex":1,"stage":"definition"}',
         },
@@ -92,7 +92,7 @@ void main() {
       calls.last,
       isMethodCall(
         'deleteLearningSession',
-        arguments: <String, Object?>{'session_type': 'dictation'},
+        arguments: <String, Object?>{'session_type': 'listeningMeaning'},
       ),
     );
   });
@@ -103,7 +103,7 @@ void main() {
       final store = MemoryLearningSessionStore();
       final persistence = LearningSessionPersistence(
         store: store,
-        type: LearningSessionType.dictation,
+        type: LearningSessionType.listeningMeaning,
       );
 
       await persistence.save(
@@ -145,7 +145,7 @@ void main() {
     // 模拟页面 getter 第一次创建持久化门面并触发旧快照保存。
     final firstPersistence = LearningSessionPersistence(
       store: store,
-      type: LearningSessionType.dictation,
+      type: LearningSessionType.listeningMeaning,
     );
     // 启动第一项保存但不等待，因为它会被测试 Store 主动挂起。
     final firstSave = firstPersistence.save(
@@ -160,7 +160,7 @@ void main() {
     // 模拟页面 getter 再次创建新门面并触发更新后的快照。
     final secondSave = LearningSessionPersistence(
       store: store,
-      type: LearningSessionType.dictation,
+      type: LearningSessionType.listeningMeaning,
     ).save(wordIds: <int?>[1], state: <String, Object?>{'wordIndex': 1});
     // 再让微任务运行；若没有共享队列，第二项此时也会进入 Store。
     await Future<void>.delayed(Duration.zero);

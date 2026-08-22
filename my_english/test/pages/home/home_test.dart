@@ -18,7 +18,7 @@ import 'package:my_english/models/learning_session.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入两个学习页，核对它们收到的单词快照与首页完全一致。
-import 'package:my_english/pages/dictation/dictation_page.dart';
+import 'package:my_english/pages/listening_meaning/listening_meaning_page.dart';
 import 'package:my_english/pages/listening/listening_page.dart';
 // 引入单词行，检查高度、徽章与展开内容。
 import 'package:my_english/pages/home/widgets/word_list_tile.dart';
@@ -1569,14 +1569,14 @@ void main() {
     // 不再显示悬浮“学习”按钮，两个入口固定在单词列表底部安全区。
     expect(find.text('学习'), findsNothing);
     expect(find.text('随身听 · 2'), findsOneWidget);
-    expect(find.text('默写 · 2'), findsOneWidget);
+    expect(find.text('听音辨义 · 2'), findsOneWidget);
     // 没有本地未完成会话时，右侧不能预留空的继续按钮或间距。
     expect(
       find.byKey(const Key('word-library-listening-continue')),
       findsNothing,
     );
     expect(
-      find.byKey(const Key('word-library-dictation-continue')),
+      find.byKey(const Key('word-library-listening-meaning-continue')),
       findsNothing,
     );
 
@@ -1601,7 +1601,7 @@ void main() {
         },
       ),
       const LearningSession(
-        type: LearningSessionType.dictation,
+        type: LearningSessionType.listeningMeaning,
         wordIds: <int>[1, 2],
         state: <String, Object?>{'wordIndex': 0, 'stage': 'word'},
       ),
@@ -1616,7 +1616,7 @@ void main() {
       find.byKey(const Key('word-library-listening-continue')),
     );
     expect(
-      find.byKey(const Key('word-library-dictation-continue')),
+      find.byKey(const Key('word-library-listening-meaning-continue')),
       findsOneWidget,
     );
     // 继续按钮固定在随身听入口的最右侧，并保持 40 像素独立点击宽度。
@@ -1638,7 +1638,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证未勾选时，随身听和默写都接收首页当前完整列表顺序。
+  // 验证未勾选时，随身听和听音辨义都接收首页当前完整列表顺序。
   testWidgets('learning pages receive the same full ordered snapshot', (
     tester,
   ) async {
@@ -1668,15 +1668,15 @@ void main() {
     await tester.tap(find.byKey(const Key('close-listening')));
     await tester.pumpAndSettle();
 
-    // 从另一个平铺入口进入默写。
-    await tester.tap(find.byKey(const Key('word-library-dictation-action')));
+    // 从另一个平铺入口进入听音辨义。
+    await tester.tap(find.byKey(const Key('word-library-listening-meaning-action')));
     await tester.pumpAndSettle();
-    // 默写的真正学习列表必须与刚才的随身听完全相同。
-    final dictationPage = tester.widget<DictationPage>(
-      find.byType(DictationPage),
+    // 听音辨义的真正学习列表必须与刚才的随身听完全相同。
+    final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
+      find.byType(ListeningMeaningPage),
     );
     expect(
-      dictationPage.words.map((word) => word.id).toList(growable: false),
+      listeningMeaningPage.words.map((word) => word.id).toList(growable: false),
       <int?>[22, 23, 21],
     );
     // 销毁学习页并停止测试音频。
@@ -1720,15 +1720,15 @@ void main() {
     await tester.tap(find.byKey(const Key('close-listening')));
     await tester.pumpAndSettle();
 
-    // 打开默写。
-    await tester.tap(find.byKey(const Key('word-library-dictation-action')));
+    // 打开听音辨义。
+    await tester.tap(find.byKey(const Key('word-library-listening-meaning-action')));
     await tester.pumpAndSettle();
-    // 默写收到的学习列表必须与随身听一致。
-    final dictationPage = tester.widget<DictationPage>(
-      find.byType(DictationPage),
+    // 听音辨义收到的学习列表必须与随身听一致。
+    final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
+      find.byType(ListeningMeaningPage),
     );
     expect(
-      dictationPage.words.map((word) => word.id).toList(growable: false),
+      listeningMeaningPage.words.map((word) => word.id).toList(growable: false),
       <int?>[23, 21],
     );
     // 清理页面。

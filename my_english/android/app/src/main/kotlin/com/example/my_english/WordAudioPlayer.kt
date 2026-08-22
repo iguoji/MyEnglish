@@ -805,7 +805,7 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
                     synchronized(cacheMutationLock) {
                         if (audioFile.exists()) audioFile.delete()
                     }
-                    // 返回可恢复错误；Dart 默写页收到后会自动重试一次远程下载。
+                    // 返回可恢复错误；Dart 听音辨义页收到后会自动重试一次远程下载。
                     finishWithError(
                         "AUDIO_PLAYBACK_FAILED",
                         "音频文件无法解码，已清除缓存，请点击重试（$what/$extra）",

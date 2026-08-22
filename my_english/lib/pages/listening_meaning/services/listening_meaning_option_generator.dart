@@ -2,11 +2,11 @@
 import '../../../models/word.dart';
 
 ///
-/// 默写候选项生成器，作用类似 PHP 中只负责数据规则的 Service。
+/// 听音辨义候选项生成器，作用类似 PHP 中只负责数据规则的 Service。
 ///
 /// 这个类不依赖 Widget 或页面状态，因此可以独立测试“始终三个干扰项”和相似度排序。
 ///
-abstract final class DictationOptionGenerator {
+abstract final class ListeningMeaningOptionGenerator {
   ///
   /// 英文元音集合，替换元音时只在同类字母中选择。
   ///

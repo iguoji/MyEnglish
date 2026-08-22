@@ -222,7 +222,7 @@ class LocalWordStore implements WordStore {
   }
 
   ///
-  /// 清空本地全部单词、释义、分组、记录、默写候选缓存与学习会话。
+  /// 清空本地全部单词、释义、分组、记录、听音辨义候选缓存与学习会话。
   ///
   /// @return `Future<void>`
   ///

@@ -26,51 +26,51 @@ import '../../services/word_audio.dart';
 // 引入口音设置枚举。
 import '../../store/settings.dart';
 // 引入独立候选项生成服务，页面只负责当前答题状态。
-import 'services/dictation_option_generator.dart';
-// 引入默写记录 Store：点击下一题时写入结果并驱动难度变化。
+import 'services/listening_meaning_option_generator.dart';
+// 引入听音辨义记录 Store：点击下一题时写入结果并驱动难度变化。
 import '../../store/record.dart';
-// 引入默写候选项缓存 Store，让每道题长期复用相同干扰项。
-import '../../store/dictation_option_cache.dart';
+// 引入听音辨义候选项缓存 Store，让每道题长期复用相同干扰项。
+import '../../store/listening_meaning_option_cache.dart';
 // 引入学习会话 Store，持续保存本轮单词顺序与答题进度。
 import '../../store/learning_session.dart';
-// 引入默写页面集中管理的布局尺寸。
-import 'widgets/dictation_layout.dart';
+// 引入听音辨义页面集中管理的布局尺寸。
+import 'widgets/listening_meaning_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
-import 'widgets/dictation_question_content.dart';
+import 'widgets/listening_meaning_question_content.dart';
 
 ///
-/// 默写的两个答题阶段：先辨认拼写，再逐条辨认释义。
+/// 听音辨义的两个答题阶段：先辨认拼写，再逐条辨认释义。
 ///
-enum DictationStage {
+enum ListeningMeaningStage {
   ///
   /// 根据发音选择正确英文拼写的阶段。
   ///
-  /// @var DictationStage
+  /// @var ListeningMeaningStage
   ///
   word,
 
   ///
   /// 按顺序选择每条中文释义的阶段。
   ///
-  /// @var DictationStage
+  /// @var ListeningMeaningStage
   ///
   definition,
 }
 
 ///
-/// 一个可点击的默写候选答案。
+/// 一个可点击的听音辨义候选答案。
 ///
 /// @property String text 用户看到的候选文本。
 /// @property bool isCorrect 是否为当前小题正确答案。
 ///
-class DictationOption {
+class ListeningMeaningOption {
   ///
-  /// 创建默写候选答案。
+  /// 创建听音辨义候选答案。
   ///
   /// @param  String  text 用户看到的候选文本。
   /// @param  bool  isCorrect 是否为当前小题正确答案。
   ///
-  const DictationOption({required this.text, required this.isCorrect});
+  const ListeningMeaningOption({required this.text, required this.isCorrect});
 
   ///
   /// 用户看到的候选文本。
@@ -88,41 +88,41 @@ class DictationOption {
 }
 
 ///
-/// 全屏默写页面。
+/// 全屏听音辨义页面。
 ///
-class DictationPage extends StatefulWidget {
+class ListeningMeaningPage extends StatefulWidget {
   ///
-  /// 创建单词默写页面。
+  /// 创建单词听音辨义页面。
   ///
   /// @param  `List<Word>`  words 本轮固定顺序的学习列表。
   /// @param  WordAudioPlayer  audioPlayer 单词发音服务。
   /// @param  PronunciationAccent  accent 当前发音口音。
-  /// @param  RecordStore?  recordStore 可替换的默写记录 Store。
+  /// @param  RecordStore?  recordStore 可替换的听音辨义记录 Store。
   /// @param  String  recordModule 本轮完成记录所属的复习模式。
   /// @param  LearningSessionType  sessionType 本页面独立保存进度时使用的会话类型。
-  /// @param  DictationOptionCacheStore?  optionCacheStore 可替换的候选缓存 Store。
+  /// @param  ListeningMeaningOptionCacheStore?  optionCacheStore 可替换的候选缓存 Store。
   /// @param  LearningSession?  initialSession 需要恢复的历史会话。
   /// @param  LearningSessionStore?  sessionStore 可替换的学习会话 Store。
   /// @param  String  definitionSeparator 多条释义之间的分隔符。
   ///
   /// @param  Key?  key
   ///
-  const DictationPage({
+  const ListeningMeaningPage({
     required this.words,
     required this.audioPlayer,
     required this.accent,
     this.recordStore,
-    this.recordModule = 'dictation',
-    this.sessionType = LearningSessionType.dictation,
+    this.recordModule = 'listeningMeaning',
+    this.sessionType = LearningSessionType.listeningMeaning,
     this.optionCacheStore,
     this.initialSession,
     this.sessionStore,
     this.definitionSeparator = '、',
     super.key,
-  }) : assert(words.length > 0, '默写页至少需要一个学习单词');
+  }) : assert(words.length > 0, '听音辨义页至少需要一个学习单词');
 
   ///
-  /// 本轮参与默写的单词。
+  /// 本轮参与听音辨义的单词。
   ///
   /// @var `List<Word>`
   ///
@@ -143,7 +143,7 @@ class DictationPage extends StatefulWidget {
   final PronunciationAccent accent;
 
   ///
-  /// 默写记录存储；正式环境使用全局实例，测试可注入独立通道。
+  /// 听音辨义记录存储；正式环境使用全局实例，测试可注入独立通道。
   ///
   /// @var RecordStore?
   ///
@@ -157,7 +157,7 @@ class DictationPage extends StatefulWidget {
   final String recordModule;
 
   ///
-  /// 当前入口专用的学习会话类型；普通默写与听音辨义互不覆盖进度。
+  /// 当前入口专用的学习会话类型；普通听音辨义与听音辨义互不覆盖进度。
   ///
   /// @var LearningSessionType
   ///
@@ -166,12 +166,12 @@ class DictationPage extends StatefulWidget {
   ///
   /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
   ///
-  /// @var DictationOptionCacheStore?
+  /// @var ListeningMeaningOptionCacheStore?
   ///
-  final DictationOptionCacheStore? optionCacheStore;
+  final ListeningMeaningOptionCacheStore? optionCacheStore;
 
   ///
-  /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新默写。
+  /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新听音辨义。
   ///
   /// @var LearningSession?
   ///
@@ -192,18 +192,18 @@ class DictationPage extends StatefulWidget {
   final String definitionSeparator;
 
   ///
-  /// 创建默写页面状态。
+  /// 创建听音辨义页面状态。
   ///
-  /// @return `State<DictationPage>` 管理答题、播放和恢复流程的状态对象。
+  /// @return `State<ListeningMeaningPage>` 管理答题、播放和恢复流程的状态对象。
   ///
   @override
-  State<DictationPage> createState() => _DictationPageState();
+  State<ListeningMeaningPage> createState() => _ListeningMeaningPageState();
 }
 
 ///
-/// 管理默写页面的题目进度、候选项、播放状态和会话持久化。
+/// 管理听音辨义页面的题目进度、候选项、播放状态和会话持久化。
 ///
-class _DictationPageState extends State<DictationPage>
+class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     with WidgetsBindingObserver {
   ///
   /// 使用固定种子生成稳定且可复现的候选顺序。
@@ -222,9 +222,9 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// 当前正在进行拼写选择还是释义选择。
   ///
-  /// @var DictationStage
+  /// @var ListeningMeaningStage
   ///
-  DictationStage _stage = DictationStage.word;
+  ListeningMeaningStage _stage = ListeningMeaningStage.word;
 
   ///
   /// 当前词性组在有效释义列表中的下标。
@@ -310,7 +310,7 @@ class _DictationPageState extends State<DictationPage>
   ///
   int _playGeneration = 0;
 
-  /// 当前进入默写页面后是否已经提示过系统 TTS。
+  /// 当前进入听音辨义页面后是否已经提示过系统 TTS。
   /// @var bool
   bool _hasShownTtsNotice = false;
 
@@ -331,9 +331,9 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// 当前拼写或释义步骤展示的四个候选项。
   ///
-  /// @var `List<DictationOption>`
+  /// @var `List<ListeningMeaningOption>`
   ///
-  List<DictationOption> _options = const [];
+  List<ListeningMeaningOption> _options = const [];
 
   ///
   /// 已经选错的候选文本集合，界面会标红并禁用这些项。
@@ -357,26 +357,26 @@ class _DictationPageState extends State<DictationPage>
   bool _restoredExactOptions = false;
 
   ///
-  /// 当前正在默写的单词。
+  /// 当前正在听音辨义的单词。
   ///
-  /// @return Word 默写列表当前下标对应的单词。
+  /// @return Word 听音辨义列表当前下标对应的单词。
   ///
   Word get _currentWord => widget.words[_wordIndex];
 
   ///
   /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
   ///
-  /// @return RecordStore 当前页面实际使用的默写记录 Store。
+  /// @return RecordStore 当前页面实际使用的听音辨义记录 Store。
   ///
   RecordStore get _recordStore => widget.recordStore ?? RecordStore.instance;
 
   ///
   /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
   ///
-  /// @return DictationOptionCacheStore 当前页面实际使用的候选缓存 Store。
+  /// @return ListeningMeaningOptionCacheStore 当前页面实际使用的候选缓存 Store。
   ///
-  DictationOptionCacheStore get _optionCacheStore =>
-      widget.optionCacheStore ?? DictationOptionCacheStore.instance;
+  ListeningMeaningOptionCacheStore get _optionCacheStore =>
+      widget.optionCacheStore ?? ListeningMeaningOptionCacheStore.instance;
 
   ///
   /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
@@ -389,7 +389,7 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// 当前页面的会话持久化入口。
   ///
-  /// @return LearningSessionPersistence 已绑定默写类型的持久化门面。
+  /// @return LearningSessionPersistence 已绑定听音辨义类型的持久化门面。
   ///
   LearningSessionPersistence get _sessionPersistence =>
       LearningSessionPersistence(
@@ -417,7 +417,7 @@ class _DictationPageState extends State<DictationPage>
       .length;
 
   ///
-  /// 初始化默写页面并恢复可用的历史状态。
+  /// 初始化听音辨义页面并恢复可用的历史状态。
   ///
   /// @return void
   ///
@@ -430,7 +430,7 @@ class _DictationPageState extends State<DictationPage>
     _restoreInitialSession();
     // 完成待提交态没有候选；普通状态若快照无合法候选则同步生成标准四选一。
     if (_isCurrentWordComplete) {
-      _options = const <DictationOption>[];
+      _options = const <ListeningMeaningOption>[];
     } else if (!_restoredExactOptions) {
       _options = _buildOptions();
     }
@@ -448,12 +448,12 @@ class _DictationPageState extends State<DictationPage>
   }
 
   ///
-  /// 从历史会话恢复当前默写状态；所有动态字段都经过边界校验。
+  /// 从历史会话恢复当前听音辨义状态；所有动态字段都经过边界校验。
   ///
   /// @return void
   ///
   void _restoreInitialSession() {
-    // 没有会话就是一次全新的默写。
+    // 没有会话就是一次全新的听音辨义。
     final session = widget.initialSession;
     if (session == null || session.type != widget.sessionType) {
       return;
@@ -465,12 +465,12 @@ class _DictationPageState extends State<DictationPage>
       fallback: 0,
     ).clamp(0, widget.words.length - 1);
     // 只有明确的 definition 才进入释义阶段，其余坏值安全回到拼写阶段。
-    _stage = state['stage'] == DictationStage.definition.name
-        ? DictationStage.definition
-        : DictationStage.word;
+    _stage = state['stage'] == ListeningMeaningStage.definition.name
+        ? ListeningMeaningStage.definition
+        : ListeningMeaningStage.word;
     // 当前单词没有可答释义时不能恢复到 definition，否则 getter 会越界。
-    if (_availableMeanings.isEmpty) _stage = DictationStage.word;
-    if (_stage == DictationStage.definition) {
+    if (_availableMeanings.isEmpty) _stage = ListeningMeaningStage.word;
+    if (_stage == ListeningMeaningStage.definition) {
       _meaningIndex = readLearningSessionInt(
         state['meaningIndex'],
         fallback: 0,
@@ -523,7 +523,7 @@ class _DictationPageState extends State<DictationPage>
     // 候选快照必须恰好四项、只有一个正确项且文本仍匹配当前正确答案。
     final rawOptions = state['options'];
     if (!_isCurrentWordComplete && rawOptions is List) {
-      final restored = <DictationOption>[];
+      final restored = <ListeningMeaningOption>[];
       for (final rawOption in rawOptions) {
         if (rawOption is! Map ||
             rawOption['text'] is! String ||
@@ -532,7 +532,7 @@ class _DictationPageState extends State<DictationPage>
           break;
         }
         restored.add(
-          DictationOption(
+          ListeningMeaningOption(
             text: rawOption['text']! as String,
             isCorrect: rawOption['isCorrect']! as bool,
           ),
@@ -550,7 +550,7 @@ class _DictationPageState extends State<DictationPage>
           normalizedOptionTexts.length == 4 &&
           correctOptions.length == 1 &&
           correctOptions.single.text == _currentCorrectAnswer) {
-        _options = List<DictationOption>.unmodifiable(restored);
+        _options = List<ListeningMeaningOption>.unmodifiable(restored);
         _restoredExactOptions = true;
       }
     }
@@ -604,7 +604,7 @@ class _DictationPageState extends State<DictationPage>
   );
 
   ///
-  /// 整轮完成后删除默写会话，首页随即隐藏对应“继续”入口。
+  /// 整轮完成后删除听音辨义会话，首页随即隐藏对应“继续”入口。
   ///
   /// @return `Future<void>` 会话删除完成后的异步结果。
   ///
@@ -615,7 +615,7 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// @return String 当前候选列表唯一的正确文本。
   ///
-  String get _currentCorrectAnswer => _stage == DictationStage.word
+  String get _currentCorrectAnswer => _stage == ListeningMeaningStage.word
       ? _currentWord.spelling
       : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
 
@@ -626,7 +626,7 @@ class _DictationPageState extends State<DictationPage>
   ///
   String get _currentOptionCacheKey {
     // 拼写题由版本、类型、单词主键和当前拼写共同确定。
-    if (_stage == DictationStage.word) {
+    if (_stage == ListeningMeaningStage.word) {
       return jsonEncode(<Object?>[
         'v1',
         'word',
@@ -657,13 +657,13 @@ class _DictationPageState extends State<DictationPage>
   ///
   List<String> _generateCurrentDistractors({int count = 3}) {
     // 拼写题与释义题分别复用原有生成规则，来源仍严格限制在本轮学习列表。
-    return _stage == DictationStage.word
-        ? DictationOptionGenerator.buildWordDistractors(
+    return _stage == ListeningMeaningStage.word
+        ? ListeningMeaningOptionGenerator.buildWordDistractors(
             correct: _currentCorrectAnswer,
             sourceWords: widget.words,
             count: count,
           )
-        : DictationOptionGenerator.buildDefinitionDistractors(
+        : ListeningMeaningOptionGenerator.buildDefinitionDistractors(
             correct: _currentCorrectAnswer,
             sourceWords: widget.words,
             count: count,
@@ -675,9 +675,9 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// @param  `List<String>?`  distractors 可复用的固定干扰项；为空时现场生成。
   /// @param  int?  correctIndex 正确答案的固定下标；为空时只在首次生成时随机一次。
-  /// @return `List<DictationOption>` 一个正确项加三个干扰项的只读列表。
+  /// @return `List<ListeningMeaningOption>` 一个正确项加三个干扰项的只读列表。
   ///
-  List<DictationOption> _buildOptions({
+  List<ListeningMeaningOption> _buildOptions({
     List<String>? distractors,
     int? correctIndex,
   }) {
@@ -685,9 +685,9 @@ class _DictationPageState extends State<DictationPage>
     final resolvedDistractors = distractors ?? _generateCurrentDistractors();
     // 候选生成器固定返回三个唯一干扰项，并优先使用同长度与相似度规则。
     // 先保持三个干扰项的缓存顺序，稍后再把正确答案插入其固定位置。
-    final options = <DictationOption>[
+    final options = <ListeningMeaningOption>[
       for (final distractor in resolvedDistractors.take(3))
-        DictationOption(text: distractor, isCorrect: false),
+        ListeningMeaningOption(text: distractor, isCorrect: false),
     ];
     // 没有历史位置表示首次生成，用随机位置避免所有正确答案总在同一行。
     final resolvedCorrectIndex =
@@ -699,20 +699,20 @@ class _DictationPageState extends State<DictationPage>
     // 正确答案文本永远取当前模型，只把位置作为缓存的一部分长期复用。
     options.insert(
       safeCorrectIndex,
-      DictationOption(text: _currentCorrectAnswer, isCorrect: true),
+      ListeningMeaningOption(text: _currentCorrectAnswer, isCorrect: true),
     );
     // 再次冻结列表，状态层只在进入下一小题时整体替换它。
-    return List<DictationOption>.unmodifiable(options);
+    return List<ListeningMeaningOption>.unmodifiable(options);
   }
 
   ///
   /// 从当前四个可见候选提取可持久化的三个干扰项和正确答案位置。
   ///
-  /// @param  `List<DictationOption>`  options 当前完整四选一。
-  /// @return DictationOptionCacheEntry 可直接写入 SQLite 的缓存数据。
+  /// @param  `List<ListeningMeaningOption>`  options 当前完整四选一。
+  /// @return ListeningMeaningOptionCacheEntry 可直接写入 SQLite 的缓存数据。
   ///
-  DictationOptionCacheEntry _cacheEntryFromOptions(
-    List<DictationOption> options,
+  ListeningMeaningOptionCacheEntry _cacheEntryFromOptions(
+    List<ListeningMeaningOption> options,
   ) {
     // 标准列表只有一个正确项；若未来调用给出坏数据，indexWhere 的 -1 会被 Store 拒绝。
     final correctIndex = options.indexWhere((option) => option.isCorrect);
@@ -721,7 +721,7 @@ class _DictationPageState extends State<DictationPage>
         .where((option) => !option.isCorrect)
         .map((option) => option.text)
         .toList(growable: false);
-    return DictationOptionCacheEntry(
+    return ListeningMeaningOptionCacheEntry(
       distractors: List<String>.unmodifiable(distractors),
       correctIndex: correctIndex,
     );
@@ -730,11 +730,11 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
   ///
-  /// @param  DictationOptionCacheEntry  cache 缓存中的三个干扰项和正确答案位置。
+  /// @param  ListeningMeaningOptionCacheEntry  cache 缓存中的三个干扰项和正确答案位置。
   /// @param  String  correct 当前小题正确答案。
   /// @return bool 候选数量、唯一性和排除正确答案是否全部有效。
   ///
-  bool _isValidCachedOptions(DictationOptionCacheEntry cache, String correct) {
+  bool _isValidCachedOptions(ListeningMeaningOptionCacheEntry cache, String correct) {
     // 取出三个干扰项，下面统一执行数量和文本检查。
     final distractors = cache.distractors;
     // 必须精确三项，否则继续使用页面已经同步生成的标准结果。
@@ -805,7 +805,7 @@ class _DictationPageState extends State<DictationPage>
       );
     } catch (error) {
       // 缓存是体验增强，不应因原生通道异常阻断答题；保留同步生成结果即可。
-      debugPrint('读取或保存默写候选缓存失败：$error');
+      debugPrint('读取或保存听音辨义候选缓存失败：$error');
     }
   }
 
@@ -903,7 +903,7 @@ class _DictationPageState extends State<DictationPage>
   void _showHint() {
     // 整轮或当前单词已经完成时，不再改变提示状态。
     if (_isDone || _isCurrentWordComplete) return;
-    if (_stage == DictationStage.word) {
+    if (_stage == ListeningMeaningStage.word) {
       setState(() {
         _hintLevel = min(
           // 至少公开一个字母；多字母单词最多保留最后一个槽位不公开。
@@ -938,10 +938,10 @@ class _DictationPageState extends State<DictationPage>
   /// - 选错：heavyImpact（重震），配合选项抖动动画，错误感强烈。
   /// - 选对：lightImpact（轻触），页面立即切换为新题，视觉变化即反馈。
   ///
-  /// @param  DictationOption  option 用户点击的候选项。
+  /// @param  ListeningMeaningOption  option 用户点击的候选项。
   /// @return void
   ///
-  void _pickOption(DictationOption option) {
+  void _pickOption(ListeningMeaningOption option) {
     // 当前单词完成后已经只能点击"下一题"，旧选项不再响应。
     if (_isDone ||
         _isCurrentWordComplete ||
@@ -969,14 +969,14 @@ class _DictationPageState extends State<DictationPage>
     // 轻触震动确认选对，不拖延答题节奏。
     HapticFeedback.lightImpact();
 
-    if (_stage == DictationStage.word) {
+    if (_stage == ListeningMeaningStage.word) {
       if (_availableMeanings.isEmpty) {
         // 没有释义的单词在拼写答对后就完成，等待用户手动进入下一题。
         _completeCurrentWord();
         return;
       }
       setState(() {
-        _stage = DictationStage.definition;
+        _stage = ListeningMeaningStage.definition;
         _meaningIndex = 0;
         _definitionIndex = 0;
         _wrongOptions.clear();
@@ -1041,13 +1041,13 @@ class _DictationPageState extends State<DictationPage>
 
     // 新候选必须排除当前四项，确保用户能立刻看出确实发生了替换。
     final excluded = _options.map((option) => option.text);
-    final replacement = _stage == DictationStage.word
-        ? DictationOptionGenerator.findReplacementWordDistractor(
+    final replacement = _stage == ListeningMeaningStage.word
+        ? ListeningMeaningOptionGenerator.findReplacementWordDistractor(
             correct: _currentCorrectAnswer,
             sourceWords: widget.words,
             excluded: excluded,
           )
-        : DictationOptionGenerator.findReplacementDefinitionDistractor(
+        : ListeningMeaningOptionGenerator.findReplacementDefinitionDistractor(
             correct: _currentCorrectAnswer,
             sourceWords: widget.words,
             excluded: excluded,
@@ -1062,7 +1062,7 @@ class _DictationPageState extends State<DictationPage>
     final cacheKey = _currentOptionCacheKey;
     final wordId = _currentWord.id;
     // 复制只读列表，下面只修改这份临时数组。
-    final updatedOptions = List<DictationOption>.from(_options);
+    final updatedOptions = List<ListeningMeaningOption>.from(_options);
     // 记录所有被移除的旧干扰项，避免它们继续保持“已答错”的红色状态。
     final removedWrongOptions = <String>{selectedOption.text};
     if (selectedOption.isCorrect) {
@@ -1077,7 +1077,7 @@ class _DictationPageState extends State<DictationPage>
       // 目标位置原来的干扰项会被移除，因此一并清理错误标记。
       removedWrongOptions.add(updatedOptions[correctTarget].text);
       // 被长按位置立即显示全新干扰项。
-      updatedOptions[optionIndex] = DictationOption(
+      updatedOptions[optionIndex] = ListeningMeaningOption(
         text: replacement,
         isCorrect: false,
       );
@@ -1085,7 +1085,7 @@ class _DictationPageState extends State<DictationPage>
       updatedOptions[correctTarget] = selectedOption;
     } else {
       // 普通干扰项只替换自身位置，其余三个按钮完全不动。
-      updatedOptions[optionIndex] = DictationOption(
+      updatedOptions[optionIndex] = ListeningMeaningOption(
         text: replacement,
         isCorrect: false,
       );
@@ -1094,7 +1094,7 @@ class _DictationPageState extends State<DictationPage>
       // 移除已消失文本的红色禁用状态，新候选可以正常点击。
       _wrongOptions.removeAll(removedWrongOptions);
       // 冻结新列表，保持页面状态只能整体更新。
-      _options = List<DictationOption>.unmodifiable(updatedOptions);
+      _options = List<ListeningMeaningOption>.unmodifiable(updatedOptions);
     });
     // 长按刷新改变了当前可见候选，也要同步进会话快照。
     unawaited(_persistSession());
@@ -1212,13 +1212,13 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// @param  String  cacheKey 当前小题的稳定缓存键。
   /// @param  int?  wordId 当前单词主键。
-  /// @param  `List<DictationOption>`  options
+  /// @param  `List<ListeningMeaningOption>`  options
   /// @return `Future<void>` 缓存覆盖完成后的异步结果。
   ///
   Future<void> _persistRefreshedOptions({
     required String cacheKey,
     required int? wordId,
-    required List<DictationOption> options,
+    required List<ListeningMeaningOption> options,
   }) async {
     try {
       // 正确答案文本不写缓存，只保存三个干扰项和正确答案当前所在位置。
@@ -1231,7 +1231,7 @@ class _DictationPageState extends State<DictationPage>
       );
     } catch (error) {
       // 页面替换已经完成；记录错误并提示缓存失败，下次进入仍可继续正常答题。
-      debugPrint('保存刷新后的默写候选缓存失败：$error');
+      debugPrint('保存刷新后的听音辨义候选缓存失败：$error');
       if (mounted) Toast.show(context, '候选词已刷新，但缓存保存失败');
     }
   }
@@ -1253,14 +1253,14 @@ class _DictationPageState extends State<DictationPage>
       // 清空错误项状态。
       _wrongOptions.clear();
       // 完成后不再保留可点击选项数据。
-      _options = const <DictationOption>[];
+      _options = const <ListeningMeaningOption>[];
       // 中间信息面板告知用户当前单词已经完成。
       // 全程零错选才是“一气呵成”，与候选区上方的成功横幅口径一致。
       _feedback = _currentWrong == 0 ? '一气呵成 · 完美通过！' : '本词完成！';
       // 绿色只用于正确完成反馈。
       _feedbackColor = const Color(0xFF2FB344);
     });
-    // “本词完成、等待下一题”是重要恢复点；此时仍不能提前写默写记录。
+    // “本词完成、等待下一题”是重要恢复点；此时仍不能提前写听音辨义记录。
     unawaited(_persistSession());
     // 自动重播一次发音作为答对奖励：既有听觉反馈，又强化单词记忆。
     // interrupt: true —— 若用户刚好手动点了播放，奖励发音直接接管，不会被忽略。
@@ -1268,16 +1268,16 @@ class _DictationPageState extends State<DictationPage>
   }
 
   ///
-  /// 把当前单词的本次默写结果写入记录 Store。
+  /// 把当前单词的本次听音辨义结果写入记录 Store。
   ///
   /// 这一步只在用户点击「下一题」后发生；停留在完成态或点击「再试一次」都不会
   /// 写数据库。此时 [_currentWrong]/[_currentHints] 仍保存着本词累计数据。
   /// 若单词没有主键（极端情况）则直接跳过，并允许页面继续推进。
   ///
-  /// 关于 isCorrect 的口径（重要）：默写只能以"全部选对"结束，所以不能用"是否
+  /// 关于 isCorrect 的口径（重要）：听音辨义只能以"全部选对"结束，所以不能用"是否
   /// 完成"来判断对错。真正有意义的判定是**本次过程中有没有选错过候选词**：
-  /// - 一次没错（[_currentWrong] == 0）→ 视为本次默写正确；
-  /// - 中途选错过 → 视为本次默写错误，原生据此把难度 +1。
+  /// - 一次没错（[_currentWrong] == 0）→ 视为本次听音辨义正确；
+  /// - 中途选错过 → 视为本次听音辨义错误，原生据此把难度 +1。
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
   ///
   /// @return `Future<bool>` 数据库事务是否成功；没有主键时返回 true 并跳过写入。
@@ -1295,7 +1295,7 @@ class _DictationPageState extends State<DictationPage>
         isCorrect: _currentWrong == 0,
         wrongCount: _currentWrong,
         hintCount: _currentHints,
-        // 当前页面虽然复用旧默写流程，但首页统计时归属于明确的复习模式。
+        // 当前页面虽然复用旧听音辨义流程，但首页统计时归属于明确的复习模式。
         module: widget.recordModule,
       );
       // 只有事务成功后才把 id 带回首页，避免首页回刷一条并未更新的数据。
@@ -1304,22 +1304,22 @@ class _DictationPageState extends State<DictationPage>
       return true;
     } catch (error) {
       // 保留日志便于开发时定位原生数据库异常。
-      debugPrint('记录默写结果失败：$error');
+      debugPrint('记录听音辨义结果失败：$error');
       // 页面仍存在时给用户明确反馈，并停留在本题以便再次点击重试。
-      if (mounted) Toast.show(context, '保存默写结果失败，请重试');
+      if (mounted) Toast.show(context, '保存听音辨义结果失败，请重试');
       // false 阻止切题，避免用户误以为本次结果已经保存。
       return false;
     }
   }
 
   ///
-  /// 退出默写页，并把本次复习过的单词 id 集合带回首页，供其定向回刷。
+  /// 退出听音辨义页，并把本次复习过的单词 id 集合带回首页，供其定向回刷。
   ///
   /// 通过 [Navigator.pop] 的结果参数传出，避免首页重新加载整库。
   ///
   /// @return void
   ///
-  void _exitDictation() {
+  void _exitListeningMeaning() {
     // 用户点击下一题后必须等事务结束；保存中主动返回会让首页漏掉最新回刷 id。
     if (_isSavingCompletion) return;
     // 把收集到的 id 列表作为路由结果返回给上一页。
@@ -1371,7 +1371,7 @@ class _DictationPageState extends State<DictationPage>
       // 保持 widget.words 原始顺序，只把下标向后移动一位。
       _wordIndex++;
       // 每个新单词都从拼写阶段开始。
-      _stage = DictationStage.word;
+      _stage = ListeningMeaningStage.word;
       // 词性下标回到第一项。
       _meaningIndex = 0;
       // 释义下标回到第一项。
@@ -1422,7 +1422,7 @@ class _DictationPageState extends State<DictationPage>
     // 唯一区别是不移动 _wordIndex，仍停留在同一个单词上）。
     setState(() {
       // 回到拼写阶段，重新"听音选词"。
-      _stage = DictationStage.word;
+      _stage = ListeningMeaningStage.word;
       // 词性下标回到第一项。
       _meaningIndex = 0;
       // 释义下标回到第一项。
@@ -1457,22 +1457,22 @@ class _DictationPageState extends State<DictationPage>
   /// 每个步骤都从一开始列出，状态随答题进度在 未开始/进行中/已完成 之间变化。
   /// 组件只负责按状态渲染，不关心答题下标。
   ///
-  /// @return `List<DictationStep>` 当前单词的不可变步骤列表。
+  /// @return `List<ListeningMeaningStep>` 当前单词的不可变步骤列表。
   ///
-  List<DictationStep> _buildSteps() {
+  List<ListeningMeaningStep> _buildSteps() {
     // 步骤集合从“听音选词”开始，拼写答对后它转为已完成。
-    final steps = <DictationStep>[
-      DictationStep(
-        kind: DictationStepKind.word,
+    final steps = <ListeningMeaningStep>[
+      ListeningMeaningStep(
+        kind: ListeningMeaningStepKind.word,
         title: '听音选词',
         // 完成后把正确单词带进步骤，便于在步骤下方直接回显。
         word: _currentWord.spelling,
         // 拼写阶段结束后，单词步骤即视为完成；否则当前就是进行中的那一步。
-        status: _stage == DictationStage.definition || _isCurrentWordComplete
-            ? DictationStepStatus.done
-            : (_stage == DictationStage.word
-                  ? DictationStepStatus.active
-                  : DictationStepStatus.pending),
+        status: _stage == ListeningMeaningStage.definition || _isCurrentWordComplete
+            ? ListeningMeaningStepStatus.done
+            : (_stage == ListeningMeaningStage.word
+                  ? ListeningMeaningStepStatus.active
+                  : ListeningMeaningStepStatus.pending),
       ),
     ];
     // 每个词性释义都对应一个独立步骤，进入新词时一次性全部列出。
@@ -1488,7 +1488,7 @@ class _DictationPageState extends State<DictationPage>
       // 释义阶段且正停留在当前词性时，该步骤处于进行中。
       final isMeaningActive =
           !_isCurrentWordComplete &&
-          _stage == DictationStage.definition &&
+          _stage == ListeningMeaningStage.definition &&
           meaningIndex == _meaningIndex;
       // 已答出的释义：完成步骤显示全部，进行中步骤只显示已答对的部分。
       List<String>? definitions;
@@ -1502,21 +1502,21 @@ class _DictationPageState extends State<DictationPage>
       // 没有词性的旧数据用“释义”兜底，避免步骤出现空标题。
       final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.displayPos;
       steps.add(
-        DictationStep(
-          kind: DictationStepKind.meaning,
+        ListeningMeaningStep(
+          kind: ListeningMeaningStepKind.meaning,
           title: '释义',
           status: isMeaningDone
-              ? DictationStepStatus.done
+              ? ListeningMeaningStepStatus.done
               : (isMeaningActive
-                    ? DictationStepStatus.active
-                    : DictationStepStatus.pending),
+                    ? ListeningMeaningStepStatus.active
+                    : ListeningMeaningStepStatus.pending),
           pos: pos,
           definitions: definitions,
         ),
       );
     }
     // 冻结列表，展示组件只读取，不修改步骤状态。
-    return List<DictationStep>.unmodifiable(steps);
+    return List<ListeningMeaningStep>.unmodifiable(steps);
   }
 
   ///
@@ -1528,7 +1528,7 @@ class _DictationPageState extends State<DictationPage>
     // 完成后的提示不再要求选择，只说明当前单词已完成。
     if (_isCurrentWordComplete) return '当前单词已完成';
     // 拼写阶段引导用户通过发音选出单词。
-    if (_stage == DictationStage.word) return '听音，选出正确的单词';
+    if (_stage == ListeningMeaningStage.word) return '听音，选出正确的单词';
     final meaning = _availableMeanings[_meaningIndex];
     final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.displayPos;
     return '$pos · 选择释义 ${_definitionIndex + 1}/${meaning.definitions.length}';
@@ -1572,10 +1572,10 @@ class _DictationPageState extends State<DictationPage>
   }
 
   ///
-  /// 构建默写页、题目页或整轮完成页。
+  /// 构建听音辨义页、题目页或整轮完成页。
   ///
   /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 当前默写状态对应的完整界面。
+  /// @return Widget 当前听音辨义状态对应的完整界面。
   ///
   @override
   Widget build(BuildContext context) {
@@ -1620,9 +1620,9 @@ class _DictationPageState extends State<DictationPage>
         // Padding 统一管理顶栏与屏幕边界的距离。
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            DictationLayout.pageInset,
-            DictationLayout.headerTop,
-            DictationLayout.pageInset,
+            ListeningMeaningLayout.pageInset,
+            ListeningMeaningLayout.headerTop,
+            ListeningMeaningLayout.pageInset,
             0,
           ),
           // Row 将返回按钮、中央进度和右侧占位区排成一行。
@@ -1630,17 +1630,17 @@ class _DictationPageState extends State<DictationPage>
             children: [
               // 返回按钮的 34 像素点击画布直接贴齐左侧页面边距。
               _PlainIconButton(
-                key: const Key('close-dictation'),
+                key: const Key('close-listeningMeaning'),
                 icon: TablerIcons.chevronLeft,
                 alignment: Alignment.centerLeft,
-                onTap: _exitDictation,
+                onTap: _exitListeningMeaning,
               ),
               // Expanded 占用左右等宽画布之间的全部空间。
               Expanded(
-                // 当前题号放在中间，不再由左侧“默写”标题把它挤到右边。
+                // 当前题号放在中间，不再由左侧“听音辨义”标题把它挤到右边。
                 child: Text(
                   '${_isDone ? widget.words.length : _wordIndex + 1} / ${widget.words.length}',
-                  key: const Key('dictation-progress-label'),
+                  key: const Key('listening-meaning-progress-label'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: tokens.text,
@@ -1651,16 +1651,10 @@ class _DictationPageState extends State<DictationPage>
                   ),
                 ),
               ),
-              // 右侧用与返回按钮等宽的固定画布承载难度，中央题号仍保持绝对居中。
+              // 右侧保留与返回按钮等宽的空白画布，让中央题号继续保持绝对居中。
               SizedBox(
-                width: DictationLayout.headerButtonSize,
-                height: DictationLayout.headerButtonSize,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: _DictationDifficultyBadge(
-                    difficulty: _currentWord.difficulty,
-                  ),
-                ),
+                width: ListeningMeaningLayout.headerButtonSize,
+                height: ListeningMeaningLayout.headerButtonSize,
               ),
             ],
           ),
@@ -1668,18 +1662,18 @@ class _DictationPageState extends State<DictationPage>
         // 进度条的左右边界与顶栏严格对齐。
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            DictationLayout.pageInset,
-            DictationLayout.progressTop,
-            DictationLayout.pageInset,
+            ListeningMeaningLayout.pageInset,
+            ListeningMeaningLayout.progressTop,
+            ListeningMeaningLayout.pageInset,
             0,
           ),
           // ClipRRect 只把线性进度条的两端裁成轻微圆角。
           child: ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
-              key: const Key('dictation-progress-bar'),
+              key: const Key('listening-meaning-progress-bar'),
               value: progress,
-              minHeight: DictationLayout.progressHeight,
+              minHeight: ListeningMeaningLayout.progressHeight,
               color: AppTokens.accent,
               backgroundColor: tokens.sub,
             ),
@@ -1699,11 +1693,11 @@ class _DictationPageState extends State<DictationPage>
     // 底部控件虽然脱离普通布局，但滚动内容仍需保留等高的尾部内边距，
     // 否则较长 Steps 的最后几行会被悬浮候选区遮住。
     final bottomOverlayHeight = _isCurrentWordComplete
-        ? DictationLayout.nextControlsExtent
-        : DictationLayout.bottomControlsExtent;
+        ? ListeningMeaningLayout.nextControlsExtent
+        : ListeningMeaningLayout.bottomControlsExtent;
     // Stack 让底部控件覆盖滚动内容，同时保留整块内容区的播放热区。
     return Stack(
-      key: const Key('dictation-question-stack'),
+      key: const Key('listening-meaning-question-stack'),
       fit: StackFit.expand,
       children: [
         // 第一层兼具“透明播放命中层”和可滚动内容容器：GestureDetector 自身不绘制颜色，
@@ -1711,7 +1705,7 @@ class _DictationPageState extends State<DictationPage>
         // 纵向拖动时 ScrollView 的手势识别器仍可赢得手势竞争并正常滚动。
         Positioned.fill(
           child: GestureDetector(
-            key: const Key('dictation-question-audio-overlay'),
+            key: const Key('listening-meaning-question-audio-overlay'),
             behavior: HitTestBehavior.translucent,
             // 点屏幕重播：允许打断正在播放的旧发音，立即播新的，不再需等播完。
             onTap: () => _playAudio(interrupt: true),
@@ -1719,26 +1713,26 @@ class _DictationPageState extends State<DictationPage>
               button: true,
               label: '播放当前单词发音',
               child: SingleChildScrollView(
-                key: const Key('dictation-question-scroll'),
+                key: const Key('listening-meaning-question-scroll'),
                 padding: EdgeInsets.fromLTRB(
-                  DictationLayout.pageInset,
-                  DictationLayout.questionVerticalInset,
-                  DictationLayout.pageInset,
-                  bottomOverlayHeight + DictationLayout.questionVerticalInset,
+                  ListeningMeaningLayout.pageInset,
+                  ListeningMeaningLayout.questionVerticalInset,
+                  ListeningMeaningLayout.pageInset,
+                  bottomOverlayHeight + ListeningMeaningLayout.questionVerticalInset,
                 ),
                 // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(
-                      maxWidth: DictationLayout.questionMaxWidth,
+                      maxWidth: ListeningMeaningLayout.questionMaxWidth,
                     ),
                     // 独立组件按“单词卡、提示横幅、全量步骤”从上到下输出。
-                    child: DictationQuestionContent(
+                    child: ListeningMeaningQuestionContent(
                       spelling: _currentWord.spelling,
                       revealedLetterCount: _hintLevel,
                       revealWholeWord:
-                          _stage == DictationStage.definition ||
+                          _stage == ListeningMeaningStage.definition ||
                           _isCurrentWordComplete,
                       // 单词卡上的发音按钮同样允许打断重播。
                       onSpeakerTap: () => _playAudio(interrupt: true),
@@ -1768,8 +1762,8 @@ class _DictationPageState extends State<DictationPage>
         // 第三层：难度提示横幅，绘制在候选区之上的悬浮层（纯界面提示，不碰数据库）。
         // 悬浮在候选区正上方，既显眼又贴合现有卡片视觉，不与内容争夺布局空间。
         Positioned(
-          left: DictationLayout.pageInset,
-          right: DictationLayout.pageInset,
+          left: ListeningMeaningLayout.pageInset,
+          right: ListeningMeaningLayout.pageInset,
           // 紧贴候选控件顶边上方，露出完整横幅。
           bottom: bottomOverlayHeight + 12,
           child: Align(
@@ -1805,12 +1799,12 @@ class _DictationPageState extends State<DictationPage>
 
     // Container 复用单词卡同款圆角与描边，让横幅与界面其余卡片视觉一致。
     return Container(
-      key: const Key('dictation-difficulty-hint'),
+      key: const Key('listening-meaning-difficulty-hint'),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         // 危险用极淡红底，成功用极淡绿底，颜色再淡也不会丢失语义。
         color: visual.color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
         // 同色描边强化边框，呼应 Tabler 的告警/成功徽章视觉。
         border: Border.all(color: visual.color.withValues(alpha: 0.55)),
       ),
@@ -1877,25 +1871,25 @@ class _DictationPageState extends State<DictationPage>
   Widget _buildBottomControls(AppTokens tokens) {
     // Padding 在 SafeArea 已避开系统手势条后，再提供 20 像素底部留白。
     return Padding(
-      key: const Key('dictation-bottom-controls'),
+      key: const Key('listening-meaning-bottom-controls'),
       padding: const EdgeInsets.fromLTRB(
-        DictationLayout.pageInset,
-        DictationLayout.bottomSectionTop,
-        DictationLayout.pageInset,
-        DictationLayout.bottomInset,
+        ListeningMeaningLayout.pageInset,
+        ListeningMeaningLayout.bottomSectionTop,
+        ListeningMeaningLayout.pageInset,
+        ListeningMeaningLayout.bottomInset,
       ),
       // 固定两栏总高度，左右两组控件都以同一条底边向上堆叠。
       child: SizedBox(
-        key: const Key('dictation-control-columns'),
-        height: DictationLayout.optionStackHeight,
+        key: const Key('listening-meaning-control-columns'),
+        height: ListeningMeaningLayout.optionStackHeight,
         // Row 将左侧四个候选词和右侧两个操作按钮分成两栏。
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 左栏获得三份宽度，是右栏的三倍。
             Expanded(
-              key: const Key('dictation-option-column'),
-              flex: DictationLayout.optionColumnFlex,
+              key: const Key('listening-meaning-option-column'),
+              flex: ListeningMeaningLayout.optionColumnFlex,
               // 候选组外包一层 AnimatedSwitcher：进入下一小题 / 下一词 / 刷新候选时，
               // 旧候选组向上推出、新候选组从下方升入，过渡期同时渲染两组四个按钮，
               // 形成清晰的「上一轮离场、本轮入场」层次感，不再整体下沉再回弹（仿 Duolingo / Quizlet 的整组切换）。
@@ -1949,7 +1943,7 @@ class _DictationPageState extends State<DictationPage>
                 // 用当前四个候选文本拼接成唯一 Key；文本变化即触发整组过渡，文本不变则不重启动画。
                 child: Column(
                   key: ValueKey(
-                    'dictation-option-group-${_options.map((option) => option.text).join('|')}',
+                    'listening-meaning-option-group-${_options.map((option) => option.text).join('|')}',
                   ),
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -1957,7 +1951,7 @@ class _DictationPageState extends State<DictationPage>
                       // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
                       _OptionCard(
                         key: ValueKey(
-                          'dictation-option-$index-${_options[index].text}',
+                          'listening-meaning-option-$index-${_options[index].text}',
                         ),
                         option: _options[index],
                         index: index,
@@ -1968,18 +1962,18 @@ class _DictationPageState extends State<DictationPage>
                       ),
                       // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
                       if (index < _options.length - 1)
-                        const SizedBox(height: DictationLayout.optionGap),
+                        const SizedBox(height: ListeningMeaningLayout.optionGap),
                     ],
                   ],
                 ),
               ),
             ),
             // 两栏之间只使用正常布局间距，不使用任何偏移。
-            const SizedBox(width: DictationLayout.columnGap),
+            const SizedBox(width: ListeningMeaningLayout.columnGap),
             // 右栏获得一份宽度，把主要空间留给可能较长的候选词。
             Expanded(
-              key: const Key('dictation-action-column'),
-              flex: DictationLayout.actionColumnFlex,
+              key: const Key('listening-meaning-action-column'),
+              flex: ListeningMeaningLayout.actionColumnFlex,
               // end 让播放先贴齐底边，提示再依照间距堆叠到它上方。
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -1987,20 +1981,20 @@ class _DictationPageState extends State<DictationPage>
                 children: [
                   // 提示按钮放在播放按钮正上方。
                   _OutlineAction(
-                    key: const Key('dictation-hint'),
+                    key: const Key('listening-meaning-hint'),
                     icon: TablerIcons.bulb,
                     label: '提示',
                     foreground: tokens.textMedium,
                     border: tokens.inputBorder,
-                    height: DictationLayout.actionHeight,
+                    height: ListeningMeaningLayout.actionHeight,
                     horizontalPadding: 8,
                     onTap: _showHint,
                   ),
                   // 两个右侧按钮使用与候选词相同的纵向间距。
-                  const SizedBox(height: DictationLayout.optionGap),
+                  const SizedBox(height: ListeningMeaningLayout.optionGap),
                   // 播放按钮作为右栏最后一项，底边直接对齐第四个候选词。
                   _OutlineAction(
-                    key: const Key('dictation-play'),
+                    key: const Key('listening-meaning-play'),
                     icon: _isPlaying
                         ? TablerIcons.volume2
                         : TablerIcons.playerPlay,
@@ -2008,7 +2002,7 @@ class _DictationPageState extends State<DictationPage>
                     foreground: Colors.white,
                     border: AppTokens.accent,
                     background: AppTokens.accent,
-                    height: DictationLayout.actionHeight,
+                    height: ListeningMeaningLayout.actionHeight,
                     horizontalPadding: 8,
                     // 底部播放按钮允许打断重播。
                     onTap: () => _playAudio(interrupt: true),
@@ -2025,7 +2019,7 @@ class _DictationPageState extends State<DictationPage>
   ///
   /// 构建当前单词全部答对后的底部操作区：左「再试一次」+ 右「下一题」。
   ///
-  /// 两个按钮通过 Expanded 各占一半宽度，中间用 [DictationLayout.columnGap]
+  /// 两个按钮通过 Expanded 各占一半宽度，中间用 [ListeningMeaningLayout.columnGap]
   /// 留出间距（相当于小程序里 flex:1 + margin 的写法）。
   /// 左侧是次要操作（描边样式），右侧是主操作（蓝色实心）。
   ///
@@ -2037,23 +2031,23 @@ class _DictationPageState extends State<DictationPage>
     final isLastWord = _wordIndex + 1 >= widget.words.length;
     // Padding 与普通候选区共用相同的左右、顶部和安全区留白。
     return Padding(
-      key: const Key('dictation-next-area'),
+      key: const Key('listening-meaning-next-area'),
       padding: const EdgeInsets.fromLTRB(
-        DictationLayout.pageInset,
-        DictationLayout.bottomSectionTop,
-        DictationLayout.pageInset,
-        DictationLayout.bottomInset,
+        ListeningMeaningLayout.pageInset,
+        ListeningMeaningLayout.bottomSectionTop,
+        ListeningMeaningLayout.pageInset,
+        ListeningMeaningLayout.bottomInset,
       ),
       // SizedBox 固定整行高度，两个按钮上下边界完全一致。
       child: SizedBox(
         width: double.infinity,
-        height: DictationLayout.actionHeight,
+        height: ListeningMeaningLayout.actionHeight,
         child: Row(
           children: [
             // 左半：次要操作「再试一次」，把当前题退回初始状态重做。
             Expanded(
               child: OutlinedButton.icon(
-                key: const Key('retry-dictation-word'),
+                key: const Key('retry-listening-meaning-word'),
                 onPressed: _isSavingCompletion ? null : _retryCurrentWord,
                 // Tabler 的刷新图标表达"重来一遍"。
                 icon: const Icon(TablerIcons.refresh, size: 17),
@@ -2064,7 +2058,7 @@ class _DictationPageState extends State<DictationPage>
                   foregroundColor: tokens.textMedium,
                   side: BorderSide(color: tokens.inputBorder),
                   // 高度由外层 SizedBox 决定，这里去掉按钮自带的最小宽高限制。
-                  minimumSize: const Size(0, DictationLayout.actionHeight),
+                  minimumSize: const Size(0, ListeningMeaningLayout.actionHeight),
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -2077,12 +2071,12 @@ class _DictationPageState extends State<DictationPage>
               ),
             ),
             // 两个按钮之间的固定间距，复用候选区与操作区的同一套尺寸。
-            const SizedBox(width: DictationLayout.columnGap),
+            const SizedBox(width: ListeningMeaningLayout.columnGap),
             // 右半：普通题进入「下一题」，最后一题提交后进入完成状态页。
             Expanded(
               // FilledButton.icon 用蓝色背景表达当前的主操作。
               child: FilledButton.icon(
-                key: const Key('next-dictation-word'),
+                key: const Key('next-listening-meaning-word'),
                 onPressed: _isSavingCompletion ? null : _goToNextWord,
                 // 最后一题使用 Tabler 勾选图标，其余题使用向右箭头。
                 icon: Icon(
@@ -2095,7 +2089,7 @@ class _DictationPageState extends State<DictationPage>
                   backgroundColor: AppTokens.accent,
                   foregroundColor: Colors.white,
                   // 与左侧按钮保持同样的高度基准和无额外内边距。
-                  minimumSize: const Size(0, DictationLayout.actionHeight),
+                  minimumSize: const Size(0, ListeningMeaningLayout.actionHeight),
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -2114,7 +2108,7 @@ class _DictationPageState extends State<DictationPage>
   }
 
   ///
-  /// 构建整轮默写完成状态页，展示题量、累计错选次数和返回入口。
+  /// 构建整轮听音辨义完成状态页，展示题量、累计错选次数和返回入口。
   ///
   /// @param  AppTokens  tokens 当前主题设计令牌。
   /// @return Widget 整轮完成后的状态页。
@@ -2144,7 +2138,7 @@ class _DictationPageState extends State<DictationPage>
             const SizedBox(height: 12),
             // 状态标题说明本轮流程已经结束。
             Text(
-              '默写完成',
+              '听音辨义完成',
               style: TextStyle(
                 color: tokens.text,
                 fontSize: 17,
@@ -2160,8 +2154,8 @@ class _DictationPageState extends State<DictationPage>
             const SizedBox(height: 20),
             // 返回按钮把成功提交的单词 id 一并交回首页进行定向回刷。
             FilledButton(
-              key: const Key('finish-dictation'),
-              onPressed: _exitDictation,
+              key: const Key('finish-listeningMeaning'),
+              onPressed: _exitListeningMeaning,
               style: FilledButton.styleFrom(
                 backgroundColor: AppTokens.accent,
                 foregroundColor: Colors.white,
@@ -2177,69 +2171,9 @@ class _DictationPageState extends State<DictationPage>
   }
 }
 
-///
-/// 默写顶栏难度徽章：正数使用危险色，其余情况用成功色显示 0。
-///
-class _DictationDifficultyBadge extends StatelessWidget {
-  ///
-  /// 创建当前单词的只读难度徽章。
-  ///
-  /// @param  int?  difficulty 当前单词难度。
-  ///
-  const _DictationDifficultyBadge({required this.difficulty});
-
-  ///
-  /// 模型中的可空难度；历史异常负数也按无难度处理。
-  ///
-  /// @var int?
-  ///
-  final int? difficulty;
-
-  ///
-  /// 输出固定高度的 Tabler 软色 Badge。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 正数危险色或零值成功色徽章。
-  ///
-  @override
-  Widget build(BuildContext context) {
-    // 只有真实正数才是需要提醒的难度，其余值统一归零。
-    final normalizedDifficulty = (difficulty ?? 0) > 0 ? difficulty! : 0;
-    // 正数采用 Tabler danger，零采用 Tabler success green。
-    final foreground = normalizedDifficulty > 0
-        ? AppTokens.danger
-        : const Color(0xFF2FB344);
-    return Container(
-      key: const Key('dictation-difficulty-badge'),
-      constraints: const BoxConstraints(minWidth: 22, maxWidth: 34),
-      height: 22,
-      padding: const EdgeInsets.symmetric(horizontal: 5),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        // 13% 软色背景与首页难度 Badge 保持同一 Tabler 视觉。
-        color: foreground.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      // FittedBox 只在极大数值超过 34 像素画布时缩小，避免顶栏溢出。
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          normalizedDifficulty.toString(),
-          style: TextStyle(
-            color: foreground,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            height: 1,
-            letterSpacing: 0,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 ///
-/// 默写顶栏使用的无文字 Tabler 图标按钮。
+/// 听音辨义顶栏使用的无文字 Tabler 图标按钮。
 ///
 class _PlainIconButton extends StatelessWidget {
   ///
@@ -2291,13 +2225,13 @@ class _PlainIconButton extends StatelessWidget {
     final tokens = AppTokens.of(context);
     // SizedBox 明确约束点击画布，不让图标自身的透明空间影响顶栏对齐。
     return SizedBox(
-      width: DictationLayout.headerButtonSize,
-      height: DictationLayout.headerButtonSize,
+      width: ListeningMeaningLayout.headerButtonSize,
+      height: ListeningMeaningLayout.headerButtonSize,
       // InkWell 提供点击命中与圆形按压反馈。
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(
-          DictationLayout.headerButtonSize / 2,
+          ListeningMeaningLayout.headerButtonSize / 2,
         ),
         // Align 使用正常布局约束对齐图标，不需要负数偏移。
         child: Align(
@@ -2445,7 +2379,7 @@ class _OptionCard extends StatefulWidget {
   ///
   /// 创建一个支持错误抖动和长按刷新的候选卡片。
   ///
-  /// @param  DictationOption  option 当前候选数据。
+  /// @param  ListeningMeaningOption  option 当前候选数据。
   /// @param  int  index 候选在四选一列表中的下标。
   /// @param  bool  wrong 是否已经选错。
   /// @param  VoidCallback  onTap 点击答题回调。
@@ -2465,9 +2399,9 @@ class _OptionCard extends StatefulWidget {
   ///
   /// 当前选项数据（文本 + 是否正确）。
   ///
-  /// @var DictationOption
+  /// @var ListeningMeaningOption
   ///
-  final DictationOption option;
+  final ListeningMeaningOption option;
 
   ///
   /// 选项在四选一列表中的位置（0-3），用于 A/B/C/D badge。
@@ -2602,22 +2536,22 @@ class _OptionCardState extends State<_OptionCard>
         );
       },
       child: Material(
-        key: Key('dictation-option-${widget.index}'),
+        key: Key('listening-meaning-option-${widget.index}'),
         color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
-        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
         child: InkWell(
           onTap: wrong ? null : widget.onTap,
           // 长按不参与答题判定，只打开刷新候选词确认框。
           onLongPress: widget.onLongPress,
-          borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+          borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
           child: Container(
-            height: DictationLayout.optionHeight,
+            height: ListeningMeaningLayout.optionHeight,
             padding: const EdgeInsets.symmetric(
-              horizontal: DictationLayout.optionHorizontalInset,
+              horizontal: ListeningMeaningLayout.optionHorizontalInset,
               vertical: 6,
             ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+              borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
               border: Border.all(
                 color: wrong ? AppTokens.danger : tokens.inputBorder,
               ),
@@ -2628,9 +2562,9 @@ class _OptionCardState extends State<_OptionCard>
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
-                    key: Key('dictation-option-badge-${widget.index}'),
-                    width: DictationLayout.optionBadgeSize,
-                    height: DictationLayout.optionBadgeSize,
+                    key: Key('listening-meaning-option-badge-${widget.index}'),
+                    width: ListeningMeaningLayout.optionBadgeSize,
+                    height: ListeningMeaningLayout.optionBadgeSize,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: wrong
@@ -2654,12 +2588,12 @@ class _OptionCardState extends State<_OptionCard>
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal:
-                        DictationLayout.optionBadgeSize +
-                        DictationLayout.optionHorizontalInset,
+                        ListeningMeaningLayout.optionBadgeSize +
+                        ListeningMeaningLayout.optionHorizontalInset,
                   ),
                   child: Text(
                     widget.option.text,
-                    key: Key('dictation-option-label-${widget.index}'),
+                    key: Key('listening-meaning-option-label-${widget.index}'),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 2,

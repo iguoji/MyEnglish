@@ -1,9 +1,9 @@
 ///
-/// 默写页面的布局尺寸表，作用类似小程序 WXSS 中集中声明的尺寸变量。
+/// 听音辨义页面的布局尺寸表，作用类似小程序 WXSS 中集中声明的尺寸变量。
 ///
 /// 顶栏与进度条的数值刻意和随身听保持一致，使两个学习页面切换时不会跳动。
 ///
-abstract final class DictationLayout {
+abstract final class ListeningMeaningLayout {
   ///
   /// 页面左右的统一留白。
   ///

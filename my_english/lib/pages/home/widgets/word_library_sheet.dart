@@ -27,11 +27,11 @@ class WordLibrarySheet extends StatefulWidget {
     required this.listContent,
     required this.targetCount,
     required this.hasListeningSession,
-    required this.hasDictationSession,
+    required this.hasListeningMeaningSession,
     required this.onOpenListening,
-    required this.onOpenDictation,
+    required this.onOpenListeningMeaning,
     required this.onContinueListening,
-    required this.onContinueDictation,
+    required this.onContinueListeningMeaning,
     super.key,
   });
 
@@ -62,20 +62,20 @@ class WordLibrarySheet extends StatefulWidget {
   /// 是否存在尚未完成的随身听进度。
   final bool hasListeningSession;
 
-  /// 是否存在尚未完成的默写进度。
-  final bool hasDictationSession;
+  /// 是否存在尚未完成的听音辨义进度。
+  final bool hasListeningMeaningSession;
 
   /// 从当前词库范围开始一轮新的随身听。
   final VoidCallback onOpenListening;
 
-  /// 从当前词库范围开始一轮新的默写。
-  final VoidCallback onOpenDictation;
+  /// 从当前词库范围开始一轮新的听音辨义。
+  final VoidCallback onOpenListeningMeaning;
 
   /// 继续上一次随身听进度。
   final VoidCallback onContinueListening;
 
-  /// 继续上一次默写进度。
-  final VoidCallback onContinueDictation;
+  /// 继续上一次听音辨义进度。
+  final VoidCallback onContinueListeningMeaning;
 
   @override
   State<WordLibrarySheet> createState() => _WordLibrarySheetState();
@@ -226,11 +226,11 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
                       child: _WordLibraryLearningBar(
                         targetCount: widget.targetCount,
                         hasListeningSession: widget.hasListeningSession,
-                        hasDictationSession: widget.hasDictationSession,
+                        hasListeningMeaningSession: widget.hasListeningMeaningSession,
                         onOpenListening: widget.onOpenListening,
-                        onOpenDictation: widget.onOpenDictation,
+                        onOpenListeningMeaning: widget.onOpenListeningMeaning,
                         onContinueListening: widget.onContinueListening,
-                        onContinueDictation: widget.onContinueDictation,
+                        onContinueListeningMeaning: widget.onContinueListeningMeaning,
                       ),
                     ),
                   ],
@@ -274,18 +274,18 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
 }
 
 ///
-/// 词库底部学习操作栏：随身听与默写始终左右平铺。
+/// 词库底部学习操作栏：随身听与听音辨义始终左右平铺。
 ///
 class _WordLibraryLearningBar extends StatelessWidget {
   /// 创建底部学习操作栏。
   const _WordLibraryLearningBar({
     required this.targetCount,
     required this.hasListeningSession,
-    required this.hasDictationSession,
+    required this.hasListeningMeaningSession,
     required this.onOpenListening,
-    required this.onOpenDictation,
+    required this.onOpenListeningMeaning,
     required this.onContinueListening,
-    required this.onContinueDictation,
+    required this.onContinueListeningMeaning,
   });
 
   /// 当前学习范围的单词数量。
@@ -294,20 +294,20 @@ class _WordLibraryLearningBar extends StatelessWidget {
   /// 随身听是否存在可恢复进度。
   final bool hasListeningSession;
 
-  /// 默写是否存在可恢复进度。
-  final bool hasDictationSession;
+  /// 听音辨义是否存在可恢复进度。
+  final bool hasListeningMeaningSession;
 
   /// 开始新的随身听。
   final VoidCallback onOpenListening;
 
-  /// 开始新的默写。
-  final VoidCallback onOpenDictation;
+  /// 开始新的听音辨义。
+  final VoidCallback onOpenListeningMeaning;
 
   /// 继续随身听。
   final VoidCallback onContinueListening;
 
-  /// 继续默写。
-  final VoidCallback onContinueDictation;
+  /// 继续听音辨义。
+  final VoidCallback onContinueListeningMeaning;
 
   @override
   Widget build(BuildContext context) {
@@ -335,15 +335,15 @@ class _WordLibraryLearningBar extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _LearningAction(
-                key: const Key('word-library-dictation-action'),
+                key: const Key('word-library-listening-meaning-action'),
                 icon: TablerIcons.pencil,
-                label: '默写',
+                label: '听音辨义',
                 targetCount: targetCount,
                 emphasized: true,
-                hasResume: hasDictationSession,
-                continueKey: const Key('word-library-dictation-continue'),
-                onOpen: onOpenDictation,
-                onContinue: onContinueDictation,
+                hasResume: hasListeningMeaningSession,
+                continueKey: const Key('word-library-listening-meaning-continue'),
+                onOpen: onOpenListeningMeaning,
+                onContinue: onContinueListeningMeaning,
                 tokens: tokens,
               ),
             ),

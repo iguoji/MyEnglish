@@ -1,20 +1,20 @@
 import 'model_value_parser.dart';
 
 ///
-/// 单词默写记录模型，字段与 README 的 record 表一一对应。
+/// 单词听音辨义记录模型，字段与 README 的 record 表一一对应。
 ///
-/// 每次提交默写结果都会产生一条记录；同一单词在同一天可以有多条记录。
+/// 每次提交听音辨义结果都会产生一条记录；同一单词在同一天可以有多条记录。
 /// 首页统计今日复习数量时按 [wordId] 去重。
 ///
 /// @property int id SQLite 自增主键。
-/// @property int wordId 本次默写对应的单词主键。
+/// @property int wordId 本次听音辨义对应的单词主键。
 /// @property bool isCorrect 本次是否零错误完成。
 /// @property int wrongCount 本次选错次数。
 /// @property int hintCount 本次使用提示次数。
 ///
 class Record {
   ///
-  /// 创建一条单词默写记录。
+  /// 创建一条单词听音辨义记录。
   ///
   /// @param  int  id SQLite 自增主键。
   /// @param  String  module 产生记录的业务模块。
@@ -48,7 +48,7 @@ class Record {
   final int id;
 
   ///
-  /// 来源模块，目前只有单词默写。
+  /// 来源模块，目前只有单词听音辨义。
   ///
   /// @var String
   ///
@@ -114,7 +114,7 @@ class Record {
   /// 从原生记录数据创建模型。
   ///
   /// @param  `Map<Object?, Object?>`  map Android SQLite 返回的一行记录。
-  /// @return Record 完成类型校验和默认值处理后的默写记录。
+  /// @return Record 完成类型校验和默认值处理后的听音辨义记录。
   ///
   factory Record.fromMap(Map<Object?, Object?> map) {
     // id 对应数据库主键，逻辑类似 Laravel 模型必须存在的 route key。
@@ -133,8 +133,8 @@ class Record {
     return Record(
       // 使用上方已确认非空的自增主键。
       id: id,
-      // 当前只有 dictation；旧数据缺失模块时使用该业务默认值。
-      module: map['module']?.toString() ?? 'dictation',
+      // 当前只有 listeningMeaning；旧数据缺失模块时使用该业务默认值。
+      module: map['module']?.toString() ?? 'listeningMeaning',
       // 使用上方已确认非空的单词外键。
       wordId: wordId,
       // 原生 SQLite 使用 0/1，测试或未来实现也允许直接返回 bool。

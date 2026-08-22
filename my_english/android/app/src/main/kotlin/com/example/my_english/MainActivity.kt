@@ -160,7 +160,7 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 清空全部 SQLite 业务数据与默写候选缓存，对应「清空数据」入口。
+                    // 清空全部 SQLite 业务数据与听音辨义候选缓存，对应「清空数据」入口。
                     "clearAllWords" -> runDatabaseCall(result) {
                         // 原生事务会删除词库、分组、记录及候选缓存。
                         wordsDatabase.clearAllWords()
@@ -293,7 +293,7 @@ class MainActivity : FlutterActivity() {
                         wordsDatabase.exportData()
                     }
 
-                    // 读取随身听和默写尚未完成的学习会话。
+                    // 读取随身听和听音辨义尚未完成的学习会话。
                     "getLearningSessions" -> runDatabaseCall(result) {
                         // 最多返回两条结构化记录，Dart 首页据此显示“继续”按钮。
                         wordsDatabase.getLearningSessions()
@@ -355,39 +355,39 @@ class MainActivity : FlutterActivity() {
                         )
                     }
 
-                    // 读取一道默写题已经持久化的三个干扰项和正确答案位置。
-                    "getDictationOptionCache" -> runDatabaseCall(result) {
+                    // 读取一道听音辨义题已经持久化的三个干扰项和正确答案位置。
+                    "getListeningMeaningOptionCache" -> runDatabaseCall(result) {
                         // 缓存 key 必须是非空字符串。
                         val payload = call.arguments as? Map<*, *>
-                            ?: error("getDictationOptionCache 缺少参数")
+                            ?: error("getListeningMeaningOptionCache 缺少参数")
                         val cacheKey = payload["cacheKey"]?.toString()?.trim()
                             ?.takeIf { it.isNotEmpty() }
-                            ?: error("getDictationOptionCache 缺少有效 cacheKey")
+                            ?: error("getListeningMeaningOptionCache 缺少有效 cacheKey")
                         // null 表示首次生成，Map 表示命中可还原完整四选一的缓存。
-                        wordsDatabase.getDictationOptionCache(cacheKey)
+                        wordsDatabase.getListeningMeaningOptionCache(cacheKey)
                     }
 
-                    // 新增或覆盖一道默写题的干扰项与正确答案位置缓存。
-                    "saveDictationOptionCache" -> runDatabaseCall(result) {
+                    // 新增或覆盖一道听音辨义题的干扰项与正确答案位置缓存。
+                    "saveListeningMeaningOptionCache" -> runDatabaseCall(result) {
                         // 读取 Dart Store 提交的 key、可空单词外键与文本数组。
                         val payload = call.arguments as? Map<*, *>
-                            ?: error("saveDictationOptionCache 缺少参数")
+                            ?: error("saveListeningMeaningOptionCache 缺少参数")
                         val cacheKey = payload["cacheKey"]?.toString()?.trim()
                             ?.takeIf { it.isNotEmpty() }
-                            ?: error("saveDictationOptionCache 缺少有效 cacheKey")
+                            ?: error("saveListeningMeaningOptionCache 缺少有效 cacheKey")
                         val wordId = (payload["wordId"] as? Number)?.toLong()
                         val distractors = (payload["distractors"] as? List<*>)
                             ?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotEmpty) }
-                            ?: error("saveDictationOptionCache 缺少 distractors")
+                            ?: error("saveListeningMeaningOptionCache 缺少 distractors")
                         // 标准四选一只能有三个干扰项，原生入口也拒绝不完整数据。
                         if (distractors.size != 3) {
-                            error("saveDictationOptionCache 的 distractors 必须恰好三项")
+                            error("saveListeningMeaningOptionCache 的 distractors 必须恰好三项")
                         }
                         // correctIndex 表示正确答案所在的 A/B/C/D 位置。
                         val correctIndex = (payload["correctIndex"] as? Number)?.toInt()
                             ?.takeIf { it in 0..3 }
-                            ?: error("saveDictationOptionCache 缺少有效 correctIndex")
-                        wordsDatabase.saveDictationOptionCache(
+                            ?: error("saveListeningMeaningOptionCache 缺少有效 correctIndex")
+                        wordsDatabase.saveListeningMeaningOptionCache(
                             cacheKey,
                             wordId,
                             distractors,
@@ -396,26 +396,26 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 记录一次单词默写结果并在事务内更新难度与复习时间（每次都插一条）。
-                    "addDictationRecord" -> runDatabaseCall(result) {
-                        // 读取 Dart 传来的本次默写结果。
+                    // 记录一次单词听音辨义结果并在事务内更新难度与复习时间（每次都插一条）。
+                    "addListeningMeaningRecord" -> runDatabaseCall(result) {
+                        // 读取 Dart 传来的本次听音辨义结果。
                         val payload = call.arguments as? Map<*, *>
-                            ?: error("addDictationRecord 缺少参数")
+                            ?: error("addListeningMeaningRecord 缺少参数")
                         // 单词主键必须为数字。
                         val wordId = (payload["wordId"] as? Number)?.toLong()
-                            ?: error("addDictationRecord 缺少有效 wordId")
+                            ?: error("addListeningMeaningRecord 缺少有效 wordId")
                         // 是否最终全对（布尔）。
                         val isCorrect = payload["isCorrect"] as? Boolean
-                            ?: error("addDictationRecord 缺少 isCorrect")
+                            ?: error("addListeningMeaningRecord 缺少 isCorrect")
                         // 错误次数与提示次数缺省为 0。
                         val wrongCount = (payload["wrongCount"] as? Number)?.toInt() ?: 0
                         val hintCount = (payload["hintCount"] as? Number)?.toInt() ?: 0
-                        // 模块键必须是非空字符串；旧版 Dart 未传时仍兼容旧的 dictation。
+                        // 模块键必须是非空字符串；旧版 Dart 未传时仍兼容旧的 listeningMeaning。
                         val module = payload["module"]?.toString()?.trim()
                             ?.takeIf { it.isNotEmpty() }
-                            ?: "dictation"
+                            ?: "listeningMeaning"
                         // 写入记录并刷新难度，返回 null 对应 Dart Future<void>。
-                        wordsDatabase.addDictationRecord(
+                        wordsDatabase.addListeningMeaningRecord(
                             wordId,
                             isCorrect,
                             wrongCount,
@@ -425,7 +425,7 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 读取今日全部默写记录，供"今日复习"明细展示。
+                    // 读取今日全部听音辨义记录，供"今日复习"明细展示。
                     "getTodayReviewWords" -> runDatabaseCall(result) {
                         // 直接返回今日记录列表，Dart RecordStore 负责解析。
                         wordsDatabase.getTodayReviewWords()
@@ -439,7 +439,7 @@ class MainActivity : FlutterActivity() {
 
                     // 今日四种复习模式分别完成多少单词，供首页四张卡片独立显示进度。
                     "getTodayReviewCountsByModule" -> runDatabaseCall(result) {
-                        // 原生只统计四个正式模块键，普通默写不会占用听音辨义进度。
+                        // 原生只统计四个正式模块键，普通听音辨义不会占用听音辨义进度。
                         wordsDatabase.getTodayReviewCountsByModule()
                     }
 

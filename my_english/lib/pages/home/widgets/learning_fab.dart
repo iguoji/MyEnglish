@@ -9,7 +9,7 @@ import '../../../common/theme.dart';
 ///
 /// 首页右下角“学习”悬浮菜单。
 ///
-/// 关闭时只显示主按钮；展开后显示随身听、默写和对应的继续入口。
+/// 关闭时只显示主按钮；展开后显示随身听、听音辨义和对应的继续入口。
 ///
 /// 用 StatefulWidget + 显式 AnimationController 驱动所有展开/收起动画，
 /// 避免 StatelessWidget 重建时 AnimatedSwitcher 偶发“瞬间切换不播放”的问题。
@@ -21,12 +21,12 @@ class LearningFab extends StatefulWidget {
   /// @param  bool  isOpen 学习菜单是否展开。
   /// @param  int  targetCount 当前学习范围的单词数。
   /// @param  bool  showPlayerResume 是否显示随身听继续入口。
-  /// @param  bool  showDictationResume 是否显示默写继续入口。
+  /// @param  bool  showListeningMeaningResume 是否显示听音辨义继续入口。
   /// @param  VoidCallback  onToggle 展开或收起菜单的回调。
   /// @param  VoidCallback  onOpenPlayer 开始新随身听的回调。
-  /// @param  VoidCallback  onOpenDictation 开始新默写的回调。
+  /// @param  VoidCallback  onOpenListeningMeaning 开始新听音辨义的回调。
   /// @param  VoidCallback  onContinuePlayer 继续随身听的回调。
-  /// @param  VoidCallback  onContinueDictation 继续默写的回调。
+  /// @param  VoidCallback  onContinueListeningMeaning 继续听音辨义的回调。
   ///
   /// @param  Key?  key
   ///
@@ -34,12 +34,12 @@ class LearningFab extends StatefulWidget {
     required this.isOpen,
     required this.targetCount,
     required this.showPlayerResume,
-    required this.showDictationResume,
+    required this.showListeningMeaningResume,
     required this.onToggle,
     required this.onOpenPlayer,
-    required this.onOpenDictation,
+    required this.onOpenListeningMeaning,
     required this.onContinuePlayer,
-    required this.onContinueDictation,
+    required this.onContinueListeningMeaning,
     super.key,
   });
 
@@ -65,11 +65,11 @@ class LearningFab extends StatefulWidget {
   final bool showPlayerResume;
 
   ///
-  /// 是否存在未完成的默写会话。
+  /// 是否存在未完成的听音辨义会话。
   ///
   /// @var bool
   ///
-  final bool showDictationResume;
+  final bool showListeningMeaningResume;
 
   ///
   /// 点击“学习/收起”主按钮时执行。
@@ -86,11 +86,11 @@ class LearningFab extends StatefulWidget {
   final VoidCallback onOpenPlayer;
 
   ///
-  /// 点击默写时执行。
+  /// 点击听音辨义时执行。
   ///
   /// @var VoidCallback
   ///
-  final VoidCallback onOpenDictation;
+  final VoidCallback onOpenListeningMeaning;
 
   ///
   /// 点击随身听右侧“继续”时执行。
@@ -100,11 +100,11 @@ class LearningFab extends StatefulWidget {
   final VoidCallback onContinuePlayer;
 
   ///
-  /// 点击默写右侧“继续”时执行。
+  /// 点击听音辨义右侧“继续”时执行。
   ///
   /// @var VoidCallback
   ///
-  final VoidCallback onContinueDictation;
+  final VoidCallback onContinueListeningMeaning;
 
   ///
   /// 创建悬浮学习菜单状态。
@@ -308,10 +308,10 @@ class _LearningFabState extends State<LearningFab>
   }
 
   ///
-  /// 展开菜单中的两个白色胶囊入口（随身听 / 默写）。
+  /// 展开菜单中的两个白色胶囊入口（随身听 / 听音辨义）。
   ///
   /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @return Widget 随身听和默写两行操作入口。
+  /// @return Widget 随身听和听音辨义两行操作入口。
   ///
   Widget _buildActions(AppTokens tokens) => Column(
     crossAxisAlignment: CrossAxisAlignment.end,
@@ -329,12 +329,12 @@ class _LearningFabState extends State<LearningFab>
       const SizedBox(height: 10),
       _LearningActionRow(
         actionKey: const Key('open-dict'),
-        continueKey: const Key('continue-dictation'),
+        continueKey: const Key('continue-listening-meaning'),
         icon: TablerIcons.pencil,
-        label: '默写 · ${widget.targetCount}',
-        onTap: widget.onOpenDictation,
-        showContinue: widget.showDictationResume,
-        onContinue: widget.onContinueDictation,
+        label: '听音辨义 · ${widget.targetCount}',
+        onTap: widget.onOpenListeningMeaning,
+        showContinue: widget.showListeningMeaningResume,
+        onContinue: widget.onContinueListeningMeaning,
         tokens: tokens,
       ),
       const SizedBox(height: 10),

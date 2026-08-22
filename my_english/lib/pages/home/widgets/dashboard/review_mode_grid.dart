@@ -13,7 +13,7 @@ import '../../../meaning_match/meaning_match_page.dart';
 ///
 /// 复习模式快速入口：2×2 卡片网格。
 ///
-/// 听音辨义映射到现有默写流程；词义连连、拼写巩固与看义选词进入各自的
+/// 听音辨义映射到现有听音辨义流程；词义连连、拼写巩固与看义选词进入各自的
 /// 未开放页面。四个回调相互独立，便于每个入口先准备当天共用词单。
 ///
 class ReviewModeGrid extends StatelessWidget {
@@ -38,7 +38,7 @@ class ReviewModeGrid extends StatelessWidget {
   /// 每日复习目标。
   final int dailyGoal;
 
-  /// 打开听音辨义（复用当前默写页面）。
+  /// 打开听音辨义（复用当前听音辨义页面）。
   final VoidCallback onOpenListeningMeaning;
 
   /// 打开词义连连对应页面。

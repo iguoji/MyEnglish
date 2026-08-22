@@ -5,7 +5,7 @@
 /// “会经常调整的设计数字”集中在一处，后续改样式不用到多层 Widget 里翻找。
 ///
 /// 数值来源分三类，改动时请勿混淆：
-/// 1. 顶栏返回图标与中间「已配对 / 总数」——刻意复刻听音辨义（DictationLayout），
+/// 1. 顶栏返回图标与中间「已配对 / 总数」——刻意复刻听音辨义（ListeningMeaningLayout），
 ///    让两个复习模块切换时顶部完全不跳动，用户感觉是同一套产品；
 /// 2. 候选词卡片的三种状态（选中 / 连对 / 连错）——复刻
 ///    `ui/词义连连_部分效果.html` 补充稿里的 `.is-selected / .is-matched / .is-error`；
@@ -82,11 +82,12 @@ abstract final class MeaningMatchLayout {
   static const double boardVerticalInset = 12;
 
   ///
-  /// 倒计时文本字号（原型 `fs-3` = 1.125rem = 18px）。
+  /// 右上角倒计时文本字号。比中间「已配对 / 总数」数字进度（16px）小 2px，
+  /// 且不加粗，弱化为次要信息，避免和主进度抢视觉权重。
   ///
   /// @var double
   ///
-  static const double countdownTextSize = 18;
+  static const double countdownTextSize = 14;
 
   ///
   /// 倒计时进入“危险色 + 呼吸动画”的阈值秒数（原型 `timeLeft <= 10`）。

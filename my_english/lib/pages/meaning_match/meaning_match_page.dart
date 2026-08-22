@@ -1298,7 +1298,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
             style: TextStyle(
               color: isDanger ? AppTokens.danger : tokens.textSecondary,
               fontSize: MeaningMatchLayout.countdownTextSize,
-              fontWeight: FontWeight.bold,
+              // 不加粗：倒计时是次要信息，弱于中间的主进度数字。
+              fontWeight: FontWeight.w400,
               // 等宽数字替代原型的 font-monospace：既不跳动，又与全站字体保持一致。
               fontFeatures: const [FontFeature.tabularFigures()],
             ),

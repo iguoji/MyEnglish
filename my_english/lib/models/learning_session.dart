@@ -12,14 +12,18 @@ enum LearningSessionType {
   listening('listening'),
 
   ///
-  /// 单词默写答题进度。
+  /// 词库底部普通听音辨义答题进度，长期有效、不按日期过期。
   ///
   /// @var LearningSessionType
   ///
-  dictation('dictation'),
+  listeningMeaning('listeningMeaning'),
 
-  /// 听音辨义模块当天的独立答题进度。
-  listeningMeaning('review_listening_meaning'),
+  ///
+  /// 首页“听音辨义”复习模块当天的独立答题进度，与上面的普通入口互不影响。
+  ///
+  /// @var LearningSessionType
+  ///
+  listeningMeaningReview('review_listening_meaning'),
 
   /// 词义连连模块当天的独立答题进度。
   meaningMatch('review_meaning_match'),
@@ -32,11 +36,11 @@ enum LearningSessionType {
 
   /// 四种首页复习模块都只允许恢复设备本地当天保存的状态。
   bool get isDailyReviewModule => switch (this) {
-    listeningMeaning ||
+    listeningMeaningReview ||
     meaningMatch ||
     spellingReinforcement ||
     meaningWordChoice => true,
-    listening || dictation => false,
+    listening || listeningMeaning => false,
   };
 
   ///
@@ -93,7 +97,7 @@ class LearningSession {
   });
 
   ///
-  /// 随身听或默写。
+  /// 随身听或听音辨义。
   ///
   /// @var LearningSessionType
   ///

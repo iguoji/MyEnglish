@@ -7,7 +7,7 @@ import 'dart:async';
 import '../../../../common/theme.dart';
 // 引入可复用的曲线图组件（纯展示，不绑定业务）。
 import 'trend_chart.dart';
-// 引入默写记录 Store：7 天与 30 天的每日复习量聚合查询都走这里。
+// 引入听音辨义记录 Store：7 天与 30 天的每日复习量聚合查询都走这里。
 import '../../../../store/record.dart';
 
 ///

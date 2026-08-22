@@ -8,7 +8,7 @@ import '../models/learning_session.dart';
 ///
 abstract interface class LearningSessionStore {
   ///
-  /// 一次读取随身听和默写两种未完成会话。
+  /// 一次读取随身听和听音辨义两种未完成会话。
   ///
   /// @return `Future<List<LearningSession>>` 本地仍可继续的会话列表。
   ///
@@ -249,9 +249,8 @@ extension on LearningSessionType {
   String get label => switch (this) {
     // 随身听会话使用用户界面中的正式名称。
     LearningSessionType.listening => '随身听',
-    // 单词默写会话在日志中简写为“默写”。
-    LearningSessionType.dictation => '默写',
     LearningSessionType.listeningMeaning => '听音辨义',
+    LearningSessionType.listeningMeaningReview => '听音辨义（复习）',
     LearningSessionType.meaningMatch => '词义连连',
     LearningSessionType.spellingReinforcement => '拼写巩固',
     LearningSessionType.meaningWordChoice => '看义选词',

@@ -2,19 +2,19 @@
 import 'package:flutter/services.dart';
 
 ///
-/// 一道默写小题已经固定下来的候选缓存。
+/// 一道听音辨义小题已经固定下来的候选缓存。
 ///
 /// 正确答案文本始终读取最新 Word/Meaning 模型，因此这里只保存三个干扰项及
 /// 正确答案的显示下标。两部分组合后即可还原原来的四个候选及完整顺序。
 ///
-class DictationOptionCacheEntry {
+class ListeningMeaningOptionCacheEntry {
   ///
   /// 创建一条不可变的候选缓存。
   ///
   /// @param  `List<String>`  distractors
   /// @param  int?  correctIndex
   ///
-  const DictationOptionCacheEntry({
+  const ListeningMeaningOptionCacheEntry({
     required this.distractors,
     required this.correctIndex,
   });
@@ -35,26 +35,26 @@ class DictationOptionCacheEntry {
 }
 
 ///
-/// 默写候选项缓存 Store：按一道具体小题的稳定 key 读写候选名字和位置。
+/// 听音辨义候选项缓存 Store：按一道具体小题的稳定 key 读写候选名字和位置。
 ///
 /// 作用类似 PHP 项目中以 question_key 为主键的缓存表；读取时会清理空值和重复值，
 /// 页面再结合当前正确答案完成最终四选一校验。
 ///
-class DictationOptionCacheStore {
+class ListeningMeaningOptionCacheStore {
   ///
   /// 允许 Widget 测试注入独立通道；正式 App 使用 word_store 通道。
   ///
   /// @param  MethodChannel?  channel
   ///
-  const DictationOptionCacheStore({MethodChannel? channel})
+  const ListeningMeaningOptionCacheStore({MethodChannel? channel})
     : _channel = channel ?? _defaultChannel;
 
   ///
   /// 正式页面复用同一个无状态 Store。
   ///
-  /// @var DictationOptionCacheStore
+  /// @var ListeningMeaningOptionCacheStore
   ///
-  static const DictationOptionCacheStore instance = DictationOptionCacheStore();
+  static const ListeningMeaningOptionCacheStore instance = ListeningMeaningOptionCacheStore();
 
   ///
   /// 通道名与 WordStore、RecordStore 共用，原生在同一 SQLite 事务体系内管理。
@@ -76,12 +76,12 @@ class DictationOptionCacheStore {
   /// 读取一道题已保存的候选名字与正确答案位置；没有缓存时返回 null。
   ///
   /// @param  String  cacheKey
-  /// @return `Future<DictationOptionCacheEntry?>`
+  /// @return `Future<ListeningMeaningOptionCacheEntry?>`
   ///
-  Future<DictationOptionCacheEntry?> getOptions(String cacheKey) async {
+  Future<ListeningMeaningOptionCacheEntry?> getOptions(String cacheKey) async {
     // 原生返回 Map；Object? 泛型让这里能主动过滤损坏的动态值。
     final rawCache = await _channel.invokeMapMethod<Object?, Object?>(
-      'getDictationOptionCache',
+      'getListeningMeaningOptionCache',
       <String, Object?>{'cacheKey': cacheKey},
     );
     // null 明确表示这道题从未生成过缓存。
@@ -112,7 +112,7 @@ class DictationOptionCacheStore {
         ? rawCorrectIndex
         : null;
     // 返回不可修改对象，页面只能整体替换缓存，不能原地篡改。
-    return DictationOptionCacheEntry(
+    return ListeningMeaningOptionCacheEntry(
       distractors: List<String>.unmodifiable(distractors),
       correctIndex: correctIndex,
     );
@@ -155,7 +155,7 @@ class DictationOptionCacheStore {
     }
     // MethodChannel Map 类似 PHP 调原生接口时提交的关联数组。
     await _channel.invokeMethod<void>(
-      'saveDictationOptionCache',
+      'saveListeningMeaningOptionCache',
       <String, Object?>{
         'cacheKey': cacheKey,
         // 测试或尚未落库的 Word 允许 id 为空，正式词库会携带真实外键。

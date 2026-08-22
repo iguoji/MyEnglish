@@ -4,26 +4,26 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局颜色令牌，亮色和深色模式会自动选择对应颜色。
 import '../../../common/theme.dart';
-// 引入默写页面统一维护的尺寸，避免组件内部散落魔法数字。
-import 'dictation_layout.dart';
+// 引入听音辨义页面统一维护的尺寸，避免组件内部散落魔法数字。
+import 'listening_meaning_layout.dart';
 
 ///
 /// 单个步骤的类型，决定左侧节点使用哪种 Tabler 图标。
 ///
 /// 页面传入步骤类型，组件据此选择对应的 Tabler 图标。
 ///
-enum DictationStepKind {
+enum ListeningMeaningStepKind {
   ///
   /// 第一步：听音并从四个候选里选出正确单词。
   ///
-  /// @var DictationStepKind
+  /// @var ListeningMeaningStepKind
   ///
   word,
 
   ///
   /// 后续步骤：辨认某个词性下的中文释义。
   ///
-  /// @var DictationStepKind
+  /// @var ListeningMeaningStepKind
   ///
   meaning,
 }
@@ -31,47 +31,47 @@ enum DictationStepKind {
 ///
 /// 步骤的三种状态，对应 Tabler Steps 的 已完成 / 进行中 / 未开始。
 ///
-enum DictationStepStatus {
+enum ListeningMeaningStepStatus {
   ///
   /// 该步骤已经答对，节点用品牌蓝实心加勾选图标。
   ///
-  /// @var DictationStepStatus
+  /// @var ListeningMeaningStepStatus
   ///
   done,
 
   ///
   /// 用户当前正在作答的步骤，节点用品牌蓝描边加对应图标。
   ///
-  /// @var DictationStepStatus
+  /// @var ListeningMeaningStepStatus
   ///
   active,
 
   ///
   /// 尚未轮到的步骤，节点用灰色描边加淡化图标。
   ///
-  /// @var DictationStepStatus
+  /// @var ListeningMeaningStepStatus
   ///
   pending,
 }
 
 ///
-/// 默写单词的某一学习步骤，例如“听音选词”或某个词性释义。
+/// 听音辨义单词的某一学习步骤，例如“听音选词”或某个词性释义。
 ///
 /// 这是一道题的“计划清单”里的一项，页面在进入新词时就一次性把
 /// 全部步骤构建出来，组件只负责按状态渲染，不关心答题进度。
 ///
-class DictationStep {
+class ListeningMeaningStep {
   ///
   /// 创建一条步骤；业务状态仍由父页面管理。
   ///
-  /// @param  DictationStepKind  kind 步骤类型。
+  /// @param  ListeningMeaningStepKind  kind 步骤类型。
   /// @param  String  title 步骤主标题。
-  /// @param  DictationStepStatus  status 当前完成状态。
+  /// @param  ListeningMeaningStepStatus  status 当前完成状态。
   /// @param  String?  pos 释义步骤的词性。
   /// @param  `List<String>?`  definitions 已公开的释义列表。
   /// @param  String?  word 听音步骤完成后公开的单词。
   ///
-  const DictationStep({
+  const ListeningMeaningStep({
     required this.kind,
     required this.title,
     required this.status,
@@ -83,9 +83,9 @@ class DictationStep {
   ///
   /// 步骤类型，决定左侧节点的图标。
   ///
-  /// @var DictationStepKind
+  /// @var ListeningMeaningStepKind
   ///
-  final DictationStepKind kind;
+  final ListeningMeaningStepKind kind;
 
   ///
   /// 步骤主标题，例如“听音选词”或“释义”。
@@ -97,9 +97,9 @@ class DictationStep {
   ///
   /// 步骤当前状态，决定节点的配色与图标。
   ///
-  /// @var DictationStepStatus
+  /// @var ListeningMeaningStepStatus
   ///
-  final DictationStepStatus status;
+  final ListeningMeaningStepStatus status;
 
   ///
   /// 释义步骤的词性（n. / vt. 等），听音步骤为 null。
@@ -124,9 +124,9 @@ class DictationStep {
 }
 
 ///
-/// 默写页中部内容：上方单词卡，中间独立提示横幅，下方全量纵向步骤。
+/// 听音辨义页中部内容：上方单词卡，中间独立提示横幅，下方全量纵向步骤。
 ///
-class DictationQuestionContent extends StatelessWidget {
+class ListeningMeaningQuestionContent extends StatelessWidget {
   ///
   /// 创建题目内容组件；页面状态只传数据，不把答题业务塞进展示组件。
   ///
@@ -138,12 +138,12 @@ class DictationQuestionContent extends StatelessWidget {
   /// @param  String  prompt 当前操作要求。
   /// @param  String  feedback 当前即时反馈。
   /// @param  Color?  feedbackColor 反馈语义色。
-  /// @param  `List<DictationStep>`  steps 当前单词的完整步骤。
+  /// @param  `List<ListeningMeaningStep>`  steps 当前单词的完整步骤。
   /// @param  String  definitionSeparator 多条释义之间的分隔符。
   ///
   /// @param  Key?  key
   ///
-  const DictationQuestionContent({
+  const ListeningMeaningQuestionContent({
     required this.spelling,
     required this.revealedLetterCount,
     required this.revealWholeWord,
@@ -216,9 +216,9 @@ class DictationQuestionContent extends StatelessWidget {
   ///
   /// 进入新词时一次性列出的全部步骤，包含 听音选词 + 每个词性释义。
   ///
-  /// @var `List<DictationStep>`
+  /// @var `List<ListeningMeaningStep>`
   ///
-  final List<DictationStep> steps;
+  final List<ListeningMeaningStep> steps;
 
   ///
   /// 无障碍朗读多个释义时使用的分隔符，与首页设置保持一致。
@@ -239,7 +239,7 @@ class DictationQuestionContent extends StatelessWidget {
     final tokens = AppTokens.of(context);
     // Column 等同小程序中的纵向 flex 容器，三个模块从顶部依次排列。
     return Column(
-      key: const Key('dictation-question-content'),
+      key: const Key('listening-meaning-question-content'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -253,7 +253,7 @@ class DictationQuestionContent extends StatelessWidget {
           tokens: tokens,
         ),
         // 单词卡和提示横幅之间使用正常间距，不通过位移调整视觉位置。
-        const SizedBox(height: DictationLayout.questionModuleGap),
+        const SizedBox(height: ListeningMeaningLayout.questionModuleGap),
         // 提示与 Steps 只负责展示；整块下方区域的透明播放事件由父页面 Stack 统一管理。
         Column(
           mainAxisSize: MainAxisSize.min,
@@ -267,7 +267,7 @@ class DictationQuestionContent extends StatelessWidget {
               tokens: tokens,
             ),
             // 提示横幅与步骤轨道之间同样使用统一间距。
-            const SizedBox(height: DictationLayout.questionModuleGap),
+            const SizedBox(height: ListeningMeaningLayout.questionModuleGap),
             // Tabler 风格 Steps 把全部步骤（听音选词 + 每条释义）一次性列出。
             _QuestionSteps(
               steps: steps,
@@ -366,11 +366,11 @@ class _WordCard extends StatelessWidget {
     final semanticLabel = revealWholeWord ? '单词 $spelling' : '$letterCount 个字母';
     // Material 同时绘制背景、圆角与完整边框，圆角处不会因裁剪丢失边线。
     return Material(
-      key: const Key('dictation-word-card'),
+      key: const Key('listening-meaning-word-card'),
       // 用极淡的品牌色铺底，让单词卡成为页面视觉焦点。
       color: AppTokens.accent.withValues(alpha: 0.04),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
         side: BorderSide(color: tokens.border),
       ),
       clipBehavior: Clip.antiAlias,
@@ -380,12 +380,12 @@ class _WordCard extends StatelessWidget {
         container: true,
         // 固定卡高度，让中部区域不随单词长短跳动。
         child: SizedBox(
-          key: const Key('dictation-word-slot'),
-          height: DictationLayout.wordCardHeight,
+          key: const Key('listening-meaning-word-slot'),
+          height: ListeningMeaningLayout.wordCardHeight,
           // Padding 防止较长单词直接贴到卡片左右边框。
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: DictationLayout.wordCardHorizontalInset,
+              horizontal: ListeningMeaningLayout.wordCardHorizontalInset,
             ),
             // Row 让听音按钮占据左侧固定宽度，字母瓷砖在剩余空间居中。
             child: Row(
@@ -397,7 +397,7 @@ class _WordCard extends StatelessWidget {
                   tokens: tokens,
                 ),
                 // 听音按钮与瓷砖之间保留紧凑间距。
-                const SizedBox(width: DictationLayout.wordCardInnerGap),
+                const SizedBox(width: ListeningMeaningLayout.wordCardInnerGap),
                 // Expanded 让瓷砖在去掉听音按钮后的区域里水平居中。
                 Expanded(
                   // Center 保证瓷砖整体在卡片中垂直居中。
@@ -466,13 +466,13 @@ class _WordCard extends StatelessWidget {
   }) {
     // 空格只形成单词间隔，不显示文字，也不创建字母瓷砖。
     if (character.trim().isEmpty) {
-      return const <Widget>[SizedBox(width: DictationLayout.wordSpaceWidth)];
+      return const <Widget>[SizedBox(width: ListeningMeaningLayout.wordSpaceWidth)];
     }
     // 连字符或撇号按原文显示，使复合词仍保持正确结构。
     if (letterIndex == null) {
       return <Widget>[
         SizedBox(
-          height: DictationLayout.wordTileHeight,
+          height: ListeningMeaningLayout.wordTileHeight,
           child: Center(
             child: Text(
               character,
@@ -486,7 +486,7 @@ class _WordCard extends StatelessWidget {
           ),
         ),
         if (hasFollowingCharacter)
-          const SizedBox(width: DictationLayout.wordTileGap),
+          const SizedBox(width: ListeningMeaningLayout.wordTileGap),
       ];
     }
     // 拼写已答对时公开全部字母，否则仅公开提示数量以内的左侧字母。
@@ -494,16 +494,16 @@ class _WordCard extends StatelessWidget {
     // 每个英文字母固定使用一个圆角瓷砖，真实文字出现时不改变任何几何尺寸。
     return <Widget>[
       Container(
-        key: Key('dictation-tile-$letterIndex'),
-        width: DictationLayout.wordTileWidth,
-        height: DictationLayout.wordTileHeight,
+        key: Key('listening-meaning-tile-$letterIndex'),
+        width: ListeningMeaningLayout.wordTileWidth,
+        height: ListeningMeaningLayout.wordTileHeight,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           // 已公开的瓷砖使用极淡品牌色底，未公开则使用次级底色。
           color: isRevealed
               ? AppTokens.accent.withValues(alpha: 0.08)
               : tokens.sub,
-          borderRadius: BorderRadius.circular(DictationLayout.wordTileRadius),
+          borderRadius: BorderRadius.circular(ListeningMeaningLayout.wordTileRadius),
           // 已公开瓷砖描品牌色边，未公开使用普通输入边框。
           border: Border.all(
             color: isRevealed
@@ -514,18 +514,18 @@ class _WordCard extends StatelessWidget {
         child: Text(
           // 公开的字母统一大写，视觉更整齐；未公开时瓷砖留空。
           isRevealed ? character.toUpperCase() : '',
-          key: Key('dictation-tile-letter-$letterIndex'),
+          key: Key('listening-meaning-tile-letter-$letterIndex'),
           style: TextStyle(
             // 整词完成后用品牌色高亮庆祝，否则用主文字色。
             color: revealWholeWord ? AppTokens.accent : tokens.text,
             // 字号跟随布局常量，保证与测试约定一致。
-            fontSize: DictationLayout.wordLetterFontSize,
+            fontSize: ListeningMeaningLayout.wordLetterFontSize,
             fontWeight: FontWeight.w700,
           ),
         ),
       ),
       if (hasFollowingCharacter)
-        const SizedBox(width: DictationLayout.wordTileGap),
+        const SizedBox(width: ListeningMeaningLayout.wordTileGap),
     ];
   }
 }
@@ -583,13 +583,13 @@ class _CardSpeakerButton extends StatelessWidget {
       shape: const CircleBorder(),
       // InkWell 提供点击；onTap 来自父页面，复用同一套发音服务。
       child: InkWell(
-        key: const Key('dictation-word-card-speaker'),
+        key: const Key('listening-meaning-word-card-speaker'),
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         // SizedBox 固定点击画布，不让图标透明空间影响卡片对齐。
         child: SizedBox(
-          width: DictationLayout.wordCardSpeakerSize,
-          height: DictationLayout.wordCardSpeakerSize,
+          width: ListeningMeaningLayout.wordCardSpeakerSize,
+          height: ListeningMeaningLayout.wordCardSpeakerSize,
           child: Center(
             child: Icon(
               // 播放中显示双声波图标，空闲显示单声波图标。
@@ -661,16 +661,16 @@ class _PromptBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     // Container 绘制与单词卡同款的边框与圆角，保持组件一致性。
     return Container(
-      key: const Key('dictation-prompt-banner'),
+      key: const Key('listening-meaning-prompt-banner'),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: tokens.card,
-        borderRadius: BorderRadius.circular(DictationLayout.cardRadius),
+        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
         border: Border.all(color: tokens.border),
       ),
       // 内部列承载“当前要求”标题、要求正文与反馈三行。
       child: Column(
-        key: const Key('dictation-prompt-information'),
+        key: const Key('listening-meaning-prompt-information'),
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -693,7 +693,7 @@ class _PromptBanner extends StatelessWidget {
           // 当前这一阶段的具体要求，例如“听音，选出正确的单词”。
           Text(
             prompt,
-            key: const Key('dictation-stage-label'),
+            key: const Key('listening-meaning-stage-label'),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -705,8 +705,8 @@ class _PromptBanner extends StatelessWidget {
           const SizedBox(height: 4),
           // 固定高度反馈区，文案出现时横幅不抖动。
           SizedBox(
-            key: const Key('dictation-feedback-slot'),
-            height: DictationLayout.feedbackHeight,
+            key: const Key('listening-meaning-feedback-slot'),
+            height: ListeningMeaningLayout.feedbackHeight,
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -737,7 +737,7 @@ class _QuestionSteps extends StatelessWidget {
   ///
   /// 创建整条步骤轨道；业务状态仍由父页面管理。
   ///
-  /// @param  `List<DictationStep>`  steps
+  /// @param  `List<ListeningMeaningStep>`  steps
   /// @param  String  definitionSeparator
   /// @param  AppTokens  tokens
   ///
@@ -750,9 +750,9 @@ class _QuestionSteps extends StatelessWidget {
   ///
   /// 当前单词的全部步骤，已含各自状态。
   ///
-  /// @var `List<DictationStep>`
+  /// @var `List<ListeningMeaningStep>`
   ///
-  final List<DictationStep> steps;
+  final List<ListeningMeaningStep> steps;
 
   ///
   /// 无障碍朗读多个释义时使用的分隔符。
@@ -777,22 +777,22 @@ class _QuestionSteps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      key: const Key('dictation-vertical-steps'),
+      key: const Key('listening-meaning-vertical-steps'),
       mainAxisSize: MainAxisSize.min,
       children: [
         // 每个步骤都从一开始列出，不再等答对后才出现。
         for (var index = 0; index < steps.length; index += 1)
           _VerticalStepItem(
             stepIndex: index,
-            stepKey: Key('dictation-step-$index'),
+            stepKey: Key('listening-meaning-step-$index'),
             status: steps[index].status,
             isLast: index == steps.length - 1,
             icon: _stepIcon(steps[index]),
             tokens: tokens,
             // 释义步骤的内容 key 沿用旧命名，便于测试和后续定位。
-            contentKey: steps[index].kind == DictationStepKind.word
-                ? const Key('dictation-step-word')
-                : Key('dictation-step-meaning-${index - 1}'),
+            contentKey: steps[index].kind == ListeningMeaningStepKind.word
+                ? const Key('listening-meaning-step-word')
+                : Key('listening-meaning-step-meaning-${index - 1}'),
             child: _StepContent(
               step: steps[index],
               tokens: tokens,
@@ -806,14 +806,14 @@ class _QuestionSteps extends StatelessWidget {
   ///
   /// 根据步骤类型与状态选择节点图标。
   ///
-  /// @param  DictationStep  step 需要绘制节点的步骤。
+  /// @param  ListeningMeaningStep  step 需要绘制节点的步骤。
   /// @return IconData 与步骤类型和状态匹配的 Tabler 图标。
   ///
-  IconData _stepIcon(DictationStep step) {
+  IconData _stepIcon(ListeningMeaningStep step) {
     // 已完成的步骤一律用勾选图标表达“做完了”。
-    if (step.status == DictationStepStatus.done) return TablerIcons.check;
+    if (step.status == ListeningMeaningStepStatus.done) return TablerIcons.check;
     // 听音步骤用耳机图标，释义步骤用列表详情图标。
-    return step.kind == DictationStepKind.word
+    return step.kind == ListeningMeaningStepKind.word
         ? TablerIcons.headphones
         : TablerIcons.listDetails;
   }
@@ -828,7 +828,7 @@ class _VerticalStepItem extends StatelessWidget {
   ///
   /// @param  int  stepIndex
   /// @param  Key  stepKey
-  /// @param  DictationStepStatus  status
+  /// @param  ListeningMeaningStepStatus  status
   /// @param  bool  isLast
   /// @param  IconData  icon
   /// @param  Key  contentKey
@@ -863,9 +863,9 @@ class _VerticalStepItem extends StatelessWidget {
   ///
   /// 当前步骤状态，决定节点配色与图标颜色。
   ///
-  /// @var DictationStepStatus
+  /// @var ListeningMeaningStepStatus
   ///
-  final DictationStepStatus status;
+  final ListeningMeaningStepStatus status;
 
   ///
   /// 最后一步不再向下绘制连接线。
@@ -911,20 +911,20 @@ class _VerticalStepItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 已完成：品牌蓝实心；进行中：白底品牌蓝描边；未开始：卡片底灰描边。
-    final nodeColor = status == DictationStepStatus.done
+    final nodeColor = status == ListeningMeaningStepStatus.done
         ? AppTokens.accent
-        : status == DictationStepStatus.active
+        : status == ListeningMeaningStepStatus.active
         ? Colors.white
         : tokens.card;
     // 未开始使用更淡的 check 灰描边，其余状态都用品牌蓝描边。
-    final nodeBorder = status == DictationStepStatus.pending
+    final nodeBorder = status == ListeningMeaningStepStatus.pending
         ? tokens.check
         : AppTokens.accent;
     // 关键：蓝底节点（已完成）内必须用白色图标，否则蓝图标在蓝底上不可见；
     // 白底节点（进行中）用品牌蓝图标，卡片底节点（未开始）用弱化灰图标。
-    final iconColor = status == DictationStepStatus.done
+    final iconColor = status == ListeningMeaningStepStatus.done
         ? Colors.white
-        : status == DictationStepStatus.pending
+        : status == ListeningMeaningStepStatus.pending
         ? tokens.muted
         : AppTokens.accent;
     return IntrinsicHeight(
@@ -934,14 +934,14 @@ class _VerticalStepItem extends StatelessWidget {
         children: [
           // 固定宽度的轨道列保证所有步骤节点具有同一个水平中心。
           SizedBox(
-            width: DictationLayout.stepMarkerSize,
+            width: ListeningMeaningLayout.stepMarkerSize,
             child: Column(
               children: [
                 // 圆形节点模拟 Tabler Steps 的状态点。
                 Container(
-                  key: Key('dictation-step-marker-$stepIndex'),
-                  width: DictationLayout.stepMarkerSize,
-                  height: DictationLayout.stepMarkerSize,
+                  key: Key('listening-meaning-step-marker-$stepIndex'),
+                  width: ListeningMeaningLayout.stepMarkerSize,
+                  height: ListeningMeaningLayout.stepMarkerSize,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: nodeColor,
@@ -950,7 +950,7 @@ class _VerticalStepItem extends StatelessWidget {
                   ),
                   child: Icon(
                     icon,
-                    size: DictationLayout.stepIconSize,
+                    size: ListeningMeaningLayout.stepIconSize,
                     color: iconColor,
                   ),
                 ),
@@ -958,8 +958,8 @@ class _VerticalStepItem extends StatelessWidget {
                 if (!isLast)
                   Expanded(
                     child: Container(
-                      key: Key('dictation-step-connector-$stepIndex'),
-                      width: DictationLayout.stepConnectorWidth,
+                      key: Key('listening-meaning-step-connector-$stepIndex'),
+                      width: ListeningMeaningLayout.stepConnectorWidth,
                       color: tokens.inputBorder,
                     ),
                   ),
@@ -967,16 +967,16 @@ class _VerticalStepItem extends StatelessWidget {
             ),
           ),
           // 左侧轨道与右侧正文保持 Tabler 风格的紧凑间距。
-          const SizedBox(width: DictationLayout.stepContentGap),
+          const SizedBox(width: ListeningMeaningLayout.stepContentGap),
           // Expanded 让长提示与释义使用剩余宽度并自然换行。
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(
-                bottom: isLast ? 0 : DictationLayout.stepVerticalGap,
+                bottom: isLast ? 0 : ListeningMeaningLayout.stepVerticalGap,
               ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
-                  minHeight: DictationLayout.stepContentMinHeight,
+                  minHeight: ListeningMeaningLayout.stepContentMinHeight,
                 ),
                 // 用统一 key 承载右侧内容，便于测试定位这一步骤。
                 child: Container(key: contentKey, child: child),
@@ -996,7 +996,7 @@ class _StepContent extends StatelessWidget {
   ///
   /// 创建一条步骤内容。
   ///
-  /// @param  DictationStep  step
+  /// @param  ListeningMeaningStep  step
   /// @param  AppTokens  tokens
   /// @param  String  definitionSeparator
   ///
@@ -1009,9 +1009,9 @@ class _StepContent extends StatelessWidget {
   ///
   /// 当前步骤的数据与状态。
   ///
-  /// @var DictationStep
+  /// @var ListeningMeaningStep
   ///
-  final DictationStep step;
+  final ListeningMeaningStep step;
 
   ///
   /// 当前主题令牌。
@@ -1036,12 +1036,12 @@ class _StepContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 未开始步骤标题用弱化色，进行中/已完成用主文字色突出。
-    final titleColor = step.status == DictationStepStatus.pending
+    final titleColor = step.status == ListeningMeaningStepStatus.pending
         ? tokens.textSecondary
         : tokens.text;
     // 正文先把标题、可选词性标签与右侧状态标签排成一行。
     final body = Column(
-      key: const Key('dictation-step-body'),
+      key: const Key('listening-meaning-step-body'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1066,8 +1066,8 @@ class _StepContent extends StatelessWidget {
           ],
         ),
         // 听音步骤完成后直接回显正确单词；释义步骤展示已答释义 chips。
-        if (step.kind == DictationStepKind.word &&
-            step.status == DictationStepStatus.done) ...[
+        if (step.kind == ListeningMeaningStepKind.word &&
+            step.status == ListeningMeaningStepStatus.done) ...[
           const SizedBox(height: 6),
           // 复用释义 chip 的同款浅色标签，展示用户刚刚选对的单词。
           Container(
@@ -1099,7 +1099,7 @@ class _StepContent extends StatelessWidget {
                 definitionIndex += 1
               )
                 Container(
-                  key: Key('dictation-definition-chip-$definitionIndex'),
+                  key: Key('listening-meaning-definition-chip-$definitionIndex'),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
@@ -1115,17 +1115,17 @@ class _StepContent extends StatelessWidget {
                 ),
             ],
           ),
-        ] else if (step.status != DictationStepStatus.done) ...[
+        ] else if (step.status != ListeningMeaningStepStatus.done) ...[
           const SizedBox(height: 6),
           Text('待完成', style: TextStyle(color: tokens.muted, fontSize: 12.5)),
         ],
       ],
     );
     // 听音步骤完成后回显正确单词，释义步骤合并词性与已答释义，均给读屏一句语义。
-    if ((step.kind == DictationStepKind.meaning && step.definitions != null) ||
-        (step.kind == DictationStepKind.word &&
-            step.status == DictationStepStatus.done)) {
-      final label = step.kind == DictationStepKind.word
+    if ((step.kind == ListeningMeaningStepKind.meaning && step.definitions != null) ||
+        (step.kind == ListeningMeaningStepKind.word &&
+            step.status == ListeningMeaningStepStatus.done)) {
+      final label = step.kind == ListeningMeaningStepKind.word
           ? '正确单词 ${step.word ?? ''}'
           : '词性 ${step.pos?.toLowerCase() ?? '释义'}，含义 ${step.definitions!.join(definitionSeparator)}';
       return Semantics(
@@ -1204,7 +1204,7 @@ class _StatusTag extends StatelessWidget {
   ///
   /// 创建状态标签。
   ///
-  /// @param  DictationStepStatus  status
+  /// @param  ListeningMeaningStepStatus  status
   /// @param  AppTokens  tokens
   ///
   const _StatusTag({required this.status, required this.tokens});
@@ -1212,9 +1212,9 @@ class _StatusTag extends StatelessWidget {
   ///
   /// 当前步骤状态。
   ///
-  /// @var DictationStepStatus
+  /// @var ListeningMeaningStepStatus
   ///
-  final DictationStepStatus status;
+  final ListeningMeaningStepStatus status;
 
   ///
   /// 当前主题令牌。
@@ -1232,17 +1232,17 @@ class _StatusTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 已完成与作答中借用品牌色，未开始用中性灰，视觉权重从强到弱。
-    final label = status == DictationStepStatus.done
+    final label = status == ListeningMeaningStepStatus.done
         ? '已完成'
-        : status == DictationStepStatus.active
+        : status == ListeningMeaningStepStatus.active
         ? '作答中'
         : '待完成';
-    final backgroundColor = status == DictationStepStatus.done
+    final backgroundColor = status == ListeningMeaningStepStatus.done
         ? AppTokens.accent.withValues(alpha: 0.10)
-        : status == DictationStepStatus.active
+        : status == ListeningMeaningStepStatus.active
         ? AppTokens.accent.withValues(alpha: 0.12)
         : tokens.sub;
-    final foregroundColor = status == DictationStepStatus.pending
+    final foregroundColor = status == ListeningMeaningStepStatus.pending
         ? tokens.muted
         : AppTokens.accent;
     return Container(
@@ -1267,7 +1267,7 @@ class _StatusTag extends StatelessWidget {
 }
 
 ///
-/// 判断单个字符是否为英文 A-Z；默写词库当前以英文单词为业务范围。
+/// 判断单个字符是否为英文 A-Z；听音辨义词库当前以英文单词为业务范围。
 ///
 /// @param  String  character
 /// @return bool

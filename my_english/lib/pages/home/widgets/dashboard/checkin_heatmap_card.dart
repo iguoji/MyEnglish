@@ -7,7 +7,7 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
-// 引入默写记录 Store：按天的复习量聚合查询走这里。
+// 引入听音辨义记录 Store：按天的复习量聚合查询走这里。
 import '../../../../store/record.dart';
 
 ///
@@ -252,8 +252,8 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
   ///
   /// - 0 个 → 未复习；
   /// - 不足目标的 60% → 少量；
-  /// - 达到 60% 但不足目标 → 达标；
-  /// - 达到或超过目标 → 超额。
+  /// - 达到 60% 且不超过目标（含正好达标）→ 达标；
+  /// - 超过目标 → 超额。
   ///
   /// @param  int  count 当天去重复习单词数。
   /// @param  int  goal  每日复习目标。
@@ -264,9 +264,9 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
     if (count <= 0) return CheckinLevel.zero;
     // 目标为 0 视为无约束：复习了就算超额。
     if (goal <= 0) return CheckinLevel.three;
-    // 达到目标即超额档。
-    if (count >= goal) return CheckinLevel.three;
-    // 超过目标的六成算达标，否则算少量。
+    // 超过目标才算超额档（例如 51/50）。
+    if (count > goal) return CheckinLevel.three;
+    // 达到六成且不超过目标（含正好 50/50）→ 达标档。
     if (count >= goal * 0.6) return CheckinLevel.two;
     return CheckinLevel.one;
   }

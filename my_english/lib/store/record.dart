@@ -9,7 +9,7 @@ import '../models/record.dart';
 /// 数据库里的统计口径也不会跟着变化。
 ///
 abstract final class ReviewModule {
-  /// 听音辨义：当前复用已有默写流程。
+  /// 听音辨义：当前复用已有听音辨义流程。
   static const String listeningMeaning = 'listening_meaning';
 
   /// 词义连连：入口已展示，玩法尚未开放。
@@ -23,9 +23,9 @@ abstract final class ReviewModule {
 }
 
 ///
-/// 默写记录 Store：记录写入与「今日复习」查询都走原生 word_store 通道。
+/// 听音辨义记录 Store：记录写入与「今日复习」查询都走原生 word_store 通道。
 ///
-/// 每次默写提交都会新增记录；复习时间和难度由原生数据库在同一事务更新。
+/// 每次听音辨义提交都会新增记录；复习时间和难度由原生数据库在同一事务更新。
 ///
 class RecordStore {
   ///
@@ -61,7 +61,7 @@ class RecordStore {
   final MethodChannel _channel;
 
   ///
-  /// 记录一次单词默写结果。
+  /// 记录一次单词听音辨义结果。
   ///
   /// 参数对应页面在「用户完成单词并点击下一题」时提交的本次数据：
   /// - [wordId]：哪个单词；
@@ -84,11 +84,11 @@ class RecordStore {
     required bool isCorrect,
     required int wrongCount,
     required int hintCount,
-    String module = 'dictation',
+    String module = 'listeningMeaning',
   }) async {
     // 参数 Map 类似 Laravel Service 接收的 DTO，一次性交给原生事务处理。
-    await _channel.invokeMethod<void>('addDictationRecord', <String, Object?>{
-      // 关联本次默写的单词。
+    await _channel.invokeMethod<void>('addListeningMeaningRecord', <String, Object?>{
+      // 关联本次听音辨义的单词。
       'wordId': wordId,
       // 零错误完成时为 true，中途选错过则为 false。
       'isCorrect': isCorrect,
@@ -102,13 +102,13 @@ class RecordStore {
   }
 
   ///
-  /// 读取今日全部默写记录（原生已按 created_date = 今天 过滤）。
+  /// 读取今日全部听音辨义记录（原生已按 created_date = 今天 过滤）。
   ///
   /// 返回的是「今天写进数据库的全部记录」，同一个单词可能出现多条
   /// （一天里练了几遍就有几条）。UI 想展示「今天复习了哪些词」时再用
   /// [getTodayReviewWordIds] 去重即可。
   ///
-  /// @return `Future<List<Record>>` 今日全部默写记录的不可变列表。
+  /// @return `Future<List<Record>>` 今日全部听音辨义记录的不可变列表。
   ///
   Future<List<Record>> getTodayRecords() async {
     // 原生返回 List<Map>，null 按空列表处理。
@@ -150,12 +150,12 @@ class RecordStore {
   /// 今日复习数量：按天 + 按单词汇总（同一个词今天练几遍都只算 1）。
   ///
   /// 首页副标题「今日复习 X/目标」用的就是这个值。原生 SQL 里只统计
-  /// 已开发模块（当前为 `listening_meaning`，兼容历史 `dictation`），
+  /// 已开发模块（当前为 `listening_meaning`，兼容历史 `listeningMeaning`），
   /// 词义连连 / 拼写巩固 / 看义选词等未开放玩法即使写入了记录，
   /// 也不会让首页进度虚涨。聚合用 `COUNT(DISTINCT word_id)`，
   /// 比把整天的记录都搬到 Dart 再去重更省。
   ///
-  /// @return `Future<int>` 今日完成过默写的不同单词数量。
+  /// @return `Future<int>` 今日完成过听音辨义的不同单词数量。
   ///
   Future<int> getTodayReviewWordCount() async {
     // 原生返回一个整数；通道异常由调用方 try/catch 兜底。
@@ -167,7 +167,7 @@ class RecordStore {
   ///
   /// 按复习模式读取今日完成的单词数，每个模式内部按单词去重。
   ///
-  /// 原生只返回首页四种复习模块的稳定键；普通 `dictation` 默写记录仍会
+  /// 原生只返回首页四种复习模块的稳定键；普通 `listeningMeaning` 听音辨义记录仍会
   /// 进入全局今日复习量，但不会占用“听音辨义”自己的完成进度。
   ///
   /// @return `Future<Map<String, int>>` 模块标识到今日去重单词数的映射。
@@ -198,7 +198,7 @@ class RecordStore {
   /// 按天统计复习单词数（每天按单词去重），供趋势曲线与打卡质量卡使用。
   ///
   /// 原生 SQL 同样只统计已开发模块（当前为 `listening_meaning` + 历史
-  /// `dictation`），未开放的三个玩法不参与趋势曲线与热力图，
+  /// `listeningMeaning`），未开放的三个玩法不参与趋势曲线与热力图，
   /// 保证「曲线图 / 热力图 / 今日复习数」三个口径完全一致。
   ///
   /// 聚合（GROUP BY + COUNT(DISTINCT)）在原生 SQLite 完成，走

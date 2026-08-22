@@ -5,17 +5,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入需要验证的候选项生成服务。
-import 'package:my_english/pages/dictation/services/dictation_option_generator.dart';
+import 'package:my_english/pages/listening_meaning/services/listening_meaning_option_generator.dart';
 
 ///
-/// 验证默写候选项的数量、拼写形态和词库相似度排序。
+/// 验证听音辨义候选项的数量、拼写形态和词库相似度排序。
 ///
 /// @return void
 ///
 void main() {
   test('word distractors keep length and use plausible letter changes', () {
     // ability 有足够的同长度换位、元音和辅音替换结果。
-    final distractors = DictationOptionGenerator.buildWordDistractors(
+    final distractors = ListeningMeaningOptionGenerator.buildWordDistractors(
       correct: 'ability',
       sourceWords: const <Word>[
         Word(spelling: 'ability'),
@@ -45,7 +45,7 @@ void main() {
 
   test('word distractors fall back to similarly sized source words', () {
     // 非英文正确值无法生成合法字母变体，因此会检验词库回退分支。
-    final distractors = DictationOptionGenerator.buildWordDistractors(
+    final distractors = ListeningMeaningOptionGenerator.buildWordDistractors(
       correct: '123',
       sourceWords: const <Word>[
         Word(spelling: 'cat'),
@@ -88,7 +88,7 @@ void main() {
       ),
     ];
     // 以“能力”作为正确释义进行检索。
-    final distractors = DictationOptionGenerator.buildDefinitionDistractors(
+    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
       correct: '能力',
       sourceWords: sourceWords,
     );
@@ -99,7 +99,7 @@ void main() {
 
   test('tiny definition source still produces three unique distractors', () {
     // 只有正确释义的极小词库无法直接提供三个其他释义。
-    final distractors = DictationOptionGenerator.buildDefinitionDistractors(
+    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
       correct: '能力',
       sourceWords: const <Word>[
         Word(
@@ -121,13 +121,13 @@ void main() {
 
   test('replacement helpers skip every currently visible candidate', () {
     // 先取得初始英文四选一中的三个干扰项。
-    final initialWords = DictationOptionGenerator.buildWordDistractors(
+    final initialWords = ListeningMeaningOptionGenerator.buildWordDistractors(
       correct: 'ability',
       sourceWords: const <Word>[Word(spelling: 'ability')],
     );
     // 刷新必须从更大的候选池里寻找未显示项。
     final replacementWord =
-        DictationOptionGenerator.findReplacementWordDistractor(
+        ListeningMeaningOptionGenerator.findReplacementWordDistractor(
           correct: 'ability',
           sourceWords: const <Word>[Word(spelling: 'ability')],
           excluded: <String>['ability', ...initialWords],
@@ -138,7 +138,7 @@ void main() {
 
     // 中文释义同样排除正确答案与当前三个干扰项。
     final initialDefinitions =
-        DictationOptionGenerator.buildDefinitionDistractors(
+        ListeningMeaningOptionGenerator.buildDefinitionDistractors(
           correct: '能力',
           sourceWords: const <Word>[
             Word(
@@ -150,7 +150,7 @@ void main() {
           ],
         );
     final replacementDefinition =
-        DictationOptionGenerator.findReplacementDefinitionDistractor(
+        ListeningMeaningOptionGenerator.findReplacementDefinitionDistractor(
           correct: '能力',
           sourceWords: const <Word>[
             Word(
