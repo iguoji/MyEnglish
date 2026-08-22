@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+  <title>单词限时配对 - Tabler 原型</title>
+  
+  <!-- Tabler Core CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <!-- Tabler Icons CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+
+  <style>
+    :root {
+      --app-px: 20px; /* 全局统一 20px 两侧边距 */
+    }
+
+    body {
+      background-color: #f1f5f9;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+    }
+
+    .mobile-screen {
+      width: 100%;
+      max-width: 414px;
+      height: 100vh;
+      max-height: 844px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-width: 576px) {
+      .mobile-screen {
+        border-radius: 28px;
+        height: 820px;
+      }
+    }
+
+    .app-padding-x {
+      padding-left: var(--app-px) !important;
+      padding-right: var(--app-px) !important;
+    }
+
+    /* 连线及主体区域容器 */
+    .matching-board {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    /* SVG 画布 */
+    #connection-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* 两列网格：两边与屏幕20px，中间通过 40px Gap 达到各距中线 20px */
+    .matching-grid {
+      display: flex;
+      justify-content: space-between;
+      gap: 40px;
+      width: 100%;
+      z-index: 2;
+    }
+
+    .left-col, .right-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 候选词卡片（1px 淡边框） */
+    .pair-btn {
+      position: relative;
+      min-height: 52px;
+      max-height: 62px;
+      padding: 6px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      border: 1px solid #e6e8ec;
+      background-color: var(--tblr-bg-surface);
+      color: var(--tblr-body-color);
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      width: 100%;
+    }
+
+    /* 经典实心白边小圆点锚点 */
+    .anchor-point {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #cbd5e1;
+      border: 1.5px solid #ffffff;
+      box-shadow: 0 0 0 1px #e2e8f0;
+      pointer-events: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 3;
+    }
+    .left-col .pair-btn .anchor-point { right: -4.5px; }
+    .right-col .pair-btn .anchor-point { left: -4.5px; }
+
+    /* 锚点交互状态 */
+    .pair-btn.selected .anchor-point {
+      background-color: var(--tblr-primary);
+      box-shadow: 0 0 0 2px rgba(32, 107, 196, 0.3);
+      transform: translateY(-50%) scale(1.15);
+    }
+    .pair-btn.matched .anchor-point {
+      background-color: var(--tblr-success);
+      box-shadow: 0 0 0 1px rgba(47, 179, 68, 0.2);
+    }
+    .pair-btn.error .anchor-point {
+      background-color: var(--tblr-danger);
+    }
+
+    /* 候选词统一字体排版 */
+    .card-label {
+      width: 100%;
+      font-size: 0.8125rem;
+      line-height: 1.28;
+      font-weight: 500;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      hyphens: auto;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .left-col .card-label {
+      text-align: left;
+      font-weight: 600;
+    }
+    .right-col .card-label {
+      text-align: right;
+      color: #626976;
+    }
+
+    /* 选中态 */
+    .pair-btn.selected {
+      border-color: var(--tblr-primary) !important;
+      background-color: var(--tblr-primary-lt) !important;
+      color: var(--tblr-primary) !important;
+      box-shadow: 0 0 0 2px rgba(32, 107, 196, 0.15);
+    }
+    .pair-btn.selected .card-label {
+      color: var(--tblr-primary) !important;
+    }
+
+    /* 成功消除态 */
+    .pair-btn.matched {
+      border-color: var(--tblr-success) !important;
+      background-color: var(--tblr-success-lt) !important;
+      opacity: 0.65;
+      pointer-events: none;
+    }
+    .pair-btn.matched .card-label {
+      color: var(--tblr-success) !important;
+      text-decoration: line-through;
+    }
+
+    /* 错误震动 */
+    .pair-btn.error {
+      border-color: var(--tblr-danger) !important;
+      background-color: var(--tblr-danger-lt) !important;
+      animation: shake 0.35s ease-in-out;
+    }
+    .pair-btn.error .card-label {
+      color: var(--tblr-danger) !important;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-4px); }
+      40%, 80% { transform: translateX(4px); }
+    }
+
+    /* 连线动效 */
+    .connect-line {
+      stroke: var(--tblr-success);
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-dasharray: 300;
+      stroke-dashoffset: 300;
+      animation: drawLine 0.35s ease-out forwards;
+    }
+    @keyframes drawLine {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* 倒计时最后 10s 呼吸动效 */
+    .pulse-danger {
+      animation: pulseDanger 0.8s infinite;
+    }
+    @keyframes pulseDanger {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.06); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .fade-switch {
+      animation: fadeIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="mobile-screen">
+
+    <!-- ==================== 页面 1：答题界面 ==================== -->
+    <div id="game-view" class="h-100 d-flex flex-column">
+      
+      <!-- 1. 顶部 Header (左返回图标严格居左，中5/50纯文本无背景，右纯文本倒计时) -->
+      <header class="app-padding-x pt-3 pb-2 d-flex align-items-center justify-content-between">
+        
+        <!-- 左侧：返回图标 -->
+        <div style="flex: 1;" class="d-flex justify-content-start">
+          <a href="javascript:void(0);" class="text-body p-0 border-0 bg-transparent d-inline-flex align-items-center text-decoration-none" title="返回">
+            <i class="ti ti-chevron-left fs-1 lh-1"></i>
+          </a>
+        </div>
+
+        <!-- 中间：5/50 纯文本无背景 -->
+        <div class="d-flex justify-content-center align-items-center">
+          <div class="fs-2 fw-bold text-primary font-monospace lh-1">
+            <span id="current-progress">5</span><span class="text-muted fw-normal fs-3"> / 50</span>
+          </div>
+        </div>
+
+        <!-- 右侧：纯文本倒计时 -->
+        <div style="flex: 1;" class="d-flex justify-content-end align-items-center">
+          <span class="fw-bold font-monospace fs-3 text-secondary lh-1" id="time-text">01:00</span>
+        </div>
+      </header>
+
+      <!-- 2. 顶部时间进度条 (两侧拥有 20px 边距) -->
+      <div class="app-padding-x pb-2">
+        <div class="progress progress-xs w-100 bg-light" style="height: 3px; border-radius: 2px;">
+          <div class="progress-bar bg-primary transition-all" id="time-bar" style="width: 100%;"></div>
+        </div>
+      </div>
+
+      <!-- 3. 主体操作区（无底部冗余提示文字） -->
+      <main class="flex-fill app-padding-x py-3 d-flex flex-column justify-content-center">
+        
+        <!-- 连线配对区 -->
+        <div class="matching-board my-auto" id="board-container">
+          
+          <!-- SVG 连线层 + 中间竖条状虚线 -->
+          <svg id="connection-canvas">
+            <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="8,8" />
+          </svg>
+
+          <!-- 候选词两列布局 -->
+          <div class="matching-grid fade-switch" id="game-grid">
+            <!-- 左列：居左单词 (5个) -->
+            <div class="left-col" id="words-col"></div>
+
+            <!-- 右列：居右含义 (5个) -->
+            <div class="right-col" id="meanings-col"></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+
+    <!-- ==================== 页面 2：倒计时结束状态页 (垂直居中，两侧边距 50px) ==================== -->
+    <div id="result-view" class="h-100 d-flex flex-column justify-content-center py-4 d-none" style="padding-left: 50px; padding-right: 50px;">
+      
+      <div class="w-100 d-flex flex-column gap-4">
+        
+        <!-- 结算 Header -->
+        <div class="text-center">
+          <div class="avatar avatar-xl rounded-circle bg-red-lt mb-3 mx-auto shadow-sm" id="result-icon-wrap">
+            <i class="ti ti-alarm-off fs-1 text-danger" id="result-icon"></i>
+          </div>
+          <h2 class="card-title fs-1 fw-bold mb-1" id="result-title">挑战结束</h2>
+          <p class="text-muted small mb-0" id="result-subtitle">时间已耗尽！已为你结算本次训练</p>
+        </div>
+
+        <!-- 2x2 统计数据卡片矩阵 -->
+        <div class="row g-2">
+          <!-- 1. 连续正确 -->
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-flame text-orange me-1"></i>最高连对</div>
+              <div class="display-6 fw-bold text-orange" id="stat-max-streak">0</div>
+              <div class="text-muted text-xs">次</div>
+            </div>
+          </div>
+
+          <!-- 2. 错误次数 -->
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-x text-danger me-1"></i>配对失误</div>
+              <div class="display-6 fw-bold text-danger" id="stat-error-count">0</div>
+              <div class="text-muted text-xs">次</div>
+            </div>
+          </div>
+
+          <!-- 3. 剩余时间 -->
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-clock text-primary me-1"></i>剩余时间</div>
+              <div class="fs-1 fw-bold font-monospace text-primary pt-1" id="stat-remaining-time">00:00</div>
+              <div class="text-muted text-xs">限时 60 秒</div>
+            </div>
+          </div>
+
+          <!-- 4. 配对词汇数 -->
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-check text-success me-1"></i>完成词汇</div>
+              <div class="display-6 fw-bold text-success" id="stat-matched-count">0</div>
+              <div class="text-muted text-xs">总词量 50</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部操作按钮 -->
+        <div class="d-flex flex-column">
+          <button type="button" class="btn btn-primary w-100 py-2 fs-3" onclick="restartGame()">
+            <i class="ti ti-rotate-clockwise me-1"></i>再挑战一次
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+  <script>
+    // 词库数据
+    const wordRounds = [
+      [
+        { id: 1, word: "Incomprehensibility", meaning: "不可理解性；极度晦涩难懂的特性" },
+        { id: 2, word: "Electrocardiogram", meaning: "心电图（记录心脏电活动的图形描记）" },
+        { id: 3, word: "Counterproductive", meaning: "适得其反；产生相反效果" },
+        { id: 4, word: "Distinguish", meaning: "区别；辨别；显出特色" },
+        { id: 5, word: "Yield", meaning: "产生；屈服；出产" }
+      ],
+      [
+        { id: 6, word: "Disproportionate", meaning: "不成比例的；极不相称的" },
+        { id: 7, word: "Simultaneously", meaning: "同时地；一齐；同步发生地" },
+        { id: 8, word: "Unprecedented", meaning: "史无前例的；空前绝后的" },
+        { id: 9, word: "Acquire", meaning: "获得；购得；学到手" },
+        { id: 10, word: "Brief", meaning: "简短的；短暂的" }
+      ]
+    ];
+
+    const TOTAL_TARGET = 50;
+    const TOTAL_TIME = 60;
+    
+    let currentRoundIdx = 0;
+    let selectedWordCard = null;
+    let selectedMeaningCard = null;
+    let currentRoundMatches = 0;
+    let totalMatchedCount = 0;
+    let isProcessing = false;
+
+    // 统计指标
+    let errorCount = 0;
+    let currentStreak = 0;
+    let maxStreak = 0;
+
+    let timeLeft = TOTAL_TIME;
+    let timerInterval = null;
+
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function resetCanvas() {
+      const svg = document.getElementById("connection-canvas");
+      svg.innerHTML = `
+        <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="8,8" />
+      `;
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = TOTAL_TIME;
+      updateTimerUI();
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerUI();
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          finishGame(false);
+        }
+      }, 1000);
+    }
+
+    function formatSeconds(sec) {
+      const minutes = Math.floor(sec / 60);
+      const seconds = sec % 60;
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function updateTimerUI() {
+      const formatStr = formatSeconds(timeLeft);
+      const timeText = document.getElementById("time-text");
+      const timeBar = document.getElementById("time-bar");
+
+      timeText.innerText = formatStr;
+      
+      const percent = (timeLeft / TOTAL_TIME) * 100;
+      timeBar.style.width = `${percent}%`;
+
+      if (timeLeft <= 10) {
+        timeText.className = "fw-bold font-monospace fs-3 text-danger pulse-danger lh-1";
+        timeBar.className = "progress-bar bg-danger transition-all";
+      } else {
+        timeText.className = "fw-bold font-monospace fs-3 text-secondary lh-1";
+        timeBar.className = "progress-bar bg-primary transition-all";
+      }
+    }
+
+    // 渲染题目
+    function renderRound(roundIdx) {
+      const roundData = wordRounds[roundIdx % wordRounds.length];
+      const wordsCol = document.getElementById("words-col");
+      const meaningsCol = document.getElementById("meanings-col");
+      const grid = document.getElementById("game-grid");
+
+      resetCanvas();
+      currentRoundMatches = 0;
+      selectedWordCard = null;
+      selectedMeaningCard = null;
+
+      grid.classList.remove("fade-switch");
+      void grid.offsetWidth;
+      grid.classList.add("fade-switch");
+
+      const shuffledWords = shuffle(roundData);
+      const shuffledMeanings = shuffle(roundData);
+
+      wordsCol.innerHTML = shuffledWords.map(item => `
+        <div class="pair-btn" data-type="word" data-id="${item.id}">
+          <span class="card-label" title="${item.word}">${item.word}</span>
+          <span class="anchor-point"></span>
+        </div>
+      `).join("");
+
+      meaningsCol.innerHTML = shuffledMeanings.map(item => `
+        <div class="pair-btn" data-type="meaning" data-id="${item.id}">
+          <span class="anchor-point"></span>
+          <span class="card-label" title="${item.meaning}">${item.meaning}</span>
+        </div>
+      `).join("");
+
+      bindCardEvents();
+    }
+
+    function bindCardEvents() {
+      document.querySelectorAll(".pair-btn").forEach(card => {
+        card.addEventListener("click", function () {
+          if (isProcessing || this.classList.contains("matched")) return;
+
+          const type = this.dataset.type;
+
+          if (type === "word") {
+            if (selectedWordCard === this) {
+              this.classList.remove("selected");
+              selectedWordCard = null;
+              return;
+            }
+            if (selectedWordCard) selectedWordCard.classList.remove("selected");
+            this.classList.add("selected");
+            selectedWordCard = this;
+          } else {
+            if (selectedMeaningCard === this) {
+              this.classList.remove("selected");
+              selectedMeaningCard = null;
+              return;
+            }
+            if (selectedMeaningCard) selectedMeaningCard.classList.remove("selected");
+            this.classList.add("selected");
+            selectedMeaningCard = this;
+          }
+
+          if (selectedWordCard && selectedMeaningCard) {
+            checkMatch();
+          }
+        });
+      });
+    }
+
+    function drawConnectionLine(cardL, cardR) {
+      const board = document.getElementById("board-container").getBoundingClientRect();
+      const anchorL = cardL.querySelector(".anchor-point").getBoundingClientRect();
+      const anchorR = cardR.querySelector(".anchor-point").getBoundingClientRect();
+      const svg = document.getElementById("connection-canvas");
+
+      const x1 = anchorL.left + anchorL.width / 2 - board.left;
+      const y1 = anchorL.top + anchorL.height / 2 - board.top;
+      const x2 = anchorR.left + anchorR.width / 2 - board.left;
+      const y2 = anchorR.top + anchorR.height / 2 - board.top;
+
+      const cx1 = x1 + (x2 - x1) * 0.5;
+      const cy1 = y1;
+      const cx2 = x2 - (x2 - x1) * 0.5;
+      const cy2 = y2;
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`);
+      path.setAttribute("class", "connect-line");
+      svg.appendChild(path);
+    }
+
+    function checkMatch() {
+      const wordId = selectedWordCard.dataset.id;
+      const meaningId = selectedMeaningCard.dataset.id;
+      const wCard = selectedWordCard;
+      const mCard = selectedMeaningCard;
+
+      if (wordId === meaningId) {
+        // --- 匹配成功 ---
+        wCard.className = "pair-btn matched";
+        mCard.className = "pair-btn matched";
+        
+        drawConnectionLine(wCard, mCard);
+
+        selectedWordCard = null;
+        selectedMeaningCard = null;
+        currentRoundMatches++;
+        totalMatchedCount++;
+
+        // 连对计数
+        currentStreak++;
+        if (currentStreak > maxStreak) {
+          maxStreak = currentStreak;
+        }
+
+        if (currentRoundMatches === 5) {
+          isProcessing = true;
+          setTimeout(() => {
+            currentRoundIdx++;
+            updateHeaderProgress();
+
+            if (currentRoundIdx < 10) {
+              renderRound(currentRoundIdx);
+              isProcessing = false;
+            } else {
+              finishGame(true);
+            }
+          }, 600);
+        }
+      } else {
+        // --- 匹配失败 ---
+        isProcessing = true;
+        wCard.classList.add("error");
+        mCard.classList.add("error");
+
+        // 记录失误并中断连对
+        errorCount++;
+        currentStreak = 0;
+
+        setTimeout(() => {
+          wCard.classList.remove("selected", "error");
+          mCard.classList.remove("selected", "error");
+          selectedWordCard = null;
+          selectedMeaningCard = null;
+          isProcessing = false;
+        }, 380);
+      }
+    }
+
+    function updateHeaderProgress() {
+      const currentCompletedCount = (currentRoundIdx + 1) * 5;
+      const displayCount = Math.min(currentCompletedCount, TOTAL_TARGET);
+      document.getElementById("current-progress").innerText = displayCount;
+    }
+
+    // 结束游戏并展示结算页
+    function finishGame(isCompletedAll) {
+      clearInterval(timerInterval);
+      isProcessing = false;
+
+      document.getElementById("game-view").classList.add("d-none");
+      document.getElementById("result-view").classList.remove("d-none");
+
+      // 填充统计数据
+      document.getElementById("stat-max-streak").innerText = maxStreak;
+      document.getElementById("stat-error-count").innerText = errorCount;
+      document.getElementById("stat-remaining-time").innerText = formatSeconds(timeLeft);
+      document.getElementById("stat-matched-count").innerText = totalMatchedCount;
+
+      const titleEl = document.getElementById("result-title");
+      const subtitleEl = document.getElementById("result-subtitle");
+      const iconWrap = document.getElementById("result-icon-wrap");
+      const iconEl = document.getElementById("result-icon");
+
+      if (isCompletedAll) {
+        titleEl.innerText = "大获全胜！";
+        subtitleEl.innerText = "太棒了！你在规定时间内完成了全部 50 个单词配对！";
+        iconWrap.className = "avatar avatar-xl rounded-circle bg-success-lt mb-3 mx-auto shadow-sm";
+        iconEl.className = "ti ti-trophy fs-1 text-success";
+      } else {
+        titleEl.innerText = "挑战结束";
+        subtitleEl.innerText = "倒计时已结束，已为你结算本次训练战绩！";
+        iconWrap.className = "avatar avatar-xl rounded-circle bg-red-lt mb-3 mx-auto shadow-sm";
+        iconEl.className = "ti ti-alarm-off fs-1 text-danger";
+      }
+    }
+
+    function restartGame() {
+      currentRoundIdx = 0;
+      totalMatchedCount = 0;
+      errorCount = 0;
+      currentStreak = 0;
+      maxStreak = 0;
+      
+      document.getElementById("result-view").classList.add("d-none");
+      document.getElementById("game-view").classList.remove("d-none");
+
+      updateHeaderProgress();
+      renderRound(0);
+      startTimer();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderRound(0);
+      updateHeaderProgress();
+      startTimer();
+    });
+  </script>
+</body>
+</html>

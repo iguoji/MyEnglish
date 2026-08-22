@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+  <title>LEXICON SYNAPSE - Tabler Experimental Prototype</title>
+  
+  <!-- Tabler Core CSS & Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  
+  <!-- Google Fonts: 高规格先锋字体搭配 (Plus Jakarta Sans + JetBrains Mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --app-px: 20px;
+      --tblr-primary: #0054a6;
+      --tblr-primary-rgb: 0, 84, 166;
+      --tblr-primary-light: #e6f0fa;
+      --tblr-accent: #00d2ff;
+      --tblr-surface: rgba(255, 255, 255, 0.92);
+      --tblr-border-subtle: #e2e8f0;
+      --font-display: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --spring-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: #0b132b;
+      background-image: 
+        radial-gradient(circle at 50% 0%, #1e293b 0%, #0b132b 75%);
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: var(--font-display);
+      color: #0f172a;
+      overflow: hidden;
+    }
+
+    /* 移动端外壳容器（带顶级视网膜微光外轮廓） */
+    .mobile-screen {
+      width: 100%;
+      max-width: 414px;
+      height: 100vh;
+      max-height: 844px;
+      background-color: #ffffff;
+      background-image: 
+        radial-gradient(#e2e8f0 1.2px, transparent 1.2px),
+        linear-gradient(180deg, rgba(248,250,252,0.7) 0%, rgba(255,255,255,1) 100%);
+      background-size: 18px 18px, 100% 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-width: 576px) {
+      .mobile-screen {
+        border-radius: 36px;
+        height: 820px;
+        box-shadow: 
+          0 0 0 1px rgba(255, 255, 255, 0.1),
+          0 25px 60px -15px rgba(0, 0, 0, 0.3),
+          0 0 100px -20px rgba(0, 84, 166, 0.25);
+      }
+    }
+
+    .app-padding-x {
+      padding-left: var(--app-px) !important;
+      padding-right: var(--app-px) !important;
+    }
+
+    /* ========================================================
+       TOP HEADER (保持既定结构 & 极致先锋字体细节)
+       ======================================================== */
+    .app-header {
+      position: relative;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      color: #0f172a;
+      transition: transform 0.2s var(--spring-ease);
+    }
+    .back-btn:active {
+      transform: translateX(-3px);
+    }
+
+    .progress-counter {
+      font-family: var(--font-mono);
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+    }
+
+    .timer-readout {
+      font-family: var(--font-mono);
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s ease;
+    }
+
+    /* 顶部时间进度条 */
+    .time-track {
+      height: 2px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .time-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--tblr-primary) 0%, var(--tblr-accent) 100%);
+      transition: width 1s linear;
+      box-shadow: 0 0 8px rgba(0, 84, 166, 0.4);
+    }
+
+    /* ========================================================
+       GAME BOARD (先锋卡片布局 + 磁吸交互)
+       ======================================================== */
+    .game-arena {
+      position: relative;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    #connection-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .matrix-grid {
+      display: flex;
+      justify-content: space-between;
+      gap: 40px; /* 20px (左到线) + 20px (线到右) */
+      width: 100%;
+      z-index: 3;
+    }
+
+    .matrix-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 先锋卡片架构 (Pure CSS 拟物微光与悬浮阻尼) */
+    .node-card {
+      position: relative;
+      min-height: 54px;
+      max-height: 64px;
+      padding: 8px 12px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--tblr-surface);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 
+        0 1px 3px rgba(15, 23, 42, 0.03),
+        0 4px 12px -2px rgba(0, 84, 166, 0.04);
+      transition: 
+        transform 0.35s var(--spring-ease),
+        border-color 0.25s ease,
+        background-color 0.25s ease,
+        box-shadow 0.35s var(--spring-ease),
+        opacity 0.35s ease;
+      backdrop-filter: blur(8px);
+    }
+
+    /* 卡片微标尺与索引标号 */
+    .node-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2px;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 500;
+      color: #94a3b8;
+      letter-spacing: 0.5px;
+      line-height: 1;
+    }
+
+    /* 文本主体排版 (极具张力的字体渲染与防爆布局) */
+    .node-label {
+      width: 100%;
+      font-size: 0.8125rem;
+      line-height: 1.25;
+      font-weight: 600;
+      color: #1e293b;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      hyphens: auto;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      transition: color 0.2s ease;
+    }
+
+    .matrix-col-left .node-label {
+      text-align: left;
+      letter-spacing: -0.2px;
+    }
+
+    .matrix-col-right .node-label {
+      text-align: right;
+      font-weight: 500;
+      color: #475569;
+    }
+
+    /* ========================================================
+       锚点设计：高精实心白边点 + 纯 CSS 激活脉冲
+       ======================================================== */
+    .node-anchor {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #cbd5e1;
+      border: 1.5px solid #ffffff;
+      box-shadow: 0 0 0 1px #e2e8f0;
+      pointer-events: none;
+      transition: all 0.3s var(--spring-ease);
+      z-index: 4;
+    }
+    .matrix-col-left .node-card .node-anchor { right: -4.5px; }
+    .matrix-col-right .node-card .node-anchor { left: -4.5px; }
+
+    /* 状态 1: ACTIVE SELECTED (纯 CSS 物理提拉与光晕) */
+    .node-card.is-selected {
+      border-color: var(--tblr-primary) !important;
+      background-color: #f0f7ff !important;
+      transform: scale(1.02) translateZ(0);
+      box-shadow: 
+        0 0 0 1px var(--tblr-primary),
+        0 8px 20px -4px rgba(0, 84, 166, 0.2);
+    }
+    .node-card.is-selected .node-label {
+      color: var(--tblr-primary) !important;
+    }
+    .node-card.is-selected .node-meta {
+      color: #0054a6;
+    }
+    .node-card.is-selected .node-anchor {
+      background-color: var(--tblr-primary);
+      box-shadow: 
+        0 0 0 2px #ffffff,
+        0 0 0 4px rgba(0, 84, 166, 0.3);
+      transform: translateY(-50%) scale(1.3);
+    }
+
+    /* 状态 2: MATCHED DISMISSED (成功结对，数字划线消解) */
+    .node-card.is-matched {
+      border-color: #bbf7d0 !important;
+      background-color: rgba(240, 253, 244, 0.7) !important;
+      opacity: 0.45;
+      pointer-events: none;
+      transform: scale(0.97);
+      box-shadow: none;
+    }
+    .node-card.is-matched .node-label {
+      color: #16a34a !important;
+      text-decoration: line-through;
+    }
+    .node-card.is-matched .node-anchor {
+      background-color: #22c55e;
+      border-color: #ffffff;
+      box-shadow: 0 0 0 1px #22c55e;
+    }
+
+    /* 状态 3: ERROR REJECTION (纯 CSS 弹性抖动) */
+    .node-card.is-error {
+      border-color: #fca5a5 !important;
+      background-color: #fef2f2 !important;
+      animation: errorJolt 0.4s var(--spring-ease);
+    }
+    .node-card.is-error .node-label {
+      color: #dc2626 !important;
+    }
+    .node-card.is-error .node-anchor {
+      background-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+    }
+
+    @keyframes errorJolt {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px) rotate(-0.5deg); }
+      40% { transform: translateX(5px) rotate(0.5deg); }
+      60% { transform: translateX(-3px); }
+      80% { transform: translateX(2px); }
+    }
+
+    /* SVG 动态能量光束 */
+    .synapse-path {
+      stroke: var(--tblr-primary);
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-dasharray: 400;
+      stroke-dashoffset: 400;
+      animation: laserFlow 0.4s var(--spring-ease) forwards;
+      filter: drop-shadow(0 2px 6px rgba(0, 84, 166, 0.35));
+    }
+    @keyframes laserFlow {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* 倒计时危机预警 (最后 10s) */
+    .danger-countdown {
+      color: #dc2626 !important;
+      animation: heartBeat 0.8s infinite;
+    }
+    @keyframes heartBeat {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: 0.85; }
+    }
+
+    .matrix-switch-anim {
+      animation: matrixIn 0.35s var(--spring-ease);
+    }
+    @keyframes matrixIn {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ========================================================
+       RESULT VIEW (先锋杂志画报级 结算排版)
+       ======================================================== */
+    .result-viewport {
+      padding-left: 50px !important;
+      padding-right: 50px !important;
+    }
+
+    .stat-box {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px 12px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.04);
+      transition: transform 0.2s ease;
+    }
+    .stat-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+    }
+    .stat-metric {
+      font-family: var(--font-mono);
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin: 4px 0 2px;
+    }
+
+    .cta-button {
+      background: #0054a6;
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      padding: 14px 20px;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      letter-spacing: 0.2px;
+      box-shadow: 0 8px 24px -4px rgba(0, 84, 166, 0.4);
+      transition: all 0.2s var(--spring-ease);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .cta-button:active {
+      transform: scale(0.97);
+      box-shadow: 0 4px 12px -2px rgba(0, 84, 166, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="mobile-screen">
+
+    <!-- ==================== 视图 1：先锋连线竞技区 ==================== -->
+    <div id="game-view" class="h-100 d-flex flex-column">
+      
+      <!-- 1. 顶部 Header (保持既定三段式架构) -->
+      <header class="app-header app-padding-x pt-3 pb-2 d-flex align-items-center justify-content-between">
+        <!-- 左侧：返回图标严格居左 -->
+        <div style="flex: 1;" class="d-flex justify-content-start">
+          <a href="javascript:void(0);" class="back-btn text-decoration-none" title="返回">
+            <i class="ti ti-chevron-left fs-1 lh-1"></i>
+          </a>
+        </div>
+
+        <!-- 中间：5/50 纯文本排版 -->
+        <div class="d-flex justify-content-center align-items-center">
+          <div class="progress-counter text-primary lh-1">
+            <span class="fs-2 fw-bold" id="current-progress">5</span>
+            <span class="text-muted fs-4 fw-normal">/</span>
+            <span class="text-muted fs-4 fw-normal">50</span>
+          </div>
+        </div>
+
+        <!-- 右侧：等宽数字倒计时 (无图标/无背景) -->
+        <div style="flex: 1;" class="d-flex justify-content-end align-items-center">
+          <span class="timer-readout fw-bold fs-3 text-secondary lh-1" id="time-text">01:00</span>
+        </div>
+      </header>
+
+      <!-- 2. 顶部时间进度条 (两侧严格 20px 边距) -->
+      <div class="app-padding-x pb-2">
+        <div class="time-track w-100">
+          <div class="time-bar-fill" id="time-bar" style="width: 100%;"></div>
+        </div>
+      </div>
+
+      <!-- 3. 主体操作区 -->
+      <main class="flex-fill app-padding-x py-3 d-flex flex-column justify-content-center">
+        
+        <div class="game-arena my-auto" id="board-container">
+          
+          <!-- SVG 动态连线画布 + 中间激光标尺虚线 (8px竖条/8px间隔) -->
+          <svg id="connection-canvas">
+            <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="8,8" />
+          </svg>
+
+          <!-- 候选词矩阵两列布局 (中间 40px 通道) -->
+          <div class="matrix-grid matrix-switch-anim" id="game-grid">
+            <!-- 左列：单词 (5个) -->
+            <div class="matrix-col matrix-col-left" id="words-col"></div>
+
+            <!-- 右列：含义 (5个) -->
+            <div class="matrix-col matrix-col-right" id="meanings-col"></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+
+    <!-- ==================== 视图 2：极简主义结算页 (垂直居中，两侧 50px) ==================== -->
+    <div id="result-view" class="h-100 d-flex flex-column justify-content-center result-viewport py-4 d-none">
+      
+      <div class="w-100 d-flex flex-column gap-4">
+        
+        <!-- 结算徽标与标题 (纯 Tabler 图标) -->
+        <div class="text-center">
+          <div class="avatar avatar-xl rounded-circle bg-red-lt mb-3 mx-auto shadow-sm" id="result-icon-wrap" style="width: 60px; height: 60px;">
+            <i class="ti ti-alarm-off fs-1 text-danger" id="result-icon"></i>
+          </div>
+          <div class="badge bg-primary-lt text-primary font-monospace px-2 py-1 mb-2">ROUND SUMMARY</div>
+          <h2 class="fs-1 fw-bold text-dark mb-1" id="result-title">挑战结束</h2>
+          <p class="text-muted small mb-0" id="result-subtitle">已完成本次阶段配对并归档数据</p>
+        </div>
+
+        <!-- 2x2 统计矩阵卡片 -->
+        <div class="row g-2">
+          <!-- 1. 连续正确 -->
+          <div class="col-6">
+            <div class="stat-box">
+              <div class="text-muted text-uppercase fw-semibold" style="font-size: 0.6875rem;">
+                <i class="ti ti-flame text-orange me-1"></i>最高连对
+              </div>
+              <div class="stat-metric text-orange" id="stat-max-streak">0</div>
+              <div class="text-muted text-xs font-monospace">STREAK</div>
+            </div>
+          </div>
+
+          <!-- 2. 配对失误 -->
+          <div class="col-6">
+            <div class="stat-box">
+              <div class="text-muted text-uppercase fw-semibold" style="font-size: 0.6875rem;">
+                <i class="ti ti-circle-x text-danger me-1"></i>配对失误
+              </div>
+              <div class="stat-metric text-danger" id="stat-error-count">0</div>
+              <div class="text-muted text-xs font-monospace">ERRORS</div>
+            </div>
+          </div>
+
+          <!-- 3. 剩余时间 -->
+          <div class="col-6">
+            <div class="stat-box">
+              <div class="text-muted text-uppercase fw-semibold" style="font-size: 0.6875rem;">
+                <i class="ti ti-hourglass text-primary me-1"></i>剩余时间
+              </div>
+              <div class="stat-metric text-primary" id="stat-remaining-time">00:00</div>
+              <div class="text-muted text-xs font-monospace">LEFT / 60S</div>
+            </div>
+          </div>
+
+          <!-- 4. 完成词汇 -->
+          <div class="col-6">
+            <div class="stat-box">
+              <div class="text-muted text-uppercase fw-semibold" style="font-size: 0.6875rem;">
+                <i class="ti ti-checks text-success me-1"></i>完成词汇
+              </div>
+              <div class="stat-metric text-success" id="stat-matched-count">0</div>
+              <div class="text-muted text-xs font-monospace">TARGET: 50</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部单行动作按钮 -->
+        <div class="d-flex flex-column pt-2">
+          <button type="button" class="cta-button w-100" onclick="restartGame()">
+            <i class="ti ti-rotate-clockwise fs-2"></i>
+            <span>再次发起挑战</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+  <script>
+    // 词库配置：含超长英文与长中文释义换行样本
+    const wordRounds = [
+      [
+        { id: 1, word: "Incomprehensibility", meaning: "不可理解性；极度晦涩难懂的特性" },
+        { id: 2, word: "Electrocardiogram", meaning: "心电图（记录心脏电活动的图形描记）" },
+        { id: 3, word: "Counterproductive", meaning: "适得其反；产生相反效果" },
+        { id: 4, word: "Distinguish", meaning: "区别；辨别；显出特色" },
+        { id: 5, word: "Yield", meaning: "产生；屈服；出产" }
+      ],
+      [
+        { id: 6, word: "Disproportionate", meaning: "不成比例的；极不相称的" },
+        { id: 7, word: "Simultaneously", meaning: "同时地；一齐；同步发生地" },
+        { id: 8, word: "Unprecedented", meaning: "史无前例的；空前绝后的" },
+        { id: 9, word: "Acquire", meaning: "获得；购得；学到手" },
+        { id: 10, word: "Brief", meaning: "简短的；短暂的" }
+      ]
+    ];
+
+    const TOTAL_TARGET = 50;
+    const TOTAL_TIME = 60;
+    
+    let currentRoundIdx = 0;
+    let selectedWordCard = null;
+    let selectedMeaningCard = null;
+    let currentRoundMatches = 0;
+    let totalMatchedCount = 0;
+    let isProcessing = false;
+
+    // 统计指标
+    let errorCount = 0;
+    let currentStreak = 0;
+    let maxStreak = 0;
+
+    let timeLeft = TOTAL_TIME;
+    let timerInterval = null;
+
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function resetCanvas() {
+      const svg = document.getElementById("connection-canvas");
+      svg.innerHTML = `
+        <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="8,8" />
+      `;
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = TOTAL_TIME;
+      updateTimerUI();
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerUI();
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          finishGame(false);
+        }
+      }, 1000);
+    }
+
+    function formatSeconds(sec) {
+      const minutes = Math.floor(sec / 60);
+      const seconds = sec % 60;
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function updateTimerUI() {
+      const timeText = document.getElementById("time-text");
+      const timeBar = document.getElementById("time-bar");
+
+      timeText.innerText = formatSeconds(timeLeft);
+      
+      const percent = (timeLeft / TOTAL_TIME) * 100;
+      timeBar.style.width = `${percent}%`;
+
+      if (timeLeft <= 10) {
+        timeText.className = "timer-readout fw-bold fs-3 lh-1 danger-countdown";
+      } else {
+        timeText.className = "timer-readout fw-bold fs-3 text-secondary lh-1";
+      }
+    }
+
+    // 渲染题目
+    function renderRound(roundIdx) {
+      const roundData = wordRounds[roundIdx % wordRounds.length];
+      const wordsCol = document.getElementById("words-col");
+      const meaningsCol = document.getElementById("meanings-col");
+      const grid = document.getElementById("game-grid");
+
+      resetCanvas();
+      currentRoundMatches = 0;
+      selectedWordCard = null;
+      selectedMeaningCard = null;
+
+      grid.classList.remove("matrix-switch-anim");
+      void grid.offsetWidth;
+      grid.classList.add("matrix-switch-anim");
+
+      const shuffledWords = shuffle(roundData);
+      const shuffledMeanings = shuffle(roundData);
+
+      wordsCol.innerHTML = shuffledWords.map((item, idx) => `
+        <div class="node-card" data-type="word" data-id="${item.id}">
+          <div class="node-meta"><span>// ENG</span><span>0${idx + 1}</span></div>
+          <span class="node-label" title="${item.word}">${item.word}</span>
+          <span class="node-anchor"></span>
+        </div>
+      `).join("");
+
+      meaningsCol.innerHTML = shuffledMeanings.map((item, idx) => `
+        <div class="node-card" data-type="meaning" data-id="${item.id}">
+          <div class="node-meta"><span>0${idx + 1}</span><span>ZH //</span></div>
+          <span class="node-anchor"></span>
+          <span class="node-label" title="${item.meaning}">${item.meaning}</span>
+        </div>
+      `).join("");
+
+      bindCardEvents();
+    }
+
+    function bindCardEvents() {
+      document.querySelectorAll(".node-card").forEach(card => {
+        card.addEventListener("click", function () {
+          if (isProcessing || this.classList.contains("is-matched")) return;
+
+          const type = this.dataset.type;
+
+          if (type === "word") {
+            if (selectedWordCard === this) {
+              this.classList.remove("is-selected");
+              selectedWordCard = null;
+              return;
+            }
+            if (selectedWordCard) selectedWordCard.classList.remove("is-selected");
+            this.classList.add("is-selected");
+            selectedWordCard = this;
+          } else {
+            if (selectedMeaningCard === this) {
+              this.classList.remove("is-selected");
+              selectedMeaningCard = null;
+              return;
+            }
+            if (selectedMeaningCard) selectedMeaningCard.classList.remove("is-selected");
+            this.classList.add("is-selected");
+            selectedMeaningCard = this;
+          }
+
+          if (selectedWordCard && selectedMeaningCard) {
+            checkMatch();
+          }
+        });
+      });
+    }
+
+    function drawConnectionLine(cardL, cardR) {
+      const board = document.getElementById("board-container").getBoundingClientRect();
+      const anchorL = cardL.querySelector(".node-anchor").getBoundingClientRect();
+      const anchorR = cardR.querySelector(".node-anchor").getBoundingClientRect();
+      const svg = document.getElementById("connection-canvas");
+
+      const x1 = anchorL.left + anchorL.width / 2 - board.left;
+      const y1 = anchorL.top + anchorL.height / 2 - board.top;
+      const x2 = anchorR.left + anchorR.width / 2 - board.left;
+      const y2 = anchorR.top + anchorR.height / 2 - board.top;
+
+      const cx1 = x1 + (x2 - x1) * 0.5;
+      const cy1 = y1;
+      const cx2 = x2 - (x2 - x1) * 0.5;
+      const cy2 = y2;
+
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`);
+      path.setAttribute("class", "synapse-path");
+      svg.appendChild(path);
+    }
+
+    function checkMatch() {
+      const wordId = selectedWordCard.dataset.id;
+      const meaningId = selectedMeaningCard.dataset.id;
+      const wCard = selectedWordCard;
+      const mCard = selectedMeaningCard;
+
+      if (wordId === meaningId) {
+        // --- 匹配成功 ---
+        wCard.className = "node-card is-matched";
+        mCard.className = "node-card is-matched";
+        
+        drawConnectionLine(wCard, mCard);
+
+        selectedWordCard = null;
+        selectedMeaningCard = null;
+        currentRoundMatches++;
+        totalMatchedCount++;
+
+        currentStreak++;
+        if (currentStreak > maxStreak) {
+          maxStreak = currentStreak;
+        }
+
+        if (currentRoundMatches === 5) {
+          isProcessing = true;
+          setTimeout(() => {
+            currentRoundIdx++;
+            updateHeaderProgress();
+
+            if (currentRoundIdx < 10) {
+              renderRound(currentRoundIdx);
+              isProcessing = false;
+            } else {
+              finishGame(true);
+            }
+          }, 600);
+        }
+      } else {
+        // --- 匹配失败 (触发 CSS 弹性震颤) ---
+        isProcessing = true;
+        wCard.classList.add("is-error");
+        mCard.classList.add("is-error");
+
+        errorCount++;
+        currentStreak = 0;
+
+        setTimeout(() => {
+          wCard.classList.remove("is-selected", "is-error");
+          mCard.classList.remove("is-selected", "is-error");
+          selectedWordCard = null;
+          selectedMeaningCard = null;
+          isProcessing = false;
+        }, 400);
+      }
+    }
+
+    function updateHeaderProgress() {
+      const currentCompletedCount = (currentRoundIdx + 1) * 5;
+      const displayCount = Math.min(currentCompletedCount, TOTAL_TARGET);
+      document.getElementById("current-progress").innerText = displayCount;
+    }
+
+    // 结束与结算
+    function finishGame(isCompletedAll) {
+      clearInterval(timerInterval);
+      isProcessing = false;
+
+      document.getElementById("game-view").classList.add("d-none");
+      document.getElementById("result-view").classList.remove("d-none");
+
+      document.getElementById("stat-max-streak").innerText = maxStreak;
+      document.getElementById("stat-error-count").innerText = errorCount;
+      document.getElementById("stat-remaining-time").innerText = formatSeconds(timeLeft);
+      document.getElementById("stat-matched-count").innerText = totalMatchedCount;
+
+      const titleEl = document.getElementById("result-title");
+      const subtitleEl = document.getElementById("result-subtitle");
+      const iconWrap = document.getElementById("result-icon-wrap");
+      const iconEl = document.getElementById("result-icon");
+
+      if (isCompletedAll) {
+        titleEl.innerText = "大获全胜";
+        subtitleEl.innerText = "完成全部 50 词极速神经突触配对";
+        iconWrap.className = "avatar avatar-xl rounded-circle bg-success-lt mb-3 mx-auto shadow-sm";
+        iconEl.className = "ti ti-trophy fs-1 text-success";
+      } else {
+        titleEl.innerText = "挑战结束";
+        subtitleEl.innerText = "倒计时已归零，已完成本次训练并归档战绩";
+        iconWrap.className = "avatar avatar-xl rounded-circle bg-red-lt mb-3 mx-auto shadow-sm";
+        iconEl.className = "ti ti-alarm-off fs-1 text-danger";
+      }
+    }
+
+    function restartGame() {
+      currentRoundIdx = 0;
+      totalMatchedCount = 0;
+      errorCount = 0;
+      currentStreak = 0;
+      maxStreak = 0;
+      
+      document.getElementById("result-view").classList.add("d-none");
+      document.getElementById("game-view").classList.remove("d-none");
+
+      updateHeaderProgress();
+      renderRound(0);
+      startTimer();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderRound(0);
+      updateHeaderProgress();
+      startTimer();
+    });
+  </script>
+</body>
+</html>

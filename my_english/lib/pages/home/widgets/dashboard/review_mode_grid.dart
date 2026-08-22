@@ -7,6 +7,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 import '../../../../common/theme.dart';
 // 复习模式的稳定键与 record.module 保持一致。
 import '../../../../store/record.dart';
+// 词义连连首页进度模型（来自本局会话，不写复习记录）。
+import '../../../meaning_match/meaning_match_page.dart';
 
 ///
 /// 复习模式快速入口：2×2 卡片网格。
@@ -18,6 +20,7 @@ class ReviewModeGrid extends StatelessWidget {
   /// 创建网格。
   const ReviewModeGrid({
     required this.reviewCountsByModule,
+    required this.meaningMatchProgress,
     required this.dailyGoal,
     required this.onOpenListeningMeaning,
     required this.onOpenMeaningMatch,
@@ -28,6 +31,9 @@ class ReviewModeGrid extends StatelessWidget {
 
   /// 四种复习模式各自的今日完成量。
   final Map<String, int> reviewCountsByModule;
+
+  /// 词义连连首页进度（来自本局会话，不写复习记录）；无会话时为 null。
+  final MeaningMatchProgress? meaningMatchProgress;
 
   /// 每日复习目标。
   final int dailyGoal;
@@ -103,9 +109,10 @@ class ReviewModeGrid extends StatelessWidget {
                   name: '词义连连',
                   // 保持单行短句，避免两列卡片中出现不一致的描述高度。
                   desc: '释义配对 · 连续匹配',
-                  reviewCount:
-                      reviewCountsByModule[ReviewModule.meaningMatch] ?? 0,
-                  dailyGoal: dailyGoal,
+                  // 词义连连不写复习记录，首页百分比只能来自本局会话：
+                  // 有会话时用“已匹配/总配对”，无会话时归 0（分母置 0 让徽章显示 0%）。
+                  reviewCount: meaningMatchProgress?.bestMatchedPairs ?? 0,
+                  dailyGoal: meaningMatchProgress?.totalPairs ?? 0,
                   isAvailable: true,
                   onTap: onOpenMeaningMatch,
                   tokens: tokens,

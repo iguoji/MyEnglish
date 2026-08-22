@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_english/pages/home/widgets/dashboard/review_mode_grid.dart';
 // 复习模式稳定键用于构造四份互相独立的测试进度。
 import 'package:my_english/store/record.dart';
+// 词义连连首页进度模型（不写复习记录，百分比来自本局会话）。
+import 'package:my_english/pages/meaning_match/meaning_match_page.dart';
 
 ///
 /// 注册首页复习模式入口的展示与点击测试。
@@ -13,7 +15,7 @@ import 'package:my_english/store/record.dart';
 /// @return void
 ///
 void main() {
-  testWidgets('展示四种约定模式且只有听音辨义进入现有流程', (tester) async {
+  testWidgets('展示四种约定模式且听音辨义与词义连连进入现有流程', (tester) async {
     // 使用常见窄屏宽度，确认两列卡片在手机上能够完整容纳文案。
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
@@ -34,11 +36,19 @@ void main() {
             padding: const EdgeInsets.all(20),
             child: ReviewModeGrid(
               reviewCountsByModule: const <String, int>{
-                ReviewModule.listeningMeaning: 12,
+                // 听音辨义达到每日目标 100 -> 显示「已完成」徽章。
+                ReviewModule.listeningMeaning: 100,
+                // 词义连连不写复习记录，此值被忽略，真实百分比来自下方进度。
                 ReviewModule.meaningMatch: 35,
                 ReviewModule.spellingReinforcement: 100,
                 ReviewModule.meaningWordChoice: 7,
               },
+              // 词义连连首页百分比来自本局会话（已匹配/总配对），与复习记录无关。
+              meaningMatchProgress: MeaningMatchProgress(
+                totalPairs: 100,
+                bestMatchedPairs: 35,
+                completed: false,
+              ),
               dailyGoal: 100,
               onOpenListeningMeaning: () => listeningMeaningOpenCount++,
               onOpenMeaningMatch: () => meaningMatchOpenCount++,
@@ -60,11 +70,11 @@ void main() {
     // 词义连连采用更短的单行描述，不再在两列卡片里换行。
     final matchingDescription = tester.widget<Text>(find.text('释义配对 · 连续匹配'));
     expect(matchingDescription.maxLines, 1);
-    // 四张卡片分别按自己的模块完成量计算比例，达到目标后显示“已完成”。
-    expect(find.text('12%'), findsOneWidget);
-    expect(find.text('35%'), findsOneWidget);
-    expect(find.text('7%'), findsOneWidget);
+    // 听音辨义达标显示「已完成」；词义连连按本局会话显示 35%；
+    // 两张未开放模块统一显示「即将开放」（不看各自 reviewCount）。
     expect(find.text('已完成'), findsOneWidget);
+    expect(find.text('35%'), findsOneWidget);
+    expect(find.text('即将开放'), findsNWidgets(2));
     expect(find.text('暂未开放'), findsNothing);
 
     // 听音辨义只调用现有学习流程，不触发未开放提示。

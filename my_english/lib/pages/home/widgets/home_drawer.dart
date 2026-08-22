@@ -897,8 +897,10 @@ class _SettingsCardState extends State<_SettingsCard> {
                       unawaited(_setDefinitionSeparator(separator)),
                 ),
               ),
-              // 15. 每日复习步进器（卡片内最后一行，不画分隔线）。
+              // 15. 每日复习步进器（不再是最后一行，下方接词义连连）。
               _DailyGoalRow(settings: widget.settings),
+              // 16. 词义连连倒计时步进器（卡片内最后一行，不画分隔线）。
+              _MeaningMatchDurationRow(settings: widget.settings),
             ],
           );
         },
@@ -1173,8 +1175,8 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
       builder: (context, child) {
         return _SettingRow(
           label: '每日复习',
-          // 卡片内最后一行，不画分隔线。
-          showDivider: false,
+          // 下方还有“词义连连”行，这里画分隔线把两行隔开。
+          showDivider: true,
           // 卡片内横向 10 内边距，与口语发音/单词分隔两行完全一致，
           // 保证三行右侧控件左右边缘对齐（此前误传 8 导致本行整体偏左 2px）。
           horizontalPadding: 10,
@@ -1232,6 +1234,165 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
                   child: InkWell(
                     key: const Key('goal-plus'),
                     onTap: _isSaving ? null : () => unawaited(_changeGoal(5)),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      height: 26,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        TablerIcons.plus,
+                        size: 15,
+                        color: tokens.textMedium,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+///
+/// 词义连连倒计时的步进器行：步长 30、默认 150，读写全局设置 meaningMatchDuration。
+///
+/// 交互与“每日复习”完全一致（减/加按钮 + 当前值），只是改动的是词义连连的倒计时秒数。
+///
+class _MeaningMatchDurationRow extends StatefulWidget {
+  ///
+  /// 接收全局设置 Store。
+  ///
+  /// @param  SettingsStore  settings
+  ///
+  const _MeaningMatchDurationRow({required this.settings});
+
+  ///
+  /// 全局设置 Store，读取与修改词义连连倒计时。
+  ///
+  /// @var SettingsStore
+  ///
+  final SettingsStore settings;
+
+  ///
+  /// 创建局部状态，避免连续点击造成多个 SharedPreferences 写入交错。
+  ///
+  /// @return `State<_MeaningMatchDurationRow>`
+  ///
+  @override
+  State<_MeaningMatchDurationRow> createState() =>
+      _MeaningMatchDurationRowState();
+}
+
+///
+/// 管理词义连连倒计时步进按钮的异步保存状态。
+///
+class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
+  ///
+  /// true 表示正在等待 Android 确认磁盘写入。
+  ///
+  /// @var bool
+  ///
+  bool _isSaving = false;
+
+  ///
+  /// 把倒计时增加或减少一个步长（30 秒），并统一处理保存失败。
+  ///
+  /// @param  int  delta +30 或 -30
+  /// @return `Future<void>`
+  ///
+  Future<void> _change(int delta) async {
+    // 保存期间忽略重复点击，避免较慢设备上发生写入顺序倒置。
+    if (_isSaving) return;
+    // 禁用两个按钮，直到本次写入结束。
+    setState(() => _isSaving = true);
+    try {
+      // 基于当前已确认的秒数计算新值；Store 会把负数钳制为 0。
+      await widget.settings.setMeaningMatchDuration(
+        widget.settings.meaningMatchDuration + delta,
+      );
+    } catch (error) {
+      // 写入失败时 Store 不改变内存值，并向用户说明原因。
+      if (mounted) Toast.show(context, '词义连连倒计时保存失败：$error');
+    } finally {
+      // 抽屉仍在组件树中时恢复按钮。
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  ///
+  /// 输出 52 高的步进器行。
+  ///
+  /// @param  BuildContext  context
+  /// @return Widget
+  ///
+  @override
+  Widget build(BuildContext context) {
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+    // ListenableBuilder 让秒数值变化后只刷新本行。
+    return ListenableBuilder(
+      // 监听同一个全局 SettingsStore。
+      listenable: widget.settings,
+      // 根据最新秒数重新构建。
+      builder: (context, child) {
+        return _SettingRow(
+          label: '词义连连',
+          // 卡片内最后一行，不画分隔线。
+          showDivider: false,
+          // 右侧容器：与每日复习等宽的步进轨道。
+          horizontalPadding: 10,
+          control: Container(
+            // 与每日复习等宽。
+            width: _kSettingControlWidth,
+            // 固定高度 38，与每日复习统一。
+            height: 38,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: tokens.sub,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                // 减 30：去掉边框，仅图标。
+                Expanded(
+                  child: InkWell(
+                    key: const Key('meaning-match-minus'),
+                    onTap: _isSaving ? null : () => unawaited(_change(-30)),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      height: 26,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        TablerIcons.minus,
+                        size: 15,
+                        color: tokens.textMedium,
+                      ),
+                    ),
+                  ),
+                ),
+                // 当前秒数（默认 150）。
+                Container(
+                  constraints: const BoxConstraints(minWidth: 34),
+                  height: 26,
+                  alignment: Alignment.center,
+                  child: Text(
+                    widget.settings.meaningMatchDuration.toString(),
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      // 等宽数字避免加减时宽度跳动。
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+                // 加 30：去掉边框，仅图标。
+                Expanded(
+                  child: InkWell(
+                    key: const Key('meaning-match-plus'),
+                    onTap: _isSaving ? null : () => unawaited(_change(30)),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
                       height: 26,

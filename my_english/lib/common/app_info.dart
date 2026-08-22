@@ -29,19 +29,19 @@ class AppInfo {
   ///
   /// @var String
   ///
-  static const String version = '0.24.0';
+  static const String version = '0.25.1';
 
   ///
   /// 构建号（pubspec.yaml `version` 字段的 `+N` 段，0 表示未设置）。
   ///
   /// @var String
   ///
-  static const String buildNumber = '17';
+  static const String buildNumber = '19';
 
   ///
   /// 完整的 `version+buildNumber` 字符串，便于单一展示。
   ///
   /// @var String
   ///
-  static const String fullVersion = '0.24.0+17';
+  static const String fullVersion = '0.25.1+19';
 }

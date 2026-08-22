@@ -40,8 +40,24 @@ extension TrendRangeLabel on TrendRange {
 /// [TrendChart] 内部把节点平滑滑动到目标位置。
 ///
 class ReviewTrendChart extends StatefulWidget {
+  ///
   /// 创建趋势图；数据由内部异步加载。
-  const ReviewTrendChart({super.key});
+  ///
+  /// @param  int  refreshToken 首页复习数据回刷序号，变化即代表需要重新查库。
+  ///
+  /// @param  Key?  key
+  ///
+  const ReviewTrendChart({required this.refreshToken, super.key});
+
+  ///
+  /// 首页传入的回刷序号。
+  ///
+  /// 生活化解释：曲线只在第一次出现时查一次数据库，之后首页刷新多少次它都不动。
+  /// 首页每从复习模块返回一次就把这个数字 +1，等于给曲线递一张“数据变了”的通知单。
+  ///
+  /// @var int
+  ///
+  final int refreshToken;
 
   @override
   State<ReviewTrendChart> createState() => _ReviewTrendChartState();
@@ -80,6 +96,17 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
     // 模拟后台异步查询：600ms 后才发起真实聚合，期间曲线是贴底直线，
     // 最右侧（今天）节点默认选中并显示 0。
     _loadTimer = Timer(_initialDelay, _load);
+  }
+
+  @override
+  void didUpdateWidget(covariant ReviewTrendChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 序号没变说明只是首页普通重建，沿用已有曲线，不做多余查询。
+    if (oldWidget.refreshToken == widget.refreshToken) return;
+    // 序号变了说明刚复习完：首帧还没来得及跑完初次延迟加载时先取消它，
+    // 再立刻查一次最新数据，曲线会从当前位置平滑滑到新高度。
+    _loadTimer?.cancel();
+    unawaited(_load());
   }
 
   @override

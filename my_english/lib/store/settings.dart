@@ -173,6 +173,7 @@ class SettingsStore extends ChangeNotifier {
     required this._theme,
     required this._definitionSeparator,
     required this._dailyGoal,
+    required this._meaningMatchDuration,
   });
 
   ///
@@ -236,6 +237,10 @@ class SettingsStore extends ChangeNotifier {
       );
       // 每日目标由原生以整数返回；旧版本缺失或损坏时回退为 100。
       final dailyGoal = _dailyGoalFromStorage(values?['dailyGoal']);
+      // 词义连连倒计时秒数；旧版本缺失或损坏时回退 150。
+      final meaningMatchDuration = _meaningMatchDurationFromStorage(
+        values?['meaningMatchDuration'],
+      );
       // 把已读取值和生产通道一起保存。
       return SettingsStore._(
         channel: channel,
@@ -243,6 +248,7 @@ class SettingsStore extends ChangeNotifier {
         theme: theme,
         definitionSeparator: definitionSeparator,
         dailyGoal: dailyGoal,
+        meaningMatchDuration: meaningMatchDuration,
       );
     } on MissingPluginException catch (error, stackTrace) {
       // Hot Restart 只更新 Dart；旧 APK 没有重新编译 Kotlin 时会暂时找不到新通道。
@@ -256,6 +262,7 @@ class SettingsStore extends ChangeNotifier {
         theme: AppThemePreference.light,
         definitionSeparator: DefinitionSeparator.ideographicComma,
         dailyGoal: 100,
+        meaningMatchDuration: 150,
       );
     } on PlatformException catch (error, stackTrace) {
       // 设置读取失败不应让 App 白屏；控制台保留原因并使用明确默认值启动。
@@ -269,6 +276,7 @@ class SettingsStore extends ChangeNotifier {
         theme: AppThemePreference.light,
         definitionSeparator: DefinitionSeparator.ideographicComma,
         dailyGoal: 100,
+        meaningMatchDuration: 150,
       );
     }
   }
@@ -287,6 +295,7 @@ class SettingsStore extends ChangeNotifier {
     DefinitionSeparator definitionSeparator =
         DefinitionSeparator.ideographicComma,
     int dailyGoal = 100,
+    int meaningMatchDuration = 150,
   }) {
     // channel=null 时 setter 只更新内存并通知页面。
     return SettingsStore._(
@@ -295,6 +304,7 @@ class SettingsStore extends ChangeNotifier {
       theme: theme,
       definitionSeparator: definitionSeparator,
       dailyGoal: dailyGoal < 0 ? 0 : dailyGoal,
+      meaningMatchDuration: meaningMatchDuration < 0 ? 0 : meaningMatchDuration,
     );
   }
 
@@ -334,6 +344,20 @@ class SettingsStore extends ChangeNotifier {
   int get dailyGoal => _dailyGoal;
 
   ///
+  /// 词义连连每局倒计时秒数；启动时从 Android SharedPreferences 恢复。
+  ///
+  /// @var int
+  ///
+  int _meaningMatchDuration;
+
+  ///
+  /// 页面只读访问词义连连每局倒计时秒数。
+  ///
+  /// @return int
+  ///
+  int get meaningMatchDuration => _meaningMatchDuration;
+
+  ///
   /// 修改并持久化每日复习目标；负数一律钳制为 0。
   ///
   /// @param  int  value
@@ -349,6 +373,28 @@ class SettingsStore extends ChangeNotifier {
     // 保存成功后更新内存值。
     _dailyGoal = normalized;
     // 通知设置面板与首页副标题刷新。
+    notifyListeners();
+  }
+
+  ///
+  /// 修改并持久化词义连连每局倒计时秒数；负数一律钳制为 0。
+  ///
+  /// 该值与游戏内点击倒计时 `+30s` 共用：点击加时既延长当前局剩余时间，
+  /// 也把全局默认值同步抬高，下一次进入词义连连会从更高的值开始。
+  ///
+  /// @param  int  value
+  /// @return `Future<void>`
+  ///
+  Future<void> setMeaningMatchDuration(int value) async {
+    // 倒计时不允许是负数。
+    final normalized = value < 0 ? 0 : value;
+    // 值没有变化时不触发重建。
+    if (_meaningMatchDuration == normalized) return;
+    // 先等待原生确认写入成功，避免页面显示与磁盘内容不一致。
+    await _channel?.invokeMethod<void>('setMeaningMatchDuration', normalized);
+    // 保存成功后更新内存值。
+    _meaningMatchDuration = normalized;
+    // 通知设置面板与游戏内倒计时刷新。
     notifyListeners();
   }
 
@@ -429,6 +475,7 @@ class SettingsStore extends ChangeNotifier {
     _theme = AppThemePreference.light;
     _definitionSeparator = DefinitionSeparator.ideographicComma;
     _dailyGoal = 100;
+    _meaningMatchDuration = 150;
     // 通知设置面板、首页副标题与 MaterialApp 同步刷新。
     notifyListeners();
   }
@@ -485,5 +532,18 @@ class SettingsStore extends ChangeNotifier {
     final parsed = value is num ? value.toInt() : null;
     // 旧版本没有该字段时使用产品默认值 100。
     return parsed != null && parsed >= 0 ? parsed : 100;
+  }
+
+  ///
+  /// 把原生动态值转换成合法的词义连连倒计时秒数。
+  ///
+  /// @param  Object?  value
+  /// @return int
+  ///
+  static int _meaningMatchDurationFromStorage(Object? value) {
+    // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
+    final parsed = value is num ? value.toInt() : null;
+    // 旧版本没有该字段时使用产品默认值 150。
+    return parsed != null && parsed >= 0 ? parsed : 150;
   }
 }

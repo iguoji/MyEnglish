@@ -11,6 +11,8 @@ import 'review_trend_chart.dart';
 import 'checkin_heatmap_card.dart';
 // 复习模式 2x2 网格。
 import 'review_mode_grid.dart';
+// 词义连连首页进度模型（来自本局会话，不写复习记录）。
+import '../../../meaning_match/meaning_match_page.dart';
 
 ///
 /// 首页上层仪表盘：问候 → 统计 → 趋势曲线 → 打卡卡片 → 复习模式入口。
@@ -26,6 +28,8 @@ class HomeDashboard extends StatelessWidget {
     required this.reviewModeDailyGoal,
     required this.reviewCount,
     required this.reviewCountsByModule,
+    required this.meaningMatchProgress,
+    required this.refreshToken,
     required this.onMenuPressed,
     required this.onOpenListeningMeaning,
     required this.onOpenMeaningMatch,
@@ -51,6 +55,19 @@ class HomeDashboard extends StatelessWidget {
 
   /// 四种复习模式各自的今日完成量。
   final Map<String, int> reviewCountsByModule;
+
+  /// 词义连连首页进度（来自本局会话，不写复习记录）；无会话时为 null。
+  final MeaningMatchProgress? meaningMatchProgress;
+
+  ///
+  /// 复习数据回刷序号：每从复习模块返回一次就 +1。
+  ///
+  /// 趋势曲线与打卡日历各自持有异步查询结果，只在第一次出现时查库；
+  /// 把这个序号透传下去，它们才知道“外面的复习数据变了，请重查一次”。
+  ///
+  /// @var int
+  ///
+  final int refreshToken;
 
   /// 点击汉堡菜单。
   final VoidCallback onMenuPressed;
@@ -98,12 +115,16 @@ class HomeDashboard extends StatelessWidget {
           // 趋势曲线（含时间范围 tabs）：整体铺满屏幕宽度；
           // 图内部自行把 tabs 与节点文字约束在安全边界内，
           // 只有曲线、渐变、分割线突破边界抵达屏幕边缘。
-          const ReviewTrendChart(),
+          // refreshToken 变化时曲线会重新查库，复习完返回首页即可看到新数据。
+          ReviewTrendChart(refreshToken: refreshToken),
           const SizedBox(height: 20),
           // 30 天打卡质量卡片（留在安全边界内）；传入每日目标用于分档。
           Padding(
             padding: horizontalPadding,
-            child: CheckinHeatmapCard(dailyGoal: dailyGoal),
+            child: CheckinHeatmapCard(
+              dailyGoal: dailyGoal,
+              refreshToken: refreshToken,
+            ),
           ),
           const SizedBox(height: 24),
           // 复习模式入口（留在安全边界内）。
@@ -111,6 +132,7 @@ class HomeDashboard extends StatelessWidget {
             padding: horizontalPadding,
             child: ReviewModeGrid(
               reviewCountsByModule: reviewCountsByModule,
+              meaningMatchProgress: meaningMatchProgress,
               dailyGoal: reviewModeDailyGoal,
               onOpenListeningMeaning: onOpenListeningMeaning,
               onOpenMeaningMatch: onOpenMeaningMatch,

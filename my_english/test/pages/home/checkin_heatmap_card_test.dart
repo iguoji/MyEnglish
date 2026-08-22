@@ -50,7 +50,9 @@ void main() {
           // 首页会在复习质量卡片外再留 20 像素，此处复刻真实布局宽度。
           body: Padding(
             padding: EdgeInsets.all(20),
-            child: CheckinHeatmapCard(dailyGoal: 100),
+            // refreshToken 是首页发给卡片的“数据变了”通知单号；
+            // 单测里只渲染一次，固定给 0 即可。
+            child: CheckinHeatmapCard(dailyGoal: 100, refreshToken: 0),
           ),
         ),
       ),

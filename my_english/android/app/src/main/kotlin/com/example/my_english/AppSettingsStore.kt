@@ -34,6 +34,11 @@ class AppSettingsStore(context: Context) {
             )!!,
             // 旧版本没有保存目标时默认每天复习 100 个单词。
             DAILY_GOAL_KEY to preferences.getInt(DAILY_GOAL_KEY, DEFAULT_DAILY_GOAL),
+            // 旧版本没有保存词义连连倒计时时默认 150 秒。
+            MEANING_MATCH_DURATION_KEY to preferences.getInt(
+                MEANING_MATCH_DURATION_KEY,
+                DEFAULT_MEANING_MATCH_DURATION,
+            ),
         )
     }
 
@@ -85,6 +90,17 @@ class AppSettingsStore(context: Context) {
         }
     }
 
+    /** 校验并持久化词义连连每局倒计时秒数。 */
+    fun setMeaningMatchDuration(value: Int) {
+        // 与 Dart Store 保持一致，倒计时可以为 0，但不能为负数。
+        require(value >= 0) { "词义连连倒计时不能小于 0：$value" }
+        // 确认整数真正写入以后再让 Dart 更新页面状态。
+        check(preferences.edit().putInt(MEANING_MATCH_DURATION_KEY, value).commit()) {
+            // false 表示磁盘写入失败。
+            "词义连连倒计时写入失败"
+        }
+    }
+
     /** 清空全部设置，恢复到首次安装的默认值（对应 App 内「清空数据」）。 */
     fun clearAll() {
         // edit().clear() 删除本 SharedPreferences 文件中的全部键值对。
@@ -111,6 +127,12 @@ class AppSettingsStore(context: Context) {
 
         // 首次安装和旧版本升级后的默认每日目标。
         const val DEFAULT_DAILY_GOAL = 100
+
+        // SharedPreferences 词义连连每局倒计时键。
+        const val MEANING_MATCH_DURATION_KEY = "meaningMatchDuration"
+
+        // 首次安装和旧版本升级后的默认词义连连倒计时（秒）。
+        const val DEFAULT_MEANING_MATCH_DURATION = 150
 
         // 美式口音值。
         const val AMERICAN = "american"

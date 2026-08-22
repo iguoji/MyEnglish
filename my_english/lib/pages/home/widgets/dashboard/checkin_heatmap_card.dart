@@ -1,5 +1,7 @@
 // material.dart 提供布局、文字与异步状态组件。
 import 'package:flutter/material.dart';
+// dart:async 提供 unawaited，用于显式声明“这个异步任务不需要等它”。
+import 'dart:async';
 // tabler_icons_plus 提供火焰与左右箭头图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
@@ -82,10 +84,25 @@ class CheckinHeatmapCard extends StatefulWidget {
   /// 创建卡片；默认展示本月。
   ///
   /// @param  int  dailyGoal 每日复习目标，用于把每天的复习量映射到分档。
-  const CheckinHeatmapCard({required this.dailyGoal, super.key});
+  /// @param  int  refreshToken 首页复习数据回刷序号，变化即代表需要重新查库。
+  const CheckinHeatmapCard({
+    required this.dailyGoal,
+    required this.refreshToken,
+    super.key,
+  });
 
   /// 每日复习目标（来自首页设置）。
   final int dailyGoal;
+
+  ///
+  /// 首页传入的回刷序号。
+  ///
+  /// 生活化解释：日历只在第一次出现时查一次数据库。首页每从复习模块返回一次
+  /// 就把这个数字 +1，日历看到号变了才会重查，今天的色块因此能立刻变深。
+  ///
+  /// @var int
+  ///
+  final int refreshToken;
 
   @override
   State<CheckinHeatmapCard> createState() => _CheckinHeatmapCardState();
@@ -110,6 +127,25 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
     // 先铺骨架再异步查询；真实查询毫秒级，加载完成直接刷新。
     _days = _zeroDays(_month);
     _load();
+  }
+
+  ///
+  /// 首页回刷序号变化时重新查询当前月份的打卡数据。
+  ///
+  /// 每日目标改变时同样要重查：色块分档是按目标算出来的，目标一变颜色也要跟着变。
+  ///
+  /// @param  CheckinHeatmapCard  oldWidget 上一次的配置。
+  /// @return void
+  ///
+  @override
+  void didUpdateWidget(covariant CheckinHeatmapCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 序号和每日目标都没变时，沿用已有色块，不做多余查询。
+    if (oldWidget.refreshToken == widget.refreshToken &&
+        oldWidget.dailyGoal == widget.dailyGoal) {
+      return;
+    }
+    unawaited(_load());
   }
 
   ///

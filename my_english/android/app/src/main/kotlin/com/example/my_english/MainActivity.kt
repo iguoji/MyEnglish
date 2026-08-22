@@ -527,6 +527,17 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 保存词义连连每局倒计时整数。
+                    "setMeaningMatchDuration" -> runIoCall(result, "SETTINGS_ERROR") {
+                        // MethodChannel 可能把 Dart int 映射成 Int 或 Long，因此统一按 Number 读取。
+                        val value = (call.arguments as? Number)?.toInt()
+                            ?: error("setMeaningMatchDuration 缺少整数参数")
+                        // Store 校验非负数并同步写入 SharedPreferences。
+                        appSettingsStore.setMeaningMatchDuration(value)
+                        // 返回 null 通知 Dart 刷新倒计时。
+                        null
+                    }
+
                     // 清空全部设置，恢复到首次安装默认值。
                     "clearAllSettings" -> runIoCall(result, "SETTINGS_ERROR") {
                         // 删除 SharedPreferences 中的全部键值。

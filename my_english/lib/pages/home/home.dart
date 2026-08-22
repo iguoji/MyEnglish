@@ -1,5 +1,7 @@
 // dart:async 提供 Timer 和 unawaited，分别用于搜索防抖和触发异步任务。
 import 'dart:async';
+// dart:math 提供 max，用于钳制词义连连进度读数。
+import 'dart:math';
 // convert 提供 jsonDecode / JsonEncoder，用于解析导入 JSON 与生成导出 JSON。
 import 'dart:convert';
 
@@ -318,6 +320,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @var `Map<String, int>`
   ///
   Map<String, int> _reviewCountsByModule = const <String, int>{};
+
+  ///
+  /// 仪表盘“回刷序号”：每完成一次复习数据回刷就 +1。
+  ///
+  /// 生活化解释：趋势曲线和打卡日历这两张卡片各自管着自己的数据，只在第一次
+  /// 出现时查一次数据库，之后首页再怎么 setState 它们都不会重查。这个数字就是
+  /// 给它们发的“通知单号”——号变了就说明复习数据更新了，请重新查一次。
+  ///
+  /// @var int
+  ///
+  int _dashboardRefreshToken = 0;
 
   /// 今天已经生成的公共复习词单；null 表示今天尚未点击过任何复习模块。
   DailyReviewPlan? _dailyReviewPlan;
@@ -899,6 +912,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
+  /// 从任意复习模块返回首页后，把仪表盘上的全部进度重新算一遍。
+  ///
+  /// 生活化解释：以前只有“手势返回”这条路会回刷进度，而从完成页点箭头返回时
+  /// 只补了单词数据，导致头部「今日复习 X/目标」、四张模式卡的百分比、趋势曲线
+  /// 和打卡日历全都停留在进入模块前的旧数字。这里把四件事一次做完：
+  /// 1. 重新统计今日复习量（头部副标题 + 听音辨义等卡片百分比）；
+  /// 2. 重新读取当天冻结的公共词单（四张卡片共用的分母）；
+  /// 3. 重新读取未完成会话（词义连连百分比 + 各模块「继续」入口）；
+  /// 4. 递增回刷序号，通知趋势曲线与打卡日历重查数据库。
+  ///
+  /// 三个读取彼此独立，用 Future.wait 并发执行，回到首页几乎瞬间完成。
+  ///
+  /// @return `Future<void>` 全部回刷完成后的异步结果。
+  ///
+  Future<void> _refreshReviewDashboard() async {
+    await Future.wait<void>(<Future<void>>[
+      _loadReviewProgress(),
+      _loadDailyReviewPlan(),
+      _loadLearningSessions(),
+    ]);
+    // 页面可能在等待期间被关闭。
+    if (!mounted) return;
+    // 序号变化会让两张自管数据的卡片在 didUpdateWidget 里重新查询。
+    setState(() => _dashboardRefreshToken += 1);
+  }
+
+  ///
   /// 读取今天已经存在的公共复习词单，只恢复数据，不主动创建新计划。
   ///
   /// @return `Future<void>` 读取结束后的异步结果。
@@ -1094,6 +1134,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
+  ///
+  /// 词义连连首页进度：错误不写复习记录，只能从本局保存的会话状态推算百分比。
+  ///
+  /// 无会话（今天还没玩过）返回 null；有会话则取出总配对数、已匹配数与完成标记，
+  /// 由仪表盘卡片直接展示百分比与「已完成」徽章（100% 且与听音辨义口径一致）。
+  ///
+  /// @return MeaningMatchProgress? 首页卡片需要的进度；无会话时为 null。
+  ///
+  MeaningMatchProgress? get _meaningMatchProgress {
+    // 没有词义连连会话说明今天还没玩，首页不展示虚假进度。
+    final session = _learningSessions[LearningSessionType.meaningMatch];
+    if (session == null) return null;
+    final state = session.state;
+    // 总配对数缺失或异常时无法计算百分比，按“无会话”处理。
+    final totalPairs = readLearningSessionInt(state['totalPairs'], fallback: 0);
+    if (totalPairs <= 0) return null;
+    final bestMatchedPairs = max(
+      0,
+      readLearningSessionInt(state['matchedPairs'], fallback: 0),
+    );
+    final completed = state['completed'] is bool
+        ? state['completed']! as bool
+        : false;
+    // 已匹配数不应超过总数，防止旧快照错位导致进度条溢出。
+    return MeaningMatchProgress(
+      totalPairs: totalPairs,
+      bestMatchedPairs: bestMatchedPairs.clamp(0, totalPairs),
+      completed: completed,
+    );
+  }
+
   /// 按会话中的 id 顺序，从当前最新词库重新组装学习列表。
   ///
   /// @param  LearningSession  session
@@ -1137,7 +1208,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
     // 页面退出时会补写最终快照；返回后重新读取，让“继续”按钮立即反映结果。
-    if (mounted) await _loadLearningSessions();
+    if (mounted) await _refreshReviewDashboard();
   }
 
   ///
@@ -1173,15 +1244,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (result is List<int>) {
       // 正常返回（顶部箭头）：DictationPage 调用 pop 并带回 id 列表，只回刷新单词即可。
       unawaited(_mergeReviewedWords(result));
-    } else {
-      // 手势返回（PopScope 无 id）时，也走轻量刷新而非整库 _refreshWords()，
-      // 避免把用户带回"加载圈+黑屏"状态，这是返回动画被隐藏延迟的主因。
-      // DictationPage.dispose 中已同步写入 _persistSession()，下面读取应该刚更新完。
-      unawaited(_loadLearningSessions());
-      unawaited(_loadReviewProgress());
-      unawaited(_loadDailyReviewPlan()); // 确保今日目标在会话/难度变化后也能正确回刷
     }
-    await _loadLearningSessions();
+    // 无论顶部箭头还是手势返回，仪表盘上的四类进度都必须重算一次：
+    // 头部「今日复习 X/目标」、四张模式卡百分比、趋势曲线与打卡日历。
+    // 以前只有手势返回这条分支回刷，从完成页点箭头回来时首页数字纹丝不动。
+    await _refreshReviewDashboard();
   }
 
   ///
@@ -1235,14 +1302,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     if (type == LearningSessionType.meaningMatch) {
-      // 词义连连本轮仅接入顶部框架，候选词区域留空；直接打开真实页面替换占位页。
+      // 词义连连：传入历史会话（续玩）、会话 Store 与设置 Store（倒计时 +30 写全局）。
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => MeaningMatchPage(words: words, title: title),
+          builder: (_) => MeaningMatchPage(
+            words: words,
+            title: title,
+            initialSession: session,
+            sessionStore: _sessionStore,
+            settings: _settings,
+          ),
         ),
       );
       // 原生编辑、删除等操作可能已经清空失效会话；首页内存必须同步刷新。
-      await _loadLearningSessions();
+      // 同时把百分比、趋势曲线与打卡日历一起重算，避免连完一局回来数字不动。
+      await _refreshReviewDashboard();
       return;
     }
 
@@ -1255,7 +1329,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
     // 原生编辑、删除等操作可能已经清空失效会话；首页内存必须同步刷新，
     // 否则底部仍会短暂显示一个数据库中已经不存在的“继续”入口。
-    await _loadLearningSessions();
+    await _refreshReviewDashboard();
   }
 
   ///
@@ -1345,11 +1419,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _dailyReviewPlan = null;
         }
       });
-      // 回到前台时重新拉取今日复习数（跨天或后台产生过记录时保持准确）。
-      unawaited(_loadReviewProgress());
-      // 重新读取当天公共词单与四模块进度，跨午夜后自然从新目标和首题开始。
-      unawaited(_loadDailyReviewPlan());
-      unawaited(_loadLearningSessions());
+      // 回到前台时把仪表盘的四类进度整体重算：今日复习数、公共词单、
+      // 未完成会话，以及趋势曲线与打卡日历（跨天或后台产生过记录时保持准确）。
+      unawaited(_refreshReviewDashboard());
       // 防止继续执行下面停止逻辑。
       return;
     }
@@ -2514,6 +2586,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   reviewModeDailyGoal: reviewModeDailyGoal,
                   reviewCount: _reviewCount,
                   reviewCountsByModule: _reviewCountsByModule,
+                  // 词义连连不写复习记录，首页百分比只能来自本局保存的会话状态。
+                  meaningMatchProgress: _meaningMatchProgress,
+                  // 回刷序号：数字一变，趋势曲线与打卡日历就重查数据库。
+                  refreshToken: _dashboardRefreshToken,
                   onMenuPressed: () =>
                       _scaffoldKey.currentState?.openEndDrawer(),
                   onOpenListeningMeaning: () {
