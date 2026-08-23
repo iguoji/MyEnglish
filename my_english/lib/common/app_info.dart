@@ -36,7 +36,7 @@ class AppInfo {
   ///
   /// @var String
   ///
-  static const String buildNumber = '20';
+  static const String buildNumber = '21';
 
   ///
   /// 完整的 `version+buildNumber` 字符串，便于单一展示。
