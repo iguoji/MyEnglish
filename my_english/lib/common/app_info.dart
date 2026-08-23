@@ -29,7 +29,7 @@ class AppInfo {
   ///
   /// @var String
   ///
-  static const String version = '0.25.2';
+  static const String version = '1.0.0';
 
   ///
   /// 构建号（pubspec.yaml `version` 字段的 `+N` 段，0 表示未设置）。
@@ -43,5 +43,5 @@ class AppInfo {
   ///
   /// @var String
   ///
-  static const String fullVersion = '0.25.2+20';
+  static const String fullVersion = '1.0.0+21';
 }

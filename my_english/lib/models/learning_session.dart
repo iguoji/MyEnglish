@@ -1,7 +1,11 @@
 import 'dart:convert';
 
 ///
-/// 学习会话类型；每一种学习方式在本地最多保留一条未完成记录。
+/// 长期学习会话类型；每一种学习方式在本地最多保留一条未完成记录。
+///
+/// 这里只放**不属于复习模块**的两个入口：随身听和词库底部的普通听音辨义。
+/// 它们没有每日任务、不按日期过期，用户什么时候想接着练都行。
+/// 首页四个复习模块的每日进度由 `ReviewSession` 单独管理，两套互不干扰。
 ///
 enum LearningSessionType {
   ///
@@ -16,32 +20,7 @@ enum LearningSessionType {
   ///
   /// @var LearningSessionType
   ///
-  listeningMeaning('listeningMeaning'),
-
-  ///
-  /// 首页“听音辨义”复习模块当天的独立答题进度，与上面的普通入口互不影响。
-  ///
-  /// @var LearningSessionType
-  ///
-  listeningMeaningReview('review_listening_meaning'),
-
-  /// 词义连连模块当天的独立答题进度。
-  meaningMatch('review_meaning_match'),
-
-  /// 拼写巩固模块当天的独立答题进度。
-  spellingReinforcement('review_spelling_reinforcement'),
-
-  /// 看义选词模块当天的独立答题进度。
-  meaningWordChoice('review_meaning_word_choice');
-
-  /// 四种首页复习模块都只允许恢复设备本地当天保存的状态。
-  bool get isDailyReviewModule => switch (this) {
-    listeningMeaningReview ||
-    meaningMatch ||
-    spellingReinforcement ||
-    meaningWordChoice => true,
-    listening || listeningMeaning => false,
-  };
+  listeningMeaning('listeningMeaning');
 
   ///
   /// 绑定不受枚举重命名影响的数据库键。

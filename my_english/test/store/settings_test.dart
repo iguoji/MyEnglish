@@ -102,7 +102,7 @@ void main() {
     // 未知或旧版本缺失值默认使用中文顿号。
     expect(settings.definitionSeparator, DefinitionSeparator.ideographicComma);
     // 损坏的负数目标回退产品默认值。
-    expect(settings.dailyGoal, 100);
+    expect(settings.dailyGoal, 50);
     // 释放资源。
     settings.dispose();
   });
@@ -118,8 +118,8 @@ void main() {
 
     // 加载过程应正常完成，不向调用方抛 TypeError。
     final settings = await SettingsStore.load(channel: channel);
-    // 非数值目标按产品默认值 100 恢复。
-    expect(settings.dailyGoal, 100);
+    // 非数值目标按产品默认值 50 恢复。
+    expect(settings.dailyGoal, 50);
     // 释放 ChangeNotifier 资源。
     settings.dispose();
   });
@@ -135,11 +135,11 @@ void main() {
   });
 
   // 每日复习目标的纯内存模式同样遵守默认值与非负约束。
-  test('daily goal defaults to 100 and never goes negative', () async {
+  test('daily goal defaults to 50 and never goes negative', () async {
     // 纯内存 Store 即可验证。
     final settings = SettingsStore.inMemory();
-    // 产品默认目标为 100。
-    expect(settings.dailyGoal, 100);
+    // 产品默认目标为 50。
+    expect(settings.dailyGoal, 50);
     // 正常步进 +5。
     await settings.setDailyGoal(105);
     expect(settings.dailyGoal, 105);

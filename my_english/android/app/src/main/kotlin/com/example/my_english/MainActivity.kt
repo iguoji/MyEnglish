@@ -328,31 +328,126 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 读取设备本地今天四种复习模式共用的固定词单。
-                    "getTodayReviewPlan" -> runDatabaseCall(result) {
-                        wordsDatabase.getTodayReviewPlan()
+                    // ── 复习模块：每日词库 ──────────────────────────────
+                    // 读取设备本地今天的每日词库；四个模块共用同一批单词。
+                    "getTodayWordSet" -> runDatabaseCall(result) {
+                        wordsDatabase.getTodayWordSet()
                     }
 
-                    // 保存今天首次选出的公共词单；日期由原生按设备时区生成。
-                    "saveTodayReviewPlan" -> runDatabaseCall(result) {
+                    // 保存（覆盖）今天的每日词库；日期由原生按设备时区生成。
+                    "saveTodayWordSet" -> runDatabaseCall(result) {
                         val payload = call.arguments as? Map<*, *>
-                            ?: error("saveTodayReviewPlan 缺少参数")
-                        val dailyGoal = (payload["dailyGoal"] as? Number)?.toInt()
-                            ?: error("saveTodayReviewPlan 缺少有效 dailyGoal")
-                        // 规则版本让 Dart 能识别并一次性重建旧算法生成的当天顺序。
-                        val selectionVersion = (payload["selectionVersion"] as? Number)?.toInt()
-                            ?: error("saveTodayReviewPlan 缺少有效 selectionVersion")
-                        val wordIds = (payload["wordIds"] as? List<*>)
-                            ?.map { value ->
-                                (value as? Number)?.toLong()
-                                    ?: error("saveTodayReviewPlan 的 wordIds 必须全部是数字")
-                            }
-                            ?: error("saveTodayReviewPlan 缺少 wordIds")
-                        wordsDatabase.saveTodayReviewPlan(
-                            dailyGoal,
-                            wordIds,
-                            selectionVersion,
+                            ?: error("saveTodayWordSet 缺少参数")
+                        val wordIds = readLongList(payload["wordIds"], "saveTodayWordSet.wordIds")
+                        wordsDatabase.saveTodayWordSet(wordIds)
+                    }
+
+                    // ── 复习模块：模块会话 ──────────────────────────────
+                    // 读取某模块今天最新的一条会话（不论状态）。
+                    "getLatestReviewSession" -> runDatabaseCall(result) {
+                        wordsDatabase.getLatestReviewSession(
+                            readModule(call.arguments, "getLatestReviewSession"),
                         )
+                    }
+
+                    // 读取某模块今天已完成的主线会话；有它才说明今日任务过关。
+                    "getCompletedDailyReviewSession" -> runDatabaseCall(result) {
+                        wordsDatabase.getCompletedDailyReviewSession(
+                            readModule(call.arguments, "getCompletedDailyReviewSession"),
+                        )
+                    }
+
+                    // 首页四张卡片的三态数据：今天每个模块最新一条会话的状态。
+                    "getTodayReviewSessionStates" -> runDatabaseCall(result) {
+                        wordsDatabase.getTodayReviewSessionStates()
+                    }
+
+                    // 新建一局会话（主线或巩固），返回完整行供页面直接使用。
+                    "createReviewSession" -> runDatabaseCall(result) {
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("createReviewSession 缺少参数")
+                        val module = payload["module"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("createReviewSession 缺少有效 module")
+                        val kind = (payload["kind"] as? Number)?.toInt()
+                            ?: error("createReviewSession 缺少有效 kind")
+                        // 词库 id 可空：巩固局的单词跨越今明两天，不属于单一词库。
+                        val wordSetId = (payload["wordSetId"] as? Number)?.toLong()
+                        val wordIds = readLongList(payload["wordIds"], "createReviewSession.wordIds")
+                        val stateJson = payload["stateJson"]?.toString() ?: "{}"
+                        wordsDatabase.createReviewSession(module, kind, wordSetId, wordIds, stateJson)
+                    }
+
+                    // 更新一局进行中会话的页面进度与累计错误数。
+                    "updateReviewSessionProgress" -> runDatabaseCall(result) {
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("updateReviewSessionProgress 缺少参数")
+                        val sessionId = (payload["sessionId"] as? Number)?.toLong()
+                            ?: error("updateReviewSessionProgress 缺少有效 sessionId")
+                        val stateJson = payload["stateJson"]?.toString()
+                            ?: error("updateReviewSessionProgress 缺少 stateJson")
+                        val wrongTotal = (payload["wrongTotal"] as? Number)?.toInt() ?: 0
+                        wordsDatabase.updateReviewSessionProgress(sessionId, stateJson, wrongTotal)
+                        null
+                    }
+
+                    // 给一局会话结算：完成 / 中断 / 失败。
+                    "finishReviewSession" -> runDatabaseCall(result) {
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("finishReviewSession 缺少参数")
+                        val sessionId = (payload["sessionId"] as? Number)?.toLong()
+                            ?: error("finishReviewSession 缺少有效 sessionId")
+                        val status = (payload["status"] as? Number)?.toInt()
+                            ?: error("finishReviewSession 缺少有效 status")
+                        // 两个可空参数表示「保持数据库现值」，页面可只改状态。
+                        val stateJson = payload["stateJson"]?.toString()
+                        val wrongTotal = (payload["wrongTotal"] as? Number)?.toInt()
+                        wordsDatabase.finishReviewSession(sessionId, status, stateJson, wrongTotal)
+                    }
+
+                    // 批量中断进行中的会话：改设置时全部中断，跨天时只收非今日的。
+                    "abortActiveReviewSessions" -> runDatabaseCall(result) {
+                        val onlyStale = (call.arguments as? Map<*, *>)
+                            ?.get("onlyStale") as? Boolean ?: false
+                        wordsDatabase.abortActiveReviewSessions(onlyStale)
+                    }
+
+                    // ── 复习模块：复习记录 ──────────────────────────────
+                    // 记录一次单词复习结果，并在事务内更新连对次数、难度与复习时间。
+                    "addReviewRecord" -> runDatabaseCall(result) {
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("addReviewRecord 缺少参数")
+                        val wordId = (payload["wordId"] as? Number)?.toLong()
+                            ?: error("addReviewRecord 缺少有效 wordId")
+                        val module = payload["module"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("addReviewRecord 缺少有效 module")
+                        // 会话 id 可空：词库底部的普通听音辨义不属于任何复习会话。
+                        val sessionId = (payload["sessionId"] as? Number)?.toLong()
+                        val wrongCount = (payload["wrongCount"] as? Number)?.toInt() ?: 0
+                        val hintCount = (payload["hintCount"] as? Number)?.toInt() ?: 0
+                        // 只有每日主线会话才推进单词的复习时间；巩固局传 false。
+                        val updateReviewedAt = payload["updateReviewedAt"] as? Boolean ?: true
+                        val extraJson = payload["extraJson"]?.toString() ?: "{}"
+                        wordsDatabase.addReviewRecord(
+                            wordId,
+                            module,
+                            sessionId,
+                            wrongCount,
+                            hintCount,
+                            updateReviewedAt,
+                            extraJson,
+                        )
+                    }
+
+                    // 读取今日全部复习记录，供"今日复习"明细展示。
+                    "getTodayReviewRecords" -> runDatabaseCall(result) {
+                        wordsDatabase.getTodayReviewRecords()
+                    }
+
+                    // 今日复习数量：今天「一次做对」过的不同单词数。
+                    "getTodayReviewWordCount" -> runDatabaseCall(result) {
+                        wordsDatabase.getTodayReviewWordCount()
                     }
 
                     // 读取一道听音辨义题已经持久化的三个干扰项和正确答案位置。
@@ -394,53 +489,6 @@ class MainActivity : FlutterActivity() {
                             correctIndex,
                         )
                         null
-                    }
-
-                    // 记录一次单词听音辨义结果并在事务内更新难度与复习时间（每次都插一条）。
-                    "addListeningMeaningRecord" -> runDatabaseCall(result) {
-                        // 读取 Dart 传来的本次听音辨义结果。
-                        val payload = call.arguments as? Map<*, *>
-                            ?: error("addListeningMeaningRecord 缺少参数")
-                        // 单词主键必须为数字。
-                        val wordId = (payload["wordId"] as? Number)?.toLong()
-                            ?: error("addListeningMeaningRecord 缺少有效 wordId")
-                        // 是否最终全对（布尔）。
-                        val isCorrect = payload["isCorrect"] as? Boolean
-                            ?: error("addListeningMeaningRecord 缺少 isCorrect")
-                        // 错误次数与提示次数缺省为 0。
-                        val wrongCount = (payload["wrongCount"] as? Number)?.toInt() ?: 0
-                        val hintCount = (payload["hintCount"] as? Number)?.toInt() ?: 0
-                        // 模块键必须是非空字符串；旧版 Dart 未传时仍兼容旧的 listeningMeaning。
-                        val module = payload["module"]?.toString()?.trim()
-                            ?.takeIf { it.isNotEmpty() }
-                            ?: "listeningMeaning"
-                        // 写入记录并刷新难度，返回 null 对应 Dart Future<void>。
-                        wordsDatabase.addListeningMeaningRecord(
-                            wordId,
-                            isCorrect,
-                            wrongCount,
-                            hintCount,
-                            module,
-                        )
-                        null
-                    }
-
-                    // 读取今日全部听音辨义记录，供"今日复习"明细展示。
-                    "getTodayReviewWords" -> runDatabaseCall(result) {
-                        // 直接返回今日记录列表，Dart RecordStore 负责解析。
-                        wordsDatabase.getTodayReviewWords()
-                    }
-
-                    // 今日复习数量：按天 + 按单词去重汇总，供首页副标题直接使用。
-                    "getTodayReviewWordCount" -> runDatabaseCall(result) {
-                        // 原生用 COUNT(DISTINCT word_id) 聚合，避免把整天记录搬到 Dart 再去重。
-                        wordsDatabase.getTodayReviewWordCount()
-                    }
-
-                    // 今日四种复习模式分别完成多少单词，供首页四张卡片独立显示进度。
-                    "getTodayReviewCountsByModule" -> runDatabaseCall(result) {
-                        // 原生只统计四个正式模块键，普通听音辨义不会占用听音辨义进度。
-                        wordsDatabase.getTodayReviewCountsByModule()
                     }
 
                     // 按天统计复习单词数（每天去重），供趋势曲线与打卡质量卡使用。
@@ -769,6 +817,39 @@ class MainActivity : FlutterActivity() {
     private fun runDatabaseCall(result: MethodChannel.Result, action: () -> Any?) {
         // 复用统一后台桥接，仅替换执行器和业务错误码。
         runBackgroundCall(databaseExecutor, result, "WORD_DATABASE_ERROR", action)
+    }
+
+    /**
+     * 从 MethodChannel 参数中读取一个「模块标识」字符串。
+     *
+     * 复习模块的多个方法只需要这一个参数，抽出来避免重复的空值判断。
+     *
+     * @param arguments Dart 传来的原始参数，应为 {module: "..."} 形态。
+     * @param method 方法名，仅用于拼出可读的错误信息。
+     * @return 去掉首尾空格后的非空模块标识。
+     */
+    private fun readModule(arguments: Any?, method: String): String {
+        // as? 相当于 PHP 的 instanceof 判断，类型不符时得到 null 而不是崩溃。
+        val payload = arguments as? Map<*, *> ?: error("$method 缺少参数")
+        return payload["module"]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+            ?: error("$method 缺少有效 module")
+    }
+
+    /**
+     * 把 MethodChannel 传来的动态数组收窄成 Long 列表。
+     *
+     * Dart 的 int 过通道后可能是 Int 也可能是 Long，统一按 Number 读取；
+     * 只要有一项不是数字就整体报错，绝不静默丢弃单词。
+     *
+     * @param value Dart 传来的原始数组。
+     * @param field 字段名，仅用于拼出可读的错误信息。
+     * @return 全部转换成功的单词主键列表。
+     */
+    private fun readLongList(value: Any?, field: String): List<Long> {
+        val list = value as? List<*> ?: error("$field 必须是数组")
+        return list.map { item ->
+            (item as? Number)?.toLong() ?: error("$field 必须全部是数字")
+        }
     }
 
     /** 把普通磁盘动作放入独立单线程队列，并把结果安全送回 Android 主线程。 */

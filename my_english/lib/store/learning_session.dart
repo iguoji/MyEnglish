@@ -250,9 +250,5 @@ extension on LearningSessionType {
     // 随身听会话使用用户界面中的正式名称。
     LearningSessionType.listening => '随身听',
     LearningSessionType.listeningMeaning => '听音辨义',
-    LearningSessionType.listeningMeaningReview => '听音辨义（复习）',
-    LearningSessionType.meaningMatch => '词义连连',
-    LearningSessionType.spellingReinforcement => '拼写巩固',
-    LearningSessionType.meaningWordChoice => '看义选词',
   };
 }

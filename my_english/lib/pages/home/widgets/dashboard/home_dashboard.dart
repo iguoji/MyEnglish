@@ -11,8 +11,8 @@ import 'review_trend_chart.dart';
 import 'checkin_heatmap_card.dart';
 // 复习模式 2x2 网格。
 import 'review_mode_grid.dart';
-// 词义连连首页进度模型（来自本局会话，不写复习记录）。
-import '../../../meaning_match/meaning_match_page.dart';
+// 复习模块标识与三态进度模型。
+import '../../../../models/review_session.dart';
 
 ///
 /// 首页上层仪表盘：问候 → 统计 → 趋势曲线 → 打卡卡片 → 复习模式入口。
@@ -27,14 +27,10 @@ class HomeDashboard extends StatelessWidget {
     required this.dailyGoal,
     required this.reviewModeDailyGoal,
     required this.reviewCount,
-    required this.reviewCountsByModule,
-    required this.meaningMatchProgress,
+    required this.reviewModuleStates,
     required this.refreshToken,
     required this.onMenuPressed,
-    required this.onOpenListeningMeaning,
-    required this.onOpenMeaningMatch,
-    required this.onOpenSpellingReinforcement,
-    required this.onOpenMeaningWordChoice,
+    required this.onOpenModule,
     super.key,
   });
 
@@ -47,17 +43,14 @@ class HomeDashboard extends StatelessWidget {
   /// 每日复习目标。
   final int dailyGoal;
 
-  /// 四种复习模式当天冻结的共同目标。
+  /// 四个复习模块当天实际的题量，等于每日词库的单词数。
   final int reviewModeDailyGoal;
 
   /// 今日已完成复习数。
   final int reviewCount;
 
-  /// 四种复习模式各自的今日完成量。
-  final Map<String, int> reviewCountsByModule;
-
-  /// 词义连连首页进度（来自本局会话，不写复习记录）；无会话时为 null。
-  final MeaningMatchProgress? meaningMatchProgress;
+  /// 今天四个复习模块各自的三态进度；没出现的模块按「待完成」处理。
+  final Map<ReviewModule, ReviewModuleState> reviewModuleStates;
 
   ///
   /// 复习数据回刷序号：每从复习模块返回一次就 +1。
@@ -72,17 +65,8 @@ class HomeDashboard extends StatelessWidget {
   /// 点击汉堡菜单。
   final VoidCallback onMenuPressed;
 
-  /// 打开听音辨义；当前复用已有听音辨义流程。
-  final VoidCallback onOpenListeningMeaning;
-
-  /// 打开词义连连页面。
-  final VoidCallback onOpenMeaningMatch;
-
-  /// 打开拼写巩固页面。
-  final VoidCallback onOpenSpellingReinforcement;
-
-  /// 打开看义选词页面。
-  final VoidCallback onOpenMeaningWordChoice;
+  /// 点击任意一张复习模块卡片；由首页统一判断该开哪一局。
+  final ValueChanged<ReviewModule> onOpenModule;
 
   @override
   Widget build(BuildContext context) {
@@ -131,13 +115,9 @@ class HomeDashboard extends StatelessWidget {
           Padding(
             padding: horizontalPadding,
             child: ReviewModeGrid(
-              reviewCountsByModule: reviewCountsByModule,
-              meaningMatchProgress: meaningMatchProgress,
+              moduleStates: reviewModuleStates,
               dailyGoal: reviewModeDailyGoal,
-              onOpenListeningMeaning: onOpenListeningMeaning,
-              onOpenMeaningMatch: onOpenMeaningMatch,
-              onOpenSpellingReinforcement: onOpenSpellingReinforcement,
-              onOpenMeaningWordChoice: onOpenMeaningWordChoice,
+              onOpenModule: onOpenModule,
             ),
           ),
         ],

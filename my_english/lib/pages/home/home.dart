@@ -1,7 +1,5 @@
 // dart:async 提供 Timer 和 unawaited，分别用于搜索防抖和触发异步任务。
 import 'dart:async';
-// dart:math 提供 max，用于钳制词义连连进度读数。
-import 'dart:math';
 // convert 提供 jsonDecode / JsonEncoder，用于解析导入 JSON 与生成导出 JSON。
 import 'dart:convert';
 
@@ -24,8 +22,10 @@ import '../../common/date.dart';
 import '../../models/word.dart';
 // 学习会话模型用于判断随身听和听音辨义是否存在未完成历史。
 import '../../models/learning_session.dart';
-// 每日公共复习计划保存四个模块当天共用的单词主键与冻结目标。
-import '../../models/daily_review_plan.dart';
+// 每日词库保存四个模块当天共用的单词主键与顺序。
+import '../../models/daily_word_set.dart';
+// 复习会话模型提供模块标识、主线/巩固类型与三态进度。
+import '../../models/review_session.dart';
 // 音频服务由首页、随身听和听音辨义共同复用。
 import '../../services/word_audio.dart';
 // 离线语音缓存进度服务：首页加载词库后把单词列表交给它，供抽屉"离线语音"使用。
@@ -46,12 +46,16 @@ import '../../store/group.dart';
 import '../../store/settings.dart';
 // 单词 Store 同样放在页面目录之外，其他页面可以直接复用。
 import '../../store/word.dart';
-// 听音辨义记录 Store：今日复习数量从真实 record 读取，而非写死 0。
-import '../../store/record.dart';
+// 复习记录 Store：今日复习数量从真实记录读取，而非写死 0。
+import '../../store/review_record.dart';
 // 学习会话 Store 负责读取和删除本地恢复点。
 import '../../store/learning_session.dart';
-// 每日公共复习词单 Store 独立于普通随身听/听音辨义会话。
-import '../../store/daily_review_plan.dart';
+// 每日词库 Store 独立于普通随身听/听音辨义会话。
+import '../../store/daily_word_set.dart';
+// 复习会话 Store 管理四个模块的每日主线与巩固练习。
+import '../../store/review_session.dart';
+// 复习流程服务把「备词库 → 开会话」这两步收敛到一处。
+import '../review/services/review_flow.dart';
 // 分组行：模式切换、筛选 chips 与分组管理入口。
 import 'widgets/group_filter_bar.dart';
 // 右侧抽屉菜单。
@@ -68,8 +72,7 @@ import 'widgets/word_list_tile.dart';
 import 'widgets/word_sort_bar.dart';
 // 纯排序服务负责搜索过滤和多级稳定排序，页面只提供当前交互参数。
 import 'services/home_word_sorter.dart';
-// 固定每日选词规则不受首页临时筛选和排序状态影响。
-import 'services/daily_review_selector.dart';
+
 // 仪表盘：趋势曲线 + 打卡热力图 + 复习模式入口。
 import 'widgets/dashboard/home_dashboard.dart';
 // 底部词库抽屉。
@@ -88,7 +91,8 @@ class HomePage extends StatefulWidget {
   /// @param  WordAudioPlayer?  audioPlayer
   /// @param  NativeFileIo?  fileIo
   /// @param  LearningSessionStore?  sessionStore
-  /// @param  DailyReviewPlanStore?  dailyReviewPlanStore
+  /// @param  DailyWordSetStore?  wordSetStore
+  /// @param  ReviewSessionStore?  reviewSessionStore
   ///
   const HomePage({
     super.key,
@@ -97,7 +101,8 @@ class HomePage extends StatefulWidget {
     this.audioPlayer,
     this.fileIo,
     this.sessionStore,
-    this.dailyReviewPlanStore,
+    this.wordSetStore,
+    this.reviewSessionStore,
   });
 
   ///
@@ -135,8 +140,11 @@ class HomePage extends StatefulWidget {
   ///
   final LearningSessionStore? sessionStore;
 
-  /// 每日公共复习词单接口允许测试注入内存实现；正式 App 使用 SQLite。
-  final DailyReviewPlanStore? dailyReviewPlanStore;
+  /// 每日词库接口允许测试注入内存实现；正式 App 使用 SQLite。
+  final DailyWordSetStore? wordSetStore;
+
+  /// 复习会话接口允许测试注入内存实现；正式 App 使用 SQLite。
+  final ReviewSessionStore? reviewSessionStore;
 
   ///
   /// 为页面创建保存 data 和生命周期的 State。
@@ -290,8 +298,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   late final LearningSessionStore _sessionStore;
 
-  /// 四种复习模块当天共用的固定词单持久化接口。
-  late final DailyReviewPlanStore _dailyReviewPlanStore;
+  /// 四个复习模块当天共用的每日词库持久化接口。
+  late final DailyWordSetStore _wordSetStore;
+
+  /// 四个复习模块的会话持久化接口。
+  late final ReviewSessionStore _reviewSessionStore;
+
+  ///
+  /// 复习流程服务：备今天的词库、决定这一局开主线还是开巩固。
+  ///
+  /// @var ReviewFlow
+  ///
+  late final ReviewFlow _reviewFlow;
 
   ///
   /// 自定义分组 Store；分组与成员关系均由原生 SQLite 持久化。
@@ -315,11 +333,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _reviewCount = 0;
 
   ///
-  /// 今日四种复习模式各自完成的单词数（每个模式内部按单词去重）。
+  /// 今天四个复习模块各自的三态进度：待完成 / 进行中 / 已完成。
   ///
-  /// @var `Map<String, int>`
+  /// 今天还没开过局的模块不会出现在这里，读取时按 [ReviewModuleState.empty] 处理。
   ///
-  Map<String, int> _reviewCountsByModule = const <String, int>{};
+  /// @var `Map<ReviewModule, ReviewModuleState>`
+  ///
+  Map<ReviewModule, ReviewModuleState> _reviewModuleStates =
+      const <ReviewModule, ReviewModuleState>{};
 
   ///
   /// 仪表盘“回刷序号”：每完成一次复习数据回刷就 +1。
@@ -332,11 +353,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   int _dashboardRefreshToken = 0;
 
-  /// 今天已经生成的公共复习词单；null 表示今天尚未点击过任何复习模块。
-  DailyReviewPlan? _dailyReviewPlan;
+  /// 今天已经生成的每日词库；null 表示今天尚未点击过任何复习模块。
+  DailyWordSet? _dailyWordSet;
 
-  /// 正在读取或创建每日词单的共享任务，阻止快速连点生成两批不同单词。
-  Future<DailyReviewPlan?>? _dailyReviewPlanRequest;
+  ///
+  /// 正在打开的模块，以及它那一次「备词库 → 开会话」的共享任务。
+  ///
+  /// 生活化解释：用户手快连点两下「听音辨义」，第二下会直接复用第一下的
+  /// 结果，而不是再走一遍完整流程，否则同一模块会冒出两局。
+  ///
+  /// 键必须带上模块：连点的如果是两张不同的卡片，第二张要老老实实自己去开局，
+  /// 不能拿第一张的结果——那会让词义连连拿到听音辨义的会话。
+  ///
+  /// @var `(ReviewModule, Future<ReviewEntry?>)?`
+  ///
+  (ReviewModule, Future<ReviewEntry?>)? _openModuleRequest;
+
+  ///
+  /// 上一次已知的每日复习数量，用来发现用户在抽屉里改了设置。
+  ///
+  /// 数量一变，今天这批词就要重新算，所有进行中的会话必须强行中断。
+  ///
+  /// @var int?
+  ///
+  int? _lastKnownDailyGoal;
 
   ///
   /// 保存已展开的 Word 对象；spelling 可重复，所以不能把拼写当作行身份。
@@ -476,9 +516,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _fileIo = widget.fileIo ?? const NativeFileIo();
     // 生产环境复用 SQLite 单例，测试可用内存 Store 精确控制“继续”入口。
     _sessionStore = widget.sessionStore ?? LocalLearningSessionStore.instance;
-    // 每日公共词单使用独立 Store，不与普通学习会话混为一种数据。
-    _dailyReviewPlanStore =
-        widget.dailyReviewPlanStore ?? LocalDailyReviewPlanStore.instance;
+    // 每日词库与复习会话各用独立 Store，不与普通学习会话混为一种数据。
+    _wordSetStore = widget.wordSetStore ?? LocalDailyWordSetStore.instance;
+    _reviewSessionStore =
+        widget.reviewSessionStore ?? LocalReviewSessionStore.instance;
+    // 复习流程只依赖上面两个 Store，测试注入内存实现即可完整验证选词与开局。
+    _reviewFlow = ReviewFlow(
+      wordSetStore: _wordSetStore,
+      sessionStore: _reviewSessionStore,
+    );
+    // 记下启动时的每日复习量，之后靠它发现用户在抽屉里改过设置。
+    _lastKnownDailyGoal = _settings.dailyGoal;
     // 初始化列表年份参考。
     _dateReference = initialTime;
     // 注册 App 前后台观察者。
@@ -493,10 +541,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_loadWords());
     // 读取今日复习数量，让副标题的「今日复习 X/目标」显示真实数据而非写死的 0。
     unawaited(_loadReviewProgress());
-    // 若今天已经生成过公共词单，先恢复冻结目标供四张卡片展示。
-    unawaited(_loadDailyReviewPlan());
+    // 若今天已经建过词库，先恢复它供首页展示。
+    unawaited(_loadDailyWordSet());
     // 独立读取未完成会话，不让辅助数据阻塞首页单词列表首屏。
     unawaited(_loadLearningSessions());
+    // 跨天后昨天没打完的局挂着没有意义，启动时统一收成「中断」。
+    unawaited(_abortStaleReviewSessions());
+  }
+
+  ///
+  /// 把昨天及更早还挂在「进行中」的复习会话统一改成「中断」。
+  ///
+  /// 生活化解释：昨天做到一半退出去了，今天再打开 App，那一局已经没有意义
+  /// ——今天有今天的词库。不收掉的话，数据库里会攒下一堆永远不会结束的局。
+  ///
+  /// @return `Future<void>` 清理结束后的异步结果。
+  ///
+  Future<void> _abortStaleReviewSessions() async {
+    try {
+      // onlyStale 为 true 表示只动「不是今天」的会话，今天的进度完整保留。
+      await _reviewSessionStore.abortActive(onlyStale: true);
+    } catch (error) {
+      // 清理属于后台维护动作，失败只写日志，绝不影响首页展示。
+      debugPrint('清理过期复习会话失败：$error');
+    }
   }
 
   ///
@@ -505,8 +573,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// @return void
   ///
   void _handleExternalChange() {
+    // 页面已卸载时不再处理任何状态。
+    if (!mounted) return;
+    // 每日复习量变了：今天这批词要重新算，所有进行中的会话必须强行中断。
+    if (_lastKnownDailyGoal != _settings.dailyGoal) {
+      _lastKnownDailyGoal = _settings.dailyGoal;
+      unawaited(_handleDailyGoalChanged());
+    }
     // 页面存活时才重建。
-    if (mounted) setState(() {});
+    setState(() {});
+  }
+
+  ///
+  /// 用户改了「每日复习」数量后的收尾。
+  ///
+  /// 按《复习模块》的约定，数量一变就强行中断所有模块的会话：旧的那一局
+  /// 已经代表不了今天的任务了。词库本身不在这里改——下次点开任意模块时，
+  /// [ReviewFlow.resolveWordSet] 会按新数量截取或补足。
+  ///
+  /// @return `Future<void>` 中断与回刷结束后的异步结果。
+  ///
+  Future<void> _handleDailyGoalChanged() async {
+    try {
+      // onlyStale 为 false 表示今天的局也一起收掉。
+      await _reviewSessionStore.abortActive();
+    } catch (error) {
+      // 即使这里失败也不会出错：下次开局时流程会发现单词对不上，照样中断重开。
+      debugPrint('中断复习会话失败：$error');
+    }
+    if (!mounted) return;
+    // 内存里缓存的旧词库数量已经不对，清掉让下次开局重新读取。
+    setState(() => _dailyWordSet = null);
+    // 四张卡片的三态、头部数字与曲线一起重算。
+    await _refreshReviewDashboard();
   }
 
   ///
@@ -856,12 +955,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (_swipedWord != null && !words.contains(_swipedWord)) {
         _swipedWord = null;
       }
-      // 计划中的单词被删除时只释放内存缓存，不直接丢掉数据库中的其余顺序。
-      // 下次进入任意复习模块会读取原计划、保留有效 id，再按固定规则补足缺口。
-      final plan = _dailyReviewPlan;
-      if (plan != null &&
-          plan.wordIds.any((id) => !existingWordIds.contains(id))) {
-        _dailyReviewPlan = null;
+      // 词库里的单词被删除时只释放内存缓存，不直接丢掉数据库中的其余顺序。
+      // 下次进入任意复习模块时，ReviewFlow 会读取原词库、保留仍有效的 id，
+      // 再按同一套排序规则补足缺口。
+      final wordSet = _dailyWordSet;
+      if (wordSet != null &&
+          wordSet.wordIds.any((id) => !existingWordIds.contains(id))) {
+        _dailyWordSet = null;
       }
     });
     // 增删改后同样刷新离线语音缓存服务的总数与已缓存百分比。
@@ -875,38 +975,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 读取今日总复习数与四种模式各自的完成量。
+  /// 读取今日复习数与四个模块各自的三态进度。
   ///
-  /// 数据来自原生 record 表；通道不可用（如单元测试）时静默回退为 0，
-  /// 不影响首页其余功能。方法末尾统一做 mounted 守卫，避免已卸载时 setState。
+  /// 今日复习数的口径是「今天一次做对过的不同单词数」——练了但错过的不算，
+  /// 用户要看的是真正拿下了多少个词。通道不可用（如单元测试）时静默回退为
+  /// 空值，不影响首页其余功能。
   ///
-  /// @return `Future<void>`
+  /// @return `Future<void>` 两项读取都结束后的异步结果。
   ///
   Future<void> _loadReviewProgress() async {
     // try/catch 兜底原生通道异常，保证首页在测试或异常环境下不崩溃。
     try {
-      // 总数仍按“今天 + 单词”去重，不把同一个词跨模式重复累加。
-      final count = await RecordStore.instance.getTodayReviewWordCount();
-      // 每个模块内部独立按单词去重，目标都使用设置中的每日复习量。
-      final moduleCounts = await RecordStore.instance
-          .getTodayReviewCountsByModule();
+      // 两个查询彼此独立，并发执行让首页数字几乎瞬间到位。
+      final results = await Future.wait<Object>(<Future<Object>>[
+        LocalReviewRecordStore.instance.getTodayReviewWordCount(),
+        _reviewSessionStore.getTodayStates(),
+      ]);
       // 页面可能在异步期间被关闭。
       if (!mounted) return;
-      // 更新副标题展示的复习进度。
+      // 更新副标题与四张卡片的展示数据。
       setState(() {
-        _reviewCount = count;
-        _reviewCountsByModule = moduleCounts;
+        _reviewCount = results[0] as int;
+        _reviewModuleStates =
+            results[1] as Map<ReviewModule, ReviewModuleState>;
       });
     } catch (error, stackTrace) {
       // 调试输出保留完整错误与堆栈，方便真机日志定位。
-      debugPrint('读取今日复习数失败：$error');
+      debugPrint('读取今日复习进度失败：$error');
       debugPrintStack(stackTrace: stackTrace);
       // 页面已销毁则不处理 UI。
       if (!mounted) return;
-      // 通道异常时回退为 0，副标题仍可正常显示。
+      // 通道异常时回退为空，副标题与卡片仍可正常显示。
       setState(() {
         _reviewCount = 0;
-        _reviewCountsByModule = const <String, int>{};
+        _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
       });
     }
   }
@@ -929,7 +1031,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _refreshReviewDashboard() async {
     await Future.wait<void>(<Future<void>>[
       _loadReviewProgress(),
-      _loadDailyReviewPlan(),
+      _loadDailyWordSet(),
       _loadLearningSessions(),
     ]);
     // 页面可能在等待期间被关闭。
@@ -939,158 +1041,81 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 读取今天已经存在的公共复习词单，只恢复数据，不主动创建新计划。
+  /// 读取今天已经建好的每日词库，只恢复数据，不主动创建。
   ///
   /// @return `Future<void>` 读取结束后的异步结果。
   ///
-  Future<void> _loadDailyReviewPlan() async {
+  Future<void> _loadDailyWordSet() async {
     try {
-      // null 表示今天还没有点击过四种复习模块，继续使用设置中的目标展示。
-      final plan = await _dailyReviewPlanStore.getToday();
+      // null 表示今天还没有点开过任何复习模块。
+      final wordSet = await _wordSetStore.getToday();
       if (!mounted) return;
-      // 原生没有返回计划时也要清掉内存旧值，避免跨天后仍显示昨天冻结的目标。
-      setState(() => _dailyReviewPlan = plan);
+      // 原生没有返回词库时也要清掉内存旧值，避免跨天后仍显示昨天那批词。
+      setState(() => _dailyWordSet = wordSet);
     } catch (error) {
-      // 公共词单属于辅助状态，读取失败不应阻断首页和底部普通学习入口。
-      debugPrint('读取今日公共复习词单失败：$error');
+      // 词库属于辅助状态，读取失败不应阻断首页和底部普通学习入口。
+      debugPrint('读取今日词库失败：$error');
     }
   }
 
   ///
-  /// 获取今天共用的复习词单；尚未创建时按固定规则生成并可靠落盘。
+  /// 打开一个复习模块：备好今天的词库，再决定这一局开主线还是开巩固。
   ///
-  /// 多个模块快速连点会复用同一个 Future，因此同一天不可能并发选出两批词。
-  /// 已有计划中若某个单词被删除，则保留其余顺序，并从固定排序结果末尾补足。
+  /// 真正的判断逻辑全在 [ReviewFlow.openModule] 里，这里只负责三件事：
+  /// 1. 用一个共享 Future 挡住快速连点，避免同一模块冒出两局；
+  /// 2. 把结果里的词库同步进内存，供首页展示；
+  /// 3. 把原生异常转成用户看得懂的提示。
   ///
-  /// @return `Future<DailyReviewPlan?>` 没有可复习单词或保存失败时返回 null。
+  /// @param  ReviewModule  module 目标复习模块。
+  /// @return `Future<ReviewEntry?>` 无法开局时返回 null。
   ///
-  Future<DailyReviewPlan?> _resolveDailyReviewPlan() {
-    // 内存计划必须同时属于今天且由当前规则生成，才可直接返回而不访问原生数据库。
-    final cached = _dailyReviewPlan;
-    if (cached != null &&
-        cached.planDate == _localDateKey(DateTime.now()) &&
-        cached.selectionVersion == DailyReviewSelector.selectionVersion) {
-      return Future<DailyReviewPlan?>.value(cached);
-    }
-    // 已经有读取或创建任务时直接共用，避免快速点击不同卡片产生竞态。
-    final running = _dailyReviewPlanRequest;
-    if (running != null) return running;
+  Future<ReviewEntry?> _openReviewSession(ReviewModule module) {
+    // 同一个模块已经有请求在跑时直接共用，杜绝连点开出两局。
+    final running = _openModuleRequest;
+    if (running != null && running.$1 == module) return running.$2;
 
-    final request = _resolveDailyReviewPlanInternal();
-    _dailyReviewPlanRequest = request;
-    // 请求完成后释放临时引用；下一次调用会命中已保存的 _dailyReviewPlan。
+    final request = _openReviewSessionInternal(module);
+    _openModuleRequest = (module, request);
+    // 请求结束后释放临时引用，下一次点击会重新走完整流程。
     unawaited(
       request.whenComplete(() {
-        if (identical(_dailyReviewPlanRequest, request)) {
-          _dailyReviewPlanRequest = null;
+        // 只清理自己那一条，避免把后来者的请求误删。
+        if (identical(_openModuleRequest?.$2, request)) {
+          _openModuleRequest = null;
         }
       }),
     );
     return request;
   }
 
-  /// 执行每日公共词单的读取、修复或首次创建。
-  Future<DailyReviewPlan?> _resolveDailyReviewPlanInternal() async {
+  ///
+  /// 实际执行「备词库 → 开会话」，并把异常收敛成一次用户提示。
+  ///
+  /// @param  ReviewModule  module 目标复习模块。
+  /// @return `Future<ReviewEntry?>` 无法开局时返回 null。
+  ///
+  Future<ReviewEntry?> _openReviewSessionInternal(ReviewModule module) async {
     try {
-      // 先查 SQLite，确保重启应用后仍复用今天第一次选出的单词。
-      final stored = await _dailyReviewPlanStore.getToday();
-      final wordsById = <int, Word>{
-        for (final word in _allWords)
-          if (word.id != null) word.id!: word,
-      };
-
-      if (stored != null &&
-          stored.selectionVersion == DailyReviewSelector.selectionVersion) {
-        // 保留仍存在单词的原始顺序；被软删除的主键直接剔除。
-        final repairedIds = <int>[
-          for (final id in stored.wordIds)
-            if (wordsById.containsKey(id)) id,
-        ];
-        // 词库删除单词后，从同一套固定排序中补足当天冻结的目标数量。
-        if (repairedIds.length < stored.dailyGoal) {
-          final existing = repairedIds.toSet();
-          final candidates = DailyReviewSelector.select(
-            _allWords,
-            limit: _allWords.length,
-          );
-          for (final word in candidates) {
-            final id = word.id;
-            if (id == null || !existing.add(id)) continue;
-            repairedIds.add(id);
-            if (repairedIds.length >= stored.dailyGoal) break;
-          }
-        }
-        // 没有发生删除或补位时，直接复用数据库原对象。
-        final plan = _sameIntList(repairedIds, stored.wordIds)
-            ? stored
-            : await _dailyReviewPlanStore.saveToday(
-                dailyGoal: stored.dailyGoal,
-                wordIds: repairedIds,
-                selectionVersion: DailyReviewSelector.selectionVersion,
-              );
-        if (mounted) setState(() => _dailyReviewPlan = plan);
-        return plan;
-      }
-
-      // 今天第一次进入任意复习模块使用当前设置目标；旧版计划需要重建时，
-      // 继续保留当天首次冻结的目标数量，避免一次规则升级偷偷改变今日任务量。
-      final dailyGoal = stored?.dailyGoal ?? _settings.dailyGoal;
-      // 新计划或旧规则计划都按当前固定比较链重新选取完整顺序。
-      final selected = DailyReviewSelector.select(_allWords, limit: dailyGoal);
-      final ids = <int>[
-        for (final word in selected)
-          if (word.id != null) word.id!,
-      ];
-      if (ids.isEmpty) {
-        if (mounted) Toast.show(context, '当前词库没有可复习单词');
+      final entry = await _reviewFlow.openModule(
+        module,
+        allWords: _allWords,
+        dailyGoal: _settings.dailyGoal,
+      );
+      if (!mounted) return null;
+      // 词库为空说明本地一个可复习的单词都没有。
+      if (entry == null) {
+        Toast.show(context, '当前词库没有可复习单词');
         return null;
       }
-      final plan = await _dailyReviewPlanStore.saveToday(
-        dailyGoal: dailyGoal,
-        wordIds: ids,
-        selectionVersion: DailyReviewSelector.selectionVersion,
-      );
-      if (mounted) setState(() => _dailyReviewPlan = plan);
-      return plan;
+      // 把这一局用的词库同步进内存，首页无需再查一次数据库。
+      unawaited(_loadDailyWordSet());
+      return entry;
     } catch (error, stackTrace) {
-      debugPrint('创建今日公共复习词单失败：$error');
+      debugPrint('打开复习模块失败：$error');
       debugPrintStack(stackTrace: stackTrace);
-      if (mounted) Toast.show(context, '创建今日复习词单失败，请重试');
+      if (mounted) Toast.show(context, '打开${module.label}失败，请重试');
       return null;
     }
-  }
-
-  /// 按计划主键固定顺序组装最新 Word 数据。
-  List<Word> _wordsForDailyReviewPlan(DailyReviewPlan plan) {
-    final wordsById = <int, Word>{
-      for (final word in _allWords)
-        if (word.id != null) word.id!: word,
-    };
-    return List<Word>.unmodifiable(
-      plan.wordIds.map((id) => wordsById[id]).whereType<Word>(),
-    );
-  }
-
-  /// 逐项比较两个整数列表，供判断每日词单是否真的需要覆盖保存。
-  bool _sameIntList(List<int> first, List<int> second) {
-    if (first.length != second.length) return false;
-    for (var index = 0; index < first.length; index += 1) {
-      if (first[index] != second[index]) return false;
-    }
-    return true;
-  }
-
-  ///
-  /// 把本地时间转换成每日计划使用的 yyyy-MM-dd 键。
-  ///
-  /// @param  DateTime  dateTime 需要转换的设备本地时间。
-  /// @return String 与 Android SQLite 完全一致的日期主键。
-  ///
-  String _localDateKey(DateTime dateTime) {
-    // padLeft 相当于 PHP str_pad，保证月份和日期始终占两位。
-    final month = dateTime.month.toString().padLeft(2, '0');
-    final day = dateTime.day.toString().padLeft(2, '0');
-    return '${dateTime.year}-$month-$day';
   }
 
   ///
@@ -1100,26 +1125,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   Future<void> _loadLearningSessions() async {
     try {
-      // 普通学习进度长期有效；四种复习模块只保留设备本地今天的状态。
+      // 这里只剩随身听和词库底部的普通听音辨义：它们长期有效、不按日期过期，
+      // 用户什么时候想接着练都行。四个复习模块的每日进度由复习会话单独管理。
       final sessions = await _sessionStore.getAll();
-      final now = DateTime.now();
-      final activeSessions = <LearningSession>[];
-      for (final session in sessions) {
-        final isExpiredDailySession =
-            session.type.isDailyReviewModule &&
-            (session.updatedAt == null ||
-                !DateUtils.isSameDay(session.updatedAt, now));
-        if (isExpiredDailySession) {
-          // 过期状态立即删除，第二天进入模块时从今日公共词单的第一个词开始。
-          await _sessionStore.delete(session.type);
-        } else {
-          activeSessions.add(session);
-        }
-      }
       if (!mounted) return;
       setState(() {
         _learningSessions = <LearningSessionType, LearningSession>{
-          for (final session in activeSessions) session.type: session,
+          for (final session in sessions) session.type: session,
         };
       });
     } catch (error, stackTrace) {
@@ -1134,37 +1146,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  ///
-  /// 词义连连首页进度：错误不写复习记录，只能从本局保存的会话状态推算百分比。
-  ///
-  /// 无会话（今天还没玩过）返回 null；有会话则取出总配对数、已匹配数与完成标记，
-  /// 由仪表盘卡片直接展示百分比与「已完成」徽章（100% 且与听音辨义口径一致）。
-  ///
-  /// @return MeaningMatchProgress? 首页卡片需要的进度；无会话时为 null。
-  ///
-  MeaningMatchProgress? get _meaningMatchProgress {
-    // 没有词义连连会话说明今天还没玩，首页不展示虚假进度。
-    final session = _learningSessions[LearningSessionType.meaningMatch];
-    if (session == null) return null;
-    final state = session.state;
-    // 总配对数缺失或异常时无法计算百分比，按“无会话”处理。
-    final totalPairs = readLearningSessionInt(state['totalPairs'], fallback: 0);
-    if (totalPairs <= 0) return null;
-    final bestMatchedPairs = max(
-      0,
-      readLearningSessionInt(state['matchedPairs'], fallback: 0),
-    );
-    final completed = state['completed'] is bool
-        ? state['completed']! as bool
-        : false;
-    // 已匹配数不应超过总数，防止旧快照错位导致进度条溢出。
-    return MeaningMatchProgress(
-      totalPairs: totalPairs,
-      bestMatchedPairs: bestMatchedPairs.clamp(0, totalPairs),
-      completed: completed,
-    );
-  }
-
   /// 按会话中的 id 顺序，从当前最新词库重新组装学习列表。
   ///
   /// @param  LearningSession  session
@@ -1214,15 +1195,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 打开一轮听音辨义，并保留原有的复习数据定向回刷逻辑。
   ///
-  /// @param  `List<Word>`  words
-  /// @param  LearningSession?  session
-  /// @return `Future<void>`
+  /// 两个入口共用这一个方法：
+  /// - 词库底部的普通听音辨义：传 [session]，长期进度存在 learning_sessions；
+  /// - 首页「听音辨义」复习模块：传 [reviewSession]，每日进度存在 review_sessions。
+  ///
+  /// @param  `List<Word>`  words 本轮固定的答题顺序。
+  /// @param  LearningSession?  session 普通入口要恢复的长期会话。
+  /// @param  ReviewSession?  reviewSession 复习模块本局的会话。
+  /// @return `Future<void>` 页面关闭并完成首页回刷后的异步结果。
   ///
   Future<void> _openListeningMeaning(
     List<Word> words, {
     LearningSession? session,
-    String recordModule = 'listeningMeaning',
-    LearningSessionType sessionType = LearningSessionType.listeningMeaning,
+    ReviewSession? reviewSession,
   }) async {
     final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute<dynamic>(
@@ -1230,106 +1215,83 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           words: words,
           audioPlayer: _audioPlayer,
           accent: _settings.accent,
-          // 普通听音辨义和首页听音辨义传入不同模块键，今日完成量不会相互串用。
-          recordModule: recordModule,
-          // 会话类型也保持独立，两个入口可以分别记住各自的答题位置。
-          sessionType: sessionType,
           definitionSeparator: _settings.definitionSeparator.symbol,
+          // 普通入口用长期会话，复习模块用当天的复习会话，二者互不影响。
           initialSession: session,
           sessionStore: _sessionStore,
+          reviewSession: reviewSession,
+          reviewSessionStore: _reviewSessionStore,
         ),
       ),
     );
     if (!mounted) return;
     if (result is List<int>) {
-      // 正常返回（顶部箭头）：ListeningMeaningPage 调用 pop 并带回 id 列表，只回刷新单词即可。
+      // 正常返回（顶部箭头）：页面 pop 时带回 id 列表，只回刷这些单词即可。
       unawaited(_mergeReviewedWords(result));
     }
-    // 无论顶部箭头还是手势返回，仪表盘上的四类进度都必须重算一次：
-    // 头部「今日复习 X/目标」、四张模式卡百分比、趋势曲线与打卡日历。
-    // 以前只有手势返回这条分支回刷，从完成页点箭头回来时首页数字纹丝不动。
+    // 无论顶部箭头还是手势返回，仪表盘上的进度都必须重算一次：
+    // 头部「今日复习 X/目标」、四张模式卡的三态、趋势曲线与打卡日历。
     await _refreshReviewDashboard();
   }
 
   ///
-  /// 打开首页四种复习模块，并在跳转前解析当天共用的固定词单。
+  /// 打开首页四个复习模块。
   ///
-  /// 听音辨义进入已有答题页；其余三种模式进入各自占位页。即使玩法尚未开放，
-  /// 点击入口也会先创建公共计划，因此当天后续打开任意模块都会复用同一批单词。
+  /// 「今天该进哪一局」全部由 [ReviewFlow] 判断，这里只负责按模块跳到对应页面。
+  /// 玩法尚未开放的两个模块直接进占位页，不建词库也不开会话——避免它们的
+  /// 「已完成」状态凭空出现在首页上。
   ///
-  /// @param  LearningSessionType  type 当前复习模式的独立会话类型。
-  /// @param  String  title 目标页面显示的模块名称。
+  /// @param  ReviewModule  module 当前复习模块。
   /// @return `Future<void>` 页面关闭并完成首页状态回刷后的异步结果。
   ///
-  Future<void> _openReviewModule({
-    required LearningSessionType type,
-    required String title,
-  }) async {
-    // 第一次点击按固定排序选词并落盘，之后所有模块直接复用同一计划。
-    final plan = await _resolveDailyReviewPlan();
-    if (!mounted || plan == null) return;
-    final words = _wordsForDailyReviewPlan(plan);
-    if (words.isEmpty) {
-      Toast.show(context, '今日复习词单为空');
-      return;
-    }
-
-    // 只恢复当前模块自己的进度，其他模块即使使用相同词单也互不影响。
-    var session = _learningSessions[type];
-    // 删除或替换词库后，旧进度可能与修复后的公共词单不一致，此时从头开始最可靠。
-    if (session != null && !_sameIntList(session.wordIds, plan.wordIds)) {
-      await _sessionStore.delete(type);
-      if (!mounted) return;
-      session = null;
-      setState(() {
-        final next = Map<LearningSessionType, LearningSession>.from(
-          _learningSessions,
-        );
-        next.remove(type);
-        _learningSessions = next;
-      });
-    }
-
-    if (type == LearningSessionType.listeningMeaningReview) {
-      // 听音辨义复用成熟的听音辨义流程，但使用首页模块专属记录键和会话键。
-      await _openListeningMeaning(
-        words,
-        session: session,
-        recordModule: ReviewModule.listeningMeaning,
-        sessionType: LearningSessionType.listeningMeaningReview,
-      );
-      return;
-    }
-
-    if (type == LearningSessionType.meaningMatch) {
-      // 词义连连：传入历史会话（续玩）、会话 Store 与设置 Store（倒计时 +30 写全局）。
+  Future<void> _openReviewModule(ReviewModule module) async {
+    // 未开放的玩法只展示占位页，不参与今天的词库与会话。
+    if (!module.isAvailable) {
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => MeaningMatchPage(
-            words: words,
-            title: title,
-            initialSession: session,
-            sessionStore: _sessionStore,
-            settings: _settings,
+          builder: (_) => ReviewUnavailablePage(
+            title: module.label,
+            wordCount: _dailyWordSet?.wordCount ?? _settings.dailyGoal,
           ),
         ),
       );
-      // 原生编辑、删除等操作可能已经清空失效会话；首页内存必须同步刷新。
-      // 同时把百分比、趋势曲线与打卡日历一起重算，避免连完一局回来数字不动。
-      await _refreshReviewDashboard();
       return;
     }
 
-    // 尚未实现的玩法仍进入独立页面，让页面结构与未来正式路由保持一致。
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            ReviewUnavailablePage(title: title, wordCount: words.length),
-      ),
-    );
-    // 原生编辑、删除等操作可能已经清空失效会话；首页内存必须同步刷新，
-    // 否则底部仍会短暂显示一个数据库中已经不存在的“继续”入口。
-    await _refreshReviewDashboard();
+    // 备好今天的词库并拿到这一局：可能是续上的旧局、新的主线，也可能是巩固。
+    final entry = await _openReviewSession(module);
+    if (!mounted || entry == null) return;
+
+    switch (module) {
+      case ReviewModule.listeningMeaning:
+        // 听音辨义复用成熟的答题页，只是进度改存到复习会话里。
+        await _openListeningMeaning(entry.words, reviewSession: entry.session);
+      case ReviewModule.meaningMatch:
+        // 词义连连：传入本局会话（续玩）、会话 Store 与设置 Store（倒计时 +30 写全局）。
+        final playAgain = await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            builder: (_) => MeaningMatchPage(
+              words: entry.words,
+              title: module.label,
+              reviewSession: entry.session,
+              reviewSessionStore: _reviewSessionStore,
+              settings: _settings,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        // 连完一局回来，三态、头部数字与曲线一起重算。
+        await _refreshReviewDashboard();
+        // 结算页点了「再挑战一次」：由 ReviewFlow 重新判断该开主线还是巩固，
+        // 用户感受上还是点一下就重开，但规则只有一份。
+        if (playAgain == true && mounted) {
+          await _openReviewModule(module);
+        }
+      case ReviewModule.spellingReinforcement:
+      case ReviewModule.meaningWordChoice:
+        // 上面的 isAvailable 判断已经拦下这两个，这里只是让 switch 覆盖完整。
+        break;
+    }
   }
 
   ///
@@ -1414,13 +1376,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 跨年后重新构建静态列表日期；问候语也顺带刷新。
       setState(() {
         _dateReference = resumedAt;
-        // 日期已经变化时先同步清空旧计划，避免原生异步读取完成前误用昨天词单。
-        if (_dailyReviewPlan?.planDate != _localDateKey(resumedAt)) {
-          _dailyReviewPlan = null;
+        // 日期已经变化时先同步清空旧词库，避免原生异步读取完成前误用昨天那批词。
+        if (_dailyWordSet?.setDate != _localDateKey(resumedAt)) {
+          _dailyWordSet = null;
         }
       });
-      // 回到前台时把仪表盘的四类进度整体重算：今日复习数、公共词单、
-      // 未完成会话，以及趋势曲线与打卡日历（跨天或后台产生过记录时保持准确）。
+      // 后台待了一夜再回来，昨天没打完的局要先收成「中断」，
+      // 否则今天点开模块会续上昨天那一局。
+      unawaited(_abortStaleReviewSessions());
+      // 回到前台时把仪表盘的进度整体重算：今日复习数、每日词库、未完成会话，
+      // 以及趋势曲线与打卡日历（跨天或后台产生过记录时保持准确）。
       unawaited(_refreshReviewDashboard());
       // 防止继续执行下面停止逻辑。
       return;
@@ -1429,6 +1394,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _hasShownTtsNotice = false;
     // 离开前台时停止发音，避免 App 隐藏后继续播。
     unawaited(_stopAudio());
+  }
+
+  ///
+  /// 把本地时间转换成每日词库使用的 yyyy-MM-dd 键。
+  ///
+  /// @param  DateTime  dateTime 需要转换的设备本地时间。
+  /// @return String 与 Android SQLite 完全一致的日期文本。
+  ///
+  String _localDateKey(DateTime dateTime) {
+    // padLeft 相当于 PHP str_pad，保证月份和日期始终占两位。
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    return '${dateTime.year}-$month-$day';
   }
 
   ///
@@ -1923,8 +1901,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _learningSessions = const <LearningSessionType, LearningSession>{};
-          // 整库导入会清空原生公共词单，内存也必须同步失效。
-          _dailyReviewPlan = null;
+          // 整库导入会清空原生的每日词库、会话与复习记录，内存同步失效。
+          _dailyWordSet = null;
+          _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
+          _reviewCount = 0;
         });
       }
       // 重新加载首页列表，让新数据立即显示。
@@ -2003,8 +1983,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 与原生删除保持同步，让继续入口无需等待下一次读取就立即消失。
       setState(() {
         _learningSessions = const <LearningSessionType, LearningSession>{};
-        // 原生已清空每日计划，避免卡片继续显示旧的冻结目标。
-        _dailyReviewPlan = null;
+        // 原生已清空每日词库与全部复习数据，避免卡片继续显示旧状态。
+        _dailyWordSet = null;
+        _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
+        _reviewCount = 0;
       });
       // 重新加载空列表。
       unawaited(_loadWords());
@@ -2499,9 +2481,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final hasListeningMeaningSession = _learningSessions.containsKey(
       LearningSessionType.listeningMeaning,
     );
-    // 四种复习模块首次生成词单后冻结目标；顶部总目标仍即时反映设置值。
-    final reviewModeDailyGoal =
-        _dailyReviewPlan?.dailyGoal ?? _settings.dailyGoal;
+    // 复习模块的实际题量以今天已建好的词库为准；词库还没建时先用设置值预告。
+    // 词库总量不足目标时（比如只录了 30 个词、目标却是 50），这里显示的是真实的 30。
+    final reviewModeDailyGoal = _dailyWordSet?.wordCount ?? _settings.dailyGoal;
     // 全部可见分组是否都已折叠，决定按钮文案。
     final allCollapsed =
         shownSections.isNotEmpty &&
@@ -2585,45 +2567,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   dailyGoal: _settings.dailyGoal,
                   reviewModeDailyGoal: reviewModeDailyGoal,
                   reviewCount: _reviewCount,
-                  reviewCountsByModule: _reviewCountsByModule,
-                  // 词义连连不写复习记录，首页百分比只能来自本局保存的会话状态。
-                  meaningMatchProgress: _meaningMatchProgress,
+                  // 四张卡片的三态进度：待完成 / 进行中 / 已完成。
+                  reviewModuleStates: _reviewModuleStates,
                   // 回刷序号：数字一变，趋势曲线与打卡日历就重查数据库。
                   refreshToken: _dashboardRefreshToken,
                   onMenuPressed: () =>
                       _scaffoldKey.currentState?.openEndDrawer(),
-                  onOpenListeningMeaning: () {
-                    unawaited(
-                      _openReviewModule(
-                        type: LearningSessionType.listeningMeaningReview,
-                        title: '听音辨义',
-                      ),
-                    );
-                  },
-                  onOpenMeaningMatch: () {
-                    unawaited(
-                      _openReviewModule(
-                        type: LearningSessionType.meaningMatch,
-                        title: '词义连连',
-                      ),
-                    );
-                  },
-                  onOpenSpellingReinforcement: () {
-                    unawaited(
-                      _openReviewModule(
-                        type: LearningSessionType.spellingReinforcement,
-                        title: '拼写巩固',
-                      ),
-                    );
-                  },
-                  onOpenMeaningWordChoice: () {
-                    unawaited(
-                      _openReviewModule(
-                        type: LearningSessionType.meaningWordChoice,
-                        title: '看义选词',
-                      ),
-                    );
-                  },
+                  // 四个入口共用同一个方法，具体开哪一局由 ReviewFlow 判断。
+                  onOpenModule: (module) =>
+                      unawaited(_openReviewModule(module)),
                 ),
                 // 下层：底部词库抽屉。
                 WordLibrarySheet(

@@ -24,7 +24,7 @@ import 'package:my_english/services/word_audio.dart';
 import 'package:my_english/store/listening_meaning_option_cache.dart';
 // 引入学习会话接口，测试用内存实现观察保存和完成删除。
 // 引入可注入测试通道的记录 Store。
-import 'package:my_english/store/record.dart';
+import 'package:my_english/store/review_record.dart';
 import 'package:my_english/store/settings.dart';
 
 import '../../support/memory_learning_session_store.dart';
@@ -34,6 +34,23 @@ import '../../support/memory_learning_session_store.dart';
 ///
 /// @return void
 ///
+///
+/// 原生 addReviewRecord 事务结束后回传的结果。
+///
+/// 页面拿到它才允许切题；返回 null 会被 Store 判定成协议错误。
+/// 具体数值不影响任何断言，测试只关心「写了没写、参数对不对」。
+///
+/// @return `Map<String, Object?>` 形状正确的写入结果。
+///
+Map<String, Object?> _recordResult() => <String, Object?>{
+  'streak': 1,
+  'is_correct': true,
+  'difficulty_before': 0,
+  'difficulty_after': 0,
+  'reviewed_at_before': 0,
+  'reviewed_at_after': 1,
+};
+
 void main() {
   // Widget 测试需要先初始化二进制消息桥，才能为原生记录通道安装测试桩。
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +64,8 @@ void main() {
   setUp(() {
     messenger.setMockMethodCallHandler(
       defaultRecordChannel,
-      (call) async => null,
+      // 写记录的方法必须返回结果 Map，其余方法（如候选缓存）返回 null 即可。
+      (call) async => call.method == 'addReviewRecord' ? _recordResult() : null,
     );
   });
 
@@ -203,7 +221,7 @@ void main() {
       // 收到调用即记录，但暂不返回，模拟 SQLite 正在执行事务。
       nativeCalls.add(call);
       await saveCompleter.future;
-      return null;
+      return _recordResult();
     });
     // 用例结束时注销独立通道。
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
@@ -214,7 +232,7 @@ void main() {
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
-          recordStore: RecordStore(channel: channel),
+          recordStore: LocalReviewRecordStore(channel: channel),
         ),
       ),
     );
@@ -253,13 +271,18 @@ void main() {
     );
     expect(listeningMeaningRoute?.popDisposition, RoutePopDisposition.doNotPop);
     // 原生方法和参数必须完整反映本题一次错选、一次提示的结果。
-    expect(nativeCalls.single.method, 'addListeningMeaningRecord');
+    // 正误由原生按 wrongCount 判定，Dart 不再单独传 isCorrect。
+    expect(nativeCalls.single.method, 'addReviewRecord');
     expect(nativeCalls.single.arguments, <String, Object?>{
       'wordId': 1,
-      'isCorrect': false,
+      'module': 'listening_meaning',
+      // 词库底部的普通练习不属于任何一局复习会话。
+      'sessionId': null,
       'wrongCount': 1,
       'hintCount': 1,
-      'module': 'listening_meaning',
+      // 普通练习照常推进复习时间，只有巩固局才不推进。
+      'updateReviewedAt': true,
+      'extraJson': '{}',
     });
 
     // 事务完成后页面才切换到 abandon。
@@ -281,7 +304,7 @@ void main() {
     final nativeCalls = <MethodCall>[];
     messenger.setMockMethodCallHandler(channel, (call) async {
       nativeCalls.add(call);
-      return null;
+      return _recordResult();
     });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     // 接收听音辨义页通过 Navigator.pop 带回的单词 id。
@@ -300,7 +323,7 @@ void main() {
                     words: _words.skip(1).toList(),
                     audioPlayer: _ImmediateAudioPlayer(),
                     accent: PronunciationAccent.american,
-                    recordStore: RecordStore(channel: channel),
+                    recordStore: LocalReviewRecordStore(channel: channel),
                   ),
                 ),
               );

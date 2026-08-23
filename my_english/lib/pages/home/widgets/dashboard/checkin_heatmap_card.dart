@@ -8,7 +8,7 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
 // 引入听音辨义记录 Store：按天的复习量聚合查询走这里。
-import '../../../../store/record.dart';
+import '../../../../store/review_record.dart';
 
 ///
 /// 打卡质量分档：色块只保留 4 档（未复习 + 三级蓝色），与下方图例一一对应。
@@ -159,7 +159,7 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
       final month = _month;
       // since 取该月 1 号；原生会把该日期之后的所有天都返回，
       // 下面在 Dart 侧再按"属于该月"过滤一遍。
-      final counts = await RecordStore.instance.getDailyReviewCounts(
+      final counts = await LocalReviewRecordStore.instance.getDailyReviewCounts(
         since: month,
       );
       // 异步期间卡片可能已移除或切换了月份。

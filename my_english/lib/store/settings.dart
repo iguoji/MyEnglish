@@ -235,7 +235,7 @@ class SettingsStore extends ChangeNotifier {
       final definitionSeparator = _definitionSeparatorFromStorage(
         values?['definitionSeparator'],
       );
-      // 每日目标由原生以整数返回；旧版本缺失或损坏时回退为 100。
+      // 每日目标由原生以整数返回；旧版本缺失或损坏时回退为 50。
       final dailyGoal = _dailyGoalFromStorage(values?['dailyGoal']);
       // 词义连连倒计时秒数；旧版本缺失或损坏时回退 150。
       final meaningMatchDuration = _meaningMatchDurationFromStorage(
@@ -261,7 +261,7 @@ class SettingsStore extends ChangeNotifier {
         accent: PronunciationAccent.american,
         theme: AppThemePreference.light,
         definitionSeparator: DefinitionSeparator.ideographicComma,
-        dailyGoal: 100,
+        dailyGoal: 50,
         meaningMatchDuration: 150,
       );
     } on PlatformException catch (error, stackTrace) {
@@ -275,7 +275,7 @@ class SettingsStore extends ChangeNotifier {
         accent: PronunciationAccent.american,
         theme: AppThemePreference.light,
         definitionSeparator: DefinitionSeparator.ideographicComma,
-        dailyGoal: 100,
+        dailyGoal: 50,
         meaningMatchDuration: 150,
       );
     }
@@ -294,7 +294,7 @@ class SettingsStore extends ChangeNotifier {
     AppThemePreference theme = AppThemePreference.light,
     DefinitionSeparator definitionSeparator =
         DefinitionSeparator.ideographicComma,
-    int dailyGoal = 100,
+    int dailyGoal = 50,
     int meaningMatchDuration = 150,
   }) {
     // channel=null 时 setter 只更新内存并通知页面。
@@ -463,7 +463,7 @@ class SettingsStore extends ChangeNotifier {
   /// 清空全部设置，恢复到首次安装的默认值。
   ///
   /// 对应首页「清空数据」入口：先请原生删除 SharedPreferences 中所有键值，
-  /// 再把内存模型重置回美式 / Light / 顿号 / 100，并通知界面刷新（主题随之切回 Light）。
+  /// 再把内存模型重置回美式 / Light / 顿号 / 50，并通知界面刷新（主题随之切回 Light）。
   ///
   /// @return `Future<void>`
   ///
@@ -474,7 +474,7 @@ class SettingsStore extends ChangeNotifier {
     _accent = PronunciationAccent.american;
     _theme = AppThemePreference.light;
     _definitionSeparator = DefinitionSeparator.ideographicComma;
-    _dailyGoal = 100;
+    _dailyGoal = 50;
     _meaningMatchDuration = 150;
     // 通知设置面板、首页副标题与 MaterialApp 同步刷新。
     notifyListeners();
@@ -530,8 +530,8 @@ class SettingsStore extends ChangeNotifier {
   static int _dailyGoalFromStorage(Object? value) {
     // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
     final parsed = value is num ? value.toInt() : null;
-    // 旧版本没有该字段时使用产品默认值 100。
-    return parsed != null && parsed >= 0 ? parsed : 100;
+    // 旧版本没有该字段时使用产品默认值 50。
+    return parsed != null && parsed >= 0 ? parsed : 50;
   }
 
   ///

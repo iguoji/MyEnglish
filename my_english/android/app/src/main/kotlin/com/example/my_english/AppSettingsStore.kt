@@ -32,7 +32,7 @@ class AppSettingsStore(context: Context) {
                 DEFINITION_SEPARATOR_KEY,
                 IDEOGRAPHIC_COMMA,
             )!!,
-            // 旧版本没有保存目标时默认每天复习 100 个单词。
+            // 旧版本没有保存目标时默认每天复习 50 个单词。
             DAILY_GOAL_KEY to preferences.getInt(DAILY_GOAL_KEY, DEFAULT_DAILY_GOAL),
             // 旧版本没有保存词义连连倒计时时默认 150 秒。
             MEANING_MATCH_DURATION_KEY to preferences.getInt(
@@ -126,7 +126,7 @@ class AppSettingsStore(context: Context) {
         const val DAILY_GOAL_KEY = "dailyGoal"
 
         // 首次安装和旧版本升级后的默认每日目标。
-        const val DEFAULT_DAILY_GOAL = 100
+        const val DEFAULT_DAILY_GOAL = 50
 
         // SharedPreferences 词义连连每局倒计时键。
         const val MEANING_MATCH_DURATION_KEY = "meaningMatchDuration"

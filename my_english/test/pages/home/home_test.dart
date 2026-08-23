@@ -33,6 +33,7 @@ import 'package:my_english/store/learning_session.dart';
 import 'package:my_english/store/word.dart';
 
 import '../../support/memory_learning_session_store.dart';
+import '../../support/memory_review_stores.dart';
 
 ///
 /// 注册首页 Widget 测试。
@@ -48,7 +49,7 @@ void main() {
     await _pumpHome(tester);
 
     // 副标题包含收录数量与默认每日目标。
-    expect(find.text('已收录 2 个单词 · 今日复习 0/100'), findsOneWidget);
+    expect(find.text('已收录 2 个单词 · 今日复习 0/50'), findsOneWidget);
     // 右上角汉堡按钮存在。
     expect(find.byKey(const Key('open-menu')), findsOneWidget);
     // 顶部不再显示秒级时间，也没有任何 DateTime 监听器。
@@ -91,10 +92,10 @@ void main() {
   });
 
   // 验证未开放复习模式在真实首页中会显示统一提示。
-  testWidgets('unavailable review mode shows the coming-soon toast', (
+  testWidgets('unavailable review mode opens the coming-soon page', (
     tester,
   ) async {
-    // 使用接近真机比例的高屏幕，让首行复习卡片无需滚动即可接受点击。
+    // 使用接近真机比例的高屏幕，让复习卡片无需滚动即可接受点击。
     tester.view.physicalSize = const Size(800, 1000);
     tester.view.devicePixelRatio = 1;
     // 用例结束后恢复测试框架默认屏幕参数，避免影响后续测试。
@@ -103,19 +104,16 @@ void main() {
 
     // 保持词库默认隐藏，直接操作首页上的复习模式入口。
     await _pumpHome(tester, expandWordLibrary: false);
-    // 未开放状态不再占用右上角徽章；点击前页面中没有提示文字。
+    // 点击前页面中没有占位页的文字。
     expect(find.text('暂未开放'), findsNothing);
-    // 点击整张“词义连连”卡片中的标题。
-    await tester.tap(find.text('词义连连'));
-    // 第一帧插入顶层 Toast，后续 250 毫秒完成淡入动画。
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    // 点击尚未开放的「拼写巩固」；这类模块不建词库也不开会话，直接进占位页。
+    await tester.tap(find.text('拼写巩固'));
+    await tester.pumpAndSettle();
 
-    // 首页应明确提示该模式尚未开放。
+    // 占位页明确告知该玩法尚未开放，并顺带展示今天的词单规模。
     expect(find.text('暂未开放'), findsOneWidget);
+    expect(find.textContaining('今日词单'), findsOneWidget);
 
-    // 等待 Toast 自动退出，避免测试结束后残留延迟任务。
-    await tester.pump(const Duration(seconds: 3));
     // 清理页面；底部提示图标是循环动画，因此不使用 pumpAndSettle。
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -186,14 +184,14 @@ void main() {
       expect(find.text('口语发音'), findsOneWidget);
       expect(find.text('单词分隔'), findsOneWidget);
       expect(find.text('每日复习'), findsOneWidget);
-      // 默认值：美式、顿号、Light、100。
+      // 默认值：美式、顿号、Light、50。
       expect(settings.accent, PronunciationAccent.american);
       expect(
         settings.definitionSeparator,
         DefinitionSeparator.ideographicComma,
       );
       expect(settings.theme, AppThemePreference.light);
-      expect(settings.dailyGoal, 100);
+      expect(settings.dailyGoal, 50);
 
       // 切换到英式。
       await tester.tap(find.byKey(const Key('accent-british')));
@@ -209,12 +207,12 @@ void main() {
       await tester.tap(find.byKey(const Key('theme-toggle')));
       await tester.pumpAndSettle();
       expect(settings.theme, AppThemePreference.dark);
-      // 每日复习 +5（卡片内步进器，先滚动确保可见再点击）。
+      // 每日复习 +5（卡片内步进器，先滚动确保可见再点击）：50 -> 55。
       await tester.ensureVisible(find.byKey(const Key('goal-plus')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('goal-plus')));
       await tester.pumpAndSettle();
-      expect(settings.dailyGoal, 105);
+      expect(settings.dailyGoal, 55);
 
       // 设置项内嵌在抽屉中，没有独立的"完成"按钮，直接收尾清理。
       await tester.pumpWidget(const SizedBox.shrink());
@@ -1843,6 +1841,8 @@ Future<void> _pumpHome(
   SettingsStore? settings,
   WordAudioPlayer? audioPlayer,
   LearningSessionStore? sessionStore,
+  MemoryDailyWordSetStore? wordSetStore,
+  MemoryReviewSessionStore? reviewSessionStore,
   bool expandWordLibrary = true,
 }) async {
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
@@ -1859,6 +1859,9 @@ Future<void> _pumpHome(
         audioPlayer: audioPlayer ?? _SilentAudioPlayer(),
         // 默认使用空内存会话，避免 Widget 测试依赖 Android MethodChannel。
         sessionStore: sessionStore ?? MemoryLearningSessionStore(),
+        // 复习词库与会话同样走内存实现，首页三态与开局流程可在测试中完整跑通。
+        wordSetStore: wordSetStore ?? MemoryDailyWordSetStore(),
+        reviewSessionStore: reviewSessionStore ?? MemoryReviewSessionStore(),
       ),
     ),
   );

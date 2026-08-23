@@ -8,7 +8,7 @@ import '../../../../common/theme.dart';
 // 引入可复用的曲线图组件（纯展示，不绑定业务）。
 import 'trend_chart.dart';
 // 引入听音辨义记录 Store：7 天与 30 天的每日复习量聚合查询都走这里。
-import '../../../../store/record.dart';
+import '../../../../store/review_record.dart';
 
 ///
 /// 趋势图时间范围标签；对应原型 chart-tabs。
@@ -154,14 +154,14 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   ///
   /// 按范围查询真实数据并组装成曲线节点。
   ///
-  /// 7天 / 30天都使用日粒度，走 [RecordStore.getDailyReviewCounts]。
+  /// 7天 / 30天都使用日粒度，走 [ReviewRecordStore.getDailyReviewCounts]。
   ///
   /// @param  TrendRange  range 时间范围。
   /// @return `Future<List<TrendDataPoint>>` 7 个节点的真实数据。
   ///
   Future<List<TrendDataPoint>> _loadPoints(TrendRange range) async {
     final today = DateTime.now();
-    final store = RecordStore.instance;
+    final store = LocalReviewRecordStore.instance;
 
     switch (range) {
       case TrendRange.week:

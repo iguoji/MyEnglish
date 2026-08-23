@@ -10,3 +10,6 @@
 # Python 编译产物（patch/ 下的生成与校验脚本会产生，无需纳入版本控制）
 __pycache__/
 *.pyc
+
+# Kotlin/Gradle 编译缓存（android 构建产生，每台机器不同，不纳入版本控制）
+my_english/android/.kotlin/

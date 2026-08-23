@@ -5,12 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 // 被测页面与依赖模型。
 import 'package:my_english/models/word.dart';
 import 'package:my_english/models/meaning.dart';
-import 'package:my_english/models/learning_session.dart';
+import 'package:my_english/models/review_session.dart';
 import 'package:my_english/store/settings.dart';
 import 'package:my_english/pages/meaning_match/meaning_match_page.dart';
 
-// 测试用内存会话 Store，避免触碰 MethodChannel。
-import '../../support/memory_learning_session_store.dart';
+// 测试用内存 Store，避免触碰 MethodChannel。
+import '../../support/memory_review_stores.dart';
+import '../../support/recording_review_record_store.dart';
 
 ///
 /// 构造一个仅含单条释义的单词，便于测试中确定“某单词对应哪条含义”。
@@ -42,17 +43,34 @@ List<Word> _fiveWords() => [
 Future<void> _pumpPage(
   WidgetTester tester, {
   required List<Word> words,
-  LearningSession? initialSession,
+  Map<String, Object?> state = const <String, Object?>{},
+  int wrongTotal = 0,
+  ReviewSessionKind kind = ReviewSessionKind.daily,
   SettingsStore? settings,
-  MemoryLearningSessionStore? sessionStore,
+  MemoryReviewSessionStore? sessionStore,
 }) async {
+  // 页面必须拿到一局会话才能开工；这里现造一局「进行中」的主线。
+  final session = ReviewSession(
+    id: 1,
+    module: ReviewModule.meaningMatch,
+    kind: kind,
+    status: ReviewSessionStatus.active,
+    wordSetId: 1,
+    wordIds: words.map((word) => word.id!).toList(),
+    state: state,
+    wrongTotal: wrongTotal,
+    sessionDate: '2026-08-23',
+    createdAt: DateTime.now(),
+  );
   await tester.pumpWidget(
     MaterialApp(
       home: MeaningMatchPage(
         words: words,
         title: '词义连连',
-        initialSession: initialSession,
-        sessionStore: sessionStore,
+        reviewSession: session,
+        reviewSessionStore: sessionStore ?? MemoryReviewSessionStore(),
+        // 记录写入走内存实现，测试完全不触碰 MethodChannel。
+        recordStore: RecordingReviewRecordStore(),
         settings: settings,
       ),
     ),
@@ -236,9 +254,9 @@ void main() {
   });
 
   testWidgets('会话续玩：恢复已匹配 1 对与剩余 90 秒', (WidgetTester tester) async {
-    final session = LearningSession(
-      type: LearningSessionType.meaningMatch,
-      wordIds: const [1, 2, 3, 4, 5],
+    await _pumpPage(
+      tester,
+      words: _fiveWords(),
       state: <String, Object?>{
         'groupIndex': 0,
         'matchedLeft': [0],
@@ -251,9 +269,7 @@ void main() {
         'bestStreak': 1,
         'errors': 0,
       },
-      updatedAt: DateTime.now(),
     );
-    await _pumpPage(tester, words: _fiveWords(), initialSession: session);
     // 续玩恢复计数 1/5。
     expect(find.text('1 / 5'), findsOneWidget);
     // 续玩恢复剩余 90 秒 -> 01:30。

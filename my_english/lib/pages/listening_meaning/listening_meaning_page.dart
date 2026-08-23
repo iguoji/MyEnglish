@@ -28,7 +28,10 @@ import '../../store/settings.dart';
 // 引入独立候选项生成服务，页面只负责当前答题状态。
 import 'services/listening_meaning_option_generator.dart';
 // 引入听音辨义记录 Store：点击下一题时写入结果并驱动难度变化。
-import '../../store/record.dart';
+import '../../models/review_session.dart';
+import '../../store/review_record.dart';
+import '../../store/review_session.dart';
+import '../review/services/session_progress_sink.dart';
 // 引入听音辨义候选项缓存 Store，让每道题长期复用相同干扰项。
 import '../../store/listening_meaning_option_cache.dart';
 // 引入学习会话 Store，持续保存本轮单词顺序与答题进度。
@@ -97,12 +100,12 @@ class ListeningMeaningPage extends StatefulWidget {
   /// @param  `List<Word>`  words 本轮固定顺序的学习列表。
   /// @param  WordAudioPlayer  audioPlayer 单词发音服务。
   /// @param  PronunciationAccent  accent 当前发音口音。
-  /// @param  RecordStore?  recordStore 可替换的听音辨义记录 Store。
-  /// @param  String  recordModule 本轮完成记录所属的复习模式。
-  /// @param  LearningSessionType  sessionType 本页面独立保存进度时使用的会话类型。
+  /// @param  ReviewRecordStore?  recordStore 可替换的复习记录 Store。
   /// @param  ListeningMeaningOptionCacheStore?  optionCacheStore 可替换的候选缓存 Store。
-  /// @param  LearningSession?  initialSession 需要恢复的历史会话。
-  /// @param  LearningSessionStore?  sessionStore 可替换的学习会话 Store。
+  /// @param  LearningSession?  initialSession 普通入口需要恢复的长期会话。
+  /// @param  LearningSessionStore?  sessionStore 可替换的长期会话 Store。
+  /// @param  ReviewSession?  reviewSession 复习模块本局的会话；普通入口为 null。
+  /// @param  ReviewSessionStore?  reviewSessionStore 可替换的复习会话 Store。
   /// @param  String  definitionSeparator 多条释义之间的分隔符。
   ///
   /// @param  Key?  key
@@ -112,11 +115,11 @@ class ListeningMeaningPage extends StatefulWidget {
     required this.audioPlayer,
     required this.accent,
     this.recordStore,
-    this.recordModule = 'listeningMeaning',
-    this.sessionType = LearningSessionType.listeningMeaning,
     this.optionCacheStore,
     this.initialSession,
     this.sessionStore,
+    this.reviewSession,
+    this.reviewSessionStore,
     this.definitionSeparator = '、',
     super.key,
   }) : assert(words.length > 0, '听音辨义页至少需要一个学习单词');
@@ -143,25 +146,28 @@ class ListeningMeaningPage extends StatefulWidget {
   final PronunciationAccent accent;
 
   ///
-  /// 听音辨义记录存储；正式环境使用全局实例，测试可注入独立通道。
+  /// 复习记录存储；正式环境使用全局实例，测试可注入独立通道。
   ///
-  /// @var RecordStore?
+  /// @var ReviewRecordStore?
   ///
-  final RecordStore? recordStore;
+  final ReviewRecordStore? recordStore;
 
   ///
-  /// 本轮完成记录写入 record.module 时使用的稳定模块标识。
+  /// 复习模块本局的会话；从词库底部进入的普通练习为 null。
   ///
-  /// @var String
+  /// 它同时决定三件事：进度存到哪张表、复习记录归到哪一局、
+  /// 以及答题要不要推进单词的复习时间（巩固局不推进）。
   ///
-  final String recordModule;
+  /// @var ReviewSession?
+  ///
+  final ReviewSession? reviewSession;
 
   ///
-  /// 当前入口专用的学习会话类型；普通听音辨义与听音辨义互不覆盖进度。
+  /// 复习会话存储；只有 [reviewSession] 非空时才会用到。
   ///
-  /// @var LearningSessionType
+  /// @var ReviewSessionStore?
   ///
-  final LearningSessionType sessionType;
+  final ReviewSessionStore? reviewSessionStore;
 
   ///
   /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
@@ -366,9 +372,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
   ///
-  /// @return RecordStore 当前页面实际使用的听音辨义记录 Store。
+  /// @return ReviewRecordStore 当前页面实际使用的复习记录 Store。
   ///
-  RecordStore get _recordStore => widget.recordStore ?? RecordStore.instance;
+  ReviewRecordStore get _recordStore =>
+      widget.recordStore ?? LocalReviewRecordStore.instance;
 
   ///
   /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
@@ -387,15 +394,44 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       widget.sessionStore ?? LocalLearningSessionStore.instance;
 
   ///
-  /// 当前页面的会话持久化入口。
+  /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
   ///
-  /// @return LearningSessionPersistence 已绑定听音辨义类型的持久化门面。
+  /// @return ReviewSessionStore 当前页面实际使用的复习会话 Store。
   ///
-  LearningSessionPersistence get _sessionPersistence =>
-      LearningSessionPersistence(
-        store: _sessionStore,
-        type: widget.sessionType,
-      );
+  ReviewSessionStore get _reviewSessionStore =>
+      widget.reviewSessionStore ?? LocalReviewSessionStore.instance;
+
+  ///
+  /// 本轮进度的落盘出口，在 initState 里按入口类型创建一次。
+  ///
+  /// 从首页复习模块进来就写复习会话（有成败），从词库底部进来就写长期会话
+  /// （做完即删）。页面其余代码只调用它的 save / finish，不关心区别。
+  ///
+  /// @var SessionProgressSink
+  ///
+  late final SessionProgressSink _progress;
+
+  ///
+  /// 本轮记录归属的复习模块。
+  ///
+  /// 从词库底部进入的普通练习同样按「听音辨义」归类：它确实是在练这个玩法，
+  /// 记录该计入今日统计。首页四张卡片的三态来自会话表而不是记录表，
+  /// 所以普通练习不会让今天的模块任务凭空变成「已完成」。
+  ///
+  /// @return ReviewModule 写入记录时使用的模块标识。
+  ///
+  ReviewModule get _recordModule => ReviewModule.listeningMeaning;
+
+  ///
+  /// 本轮答题是否需要推进单词的复习时间。
+  ///
+  /// 只有「无限巩固练习」不推进——那批词里混着明天要背的，推进了明天就选不到。
+  /// 普通练习和每日主线都正常推进。
+  ///
+  /// @return bool 需要推进时返回 true。
+  ///
+  bool get _updatesReviewedAt =>
+      widget.reviewSession?.updatesReviewedAt ?? true;
 
   ///
   /// 获取当前单词中包含有效释义的词性组。
@@ -426,6 +462,19 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     super.initState();
     // 监听 App 前后台变化，后台停止音频并让下次播放重新提示 TTS。
     WidgetsBinding.instance.addObserver(this);
+    // 按入口类型选定进度出口：复习模块写复习会话，词库底部写长期会话。
+    final reviewSession = widget.reviewSession;
+    _progress = reviewSession == null
+        ? LearningSessionProgressSink(
+            store: _sessionStore,
+            type: LearningSessionType.listeningMeaning,
+            wordIds: widget.words.map((word) => word.id),
+            session: widget.initialSession,
+          )
+        : ReviewSessionProgressSink(
+            store: _reviewSessionStore,
+            session: reviewSession,
+          );
     // 继续模式先恢复小题下标、错误和候选顺序；新开始则保留默认字段。
     _restoreInitialSession();
     // 完成待提交态没有候选；普通状态若快照无合法候选则同步生成标准四选一。
@@ -453,13 +502,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// @return void
   ///
   void _restoreInitialSession() {
-    // 没有会话就是一次全新的听音辨义。
-    final session = widget.initialSession;
-    if (session == null || session.type != widget.sessionType) {
-      return;
-    }
+    // 出口给出的快照为空就是一次全新的听音辨义。
+    final state = _progress.initialState;
+    if (state.isEmpty) return;
     // 先恢复单词下标，后续释义边界都依赖当前单词。
-    final state = session.state;
     _wordIndex = readLearningSessionInt(
       state['wordIndex'],
       fallback: 0,
@@ -561,11 +607,11 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// @return `Future<void>` 会话保存完成后的异步结果。
   ///
-  Future<void> _persistSession() => _sessionPersistence.save(
-    // 只保存主键，恢复时首页会使用最新词库重新组装 Word。
-    wordIds: widget.words.map((word) => word.id),
-    // 完成页已经删除会话，禁止 dispose 再创建一条历史。
+  Future<void> _persistSession() => _progress.save(
+    // 完成页已经结算过这一局，禁止 dispose 再把状态写回「进行中」。
     enabled: !_isDone,
+    // 本轮累计错误数决定整局的成败，必须和进度一起落盘。
+    wrongTotal: _errors,
     // state 相当于小程序 Page.data 的可持久化子集。
     state: <String, Object?>{
       // 保存当前单词在固定学习列表中的下标。
@@ -604,11 +650,20 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   );
 
   ///
-  /// 整轮完成后删除听音辨义会话，首页随即隐藏对应“继续”入口。
+  /// 整轮跑完后给这一局结算。
   ///
-  /// @return `Future<void>` 会话删除完成后的异步结果。
+  /// 判定规则很简单：整轮一次都没错（[_errors] 为 0）才算「完成」，
+  /// 中途错过任何一次都算「失败」，下次进模块会重开一局从头再来。
+  /// 词库底部的普通练习没有成败之分，出口内部会直接把长期快照删掉，
+  /// 首页随即隐藏对应的「继续」入口。
   ///
-  Future<void> _deleteSession() => _sessionPersistence.delete();
+  /// @return `Future<void>` 结算完成后的异步结果。
+  ///
+  Future<void> _finishSession() => _progress.finish(
+    // 一次没错才算这一局过关。
+    perfect: _errors == 0,
+    wrongTotal: _errors,
+  );
 
   ///
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
@@ -1274,10 +1329,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 写数据库。此时 [_currentWrong]/[_currentHints] 仍保存着本词累计数据。
   /// 若单词没有主键（极端情况）则直接跳过，并允许页面继续推进。
   ///
-  /// 关于 isCorrect 的口径（重要）：听音辨义只能以"全部选对"结束，所以不能用"是否
+  /// 关于正误的口径（重要）：听音辨义只能以"全部选对"结束，所以不能用"是否
   /// 完成"来判断对错。真正有意义的判定是**本次过程中有没有选错过候选词**：
   /// - 一次没错（[_currentWrong] == 0）→ 视为本次听音辨义正确；
-  /// - 中途选错过 → 视为本次听音辨义错误，原生据此把难度 +1。
+  /// - 中途选错过 → 视为本次听音辨义错误，原生据此把连对次数归零、难度 +1。
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
   ///
   /// @return `Future<bool>` 数据库事务是否成功；没有主键时返回 true 并跳过写入。
@@ -1289,14 +1344,17 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     if (wordId == null) return true;
     try {
       // 等待原生事务真正结束后才允许切题，确保首页回刷时能读取到最新数据。
-      await _recordStore.addCompletion(
-        // 本次是否"一次做对"：零错选才算正确，见上方口径说明。
+      // 连对次数、难度与复习时间都由原生在同一个事务里一并更新。
+      await _recordStore.add(
         wordId: wordId,
-        isCorrect: _currentWrong == 0,
+        module: _recordModule,
+        // 复习模块的记录挂到本局会话上；词库底部的普通练习不属于任何一局。
+        sessionId: widget.reviewSession?.id,
+        // 本次选错次数为 0 时原生判定为"一气呵成"，见上方口径说明。
         wrongCount: _currentWrong,
         hintCount: _currentHints,
-        // 当前页面虽然复用旧听音辨义流程，但首页统计时归属于明确的复习模式。
-        module: widget.recordModule,
+        // 巩固局不推进复习时间，否则明天那批词今天就被消耗掉了。
+        updateReviewedAt: _updatesReviewedAt,
       );
       // 只有事务成功后才把 id 带回首页，避免首页回刷一条并未更新的数据。
       _reviewedWordIds.add(wordId);
@@ -1361,7 +1419,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _feedback = '';
       });
       // 最后一题记录已经成功提交，整轮不再属于未完成历史。
-      unawaited(_deleteSession());
+      unawaited(_finishSession());
       // 停止可能仍在播放的答对奖励音频。
       unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
       return;
