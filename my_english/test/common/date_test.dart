@@ -1,13 +1,10 @@
-// flutter_test 提供 test、group 和 expect，使用方式类似 PHPUnit 的测试与断言。
+// flutter_test 提供 test、group 和 expect 等测试 API。
 import 'package:flutter_test/flutter_test.dart';
-// 引入被测试的日期 helper，类似 PHPUnit 测试 require 业务函数文件。
+// 引入被测试的日期 helper 函数。
 import 'package:my_english/common/date.dart';
 
 ///
 /// 测试程序入口；这里只登记测试用例，不会启动 Flutter 页面。
-///
-/// @return void
-///
 void main() {
   // 验证公用完整日期时间格式，首页和未来页面应复用该函数。
   group('formatFullDateTime', () {
@@ -20,14 +17,14 @@ void main() {
     });
   });
 
-  // group 把同一个函数的测试归在一起，类似 PHPUnit 测试类。
+  // group 把同一个函数的测试归在一起。
   group('formatWordDate', () {
     // 固定“当前时间”，避免测试结果随着实际年份变化。
     final now = DateTime(2026, 7, 26, 12);
 
     // 验证今年的日期不显示年份，并且月份、日期会补零。
     test('uses MM.dd for a date in the current year', () {
-      // expect 对应 PHPUnit assertSame：实际值必须等于期望值。
+      // expect 断言实际值必须等于期望值。
       expect(formatWordDate(DateTime(2026, 1, 2), now), '01.02');
       // 月日已经是两位时保持原值。
       expect(formatWordDate(DateTime(2026, 7, 26), now), '07.26');

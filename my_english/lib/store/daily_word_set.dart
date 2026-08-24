@@ -13,17 +13,10 @@ import '../models/daily_word_set.dart';
 abstract interface class DailyWordSetStore {
   ///
   /// 读取设备本地今天的每日词库。
-  ///
-  /// @return `Future<DailyWordSet?>` 今天尚未建库时返回 null。
-  ///
   Future<DailyWordSet?> getToday();
 
   ///
   /// 保存（覆盖）今天的每日词库。
-  ///
-  /// @param  `List<int>`  wordIds 按排序规则选出的单词主键，顺序即答题顺序。
-  /// @return `Future<DailyWordSet>` 原生实际保存后的词库。
-  ///
   Future<DailyWordSet> saveToday(List<int> wordIds);
 }
 
@@ -33,40 +26,25 @@ abstract interface class DailyWordSetStore {
 class LocalDailyWordSetStore implements DailyWordSetStore {
   ///
   /// 允许测试注入独立通道；正式 App 使用默认 word_store 通道。
-  ///
-  /// @param  MethodChannel?  channel 测试专用通道；为空时使用正式通道。
-  ///
   const LocalDailyWordSetStore({MethodChannel? channel})
     : _channel = channel ?? _defaultChannel;
 
   ///
   /// App 默认复用实例。
-  ///
-  /// @var LocalDailyWordSetStore
-  ///
   static const LocalDailyWordSetStore instance = LocalDailyWordSetStore();
 
   ///
   /// 与 Android MainActivity 注册值完全一致的通道。
-  ///
-  /// @var MethodChannel
-  ///
   static const MethodChannel _defaultChannel = MethodChannel(
     'my_english/word_store',
   );
 
   ///
   /// 实际执行原生调用的消息通道。
-  ///
-  /// @var MethodChannel
-  ///
   final MethodChannel _channel;
 
   ///
   /// 读取设备本地今天的每日词库。
-  ///
-  /// @return `Future<DailyWordSet?>` 今天尚未建库时返回 null。
-  ///
   @override
   Future<DailyWordSet?> getToday() async {
     final raw = await _channel.invokeMapMethod<Object?, Object?>(
@@ -79,10 +57,6 @@ class LocalDailyWordSetStore implements DailyWordSetStore {
 
   ///
   /// 保存（覆盖）今天的每日词库，同时清掉更早日期的历史词库。
-  ///
-  /// @param  `List<int>`  wordIds 固定顺序的单词主键。
-  /// @return `Future<DailyWordSet>` 原生实际保存后的词库。
-  ///
   @override
   Future<DailyWordSet> saveToday(List<int> wordIds) async {
     // 空词库无法支撑任何一局复习，直接在 Dart 层拒绝。

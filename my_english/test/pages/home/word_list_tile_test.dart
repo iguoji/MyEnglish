@@ -12,9 +12,6 @@ import 'package:my_english/pages/home/widgets/word_list_tile.dart';
 
 ///
 /// 注册单词行组件测试。
-///
-/// @return void
-///
 void main() {
   // 固定日期参考，保证格式化结果稳定。
   final reference = DateTime(2026, 7, 26);
@@ -34,17 +31,6 @@ void main() {
 
   ///
   /// 用最小 Material 环境渲染一行。
-  ///
-  /// @param  WidgetTester  tester
-  /// @param  Word  item
-  /// @param  bool  isExpanded
-  /// @param  bool  selectMode
-  /// @param  bool  isSelected
-  /// @param  bool  isSwipedOpen
-  /// @param  `ValueChanged<bool>?`  onSwipeChanged
-  /// @param  VoidCallback?  onToggleSelect
-  /// @return `Future<void>`
-  ///
   Future<void> pumpTile(
     WidgetTester tester, {
     required Word item,

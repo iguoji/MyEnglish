@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 // 引入应用元信息（版本号、展示名来自 pubspec.yaml）。
 import 'common/app_info.dart';
-// 引入全局主题，类似 PHP 模板加载公共 CSS 或小程序加载 app.wxss。
+// 引入全局主题配置。
 import 'common/theme.dart';
-// 引入首页，类似在小程序 app.json 中把首页登记为第一个页面。
+// 引入首页，作为应用启动后的第一个页面。
 import 'pages/home/home.dart';
 // 引入全局设置 Store，MaterialApp 会监听其中的主题变化。
 import 'store/settings.dart';
@@ -16,28 +16,17 @@ import 'store/settings.dart';
 class MainApp extends StatelessWidget {
   ///
   /// App 启动前必须传入已经读取本地数据的设置 Store。
-  ///
-  /// @param  SettingsStore  settings
-  /// @param  Key?  key
-  ///
   const MainApp({required this.settings, super.key});
 
   ///
   /// 口音与主题都由同一个全局 Store 管理。
-  ///
-  /// @var SettingsStore
-  ///
   final SettingsStore settings;
 
   ///
   /// build 相当于输出应用最外层模板。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
-    // ListenableBuilder 类似监听小程序全局 data，只有设置变化时才重建 MaterialApp。
+    // ListenableBuilder 监听 settings，只有设置变化时才重建 MaterialApp。
     return ListenableBuilder(
       // SettingsStore 每次成功修改口音或主题都会发出通知。
       listenable: settings,

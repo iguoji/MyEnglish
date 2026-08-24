@@ -9,9 +9,6 @@ import 'package:my_english/pages/home/widgets/dashboard/review_mode_grid.dart';
 
 ///
 /// 注册首页复习模式入口的展示与点击测试。
-///
-/// @return void
-///
 void main() {
   testWidgets('四张卡片按三态展示，点击回传对应模块', (tester) async {
     // 使用常见窄屏宽度，确认两列卡片在手机上能够完整容纳文案。

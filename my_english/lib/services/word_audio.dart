@@ -13,18 +13,10 @@ import '../store/settings.dart';
 abstract class WordAudioPlayer {
   ///
   /// 播放一个单词，并在音频完成、失败或被新播放替换时结束 Future。
-  ///
-  /// @param  String  spelling
-  /// @param  PronunciationAccent  accent
-  /// @return `Future<void>`
-  ///
   Future<void> play(String spelling, PronunciationAccent accent);
 
   ///
   /// 主动停止当前播放，例如页面销毁或 App 进入后台。
-  ///
-  /// @return `Future<void>`
-  ///
   Future<void> stop();
 
   ///
@@ -32,22 +24,13 @@ abstract class WordAudioPlayer {
   ///
   /// 测试替身和旧播放器默认返回 false；Android 原生实现返回本次 play 的真实来源。
   /// 页面据此只在当前页面第一次使用 TTS 时显示提示。
-  ///
-  /// @return `Future<bool>` true 表示本次使用了本地 TTS。
-  ///
   Future<bool> consumeLastPlaybackUsedTts() async => false;
 
   ///
   /// 显示或刷新锁屏/通知栏的媒体控制（标题=拼写，副标题=首条释义）。
   ///
-  /// 默认空实现：只有 NativeWordAudioPlayer 会真正驱动 Android MediaSession；
+  /// 默认空实现：只有 LocalWordAudioPlayer 会真正驱动 Android MediaSession；
   /// 测试替身沿用空实现，不会破坏现有用例。
-  ///
-  /// @param  String  spelling 当前单词拼写。
-  /// @param  String  subtitle 副标题（通常为第一条释义）。
-  /// @param  bool  isPlaying 当前是否处于播放状态。
-  /// @return `Future<void>`
-  ///
   Future<void> showMediaSession(
     String spelling,
     String subtitle,
@@ -56,17 +39,10 @@ abstract class WordAudioPlayer {
 
   ///
   /// 仅更新播放/暂停状态（切换通知栏图标与 ongoing 标记）。
-  ///
-  /// @param  bool  isPlaying 当前是否处于播放状态。
-  /// @return `Future<void>`
-  ///
   Future<void> setMediaPlaying(bool isPlaying) async {}
 
   ///
   /// 收起锁屏/通知栏媒体控制并停用媒体会话。
-  ///
-  /// @return `Future<void>`
-  ///
   Future<void> releaseMediaSession() async {}
 }
 
@@ -88,23 +64,14 @@ class WordAudioInterruptedException implements Exception {
 class WordAudioPlaybackException implements Exception {
   ///
   /// 保存原生返回的可读错误。
-  ///
-  /// @param  String  message 原生播放错误说明。
-  ///
   const WordAudioPlaybackException(this.message);
 
   ///
   /// 用户可见的播放错误说明。
-  ///
-  /// @var String
-  ///
   final String message;
 
   ///
   /// 输出简洁说明，避免提示显示“Instance of ...”。
-  ///
-  /// @return String
-  ///
   @override
   String toString() => message;
 }
@@ -117,23 +84,14 @@ class WordAudioPlaybackException implements Exception {
 class WordAudioTtsUnavailableException implements Exception {
   ///
   /// 保存原生层返回的用户可读原因。
-  ///
-  /// @param  String  message 原生 TTS 能力检测结果。
-  ///
   const WordAudioTtsUnavailableException(this.message);
 
   ///
   /// 用户可见的 TTS 不可用说明。
-  ///
-  /// @var String
-  ///
   final String message;
 
   ///
   /// 输出可直接展示的中文提示。
-  ///
-  /// @return String
-  ///
   @override
   String toString() => message;
 }
@@ -144,23 +102,14 @@ class WordAudioTtsUnavailableException implements Exception {
 class WordAudioTtsException implements Exception {
   ///
   /// 保存原生返回的用户可读原因。
-  ///
-  /// @param  String  message 原生 TTS 错误说明。
-  ///
   const WordAudioTtsException(this.message);
 
   ///
   /// 用户可见的 TTS 错误说明。
-  ///
-  /// @var String
-  ///
   final String message;
 
   ///
   /// 输出可直接展示的中文提示。
-  ///
-  /// @return String
-  ///
   @override
   String toString() => message;
 }
@@ -168,43 +117,29 @@ class WordAudioTtsException implements Exception {
 ///
 /// 真正调用 Android MediaPlayer 的生产实现。
 ///
-class NativeWordAudioPlayer implements WordAudioPlayer {
+class LocalWordAudioPlayer implements WordAudioPlayer {
   ///
   /// 默认构造器使用与 MainActivity 一致的通道名。
-  ///
-  /// @param  MethodChannel  _channel
-  ///
-  NativeWordAudioPlayer([
+  LocalWordAudioPlayer([
     this._channel = const MethodChannel('my_english/word_audio'),
   ]);
 
   ///
   /// 保存可注入通道，Widget/单元测试可以替换原生实现。
-  ///
-  /// @var MethodChannel
-  ///
   final MethodChannel _channel;
 
   ///
   /// 最近一次已经完成的播放是否使用了本地 TTS。
-  ///
-  /// @var bool?
-  ///
   bool? _lastPlaybackUsedTts;
 
   ///
   /// 把拼写和口音发送给 Android；原生 Future 会持续到音频播放结束。
-  ///
-  /// @param  String  spelling
-  /// @param  PronunciationAccent  accent
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {
     // 新请求开始时丢弃上一条尚未消费的来源，避免异常流程遗留旧状态。
     _lastPlaybackUsedTts = null;
     try {
-      // Map 类似小程序调用插件时传入的 options 对象。
+      // Map 是这次原生调用需要传递的参数集合。
       final usedTts = await _channel.invokeMethod<bool>(
         'play',
         <String, Object?>{
@@ -242,9 +177,6 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
 
   ///
   /// Android 原生在 play Future 结束时把播放来源保存于通道结果；本方法读取该结果。
-  ///
-  /// @return `Future<bool>` 当前实现暂由通道结果直接返回，默认 false。
-  ///
   @override
   Future<bool> consumeLastPlaybackUsedTts() async {
     // 读取后立即清空，避免下一个 MP3 播放误继承上一次 TTS 状态。
@@ -255,9 +187,6 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
 
   ///
   /// 通知原生释放当前 MediaPlayer；没有播放时该操作也是安全的。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> stop() async {
     try {
@@ -271,19 +200,13 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
 
   ///
   /// 显示/刷新锁屏与通知栏的媒体控制；原生据此创建 Android MediaSession 与通知。
-  ///
-  /// @param  String  spelling 当前单词拼写（通知标题）。
-  /// @param  String  subtitle 首条释义（通知副标题）。
-  /// @param  bool  isPlaying 当前是否正在播放。
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> showMediaSession(
     String spelling,
     String subtitle,
     bool isPlaying,
   ) async {
-    // Map 类似小程序调用插件时传入的 options 对象。
+    // Map 是这次原生调用需要传递的参数集合。
     await _channel.invokeMethod<void>('mediaSessionShow', <String, Object?>{
       'spelling': spelling,
       'subtitle': subtitle,
@@ -293,10 +216,6 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
 
   ///
   /// 仅把播放/暂停状态同步给原生，用于切换通知栏图标。
-  ///
-  /// @param  bool  isPlaying 当前是否正在播放。
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> setMediaPlaying(bool isPlaying) async {
     await _channel.invokeMethod<void>(
@@ -307,9 +226,6 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
 
   ///
   /// 收起媒体控制；原生停用 MediaSession 并移除通知。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> releaseMediaSession() async {
     await _channel.invokeMethod<void>('mediaSessionRelease');
@@ -323,10 +239,6 @@ class NativeWordAudioPlayer implements WordAudioPlayer {
   /// Dart 侧（随身听页）据此控制播放。传 null 可注销回调（页面销毁时调用）。
   ///
   /// 复用音频通道名，但方向相反：这里接收原生发来的事件。
-  ///
-  /// @param  `Future<dynamic>? Function(String action)?`  handler 动作回调。
-  /// @return void
-  ///
   static void setMediaControlHandler(
     Future<dynamic>? Function(String action)? handler,
   ) {

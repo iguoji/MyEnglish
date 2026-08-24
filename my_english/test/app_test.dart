@@ -9,9 +9,6 @@ import 'package:my_english/store/settings.dart';
 
 ///
 /// 验证根应用读取 Store 并立即应用 Material 3 主题。
-///
-/// @return void
-///
 void main() {
   // 主题切换后 MaterialApp 必须使用同一个设置状态。
   testWidgets('main app applies persisted light and dark preferences', (

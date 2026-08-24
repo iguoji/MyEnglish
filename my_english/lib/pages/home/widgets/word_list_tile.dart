@@ -20,23 +20,6 @@ import '../../../models/word.dart';
 class WordListTile extends StatelessWidget {
   ///
   /// 创建列表项；选择与滑动状态都由首页集中保存。
-  ///
-  /// @param  Word  item
-  /// @param  DateTime  dateReference
-  /// @param  DateTime?  displayDate
-  /// @param  bool  isExpanded
-  /// @param  VoidCallback  onTap
-  /// @param  String  definitionSeparator
-  /// @param  bool  isPlaying
-  /// @param  bool  selectMode
-  /// @param  bool  isSelected
-  /// @param  bool  isSwipedOpen
-  /// @param  VoidCallback?  onToggleSelect
-  /// @param  `ValueChanged<bool>?`  onSwipeChanged
-  /// @param  VoidCallback?  onEdit
-  /// @param  VoidCallback?  onDelete
-  /// @param  Key?  key
-  ///
   const WordListTile({
     required this.item,
     required this.dateReference,
@@ -62,122 +45,70 @@ class WordListTile extends StatelessWidget {
   /// 首页根据"分组模式"决定用复习时间 / 更新时间 / 加入时间中的哪一个
   /// （详见 HomePage._listDateOf）；本组件只负责把它格式化显示，不关心业务规则。
   /// 为 null 时（对应模式下的时间字段为空）显示占位 "00.00"。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? displayDate;
 
   ///
   /// 标题行固定为设计稿的 40 像素。
-  ///
-  /// @var double
-  ///
   static const double headerHeight = 40;
 
   ///
   /// 左滑露出的操作区总宽度：修改 64 + 删除 64。
-  ///
-  /// @var double
-  ///
   static const double actionWidth = 128;
 
   ///
   /// 当前 Word 数据。
-  ///
-  /// @var Word
-  ///
   final Word item;
 
   ///
   /// 日期格式化参考时间。
-  ///
-  /// @var DateTime
-  ///
   final DateTime dateReference;
 
   ///
   /// 是否显示 Meaning 区域。
-  ///
-  /// @var bool
-  ///
   final bool isExpanded;
 
   ///
   /// 同一词性下多条中文释义之间使用的全角分隔符。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 当前行是否正在下载或播放音频。
-  ///
-  /// @var bool
-  ///
   final bool isPlaying;
 
   ///
   /// 首页是否处于选择模式。
-  ///
-  /// @var bool
-  ///
   final bool selectMode;
 
   ///
   /// 选择模式下当前行是否被勾选。
-  ///
-  /// @var bool
-  ///
   final bool isSelected;
 
   ///
   /// 当前行是否处于左滑展开状态。
-  ///
-  /// @var bool
-  ///
   final bool isSwipedOpen;
 
   ///
   /// 点击标题行：普通模式播放并展开，选择模式切换勾选（由首页决定）。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onTap;
 
   ///
   /// 点击勾选框时切换选中状态。
-  ///
-  /// @var VoidCallback?
-  ///
   final VoidCallback? onToggleSelect;
 
   ///
   /// 左滑打开或关闭操作区时通知首页；true 表示打开。
-  ///
-  /// @var `ValueChanged<bool>?`
-  ///
   final ValueChanged<bool>? onSwipeChanged;
 
   ///
   /// 点击"修改"操作。
-  ///
-  /// @var VoidCallback?
-  ///
   final VoidCallback? onEdit;
 
   ///
   /// 点击"删除"操作。
-  ///
-  /// @var VoidCallback?
-  ///
   final VoidCallback? onDelete;
 
   ///
   /// 把 Word 和各种状态转换成一棵 Widget 树。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -398,17 +329,10 @@ class WordListTile extends StatelessWidget {
   ///
   /// 本次拖拽累计位移；组件是无状态的，借助静态字段在拖拽回调间传值安全，
   /// 因为同一时刻只会有一根手指拖动一行。
-  ///
-  /// @var double
-  ///
   static double _dragDistance = 0;
 
   ///
   /// 拖拽结束：左移超过 30 像素打开操作区，右移超过 30 像素关闭。
-  ///
-  /// @param  DragEndDetails  details
-  /// @return void
-  ///
   void _handleDragEnd(DragEndDetails details) {
     // 没有注册回调时忽略。
     final notify = onSwipeChanged;
@@ -426,12 +350,6 @@ class WordListTile extends StatelessWidget {
 class _SwipeAction extends StatelessWidget {
   ///
   /// 接收文案、底色与点击动作。
-  ///
-  /// @param  String  label
-  /// @param  Color  color
-  /// @param  VoidCallback?  onTap
-  /// @param  Key?  key
-  ///
   const _SwipeAction({
     required this.label,
     required this.color,
@@ -441,31 +359,18 @@ class _SwipeAction extends StatelessWidget {
 
   ///
   /// 按钮文字。
-  ///
-  /// @var String
-  ///
   final String label;
 
   ///
   /// 按钮底色。
-  ///
-  /// @var Color
-  ///
   final Color color;
 
   ///
   /// 点击动作。
-  ///
-  /// @var VoidCallback?
-  ///
   final VoidCallback? onTap;
 
   ///
   /// 输出色块按钮。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // GestureDetector 直接响应点击，不需要水波纹。
@@ -495,33 +400,18 @@ class _SwipeAction extends StatelessWidget {
 class _CheckBox extends StatelessWidget {
   ///
   /// 接收选中状态与点击动作。
-  ///
-  /// @param  Key?  key
-  /// @param  bool  isSelected
-  /// @param  VoidCallback?  onTap
-  ///
   const _CheckBox({super.key, required this.isSelected, required this.onTap});
 
   ///
   /// 是否被选中。
-  ///
-  /// @var bool
-  ///
   final bool isSelected;
 
   ///
   /// 点击切换选中。
-  ///
-  /// @var VoidCallback?
-  ///
   final VoidCallback? onTap;
 
   ///
   /// 输出设计稿风格的小方框。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -559,16 +449,10 @@ class _CheckBox extends StatelessWidget {
 class _PlayingSpeakerIcon extends StatefulWidget {
   ///
   /// key 在列表重排时保持动画与具体 Word 绑定。
-  ///
-  /// @param  Key?  key
-  ///
   const _PlayingSpeakerIcon({super.key});
 
   ///
   /// 创建动画状态。
-  ///
-  /// @return `State<_PlayingSpeakerIcon>`
-  ///
   @override
   State<_PlayingSpeakerIcon> createState() => _PlayingSpeakerIconState();
 }
@@ -580,16 +464,10 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
     with SingleTickerProviderStateMixin {
   ///
   /// 控制一次“弧线依次亮起再淡出”的完整周期。
-  ///
-  /// @var AnimationController
-  ///
   late final AnimationController _controller;
 
   ///
   /// 组件加入树时创建并启动动画。
-  ///
-  /// @return void
-  ///
   @override
   void initState() {
     // 保留 State 父类初始化。
@@ -605,9 +483,6 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
 
   ///
   /// 播放结束、图标移出列表时释放 Ticker。
-  ///
-  /// @return void
-  ///
   @override
   void dispose() {
     // 停止并释放动画控制器。
@@ -618,10 +493,6 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
 
   ///
   /// 输出固定 18×16 画布，避免字体图标自带留白把单词推得过远。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // CustomPaint 精确复刻“实心喇叭 + 三道右侧弧线”，不受图标字体画布影响。
@@ -643,34 +514,19 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
 class _SpeakerWavePainter extends CustomPainter {
   ///
   /// `color` 是主题主色，`progress` 提供每帧 0—1 的动画进度。
-  ///
-  /// @param  Color  color
-  /// @param  `Animation<double>`  progress
-  ///
   _SpeakerWavePainter({required this.color, required this.progress})
     : super(repaint: progress);
 
   ///
   /// 喇叭主体与弧线共同使用的主色。
-  ///
-  /// @var Color
-  ///
   final Color color;
 
   ///
   /// `AnimationController` 本身实现 `Animation<double>`，Painter 可直接读取当前值。
-  ///
-  /// @var `Animation<double>`
-  ///
   final Animation<double> progress;
 
   ///
   /// 绘制一帧图标。
-  ///
-  /// @param  Canvas  canvas
-  /// @param  Size  size
-  /// @return void
-  ///
   @override
   void paint(Canvas canvas, Size size) {
     // 实心画笔负责喇叭梯形主体。
@@ -717,10 +573,6 @@ class _SpeakerWavePainter extends CustomPainter {
 
   ///
   /// color 或动画对象更换时需要重绘；动画帧本身由 repaint Listenable 驱动。
-  ///
-  /// @param  _SpeakerWavePainter  oldDelegate
-  /// @return bool
-  ///
   @override
   bool shouldRepaint(covariant _SpeakerWavePainter oldDelegate) {
     // 普通列表重建只要配置不变，就不额外创建静态重绘工作。
@@ -734,10 +586,6 @@ class _SpeakerWavePainter extends CustomPainter {
 class _MeaningList extends StatelessWidget {
   ///
   /// 接收当前 Word 已经按 index 降序排列的 Meaning。
-  ///
-  /// @param  `List<Meaning>`  meanings
-  /// @param  String  definitionSeparator
-  ///
   const _MeaningList({
     required this.meanings,
     required this.definitionSeparator,
@@ -745,24 +593,14 @@ class _MeaningList extends StatelessWidget {
 
   ///
   /// 当前单词的 Meaning 集合。
-  ///
-  /// @var `List<Meaning>`
-  ///
   final List<Meaning> meanings;
 
   ///
   /// 当前设置中选择的中文释义全角分隔符。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 输出对齐后的 Meaning 行。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -804,32 +642,18 @@ class _MeaningList extends StatelessWidget {
 class _MeaningRow extends StatelessWidget {
   ///
   /// 创建一条对齐行。
-  ///
-  /// @param  Meaning  meaning
-  /// @param  String  definitionSeparator
-  ///
   const _MeaningRow({required this.meaning, required this.definitionSeparator});
 
   ///
   /// 当前 Meaning 数据。
-  ///
-  /// @var Meaning
-  ///
   final Meaning meaning;
 
   ///
   /// 同一词性下多条释义之间使用的符号。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 输出词性列和释义列。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -882,24 +706,14 @@ class _MeaningRow extends StatelessWidget {
 class _DifficultyBadge extends StatelessWidget {
   ///
   /// difficulty 已由父组件分支保证非空。
-  ///
-  /// @param  int  difficulty
-  ///
   const _DifficultyBadge({required this.difficulty});
 
   ///
   /// 实际难度数值。
-  ///
-  /// @var int
-  ///
   final int difficulty;
 
   ///
   /// 输出设计稿的 22 高软色徽章。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // Container 同时提供尺寸、内边距和背景。

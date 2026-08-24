@@ -14,20 +14,15 @@ import '../../../../models/review_session.dart';
 /// 每张卡片显示三种状态之一：
 /// - **待完成**：今天还没开过局，或者上一局中断、失败了；
 /// - **进行中**：今天有一局主线正开着，用户做到一半退了出来；
-/// - **已完成**：今天有一局主线跑完整遍且一次没错。
+/// - **已完成**：今天有一局主线把全部单词操作完了一遍，不论过程中是否答错。
 ///
-/// 不再显示百分比：主线的判定标准是「全对才算过」，中间过程的百分比既无法
-/// 预示结果，也会在答错后误导用户。已完成之后再进模块是无限巩固练习，
+/// 不再显示百分比：主线的判定标准是「走完一遍才算过」，中间过程的百分比
+/// 既无法预示结果，也可能误导用户。已完成之后再进模块是无限巩固练习，
 /// 卡片会在「已完成」后面补一个「巩固中」的小尾巴。
 ///
 class ReviewModeGrid extends StatelessWidget {
   ///
   /// 创建网格。
-  ///
-  /// @param  `Map<ReviewModule, ReviewModuleState>`  moduleStates 四个模块的今日进度。
-  /// @param  int  dailyGoal 今天的实际题量（等于每日词库的单词数）。
-  /// @param  `ValueChanged<ReviewModule>`  onOpenModule 点击任意卡片的回调。
-  ///
   const ReviewModeGrid({
     required this.moduleStates,
     required this.dailyGoal,
@@ -37,23 +32,14 @@ class ReviewModeGrid extends StatelessWidget {
 
   ///
   /// 今天四个复习模块各自的三态进度；没出现的模块按「待完成」处理。
-  ///
-  /// @var `Map<ReviewModule, ReviewModuleState>`
-  ///
   final Map<ReviewModule, ReviewModuleState> moduleStates;
 
   ///
   /// 今天的实际题量，显示在标题右侧。
-  ///
-  /// @var int
-  ///
   final int dailyGoal;
 
   ///
   /// 点击任意一张卡片；由首页统一判断该开主线还是开巩固。
-  ///
-  /// @var `ValueChanged<ReviewModule>`
-  ///
   final ValueChanged<ReviewModule> onOpenModule;
 
   @override
@@ -113,16 +99,6 @@ class ReviewModeGrid extends StatelessWidget {
 
   ///
   /// 构建一行两张等宽卡片。
-  ///
-  /// @param  AppTokens  tokens 当前主题色板。
-  /// @param  ReviewModule  first 左侧模块。
-  /// @param  IconData  firstIcon 左侧图标。
-  /// @param  String  firstDesc 左侧一句话说明。
-  /// @param  ReviewModule  second 右侧模块。
-  /// @param  IconData  secondIcon 右侧图标。
-  /// @param  String  secondDesc 右侧一句话说明。
-  /// @return Widget 高度对齐的一整行。
-  ///
   Widget _buildRow(
     AppTokens tokens, {
     required ReviewModule first,
@@ -170,14 +146,6 @@ class ReviewModeGrid extends StatelessWidget {
 class _ModeCard extends StatelessWidget {
   ///
   /// 创建一张卡片。
-  ///
-  /// @param  IconData  icon 左上角图标。
-  /// @param  ReviewModule  module 卡片对应的复习模块。
-  /// @param  String  desc 一句话说明。
-  /// @param  ReviewModuleState  state 今天的三态进度。
-  /// @param  VoidCallback  onTap 点击回调。
-  /// @param  AppTokens  tokens 当前主题色板。
-  ///
   const _ModeCard({
     required this.icon,
     required this.module,

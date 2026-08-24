@@ -10,10 +10,6 @@ import 'package:flutter/services.dart';
 class ListeningMeaningOptionCacheEntry {
   ///
   /// 创建一条不可变的候选缓存。
-  ///
-  /// @param  `List<String>`  distractors
-  /// @param  int?  correctIndex
-  ///
   const ListeningMeaningOptionCacheEntry({
     required this.distractors,
     required this.correctIndex,
@@ -21,63 +17,41 @@ class ListeningMeaningOptionCacheEntry {
 
   ///
   /// 三个错误候选，顺序等同于从四个可见按钮中移除正确答案后的剩余顺序。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> distractors;
 
   ///
   /// 正确答案在四个按钮中的下标；null 表示版本 8 之前保存的旧缓存尚无位置。
-  ///
-  /// @var int?
-  ///
   final int? correctIndex;
 }
 
 ///
 /// 听音辨义候选项缓存 Store：按一道具体小题的稳定 key 读写候选名字和位置。
 ///
-/// 作用类似 PHP 项目中以 question_key 为主键的缓存表；读取时会清理空值和重复值，
+/// 以 question_key 为主键的一张缓存表；读取时会清理空值和重复值，
 /// 页面再结合当前正确答案完成最终四选一校验。
 ///
 class ListeningMeaningOptionCacheStore {
   ///
   /// 允许 Widget 测试注入独立通道；正式 App 使用 word_store 通道。
-  ///
-  /// @param  MethodChannel?  channel
-  ///
   const ListeningMeaningOptionCacheStore({MethodChannel? channel})
     : _channel = channel ?? _defaultChannel;
 
   ///
   /// 正式页面复用同一个无状态 Store。
-  ///
-  /// @var ListeningMeaningOptionCacheStore
-  ///
   static const ListeningMeaningOptionCacheStore instance = ListeningMeaningOptionCacheStore();
 
   ///
   /// 通道名与 WordStore、RecordStore 共用，原生在同一 SQLite 事务体系内管理。
-  ///
-  /// @var MethodChannel
-  ///
   static const MethodChannel _defaultChannel = MethodChannel(
     'my_english/word_store',
   );
 
   ///
   /// 实际发送请求的原生通道。
-  ///
-  /// @var MethodChannel
-  ///
   final MethodChannel _channel;
 
   ///
   /// 读取一道题已保存的候选名字与正确答案位置；没有缓存时返回 null。
-  ///
-  /// @param  String  cacheKey
-  /// @return `Future<ListeningMeaningOptionCacheEntry?>`
-  ///
   Future<ListeningMeaningOptionCacheEntry?> getOptions(String cacheKey) async {
     // 原生返回 Map；Object? 泛型让这里能主动过滤损坏的动态值。
     final rawCache = await _channel.invokeMapMethod<Object?, Object?>(
@@ -120,13 +94,6 @@ class ListeningMeaningOptionCacheStore {
 
   ///
   /// 保存一道题当前使用的三个干扰项及正确答案位置，已有 key 会被整体覆盖。
-  ///
-  /// @param  String  cacheKey
-  /// @param  int?  wordId
-  /// @param  `List<String>`  distractors
-  /// @param  int  correctIndex
-  /// @return `Future<void>`
-  ///
   Future<void> saveOptions({
     required String cacheKey,
     required int? wordId,
@@ -153,7 +120,7 @@ class ListeningMeaningOptionCacheStore {
     if (correctIndex < 0 || correctIndex >= 4) {
       throw RangeError.range(correctIndex, 0, 3, 'correctIndex');
     }
-    // MethodChannel Map 类似 PHP 调原生接口时提交的关联数组。
+    // 组装本次调用需要传给原生的参数集合。
     await _channel.invokeMethod<void>(
       'saveListeningMeaningOptionCache',
       <String, Object?>{

@@ -17,9 +17,6 @@ class RecordingReviewRecordStore implements ReviewRecordStore {
 
   ///
   /// 按调用顺序记下的每一次写入。
-  ///
-  /// @var `List<RecordedReviewWrite>`
-  ///
   final List<RecordedReviewWrite> writes = <RecordedReviewWrite>[];
 
   @override
@@ -76,14 +73,6 @@ class RecordingReviewRecordStore implements ReviewRecordStore {
 class RecordedReviewWrite {
   ///
   /// 记下一次写入。
-  ///
-  /// @param  int  wordId 单词主键。
-  /// @param  ReviewModule  module 所属复习模块。
-  /// @param  int?  sessionId 所属会话主键。
-  /// @param  int  wrongCount 本次选错次数。
-  /// @param  int  hintCount 本次提示次数。
-  /// @param  bool  updateReviewedAt 是否推进复习时间。
-  ///
   const RecordedReviewWrite({
     required this.wordId,
     required this.module,

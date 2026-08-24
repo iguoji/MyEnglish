@@ -1,4 +1,4 @@
-// 引入 Flutter Material 组件，类似小程序页面使用 input 和 icon 的基础组件库。
+// 引入 Flutter Material 组件，提供输入框和图标等基础组件。
 import 'package:flutter/material.dart';
 // tabler_icons_plus 提供统一的搜索图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
@@ -8,37 +8,26 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 ///
 class WordSearchField extends StatelessWidget {
   ///
-  /// required 表示调用方必须传 onChanged，类似 PHP 方法中的必填参数。
-  ///
-  /// @param  `ValueChanged<String>`  onChanged
-  /// @param  Key?  key
-  ///
+  /// required 表示调用方必须传 onChanged，不可省略。
   const WordSearchField({required this.onChanged, super.key});
 
   ///
-  /// `ValueChanged<String>` 表示接收字符串但不返回结果的回调，类似小程序 bindinput。
-  ///
-  /// @var `ValueChanged<String>`
-  ///
+  /// `ValueChanged<String>` 表示接收字符串但不返回结果的回调。
   final ValueChanged<String> onChanged;
 
   ///
   /// Flutter 每次需要绘制本组件时都会调用 build。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前 Light/Dark 的完整 Material 3 色板。
     final colorScheme = Theme.of(context).colorScheme;
-    // SizedBox 明确限定输入框高度，类似给小程序 input 设置 height: 40px。
+    // SizedBox 明确限定输入框高度为 40 逻辑像素。
     return SizedBox(
       // Flutter 使用逻辑像素；这里按需求固定为 40。
       height: 40,
-      // DecoratedBox 只负责背景、边框和圆角，类似一个带 WXSS 的外层 view。
+      // DecoratedBox 只负责背景、边框和圆角这层视觉样式。
       child: DecoratedBox(
-        // decoration 对应 CSS/WXSS 的视觉样式集合。
+        // decoration 定义这层容器的视觉样式集合。
         decoration: BoxDecoration(
           // 输入框使用当前主题 surface。
           color: colorScheme.surface,
@@ -47,7 +36,7 @@ class WordSearchField extends StatelessWidget {
           // 8 像素圆角与设计稿输入框一致。
           borderRadius: BorderRadius.circular(8),
         ),
-        // TextField 对应小程序 input；输入值变化时会调用 onChanged。
+        // TextField 是实际的输入控件；输入值变化时会调用 onChanged。
         child: TextField(
           // 把用户输入原样交给父页面，父页面再负责搜索状态和过滤逻辑。
           onChanged: onChanged,
@@ -62,7 +51,7 @@ class WordSearchField extends StatelessWidget {
             // 1.2 行高让中文字形在 44 高输入框内视觉居中。
             height: 1.2,
           ),
-          // InputDecoration 对应小程序 input 的 placeholder、前置图标和内部间距配置。
+          // InputDecoration 负责 placeholder、前置图标和内部间距配置。
           decoration: InputDecoration(
             // isDense 移除 Material 输入框额外的默认垂直留白。
             isDense: true,
@@ -77,7 +66,7 @@ class WordSearchField extends StatelessWidget {
               // 与输入文字使用相同的 1.2 行高。
               height: 1.2,
             ),
-            // prefixIcon 相当于小程序 input 左侧放置一个 icon 节点。
+            // prefixIcon 在输入框左侧放置一个图标。
             prefixIcon: Icon(
               // 使用 Flutter 自带的搜索图标。
               TablerIcons.search,

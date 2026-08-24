@@ -15,16 +15,10 @@ import 'listening_meaning_layout.dart';
 enum ListeningMeaningStepKind {
   ///
   /// 第一步：听音并从四个候选里选出正确单词。
-  ///
-  /// @var ListeningMeaningStepKind
-  ///
   word,
 
   ///
   /// 后续步骤：辨认某个词性下的中文释义。
-  ///
-  /// @var ListeningMeaningStepKind
-  ///
   meaning,
 }
 
@@ -34,23 +28,14 @@ enum ListeningMeaningStepKind {
 enum ListeningMeaningStepStatus {
   ///
   /// 该步骤已经答对，节点用品牌蓝实心加勾选图标。
-  ///
-  /// @var ListeningMeaningStepStatus
-  ///
   done,
 
   ///
   /// 用户当前正在作答的步骤，节点用品牌蓝描边加对应图标。
-  ///
-  /// @var ListeningMeaningStepStatus
-  ///
   active,
 
   ///
   /// 尚未轮到的步骤，节点用灰色描边加淡化图标。
-  ///
-  /// @var ListeningMeaningStepStatus
-  ///
   pending,
 }
 
@@ -63,14 +48,6 @@ enum ListeningMeaningStepStatus {
 class ListeningMeaningStep {
   ///
   /// 创建一条步骤；业务状态仍由父页面管理。
-  ///
-  /// @param  ListeningMeaningStepKind  kind 步骤类型。
-  /// @param  String  title 步骤主标题。
-  /// @param  ListeningMeaningStepStatus  status 当前完成状态。
-  /// @param  String?  pos 释义步骤的词性。
-  /// @param  `List<String>?`  definitions 已公开的释义列表。
-  /// @param  String?  word 听音步骤完成后公开的单词。
-  ///
   const ListeningMeaningStep({
     required this.kind,
     required this.title,
@@ -82,44 +59,26 @@ class ListeningMeaningStep {
 
   ///
   /// 步骤类型，决定左侧节点的图标。
-  ///
-  /// @var ListeningMeaningStepKind
-  ///
   final ListeningMeaningStepKind kind;
 
   ///
   /// 步骤主标题，例如“听音选词”或“释义”。
-  ///
-  /// @var String
-  ///
   final String title;
 
   ///
   /// 步骤当前状态，决定节点的配色与图标。
-  ///
-  /// @var ListeningMeaningStepStatus
-  ///
   final ListeningMeaningStepStatus status;
 
   ///
   /// 释义步骤的词性（n. / vt. 等），听音步骤为 null。
-  ///
-  /// @var String?
-  ///
   final String? pos;
 
   ///
   /// 已经公开给用户的释义列表；未开始或尚未答出时为空。
-  ///
-  /// @var `List<String>?`
-  ///
   final List<String>? definitions;
 
   ///
   /// 听音步骤完成后展示的正确单词；仅听音步骤使用，其余步骤为 null。
-  ///
-  /// @var String?
-  ///
   final String? word;
 }
 
@@ -129,20 +88,6 @@ class ListeningMeaningStep {
 class ListeningMeaningQuestionContent extends StatelessWidget {
   ///
   /// 创建题目内容组件；页面状态只传数据，不把答题业务塞进展示组件。
-  ///
-  /// @param  String  spelling 当前题目的完整拼写。
-  /// @param  int  revealedLetterCount 已公开的字母数量。
-  /// @param  bool  revealWholeWord 是否公开完整拼写。
-  /// @param  VoidCallback  onSpeakerTap 发音回调。
-  /// @param  bool  isPlaying 当前是否正在播放。
-  /// @param  String  prompt 当前操作要求。
-  /// @param  String  feedback 当前即时反馈。
-  /// @param  Color?  feedbackColor 反馈语义色。
-  /// @param  `List<ListeningMeaningStep>`  steps 当前单词的完整步骤。
-  /// @param  String  definitionSeparator 多条释义之间的分隔符。
-  ///
-  /// @param  Key?  key
-  ///
   const ListeningMeaningQuestionContent({
     required this.spelling,
     required this.revealedLetterCount,
@@ -159,85 +104,51 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
 
   ///
   /// 当前题目的完整拼写；未答对前只用它计算占位瓷砖数量。
-  ///
-  /// @var String
-  ///
   final String spelling;
 
   ///
   /// 用户点击提示后，应该从左侧公开多少个英文字母。
-  ///
-  /// @var int
-  ///
   final int revealedLetterCount;
 
   ///
   /// true 表示拼写阶段已经完成，此时所有字母瓷砖都填入真实字母。
-  ///
-  /// @var bool
-  ///
   final bool revealWholeWord;
 
   ///
   /// 点击单词卡上的听音按钮时执行的回调，复用页面已有的发音逻辑。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onSpeakerTap;
 
   ///
   /// 当前是否正在播放发音，用于切换听音按钮的图标。
-  ///
-  /// @var bool
-  ///
   final bool isPlaying;
 
   ///
   /// 独立的当前操作要求，不再作为 Steps 的一项。
-  ///
-  /// @var String
-  ///
   final String prompt;
 
   ///
   /// 正确、错误或提示操作产生的即时反馈。
-  ///
-  /// @var String
-  ///
   final String feedback;
 
   ///
   /// 反馈的可选语义色；为空时使用普通次要文字颜色。
-  ///
-  /// @var Color?
-  ///
   final Color? feedbackColor;
 
   ///
   /// 进入新词时一次性列出的全部步骤，包含 听音选词 + 每个词性释义。
-  ///
-  /// @var `List<ListeningMeaningStep>`
-  ///
   final List<ListeningMeaningStep> steps;
 
   ///
   /// 无障碍朗读多个释义时使用的分隔符，与首页设置保持一致。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 先输出单词卡，再输出独立提示横幅，最后输出全部步骤轨道。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 按顺序排列的题目内容。
-  ///
   @override
   Widget build(BuildContext context) {
     // 按当前主题读取卡片、文字和边框颜色。
     final tokens = AppTokens.of(context);
-    // Column 等同小程序中的纵向 flex 容器，三个模块从顶部依次排列。
+    // Column 让三个模块从顶部依次纵向排列。
     return Column(
       key: const Key('listening-meaning-question-content'),
       mainAxisSize: MainAxisSize.min,
@@ -289,14 +200,6 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
 class _WordCard extends StatelessWidget {
   ///
   /// 接收完整拼写、提示公开数量、播放状态与主题色。
-  ///
-  /// @param  String  spelling 当前单词完整拼写。
-  /// @param  int  revealedLetterCount 已公开字母数量。
-  /// @param  bool  revealWholeWord 是否公开全部字母。
-  /// @param  bool  isPlaying 是否正在播放发音。
-  /// @param  VoidCallback  onSpeakerTap 发音按钮回调。
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  ///
   const _WordCard({
     required this.spelling,
     required this.revealedLetterCount,
@@ -308,52 +211,30 @@ class _WordCard extends StatelessWidget {
 
   ///
   /// 当前单词完整拼写。
-  ///
-  /// @var String
-  ///
   final String spelling;
 
   ///
   /// 从左到右已经公开的字母数量。
-  ///
-  /// @var int
-  ///
   final int revealedLetterCount;
 
   ///
   /// 是否公开全部字母。
-  ///
-  /// @var bool
-  ///
   final bool revealWholeWord;
 
   ///
   /// 是否正在播放发音。
-  ///
-  /// @var bool
-  ///
   final bool isPlaying;
 
   ///
   /// 点击听音按钮时执行父页面的发音逻辑。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onSpeakerTap;
 
   ///
   /// 父组件已经读取的主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 绘制带边框的单词卡，左侧听音按钮 + 右侧居中字母瓷砖。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 带字母槽和发音按钮的单词卡。
-  ///
   @override
   Widget build(BuildContext context) {
     // runes 按字符读取拼写，避免直接按 UTF-16 单元拆分造成字符数量错误。
@@ -420,10 +301,6 @@ class _WordCard extends StatelessWidget {
 
   ///
   /// 把拼写转换为若干字母瓷砖；非字母字符只作为分隔符显示。
-  ///
-  /// @param  `List<String>`  characters 按 Unicode 字符拆分后的完整拼写。
-  /// @return Widget 可横向缩放的字母槽集合。
-  ///
   Widget _buildTiles(List<String> characters) {
     // letterIndex 只计算英文字母，因此连字符不会消耗提示公开数量。
     var letterIndex = 0;
@@ -451,13 +328,6 @@ class _WordCard extends StatelessWidget {
 
   ///
   /// 为一个字符生成界面节点；返回 List 是为了同时附加相邻字符间距。
-  ///
-  /// @param  String  character
-  /// @param  int  characterIndex
-  /// @param  int?  letterIndex
-  /// @param  bool  hasFollowingCharacter
-  /// @return `List<Widget>`
-  ///
   List<Widget> _buildCharacter({
     required String character,
     required int characterIndex,
@@ -536,11 +406,6 @@ class _WordCard extends StatelessWidget {
 class _CardSpeakerButton extends StatelessWidget {
   ///
   /// 创建听音按钮。
-  ///
-  /// @param  bool  isPlaying
-  /// @param  VoidCallback  onTap
-  /// @param  AppTokens  tokens
-  ///
   const _CardSpeakerButton({
     required this.isPlaying,
     required this.onTap,
@@ -549,31 +414,18 @@ class _CardSpeakerButton extends StatelessWidget {
 
   ///
   /// 是否正在播放，用于切换音量图标。
-  ///
-  /// @var bool
-  ///
   final bool isPlaying;
 
   ///
   /// 点击时执行父页面的发音逻辑。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onTap;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 使用 Material + InkWell 获得按压水波纹与点击命中。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 可点击的圆形发音按钮。
-  ///
   @override
   Widget build(BuildContext context) {
     // 圆形画布，内部居中显示 Tabler 音量图标。
@@ -610,12 +462,6 @@ class _CardSpeakerButton extends StatelessWidget {
 class _PromptBanner extends StatelessWidget {
   ///
   /// 创建提示横幅。
-  ///
-  /// @param  String  prompt 当前操作要求。
-  /// @param  String  feedback 当前即时反馈。
-  /// @param  Color?  feedbackColor 反馈语义色。
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  ///
   const _PromptBanner({
     required this.prompt,
     required this.feedback,
@@ -625,38 +471,22 @@ class _PromptBanner extends StatelessWidget {
 
   ///
   /// 当前操作要求。
-  ///
-  /// @var String
-  ///
   final String prompt;
 
   ///
   /// 当前即时反馈。
-  ///
-  /// @var String
-  ///
   final String feedback;
 
   ///
   /// 反馈语义颜色。
-  ///
-  /// @var Color?
-  ///
   final Color? feedbackColor;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 从横幅顶部开始排列反馈内容。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 当前要求和反馈横幅。
-  ///
   @override
   Widget build(BuildContext context) {
     // Container 绘制与单词卡同款的边框与圆角，保持组件一致性。
@@ -736,11 +566,6 @@ class _PromptBanner extends StatelessWidget {
 class _QuestionSteps extends StatelessWidget {
   ///
   /// 创建整条步骤轨道；业务状态仍由父页面管理。
-  ///
-  /// @param  `List<ListeningMeaningStep>`  steps
-  /// @param  String  definitionSeparator
-  /// @param  AppTokens  tokens
-  ///
   const _QuestionSteps({
     required this.steps,
     required this.definitionSeparator,
@@ -749,31 +574,18 @@ class _QuestionSteps extends StatelessWidget {
 
   ///
   /// 当前单词的全部步骤，已含各自状态。
-  ///
-  /// @var `List<ListeningMeaningStep>`
-  ///
   final List<ListeningMeaningStep> steps;
 
   ///
   /// 无障碍朗读多个释义时使用的分隔符。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 输出一条连续的左侧轨道，所有步骤内容在右侧居上对齐。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 当前单词的完整纵向步骤轨道。
-  ///
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -805,10 +617,6 @@ class _QuestionSteps extends StatelessWidget {
 
   ///
   /// 根据步骤类型与状态选择节点图标。
-  ///
-  /// @param  ListeningMeaningStep  step 需要绘制节点的步骤。
-  /// @return IconData 与步骤类型和状态匹配的 Tabler 图标。
-  ///
   IconData _stepIcon(ListeningMeaningStep step) {
     // 已完成的步骤一律用勾选图标表达“做完了”。
     if (step.status == ListeningMeaningStepStatus.done) return TablerIcons.check;
@@ -825,16 +633,6 @@ class _QuestionSteps extends StatelessWidget {
 class _VerticalStepItem extends StatelessWidget {
   ///
   /// 创建一个稳定的纵向步骤行。
-  ///
-  /// @param  int  stepIndex
-  /// @param  Key  stepKey
-  /// @param  ListeningMeaningStepStatus  status
-  /// @param  bool  isLast
-  /// @param  IconData  icon
-  /// @param  Key  contentKey
-  /// @param  AppTokens  tokens
-  /// @param  Widget  child
-  ///
   const _VerticalStepItem({
     required this.stepIndex,
     required this.stepKey,
@@ -848,66 +646,38 @@ class _VerticalStepItem extends StatelessWidget {
 
   ///
   /// 当前步骤下标，用于生成稳定测试 key。
-  ///
-  /// @var int
-  ///
   final int stepIndex;
 
   ///
   /// 直接挂在 Row 上的 key，几何测试能读取真实步骤边界。
-  ///
-  /// @var Key
-  ///
   final Key stepKey;
 
   ///
   /// 当前步骤状态，决定节点配色与图标颜色。
-  ///
-  /// @var ListeningMeaningStepStatus
-  ///
   final ListeningMeaningStepStatus status;
 
   ///
   /// 最后一步不再向下绘制连接线。
-  ///
-  /// @var bool
-  ///
   final bool isLast;
 
   ///
   /// 节点内显示的 Tabler 图标。
-  ///
-  /// @var IconData
-  ///
   final IconData icon;
 
   ///
   /// 右侧内容容器的 key，便于测试按步骤定位。
-  ///
-  /// @var Key
-  ///
   final Key contentKey;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 步骤右侧的具体内容。
-  ///
-  /// @var Widget
-  ///
   final Widget child;
 
   ///
   /// 使用 IntrinsicHeight 让左侧连接线自动匹配右侧内容高度。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 包含节点、连接线和正文的单条步骤。
-  ///
   @override
   Widget build(BuildContext context) {
     // 已完成：品牌蓝实心；进行中：白底品牌蓝描边；未开始：卡片底灰描边。
@@ -995,11 +765,6 @@ class _VerticalStepItem extends StatelessWidget {
 class _StepContent extends StatelessWidget {
   ///
   /// 创建一条步骤内容。
-  ///
-  /// @param  ListeningMeaningStep  step
-  /// @param  AppTokens  tokens
-  /// @param  String  definitionSeparator
-  ///
   const _StepContent({
     required this.step,
     required this.tokens,
@@ -1008,31 +773,18 @@ class _StepContent extends StatelessWidget {
 
   ///
   /// 当前步骤的数据与状态。
-  ///
-  /// @var ListeningMeaningStep
-  ///
   final ListeningMeaningStep step;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 读屏合并多个释义时使用的分隔符。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 按“标题、状态、释义”的阅读顺序输出步骤正文。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 当前步骤的文字内容。
-  ///
   @override
   Widget build(BuildContext context) {
     // 未开始步骤标题用弱化色，进行中/已完成用主文字色突出。
@@ -1146,32 +898,18 @@ class _StepContent extends StatelessWidget {
 class _PosBadge extends StatelessWidget {
   ///
   /// 创建词性标签。
-  ///
-  /// @param  String  pos
-  /// @param  AppTokens  tokens
-  ///
   const _PosBadge({required this.pos, required this.tokens});
 
   ///
   /// 词性文本，例如 n. / vt.。
-  ///
-  /// @var String
-  ///
   final String pos;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 用无边框的极淡品牌色胶囊承载词性文字，去掉生硬的 1px 方框。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 词性软色徽章。
-  ///
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1203,32 +941,18 @@ class _PosBadge extends StatelessWidget {
 class _StatusTag extends StatelessWidget {
   ///
   /// 创建状态标签。
-  ///
-  /// @param  ListeningMeaningStepStatus  status
-  /// @param  AppTokens  tokens
-  ///
   const _StatusTag({required this.status, required this.tokens});
 
   ///
   /// 当前步骤状态。
-  ///
-  /// @var ListeningMeaningStepStatus
-  ///
   final ListeningMeaningStepStatus status;
 
   ///
   /// 当前主题令牌。
-  ///
-  /// @var AppTokens
-  ///
   final AppTokens tokens;
 
   ///
   /// 根据状态切换文案、底色与文字色。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 已完成、进行中或未开始状态徽章。
-  ///
   @override
   Widget build(BuildContext context) {
     // 已完成与作答中借用品牌色，未开始用中性灰，视觉权重从强到弱。
@@ -1268,10 +992,6 @@ class _StatusTag extends StatelessWidget {
 
 ///
 /// 判断单个字符是否为英文 A-Z；听音辨义词库当前以英文单词为业务范围。
-///
-/// @param  String  character
-/// @return bool
-///
 bool _isEnglishLetter(String character) {
   // 正则只匹配一个 ASCII 英文字母，空格、连字符和撇号都会返回 false。
   return RegExp(r'^[A-Za-z]$').hasMatch(character);

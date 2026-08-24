@@ -9,9 +9,6 @@ import 'package:my_english/pages/home/widgets/dashboard/checkin_heatmap_card.dar
 
 ///
 /// 注册复习质量月历的交互测试。
-///
-/// @return void
-///
 void main() {
   // 正式 RecordStore 使用的通道名；测试在此截获每日统计查询。
   const recordChannel = MethodChannel('my_english/word_store');
@@ -77,10 +74,6 @@ void main() {
 
 ///
 /// 把日期格式化成组件测试使用的 yyyy-MM-dd 键。
-///
-/// @param  DateTime  date 任意日期。
-/// @return String 固定宽度日期键。
-///
 String _dateKey(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-'
     '${date.month.toString().padLeft(2, '0')}-'

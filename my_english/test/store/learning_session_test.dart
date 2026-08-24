@@ -13,9 +13,6 @@ import '../support/memory_learning_session_store.dart';
 
 ///
 /// 验证学习会话的 JSON 解析、通道方法名和覆盖写入参数。
-///
-/// @return void
-///
 void main() {
   // MethodChannel 测试必须先初始化 Flutter binding。
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -183,39 +180,23 @@ void main() {
 class _ControlledLearningSessionStore implements LearningSessionStore {
   ///
   /// 第一项保存的手动放行开关。
-  ///
-  /// @var `Completer<void>`
-  ///
   final Completer<void> firstSave = Completer<void>();
 
   ///
   /// 每次真正进入 Store.save 时记录的单词下标。
-  ///
-  /// @var `List<int>`
-  ///
   final List<int> startedWordIndexes = <int>[];
 
   ///
   /// 最后成功落库的单词下标。
-  ///
-  /// @var int?
-  ///
   int? persistedWordIndex;
 
   ///
   /// 本用例不读取已有会话。
-  ///
-  /// @return `Future<List<LearningSession>>` 空列表。
-  ///
   @override
   Future<List<LearningSession>> getAll() async => const <LearningSession>[];
 
   ///
   /// 暂停第一项保存，第二项保存正常完成。
-  ///
-  /// @param  LearningSession  session 本次页面快照。
-  /// @return `Future<void>` 对应保存完成时机。
-  ///
   @override
   Future<void> save(LearningSession session) async {
     // 取出测试状态里的单词下标。
@@ -230,10 +211,6 @@ class _ControlledLearningSessionStore implements LearningSessionStore {
 
   ///
   /// 本用例不执行删除。
-  ///
-  /// @param  LearningSessionType  type 待删除模式。
-  /// @return `Future<void>` 立即完成。
-  ///
   @override
   Future<void> delete(LearningSessionType type) async {}
 }
@@ -244,18 +221,11 @@ class _ControlledLearningSessionStore implements LearningSessionStore {
 class _FailingLearningSessionStore implements LearningSessionStore {
   ///
   /// 返回空会话列表。
-  ///
-  /// @return `Future<List<LearningSession>>` 空列表。
-  ///
   @override
   Future<List<LearningSession>> getAll() async => const <LearningSession>[];
 
   ///
   /// 模拟保存失败。
-  ///
-  /// @param  LearningSession  session 本次尝试保存的会话。
-  /// @return `Future<void>` 始终以 StateError 结束。
-  ///
   @override
   Future<void> save(LearningSession session) async {
     throw StateError('save failed');
@@ -263,10 +233,6 @@ class _FailingLearningSessionStore implements LearningSessionStore {
 
   ///
   /// 模拟删除失败。
-  ///
-  /// @param  LearningSessionType  type 本次尝试删除的会话类型。
-  /// @return `Future<void>` 始终以 StateError 结束。
-  ///
   @override
   Future<void> delete(LearningSessionType type) async {
     throw StateError('delete failed');

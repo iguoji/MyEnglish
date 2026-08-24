@@ -23,12 +23,6 @@ import '../../../models/word.dart';
 abstract final class ReviewWordSelector {
   ///
   /// 从完整词库中选出指定数量的复习单词。
-  ///
-  /// @param  `List<Word>`  words 完整且未软删除的本地词库。
-  /// @param  int  limit 需要选出的数量。
-  /// @param  `Set<int>`  exclude 需要跳过的单词主键，用于补词时排除已有的。
-  /// @return `List<Word>` 固定顺序、不可修改的复习单词。
-  ///
   static List<Word> select(
     List<Word> words, {
     required int limit,
@@ -52,11 +46,6 @@ abstract final class ReviewWordSelector {
 
   ///
   /// 比较两个单词的复习优先级。
-  ///
-  /// @param  Word  first 左侧单词。
-  /// @param  Word  second 右侧单词。
-  /// @return int 负数表示 first 应排在前面。
-  ///
   static int compare(Word first, Word second) {
     // 第一层：复习时间升序，没复习过的（null）永远排在最前面。
     // 这一层等价于 MySQL 的 `ORDER BY reviewed_at ASC`，NULL 视为最小。
@@ -91,11 +80,6 @@ abstract final class ReviewWordSelector {
   /// 升序比较可空日期；没有日期的排在有日期的前面。
   ///
   /// 生活化解释：`null` 代表「这个词还没复习过」，它当然要最优先安排。
-  ///
-  /// @param  DateTime?  first 左侧日期。
-  /// @param  DateTime?  second 右侧日期。
-  /// @return int 标准排序比较结果。
-  ///
   static int _compareNullableDate(DateTime? first, DateTime? second) {
     if (first == null && second == null) return 0;
     if (first == null) return -1;

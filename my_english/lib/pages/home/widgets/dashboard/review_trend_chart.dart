@@ -1,4 +1,4 @@
-// material.dart 提供布局与手势组件，类似小程序内置的 view / gesture。
+// material.dart 提供布局与手势组件。
 import 'package:flutter/material.dart';
 // dart:async 提供定时器 Timer，用于模拟后台异步加载数据。
 import 'dart:async';
@@ -42,11 +42,6 @@ extension TrendRangeLabel on TrendRange {
 class ReviewTrendChart extends StatefulWidget {
   ///
   /// 创建趋势图；数据由内部异步加载。
-  ///
-  /// @param  int  refreshToken 首页复习数据回刷序号，变化即代表需要重新查库。
-  ///
-  /// @param  Key?  key
-  ///
   const ReviewTrendChart({required this.refreshToken, super.key});
 
   ///
@@ -54,9 +49,6 @@ class ReviewTrendChart extends StatefulWidget {
   ///
   /// 生活化解释：曲线只在第一次出现时查一次数据库，之后首页刷新多少次它都不动。
   /// 首页每从复习模块返回一次就把这个数字 +1，等于给曲线递一张“数据变了”的通知单。
-  ///
-  /// @var int
-  ///
   final int refreshToken;
 
   @override
@@ -132,9 +124,6 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   ///
   /// 查询期间用户可能又切了档：用发起时捕获的范围做过期守卫，
   /// 旧结果回来直接丢弃，避免覆盖新档数据。
-  ///
-  /// @return `Future<void>`
-  ///
   Future<void> _load() async {
     // 捕获发起时的范围，用于丢弃过期结果。
     final range = _range;
@@ -155,10 +144,6 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   /// 按范围查询真实数据并组装成曲线节点。
   ///
   /// 7天 / 30天都使用日粒度，走 [ReviewRecordStore.getDailyReviewCounts]。
-  ///
-  /// @param  TrendRange  range 时间范围。
-  /// @return `Future<List<TrendDataPoint>>` 7 个节点的真实数据。
-  ///
   Future<List<TrendDataPoint>> _loadPoints(TrendRange range) async {
     final today = DateTime.now();
     final store = LocalReviewRecordStore.instance;
@@ -201,10 +186,6 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 
   ///
   /// 生成某个范围的空数据骨架：label 按该档粒度排好，value 全 0。
-  ///
-  /// @param  TrendRange  range 时间范围。
-  /// @return `List<TrendDataPoint>` 全 0 的 7 个节点。
-  ///
   List<TrendDataPoint> _flatPoints(TrendRange range) {
     final today = DateTime.now();
     final labels = <String>[];
@@ -299,11 +280,6 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 ///
 /// 同年显示 "M.DD"（如 8.12，自带月份，跨月不混淆）；
 /// 跨年（日期不在今年）补两位年份前缀显示 "YY.M.DD"（如 25.12.28）。
-///
-/// @param  DateTime  now  今天（用于判断跨年）
-/// @param  DateTime  d    要格式化的日期
-/// @return String
-///
 String _dayLabel(DateTime now, DateTime d) {
   final day = d.day.toString().padLeft(2, '0');
   return d.year == now.year
@@ -313,10 +289,6 @@ String _dayLabel(DateTime now, DateTime d) {
 
 ///
 /// 日期键：与原生 record 表 created_date 完全一致的 'yyyy-MM-dd'。
-///
-/// @param  DateTime  d
-/// @return String
-///
 String _dateKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'

@@ -1,4 +1,5 @@
 import '../../../models/learning_session.dart';
+import '../../../models/model_value_parser.dart';
 import '../../../models/review_session.dart';
 import '../../../store/learning_session.dart';
 import '../../../store/review_session.dart';
@@ -16,9 +17,6 @@ import '../../../store/review_session.dart';
 abstract interface class SessionProgressSink {
   ///
   /// 进入页面时需要恢复的进度快照；全新一局时是空 Map。
-  ///
-  /// @return `Map<String, Object?>` 页面按自己的字段名读取的进度。
-  ///
   Map<String, Object?> get initialState;
 
   ///
@@ -26,19 +24,10 @@ abstract interface class SessionProgressSink {
   ///
   /// 中途退出再进来时，错误数必须接着数，不能归零——否则错完退出再进来
   /// 就能刷出一局「全对」。
-  ///
-  /// @return int 已累计的错误数。
-  ///
   int get initialWrongTotal;
 
   ///
   /// 保存最新进度快照。
-  ///
-  /// @param  `Map<String, Object?>`  state 页面自行组装的进度数据。
-  /// @param  int  wrongTotal 本局到目前为止的累计错误数。
-  /// @param  bool  enabled 是否允许本次保存；已结算的局传 false。
-  /// @return `Future<void>` 保存结束后的异步结果；异常在内部消化。
-  ///
   Future<void> save({
     required Map<String, Object?> state,
     required int wrongTotal,
@@ -47,12 +36,6 @@ abstract interface class SessionProgressSink {
 
   ///
   /// 结算这一局。
-  ///
-  /// @param  bool  perfect 整局跑完且一次都没错时为 true。
-  /// @param  `Map<String, Object?>?`  state 结算时的最后一份进度。
-  /// @param  int?  wrongTotal 结算时的累计错误数。
-  /// @return `Future<void>` 结算结束后的异步结果；异常在内部消化。
-  ///
   Future<void> finish({
     required bool perfect,
     Map<String, Object?>? state,
@@ -69,12 +52,6 @@ abstract interface class SessionProgressSink {
 class LearningSessionProgressSink implements SessionProgressSink {
   ///
   /// 创建一个长期会话进度出口。
-  ///
-  /// @param  LearningSessionStore  store 实际读写的 Store。
-  /// @param  LearningSessionType  type 当前页面所属的学习方式。
-  /// @param  `Iterable<int?>`  wordIds 本轮固定的单词主键顺序。
-  /// @param  LearningSession?  session 需要恢复的历史会话。
-  ///
   LearningSessionProgressSink({
     required LearningSessionStore store,
     required LearningSessionType type,
@@ -86,23 +63,14 @@ class LearningSessionProgressSink implements SessionProgressSink {
 
   ///
   /// 实际执行串行写入的持久化门面。
-  ///
-  /// @var LearningSessionPersistence
-  ///
   final LearningSessionPersistence _persistence;
 
   ///
   /// 本轮固定的单词主键顺序，保存快照时一并写入。
-  ///
-  /// @var `Iterable<int?>`
-  ///
   final Iterable<int?> wordIds;
 
   ///
   /// 需要恢复的历史会话；全新一局时为 null。
-  ///
-  /// @var LearningSession?
-  ///
   final LearningSession? _session;
 
   @override
@@ -111,12 +79,9 @@ class LearningSessionProgressSink implements SessionProgressSink {
 
   ///
   /// 长期练习不判成败，累计错误数只从快照里读出来接着数。
-  ///
-  /// @return int 已累计的错误数。
-  ///
   @override
   int get initialWrongTotal =>
-      readLearningSessionInt(_session?.state['errors'], fallback: 0);
+      readIntOrFallback(_session?.state['errors'], fallback: 0);
 
   @override
   Future<void> save({
@@ -127,12 +92,6 @@ class LearningSessionProgressSink implements SessionProgressSink {
 
   ///
   /// 整轮做完就删掉快照，不区分对错。
-  ///
-  /// @param  bool  perfect 这里不参与判断，普通练习没有成败之分。
-  /// @param  `Map<String, Object?>?`  state 忽略，快照即将被删除。
-  /// @param  int?  wrongTotal 忽略，普通练习不统计整轮成败。
-  /// @return `Future<void>` 删除结束后的异步结果。
-  ///
   @override
   Future<void> finish({
     required bool perfect,
@@ -144,16 +103,13 @@ class LearningSessionProgressSink implements SessionProgressSink {
 ///
 /// 首页复习模块的进度出口：进度存进今天这一局复习会话。
 ///
-/// 这类会话有明确的成败：整局跑完且一次没错才算「完成」，
-/// 中途错过或倒计时耗尽都算「失败」。
+/// 这类会话有明确的成败：把这一局的单词/卡片全部操作完一遍才算「完成」，
+/// 中途答错不影响这个判定；倒计时耗尽或中途退出导致没走完全部单词/卡片
+/// 才算「失败」。
 ///
 class ReviewSessionProgressSink implements SessionProgressSink {
   ///
   /// 创建一个复习会话进度出口。
-  ///
-  /// @param  ReviewSessionStore  store 实际读写的 Store。
-  /// @param  ReviewSession  session 当前这一局。
-  ///
   ReviewSessionProgressSink({
     required ReviewSessionStore store,
     required ReviewSession session,
@@ -165,16 +121,10 @@ class ReviewSessionProgressSink implements SessionProgressSink {
 
   ///
   /// 实际执行串行写入的持久化门面。
-  ///
-  /// @var ReviewSessionPersistence
-  ///
   final ReviewSessionPersistence _persistence;
 
   ///
   /// 当前这一局。
-  ///
-  /// @var ReviewSession
-  ///
   final ReviewSession _session;
 
   @override
@@ -195,13 +145,7 @@ class ReviewSessionProgressSink implements SessionProgressSink {
   );
 
   ///
-  /// 按「一次没错才算完成」的规则给这一局判成败。
-  ///
-  /// @param  bool  perfect 整局跑完且一次都没错时为 true。
-  /// @param  `Map<String, Object?>?`  state 结算时的最后一份进度。
-  /// @param  int?  wrongTotal 结算时的累计错误数。
-  /// @return `Future<void>` 结算结束后的异步结果。
-  ///
+  /// 按「操作完一遍即算完成」的规则给这一局判成败。
   @override
   Future<void> finish({
     required bool perfect,

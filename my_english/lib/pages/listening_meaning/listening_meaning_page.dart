@@ -21,6 +21,8 @@ import '../../models/meaning.dart';
 import '../../models/word.dart';
 // 引入可恢复的学习会话模型。
 import '../../models/learning_session.dart';
+// 引入统一的字段解析辅助函数。
+import '../../models/model_value_parser.dart';
 // 引入音频播放接口。
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
@@ -47,46 +49,26 @@ import 'widgets/listening_meaning_question_content.dart';
 enum ListeningMeaningStage {
   ///
   /// 根据发音选择正确英文拼写的阶段。
-  ///
-  /// @var ListeningMeaningStage
-  ///
   word,
 
   ///
   /// 按顺序选择每条中文释义的阶段。
-  ///
-  /// @var ListeningMeaningStage
-  ///
   definition,
 }
 
 ///
 /// 一个可点击的听音辨义候选答案。
-///
-/// @property String text 用户看到的候选文本。
-/// @property bool isCorrect 是否为当前小题正确答案。
-///
 class ListeningMeaningOption {
   ///
   /// 创建听音辨义候选答案。
-  ///
-  /// @param  String  text 用户看到的候选文本。
-  /// @param  bool  isCorrect 是否为当前小题正确答案。
-  ///
   const ListeningMeaningOption({required this.text, required this.isCorrect});
 
   ///
   /// 用户看到的候选文本。
-  ///
-  /// @var String
-  ///
   final String text;
 
   ///
   /// 是否为当前小题正确答案。
-  ///
-  /// @var bool
-  ///
   final bool isCorrect;
 }
 
@@ -96,20 +78,6 @@ class ListeningMeaningOption {
 class ListeningMeaningPage extends StatefulWidget {
   ///
   /// 创建单词听音辨义页面。
-  ///
-  /// @param  `List<Word>`  words 本轮固定顺序的学习列表。
-  /// @param  WordAudioPlayer  audioPlayer 单词发音服务。
-  /// @param  PronunciationAccent  accent 当前发音口音。
-  /// @param  ReviewRecordStore?  recordStore 可替换的复习记录 Store。
-  /// @param  ListeningMeaningOptionCacheStore?  optionCacheStore 可替换的候选缓存 Store。
-  /// @param  LearningSession?  initialSession 普通入口需要恢复的长期会话。
-  /// @param  LearningSessionStore?  sessionStore 可替换的长期会话 Store。
-  /// @param  ReviewSession?  reviewSession 复习模块本局的会话；普通入口为 null。
-  /// @param  ReviewSessionStore?  reviewSessionStore 可替换的复习会话 Store。
-  /// @param  String  definitionSeparator 多条释义之间的分隔符。
-  ///
-  /// @param  Key?  key
-  ///
   const ListeningMeaningPage({
     required this.words,
     required this.audioPlayer,
@@ -126,30 +94,18 @@ class ListeningMeaningPage extends StatefulWidget {
 
   ///
   /// 本轮参与听音辨义的单词。
-  ///
-  /// @var `List<Word>`
-  ///
   final List<Word> words;
 
   ///
   /// 与首页、随身听共用的发音服务。
-  ///
-  /// @var WordAudioPlayer
-  ///
   final WordAudioPlayer audioPlayer;
 
   ///
   /// 当前发音口音。
-  ///
-  /// @var PronunciationAccent
-  ///
   final PronunciationAccent accent;
 
   ///
   /// 复习记录存储；正式环境使用全局实例，测试可注入独立通道。
-  ///
-  /// @var ReviewRecordStore?
-  ///
   final ReviewRecordStore? recordStore;
 
   ///
@@ -157,51 +113,30 @@ class ListeningMeaningPage extends StatefulWidget {
   ///
   /// 它同时决定三件事：进度存到哪张表、复习记录归到哪一局、
   /// 以及答题要不要推进单词的复习时间（巩固局不推进）。
-  ///
-  /// @var ReviewSession?
-  ///
   final ReviewSession? reviewSession;
 
   ///
   /// 复习会话存储；只有 [reviewSession] 非空时才会用到。
-  ///
-  /// @var ReviewSessionStore?
-  ///
   final ReviewSessionStore? reviewSessionStore;
 
   ///
   /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
-  ///
-  /// @var ListeningMeaningOptionCacheStore?
-  ///
   final ListeningMeaningOptionCacheStore? optionCacheStore;
 
   ///
   /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新听音辨义。
-  ///
-  /// @var LearningSession?
-  ///
   final LearningSession? initialSession;
 
   ///
   /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
-  ///
-  /// @var LearningSessionStore?
-  ///
   final LearningSessionStore? sessionStore;
 
   ///
   /// 已答出的同词性中文释义之间使用的全角分隔符。
-  ///
-  /// @var String
-  ///
   final String definitionSeparator;
 
   ///
   /// 创建听音辨义页面状态。
-  ///
-  /// @return `State<ListeningMeaningPage>` 管理答题、播放和恢复流程的状态对象。
-  ///
   @override
   State<ListeningMeaningPage> createState() => _ListeningMeaningPageState();
 }
@@ -213,191 +148,112 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     with WidgetsBindingObserver {
   ///
   /// 使用固定种子生成稳定且可复现的候选顺序。
-  ///
-  /// @var Random
-  ///
   final Random _random = Random(20260727);
 
   ///
   /// 当前单词在本轮固定列表中的下标。
-  ///
-  /// @var int
-  ///
   int _wordIndex = 0;
 
   ///
   /// 当前正在进行拼写选择还是释义选择。
-  ///
-  /// @var ListeningMeaningStage
-  ///
   ListeningMeaningStage _stage = ListeningMeaningStage.word;
 
   ///
   /// 当前词性组在有效释义列表中的下标。
-  ///
-  /// @var int
-  ///
   int _meaningIndex = 0;
 
   ///
   /// 当前中文释义在词性组内部的下标。
-  ///
-  /// @var int
-  ///
   int _definitionIndex = 0;
 
   ///
   /// 拼写阶段已经通过提示公开的开头字母数量。
-  ///
-  /// @var int
-  ///
   int _hintLevel = 0;
 
   ///
   /// 整轮累计答错次数，供完成状态页展示。
-  ///
-  /// @var int
-  ///
   int _errors = 0;
 
   ///
   /// 当前单词累计选错候选项的次数，每个新词都会重置。
-  ///
-  /// @var int
-  ///
   int _currentWrong = 0;
 
   ///
   /// 当前单词累计使用提示的次数，每个新词都会重置。
-  ///
-  /// @var int
-  ///
   int _currentHints = 0;
 
   ///
   /// 本轮已经完成的单词主键，退出时交给首页定向刷新。
-  ///
-  /// @var `Set<int>`
-  ///
   final Set<int> _reviewedWordIds = <int>{};
 
   ///
   /// 是否已经提交最后一个单词并进入完成状态页。
-  ///
-  /// @var bool
-  ///
   bool _isDone = false;
 
   ///
   /// 当前单词是否已经完成全部拼写和释义步骤。
-  ///
-  /// @var bool
-  ///
   bool _isCurrentWordComplete = false;
 
   ///
   /// 是否正在提交当前题，用于阻止连续点击产生重复记录。
-  ///
-  /// @var bool
-  ///
   bool _isSavingCompletion = false;
 
   ///
   /// 当前单词的发音是否仍在播放。
-  ///
-  /// @var bool
-  ///
   bool _isPlaying = false;
 
   ///
   /// 当前音频请求代次，只允许最新请求更新播放状态。
-  ///
-  /// @var int
-  ///
   int _playGeneration = 0;
 
   /// 当前进入听音辨义页面后是否已经提示过系统 TTS。
-  /// @var bool
   bool _hasShownTtsNotice = false;
 
   ///
   /// 中间信息面板当前展示的反馈文案。
-  ///
-  /// @var String
-  ///
   String _feedback = '';
 
   ///
   /// 反馈语义颜色，null 表示使用普通次要文字色。
-  ///
-  /// @var Color?
-  ///
   Color? _feedbackColor;
 
   ///
   /// 当前拼写或释义步骤展示的四个候选项。
-  ///
-  /// @var `List<ListeningMeaningOption>`
-  ///
   List<ListeningMeaningOption> _options = const [];
 
   ///
   /// 已经选错的候选文本集合，界面会标红并禁用这些项。
-  ///
-  /// @var `Set<String>`
-  ///
   final Set<String> _wrongOptions = <String>{};
 
   ///
   /// 候选缓存读取代次，阻止旧异步结果覆盖已经切换的新题。
-  ///
-  /// @var int
-  ///
   int _optionLoadGeneration = 0;
 
   ///
   /// 当前候选是否直接来自恢复快照，避免首帧重新打乱顺序。
-  ///
-  /// @var bool
-  ///
   bool _restoredExactOptions = false;
 
   ///
   /// 当前正在听音辨义的单词。
-  ///
-  /// @return Word 听音辨义列表当前下标对应的单词。
-  ///
   Word get _currentWord => widget.words[_wordIndex];
 
   ///
   /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
-  ///
-  /// @return ReviewRecordStore 当前页面实际使用的复习记录 Store。
-  ///
   ReviewRecordStore get _recordStore =>
       widget.recordStore ?? LocalReviewRecordStore.instance;
 
   ///
   /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
-  ///
-  /// @return ListeningMeaningOptionCacheStore 当前页面实际使用的候选缓存 Store。
-  ///
   ListeningMeaningOptionCacheStore get _optionCacheStore =>
       widget.optionCacheStore ?? ListeningMeaningOptionCacheStore.instance;
 
   ///
   /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
-  ///
-  /// @return LearningSessionStore 当前页面实际使用的学习会话 Store。
-  ///
   LearningSessionStore get _sessionStore =>
       widget.sessionStore ?? LocalLearningSessionStore.instance;
 
   ///
   /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
-  ///
-  /// @return ReviewSessionStore 当前页面实际使用的复习会话 Store。
-  ///
   ReviewSessionStore get _reviewSessionStore =>
       widget.reviewSessionStore ?? LocalReviewSessionStore.instance;
 
@@ -406,9 +262,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 从首页复习模块进来就写复习会话（有成败），从词库底部进来就写长期会话
   /// （做完即删）。页面其余代码只调用它的 save / finish，不关心区别。
-  ///
-  /// @var SessionProgressSink
-  ///
   late final SessionProgressSink _progress;
 
   ///
@@ -417,9 +270,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 从词库底部进入的普通练习同样按「听音辨义」归类：它确实是在练这个玩法，
   /// 记录该计入今日统计。首页四张卡片的三态来自会话表而不是记录表，
   /// 所以普通练习不会让今天的模块任务凭空变成「已完成」。
-  ///
-  /// @return ReviewModule 写入记录时使用的模块标识。
-  ///
   ReviewModule get _recordModule => ReviewModule.listeningMeaning;
 
   ///
@@ -427,26 +277,17 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 只有「无限巩固练习」不推进——那批词里混着明天要背的，推进了明天就选不到。
   /// 普通练习和每日主线都正常推进。
-  ///
-  /// @return bool 需要推进时返回 true。
-  ///
   bool get _updatesReviewedAt =>
       widget.reviewSession?.updatesReviewedAt ?? true;
 
   ///
   /// 获取当前单词中包含有效释义的词性组。
-  ///
-  /// @return `List<Meaning>` 至少包含一条释义的 Meaning 列表。
-  ///
   List<Meaning> get _availableMeanings => _currentWord.meanings
       .where((meaning) => meaning.definitions.isNotEmpty)
       .toList(growable: false);
 
   ///
   /// 当前拼写中的真实英文字母数量；空格和连字符不会生成占位槽。
-  ///
-  /// @return int 当前拼写中的英文字母数量。
-  ///
   int get _currentWordLetterCount => _currentWord.spelling.runes
       .map((codePoint) => String.fromCharCode(codePoint))
       .where((character) => RegExp(r'^[A-Za-z]$').hasMatch(character))
@@ -454,9 +295,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 初始化听音辨义页面并恢复可用的历史状态。
-  ///
-  /// @return void
-  ///
   @override
   void initState() {
     super.initState();
@@ -498,15 +336,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 从历史会话恢复当前听音辨义状态；所有动态字段都经过边界校验。
-  ///
-  /// @return void
-  ///
   void _restoreInitialSession() {
     // 出口给出的快照为空就是一次全新的听音辨义。
     final state = _progress.initialState;
     if (state.isEmpty) return;
     // 先恢复单词下标，后续释义边界都依赖当前单词。
-    _wordIndex = readLearningSessionInt(
+    _wordIndex = readIntOrFallback(
       state['wordIndex'],
       fallback: 0,
     ).clamp(0, widget.words.length - 1);
@@ -517,28 +352,28 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 当前单词没有可答释义时不能恢复到 definition，否则 getter 会越界。
     if (_availableMeanings.isEmpty) _stage = ListeningMeaningStage.word;
     if (_stage == ListeningMeaningStage.definition) {
-      _meaningIndex = readLearningSessionInt(
+      _meaningIndex = readIntOrFallback(
         state['meaningIndex'],
         fallback: 0,
       ).clamp(0, _availableMeanings.length - 1);
-      _definitionIndex = readLearningSessionInt(
+      _definitionIndex = readIntOrFallback(
         state['definitionIndex'],
         fallback: 0,
       ).clamp(0, _availableMeanings[_meaningIndex].definitions.length - 1);
     }
     // 计数都不能为负数；提示级别额外受当前单词字母数约束。
-    _hintLevel = readLearningSessionInt(
+    _hintLevel = readIntOrFallback(
       state['hintLevel'],
       fallback: 0,
     ).clamp(0, _currentWordLetterCount);
-    _errors = max(0, readLearningSessionInt(state['errors'], fallback: 0));
+    _errors = max(0, readIntOrFallback(state['errors'], fallback: 0));
     _currentWrong = max(
       0,
-      readLearningSessionInt(state['currentWrong'], fallback: 0),
+      readIntOrFallback(state['currentWrong'], fallback: 0),
     );
     _currentHints = max(
       0,
-      readLearningSessionInt(state['currentHints'], fallback: 0),
+      readIntOrFallback(state['currentHints'], fallback: 0),
     );
     _isCurrentWordComplete = state['isCurrentWordComplete'] is bool
         ? state['isCurrentWordComplete']! as bool
@@ -604,15 +439,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 把当前答题状态写入 SQLite；页面交互先完成，持久化失败不阻断答题。
-  ///
-  /// @return `Future<void>` 会话保存完成后的异步结果。
-  ///
   Future<void> _persistSession() => _progress.save(
     // 完成页已经结算过这一局，禁止 dispose 再把状态写回「进行中」。
     enabled: !_isDone,
     // 本轮累计错误数决定整局的成败，必须和进度一起落盘。
     wrongTotal: _errors,
-    // state 相当于小程序 Page.data 的可持久化子集。
+    // state 是当前页面进度里需要持久化的那部分字段集合。
     state: <String, Object?>{
       // 保存当前单词在固定学习列表中的下标。
       'wordIndex': _wordIndex,
@@ -652,33 +484,26 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 整轮跑完后给这一局结算。
   ///
-  /// 判定规则很简单：整轮一次都没错（[_errors] 为 0）才算「完成」，
-  /// 中途错过任何一次都算「失败」，下次进模块会重开一局从头再来。
+  /// 判定规则：只要把这一局的单词全部操作完一遍（走到这个方法时必然如此，
+  /// 因为它只在最后一个单词提交成功后被调用），就算「完成」；中途累计的
+  /// 答错次数只影响单词个体的难度与结算页展示，不再影响整局成败。
+  /// 「失败」只保留给超时或中途未走完全部单词的场景（本模块暂无超时机制）。
   /// 词库底部的普通练习没有成败之分，出口内部会直接把长期快照删掉，
   /// 首页随即隐藏对应的「继续」入口。
-  ///
-  /// @return `Future<void>` 结算完成后的异步结果。
-  ///
   Future<void> _finishSession() => _progress.finish(
-    // 一次没错才算这一局过关。
-    perfect: _errors == 0,
+    // 走到这里说明全部单词都已操作完一遍，不论过程中是否答错，都算过关。
+    perfect: true,
     wrongTotal: _errors,
   );
 
   ///
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
-  ///
-  /// @return String 当前候选列表唯一的正确文本。
-  ///
   String get _currentCorrectAnswer => _stage == ListeningMeaningStage.word
       ? _currentWord.spelling
       : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
 
   ///
   /// 当前小题的稳定缓存 key；内容字段参与 key，数据被编辑后会自然切换到新缓存。
-  ///
-  /// @return String 可唯一标识当前拼写题或释义题的缓存键。
-  ///
   String get _currentOptionCacheKey {
     // 拼写题由版本、类型、单词主键和当前拼写共同确定。
     if (_stage == ListeningMeaningStage.word) {
@@ -706,10 +531,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 按当前阶段生成指定数量的干扰项。
-  ///
-  /// @param  int  count 需要生成的干扰项数量。
-  /// @return `List<String>` 与当前正确答案不同的候选文本。
-  ///
   List<String> _generateCurrentDistractors({int count = 3}) {
     // 拼写题与释义题分别复用原有生成规则，来源仍严格限制在本轮学习列表。
     return _stage == ListeningMeaningStage.word
@@ -727,11 +548,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 用指定干扰项和正确答案位置组装完整四选一。
-  ///
-  /// @param  `List<String>?`  distractors 可复用的固定干扰项；为空时现场生成。
-  /// @param  int?  correctIndex 正确答案的固定下标；为空时只在首次生成时随机一次。
-  /// @return `List<ListeningMeaningOption>` 一个正确项加三个干扰项的只读列表。
-  ///
   List<ListeningMeaningOption> _buildOptions({
     List<String>? distractors,
     int? correctIndex,
@@ -762,10 +578,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 从当前四个可见候选提取可持久化的三个干扰项和正确答案位置。
-  ///
-  /// @param  `List<ListeningMeaningOption>`  options 当前完整四选一。
-  /// @return ListeningMeaningOptionCacheEntry 可直接写入 SQLite 的缓存数据。
-  ///
   ListeningMeaningOptionCacheEntry _cacheEntryFromOptions(
     List<ListeningMeaningOption> options,
   ) {
@@ -784,11 +596,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
-  ///
-  /// @param  ListeningMeaningOptionCacheEntry  cache 缓存中的三个干扰项和正确答案位置。
-  /// @param  String  correct 当前小题正确答案。
-  /// @return bool 候选数量、唯一性和排除正确答案是否全部有效。
-  ///
   bool _isValidCachedOptions(ListeningMeaningOptionCacheEntry cache, String correct) {
     // 取出三个干扰项，下面统一执行数量和文本检查。
     final distractors = cache.distractors;
@@ -809,9 +616,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 命中缓存就替换同步结果；首次遇到该题则把当前生成结果保存到 SQLite。
-  ///
-  /// @return `Future<void>` 缓存读取或创建完成后的异步结果。
-  ///
   Future<void> _restoreOrCreateCurrentOptionCache() async {
     // 每次进入新小题先领取一个代次号，用来识别晚到的旧请求。
     final generation = ++_optionLoadGeneration;
@@ -872,10 +676,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 底层原生播放器本身就支持"后来的请求替换先前请求"（旧请求会收到
   /// AUDIO_INTERRUPTED），所以这里只要不在 Dart 层把请求拦下来即可。
-  ///
-  /// @param  bool  interrupt 是否允许当前请求打断正在播放的旧音频。
-  /// @return `Future<void>` 当前音频播放结束或被打断后的异步结果。
-  ///
   Future<void> _playAudio({bool interrupt = false}) async {
     // 整轮已完成时不再发声。
     if (_isDone) return;
@@ -952,9 +752,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 点击提示：拼写阶段逐字公开，释义阶段公开首字。
-  ///
-  /// @return void
-  ///
   void _showHint() {
     // 整轮或当前单词已经完成时，不再改变提示状态。
     if (_isDone || _isCurrentWordComplete) return;
@@ -992,10 +789,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 触觉反馈策略：
   /// - 选错：heavyImpact（重震），配合选项抖动动画，错误感强烈。
   /// - 选对：lightImpact（轻触），页面立即切换为新题，视觉变化即反馈。
-  ///
-  /// @param  ListeningMeaningOption  option 用户点击的候选项。
-  /// @return void
-  ///
   void _pickOption(ListeningMeaningOption option) {
     // 当前单词完成后已经只能点击"下一题"，旧选项不再响应。
     if (_isDone ||
@@ -1073,10 +866,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 长按候选项后询问是否刷新；确认后保持四选一结构并立即替换当前文本。
-  ///
-  /// @param  int  optionIndex 用户长按的候选项下标。
-  /// @return `Future<void>` 确认、替换和缓存写入启动后的异步结果。
-  ///
   Future<void> _requestOptionRefresh(int optionIndex) async {
     // 完成态没有候选项；下标越界说明长按事件来自已经卸载的旧组件。
     if (_isDone ||
@@ -1165,10 +954,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 显示刷新确认框；返回 true 表示用户确认替换当前候选词。
-  ///
-  /// @param  String  optionText 当前候选项文本。
-  /// @return `Future<bool>` 用户是否确认刷新。
-  ///
   Future<bool> _showOptionRefreshDialog(String optionText) async {
     // showDialog 的 null 表示点遮罩或系统返回，统一按取消处理。
     final confirmed = await showDialog<bool>(
@@ -1264,12 +1049,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 把长按刷新后的候选名字和完整顺序覆盖进当前小题缓存。
-  ///
-  /// @param  String  cacheKey 当前小题的稳定缓存键。
-  /// @param  int?  wordId 当前单词主键。
-  /// @param  `List<ListeningMeaningOption>`  options
-  /// @return `Future<void>` 缓存覆盖完成后的异步结果。
-  ///
   Future<void> _persistRefreshedOptions({
     required String cacheKey,
     required int? wordId,
@@ -1293,9 +1072,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 标记当前单词的拼写和全部释义均已答对。
-  ///
-  /// @return void
-  ///
   void _completeCurrentWord() {
     // 单词完成给予中等震动，作为里程碑反馈。
     HapticFeedback.mediumImpact();
@@ -1334,9 +1110,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// - 一次没错（[_currentWrong] == 0）→ 视为本次听音辨义正确；
   /// - 中途选错过 → 视为本次听音辨义错误，原生据此把连对次数归零、难度 +1。
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
-  ///
-  /// @return `Future<bool>` 数据库事务是否成功；没有主键时返回 true 并跳过写入。
-  ///
   Future<bool> _recordCompletion() async {
     // 取出当前单词主键。
     final wordId = _currentWord.id;
@@ -1374,9 +1147,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 退出听音辨义页，并把本次复习过的单词 id 集合带回首页，供其定向回刷。
   ///
   /// 通过 [Navigator.pop] 的结果参数传出，避免首页重新加载整库。
-  ///
-  /// @return void
-  ///
   void _exitListeningMeaning() {
     // 用户点击下一题后必须等事务结束；保存中主动返回会让首页漏掉最新回刷 id。
     if (_isSavingCompletion) return;
@@ -1386,9 +1156,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 用户点击底部长条按钮后先提交当前结果，再进入下一词或整轮完成页。
-  ///
-  /// @return `Future<void>` 记录事务与页面推进完成后的异步结果。
-  ///
   Future<void> _goToNextWord() async {
     // 只有当前题已完成才允许推进，防止外部误调用跳过题目。
     if (!_isCurrentWordComplete || _isSavingCompletion) return;
@@ -1468,9 +1235,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 语义等同于"这道题重做一遍"：拼写没选、释义没选、提示未展开、错项全部清空，
   /// 并像刚进入新题一样自动发音一次。本题错误与提示次数也会归零，最终只提交
   /// 用户重做这一遍产生的数据。
-  ///
-  /// @return void
-  ///
   void _retryCurrentWord() {
     // 只有当前题处于"已完成"状态时才会出现这个按钮，其余情况忽略调用。
     if (!_isCurrentWordComplete || _isDone || _isSavingCompletion) return;
@@ -1514,9 +1278,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 每个步骤都从一开始列出，状态随答题进度在 未开始/进行中/已完成 之间变化。
   /// 组件只负责按状态渲染，不关心答题下标。
-  ///
-  /// @return `List<ListeningMeaningStep>` 当前单词的不可变步骤列表。
-  ///
   List<ListeningMeaningStep> _buildSteps() {
     // 步骤集合从“听音选词”开始，拼写答对后它转为已完成。
     final steps = <ListeningMeaningStep>[
@@ -1579,9 +1340,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 返回当前答题阶段的用户可见名称。
-  ///
-  /// @return String “听音选词”或“释义”。
-  ///
   String get _stageLabel {
     // 完成后的提示不再要求选择，只说明当前单词已完成。
     if (_isCurrentWordComplete) return '当前单词已完成';
@@ -1594,9 +1352,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 释放音频请求并补写尚未完成的页面状态。
-  ///
-  /// @return void
-  ///
   @override
   void deactivate() {
     // 路由刚被移出导航栈（手势/按钮返回的转场动画一开始）就立即作废在途异步任务，
@@ -1631,10 +1386,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建听音辨义页、题目页或整轮完成页。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 当前听音辨义状态对应的完整界面。
-  ///
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
@@ -1664,11 +1415,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建顶栏与进度条，布局结构和随身听页面保持一致。
-  ///
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @param  double  progress 当前单词在学习列表中的进度比例。
-  /// @return Widget 返回按钮、题量、难度徽章和进度条。
-  ///
   Widget _buildHeader(AppTokens tokens, double progress) {
     // Column 让顶栏按钮行和进度条从上到下排列。
     return Column(
@@ -1743,10 +1489,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建可滚动题目区、透明播放热区和悬浮候选区。
-  ///
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @return Widget 占满顶部信息区以下空间的题目 Stack。
-  ///
   Widget _buildQuestion(AppTokens tokens) {
     // 底部控件虽然脱离普通布局，但滚动内容仍需保留等高的尾部内边距，
     // 否则较长 Steps 的最后几行会被悬浮候选区遮住。
@@ -1845,10 +1587,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 生活化解释：这道横幅是给用户看的即时反馈，不碰数据库。
   /// “难度 +1”真正发生是在点“下一题”写库那一刻；这里只告诉用户本题到底错了几次，
   /// 让他离场前心里有数，而不是等到下一轮才发现刚才选错过。
-  ///
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @return Widget 提示横幅或零尺寸占位。
-  ///
   Widget _buildDifficultyHintBanner(AppTokens tokens) {
     // 取出当前状态对应的语义色、图标与文案；text 为 null 表示无需提示。
     final visual = _difficultyHintVisual();
@@ -1889,9 +1627,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 返回难度提示横幅的视觉三要素：语义色、Tabler 图标、文案。
   ///
   /// 文案为 null 表示当前不需要展示任何提示。
-  ///
-  /// @return `({Color color, IconData icon, String? text})` 横幅视觉元组。
-  ///
   ({Color color, IconData icon, String? text}) _difficultyHintVisual() {
     // 错误提示：只要本题选错过（无论是否已完成），都展示累计错误次数。
     // - 作答中途：横幅位于候选区正上方，实时告诉用户已经错了几下；
@@ -1922,10 +1657,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建贴近底部安全区的候选与操作区。
-  ///
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @return Widget 候选四选一或完成后的下一题操作区。
-  ///
   Widget _buildBottomControls(AppTokens tokens) {
     // Padding 在 SafeArea 已避开系统手势条后，再提供 20 像素底部留白。
     return Padding(
@@ -2078,12 +1809,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 构建当前单词全部答对后的底部操作区：左「再试一次」+ 右「下一题」。
   ///
   /// 两个按钮通过 Expanded 各占一半宽度，中间用 [ListeningMeaningLayout.columnGap]
-  /// 留出间距（相当于小程序里 flex:1 + margin 的写法）。
+  /// 留出间距。
   /// 左侧是次要操作（描边样式），右侧是主操作（蓝色实心）。
-  ///
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @return Widget 再试一次和下一题的双按钮区域。
-  ///
   Widget _buildNextQuestionButton(AppTokens tokens) {
     // 最后一题提交后会进入完成状态页，因此主操作使用“完成”语义。
     final isLastWord = _wordIndex + 1 >= widget.words.length;
@@ -2167,10 +1894,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建整轮听音辨义完成状态页，展示题量、累计错选次数和返回入口。
-  ///
-  /// @param  AppTokens  tokens 当前主题设计令牌。
-  /// @return Widget 整轮完成后的状态页。
-  ///
   Widget _buildDone(AppTokens tokens) {
     // Center 让完成反馈在剩余页面区域中保持视觉居中。
     return Center(
@@ -2236,13 +1959,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 class _PlainIconButton extends StatelessWidget {
   ///
   /// 构建固定画布的顶栏图标按钮。
-  ///
-  /// @param  IconData  icon 需要显示的 Tabler 图标。
-  /// @param  VoidCallback  onTap 点击回调。
-  /// @param  AlignmentGeometry  alignment 图标在画布中的对齐方式。
-  ///
-  /// @param  Key?  key
-  ///
   const _PlainIconButton({
     required this.icon,
     required this.onTap,
@@ -2252,31 +1968,18 @@ class _PlainIconButton extends StatelessWidget {
 
   ///
   /// 需要显示的 Tabler 图标。
-  ///
-  /// @var IconData
-  ///
   final IconData icon;
 
   ///
   /// 用户点击图标画布时执行的回调。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onTap;
 
   ///
   /// 图标在 34 像素画布中的对齐方式。
-  ///
-  /// @var AlignmentGeometry
-  ///
   final AlignmentGeometry alignment;
 
   ///
   /// Flutter 每次需要绘制顶栏按钮时调用此方法。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 固定点击画布的顶栏图标按钮。
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前亮色或深色主题中的文字颜色。
@@ -2307,18 +2010,6 @@ class _PlainIconButton extends StatelessWidget {
 class _OutlineAction extends StatelessWidget {
   ///
   /// 构建右侧的提示或播放按钮。
-  ///
-  /// @param  String  label 按钮文案。
-  /// @param  Color  foreground 图标和文字颜色。
-  /// @param  Color  border 外边框颜色。
-  /// @param  VoidCallback  onTap 点击回调。
-  /// @param  double  height 按钮固定高度。
-  /// @param  double  horizontalPadding 水平内边距。
-  /// @param  Color?  background 可选背景色。
-  /// @param  IconData?  icon 可选 Tabler 图标。
-  ///
-  /// @param  Key?  key
-  ///
   const _OutlineAction({
     required this.label,
     required this.foreground,
@@ -2333,66 +2024,38 @@ class _OutlineAction extends StatelessWidget {
 
   ///
   /// 仅当按钮具有图标语义时传入 Tabler 图标。
-  ///
-  /// @var IconData?
-  ///
   final IconData? icon;
 
   ///
   /// 按钮中显示的命令文字。
-  ///
-  /// @var String
-  ///
   final String label;
 
   ///
   /// 图标和文字的前景色。
-  ///
-  /// @var Color
-  ///
   final Color foreground;
 
   ///
   /// 按钮一像素外边框的颜色。
-  ///
-  /// @var Color
-  ///
   final Color border;
 
   ///
   /// 可选按钮背景色；播放主操作传入蓝色，提示按钮则沿用卡片色。
-  ///
-  /// @var Color?
-  ///
   final Color? background;
 
   ///
   /// 点击按钮时执行的业务操作。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onTap;
 
   ///
   /// 按钮的固定高度，底部操作区使用 48 像素。
-  ///
-  /// @var double
-  ///
   final double height;
 
   ///
   /// 按钮文字两侧留白，窄右栏使用较紧凑的值。
-  ///
-  /// @var double
-  ///
   final double horizontalPadding;
 
   ///
   /// Flutter 绘制提示或播放按钮时调用此方法。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 统一尺寸的提示或播放按钮。
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前主题的卡片背景色。
@@ -2436,15 +2099,6 @@ class _OutlineAction extends StatelessWidget {
 class _OptionCard extends StatefulWidget {
   ///
   /// 创建一个支持错误抖动和长按刷新的候选卡片。
-  ///
-  /// @param  ListeningMeaningOption  option 当前候选数据。
-  /// @param  int  index 候选在四选一列表中的下标。
-  /// @param  bool  wrong 是否已经选错。
-  /// @param  VoidCallback  onTap 点击答题回调。
-  /// @param  VoidCallback  onLongPress 长按刷新回调。
-  ///
-  /// @param  Key?  key
-  ///
   const _OptionCard({
     required this.option,
     required this.index,
@@ -2456,44 +2110,26 @@ class _OptionCard extends StatefulWidget {
 
   ///
   /// 当前选项数据（文本 + 是否正确）。
-  ///
-  /// @var ListeningMeaningOption
-  ///
   final ListeningMeaningOption option;
 
   ///
   /// 选项在四选一列表中的位置（0-3），用于 A/B/C/D badge。
-  ///
-  /// @var int
-  ///
   final int index;
 
   ///
   /// 是否已被选错；从 false 变 true 时触发抖动。
-  ///
-  /// @var bool
-  ///
   final bool wrong;
 
   ///
   /// 点击回调；错选后由调用方传入 null 禁用。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onTap;
 
   ///
   /// 长按回调；即使该项已经选错，仍允许用户把它刷新成新候选。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onLongPress;
 
   ///
   /// 创建候选卡片动画状态。
-  ///
-  /// @return `State<_OptionCard>` 管理错误抖动动画的状态对象。
-  ///
   @override
   State<_OptionCard> createState() => _OptionCardState();
 }
@@ -2505,23 +2141,14 @@ class _OptionCardState extends State<_OptionCard>
     with SingleTickerProviderStateMixin {
   ///
   /// 驱动一次 300ms 抖动过程的动画控制器。
-  ///
-  /// @var AnimationController
-  ///
   late final AnimationController _shakeController;
 
   ///
   /// 从零开始、经过正负位移并最终回到零的抖动曲线。
-  ///
-  /// @var `Animation<double>`
-  ///
   late final Animation<double> _shakeAnimation;
 
   ///
   /// 初始化抖动动画控制器和位移序列。
-  ///
-  /// @return void
-  ///
   @override
   void initState() {
     super.initState();
@@ -2549,10 +2176,6 @@ class _OptionCardState extends State<_OptionCard>
 
   ///
   /// 在候选从正常状态变为错误状态时启动抖动。
-  ///
-  /// @param  _OptionCard  oldWidget 更新前的候选卡片配置。
-  /// @return void
-  ///
   @override
   void didUpdateWidget(covariant _OptionCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -2564,9 +2187,6 @@ class _OptionCardState extends State<_OptionCard>
 
   ///
   /// 释放抖动动画控制器。
-  ///
-  /// @return void
-  ///
   @override
   void dispose() {
     _shakeController.dispose();
@@ -2575,10 +2195,6 @@ class _OptionCardState extends State<_OptionCard>
 
   ///
   /// 构建候选卡片及错误抖动效果。
-  ///
-  /// @param  BuildContext  context 当前 Widget 树上下文。
-  /// @return Widget 可点击、长按并显示错误状态的候选卡片。
-  ///
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);

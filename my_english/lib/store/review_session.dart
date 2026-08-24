@@ -11,39 +11,20 @@ import '../models/review_session.dart';
 abstract interface class ReviewSessionStore {
   ///
   /// 读取某个模块今天最新的一条会话（不论状态）。
-  ///
-  /// @param  ReviewModule  module 目标复习模块。
-  /// @return `Future<ReviewSession?>` 今天还没开过局时返回 null。
-  ///
   Future<ReviewSession?> getLatest(ReviewModule module);
 
   ///
   /// 读取某个模块今天已完成的主线会话。
   ///
   /// 有这条记录才说明今天的主线任务已经过关，接下来该开巩固局。
-  ///
-  /// @param  ReviewModule  module 目标复习模块。
-  /// @return `Future<ReviewSession?>` 今天主线尚未过关时返回 null。
-  ///
   Future<ReviewSession?> getCompletedDaily(ReviewModule module);
 
   ///
   /// 读取今天四个模块各自的进度，供首页卡片显示三态。
-  ///
-  /// @return `Future<Map<ReviewModule, ReviewModuleState>>` 今天没开过局的模块不会出现。
-  ///
   Future<Map<ReviewModule, ReviewModuleState>> getTodayStates();
 
   ///
   /// 新建一局会话。
-  ///
-  /// @param  ReviewModule  module 目标复习模块。
-  /// @param  ReviewSessionKind  kind 主线还是巩固。
-  /// @param  int?  wordSetId 来源每日词库编号。
-  /// @param  `List<int>`  wordIds 本局固定的答题顺序。
-  /// @param  `Map<String, Object?>`  state 页面初始进度。
-  /// @return `Future<ReviewSession>` 新建后的完整会话。
-  ///
   Future<ReviewSession> create({
     required ReviewModule module,
     required ReviewSessionKind kind,
@@ -54,12 +35,6 @@ abstract interface class ReviewSessionStore {
 
   ///
   /// 更新一局进行中会话的页面进度与累计错误数。
-  ///
-  /// @param  int  sessionId 会话主键。
-  /// @param  `Map<String, Object?>`  state 页面自己组装的进度。
-  /// @param  int  wrongTotal 本局累计错误数。
-  /// @return `Future<void>` 原生写入完成后的异步结果。
-  ///
   Future<void> saveProgress({
     required int sessionId,
     required Map<String, Object?> state,
@@ -68,13 +43,6 @@ abstract interface class ReviewSessionStore {
 
   ///
   /// 给一局会话结算。
-  ///
-  /// @param  int  sessionId 会话主键。
-  /// @param  ReviewSessionStatus  status 完成、中断或失败。
-  /// @param  `Map<String, Object?>?`  state 结算时的最后一份进度；null 表示保持原值。
-  /// @param  int?  wrongTotal 结算时的累计错误数；null 表示保持原值。
-  /// @return `Future<ReviewSession>` 结算后的完整会话。
-  ///
   Future<ReviewSession> finish({
     required int sessionId,
     required ReviewSessionStatus status,
@@ -84,10 +52,6 @@ abstract interface class ReviewSessionStore {
 
   ///
   /// 把「进行中」的会话统一改成「中断」。
-  ///
-  /// @param  bool  onlyStale true 只中断非今日会话（跨天清理）；false 全部中断（改设置）。
-  /// @return `Future<int>` 实际被中断的会话条数。
-  ///
   Future<int> abortActive({bool onlyStale = false});
 }
 
@@ -97,33 +61,21 @@ abstract interface class ReviewSessionStore {
 class LocalReviewSessionStore implements ReviewSessionStore {
   ///
   /// 允许测试注入独立通道；正式 App 使用默认 word_store 通道。
-  ///
-  /// @param  MethodChannel?  channel 测试专用通道；为空时使用正式通道。
-  ///
   const LocalReviewSessionStore({MethodChannel? channel})
     : _channel = channel ?? _defaultChannel;
 
   ///
   /// App 默认复用实例，首页和四个模块页共用同一份本地数据。
-  ///
-  /// @var LocalReviewSessionStore
-  ///
   static const LocalReviewSessionStore instance = LocalReviewSessionStore();
 
   ///
   /// 通道名必须与 MainActivity 注册值完全一致。
-  ///
-  /// @var MethodChannel
-  ///
   static const MethodChannel _defaultChannel = MethodChannel(
     'my_english/word_store',
   );
 
   ///
   /// 实际执行原生调用的消息通道。
-  ///
-  /// @var MethodChannel
-  ///
   final MethodChannel _channel;
 
   @override
@@ -237,11 +189,6 @@ class LocalReviewSessionStore implements ReviewSessionStore {
 
   ///
   /// 调用一个返回单条会话的原生方法，并转换成模型。
-  ///
-  /// @param  String  method 原生方法名。
-  /// @param  `Map<String, Object?>`  arguments 方法参数。
-  /// @return `Future<ReviewSession?>` 原生返回 null 时同样返回 null。
-  ///
   Future<ReviewSession?> _readSession(
     String method,
     Map<String, Object?> arguments,
@@ -264,10 +211,6 @@ class LocalReviewSessionStore implements ReviewSessionStore {
 class ReviewSessionPersistence {
   ///
   /// 创建某一局会话专用的持久化门面。
-  ///
-  /// @param  ReviewSessionStore  store 实际执行读写的 Store。
-  /// @param  int  sessionId 当前这一局的会话主键。
-  ///
   const ReviewSessionPersistence({required this.store, required this.sessionId});
 
   ///
@@ -276,34 +219,21 @@ class ReviewSessionPersistence {
   /// 页面 getter 会重复创建本门面，因此队列必须按 Store 身份共享，不能放在
   /// 单个门面实例里。这样先触发的旧快照一定先完成，后触发的新快照才会最终
   /// 留在数据库，不会出现「旧进度反向覆盖新进度」。
-  ///
-  /// @var `Expando<Map<int, Future<void>>>`
-  ///
   static final Expando<Map<int, Future<void>>> _writeQueues =
       Expando<Map<int, Future<void>>>('reviewSessionWrites');
 
   ///
   /// 实际读写会话的 Store。
-  ///
-  /// @var ReviewSessionStore
-  ///
   final ReviewSessionStore store;
 
   ///
   /// 当前页面正在进行的这一局。
-  ///
-  /// @var int
-  ///
   final int sessionId;
 
   ///
   /// 把一次写入追加到当前 Store 与会话的队尾。
   ///
   /// 前一项即使失败也会被吞掉后继续执行下一项，避免一次缓存故障让整条队列停摆。
-  ///
-  /// @param  `Future<void> Function()`  operation 实际要执行的写入动作。
-  /// @return `Future<void>` 当前动作结束后的异步结果；异常已转换为调试日志。
-  ///
   Future<void> _enqueue(Future<void> Function() operation) {
     // 每个 Store 建立自己的会话队列表，测试 Store 与正式 Store 不会互相等待。
     final queues = _writeQueues[store] ??= <int, Future<void>>{};
@@ -322,12 +252,6 @@ class ReviewSessionPersistence {
 
   ///
   /// 保存最新进度快照。
-  ///
-  /// @param  `Map<String, Object?>`  state 页面自行组装的进度数据。
-  /// @param  int  wrongTotal 本局到目前为止的累计错误数。
-  /// @param  bool  enabled 是否允许本次保存；已结算的局传 false。
-  /// @return `Future<void>` 保存结束后的异步结果；异常会在内部消化。
-  ///
   Future<void> save({
     required Map<String, Object?> state,
     required int wrongTotal,
@@ -351,12 +275,6 @@ class ReviewSessionPersistence {
   ///
   /// 结算同样进入写队列，保证它一定排在此前所有进度保存之后执行，
   /// 不会被一条迟到的旧快照把状态改回去。
-  ///
-  /// @param  ReviewSessionStatus  status 完成、中断或失败。
-  /// @param  `Map<String, Object?>?`  state 结算时的最后一份进度。
-  /// @param  int?  wrongTotal 结算时的累计错误数。
-  /// @return `Future<void>` 结算结束后的异步结果；异常会在内部消化。
-  ///
   Future<void> finish({
     required ReviewSessionStatus status,
     Map<String, Object?>? state,

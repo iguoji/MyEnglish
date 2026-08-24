@@ -10,11 +10,6 @@ import '../../../store/group.dart';
 
 ///
 /// 从页面底部弹出"分组管理"面板。
-///
-/// @param  BuildContext  context
-/// @param  GroupStore  groups
-/// @return `Future<void>`
-///
 Future<void> showManageGroupsSheet(BuildContext context, GroupStore groups) {
   // showModalBottomSheet 提供标准弹出动画与遮罩。
   return showModalBottomSheet<void>(
@@ -33,24 +28,14 @@ Future<void> showManageGroupsSheet(BuildContext context, GroupStore groups) {
 class _ManageGroupsSheet extends StatelessWidget {
   ///
   /// 接收全局分组 Store。
-  ///
-  /// @param  GroupStore  groups
-  ///
   const _ManageGroupsSheet({required this.groups});
 
   ///
   /// 所有修改直接写入该 Store。
-  ///
-  /// @var GroupStore
-  ///
   final GroupStore groups;
 
   ///
   /// 输出标题行与分组编辑列表。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -196,13 +181,6 @@ class _ManageGroupsSheet extends StatelessWidget {
 class _GroupEditRow extends StatelessWidget {
   ///
   /// 行内动作直接调用 Store。
-  ///
-  /// @param  GroupStore  groups
-  /// @param  int  groupId
-  /// @param  String  name
-  /// @param  bool  canMoveUp
-  /// @param  bool  canMoveDown
-  ///
   const _GroupEditRow({
     required this.groups,
     required this.groupId,
@@ -213,45 +191,26 @@ class _GroupEditRow extends StatelessWidget {
 
   ///
   /// 全局分组 Store。
-  ///
-  /// @var GroupStore
-  ///
   final GroupStore groups;
 
   ///
   /// 当前行分组主键。
-  ///
-  /// @var int
-  ///
   final int groupId;
 
   ///
   /// 当前名称。
-  ///
-  /// @var String
-  ///
   final String name;
 
   ///
   /// 是否可以上移。
-  ///
-  /// @var bool
-  ///
   final bool canMoveUp;
 
   ///
   /// 是否可以下移。
-  ///
-  /// @var bool
-  ///
   final bool canMoveDown;
 
   ///
   /// 输出输入框与三个方块按钮。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
@@ -316,10 +275,6 @@ class _GroupEditRow extends StatelessWidget {
 
   ///
   /// 弹出删除确认对话框；用户确认后才执行 groups.remove。
-  ///
-  /// @param  BuildContext  context
-  /// @return `Future<void>`
-  ///
   Future<void> _confirmDelete(BuildContext context) async {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
@@ -430,11 +385,6 @@ class _GroupEditRow extends StatelessWidget {
 class _SquareButton extends StatelessWidget {
   ///
   /// 接收 Tabler 图标、可用状态与动作。
-  ///
-  /// @param  IconData  icon
-  /// @param  bool  enabled
-  /// @param  VoidCallback  onTap
-  ///
   const _SquareButton({
     required this.icon,
     required this.enabled,
@@ -443,31 +393,18 @@ class _SquareButton extends StatelessWidget {
 
   ///
   /// 按钮使用的 Tabler 图标数据。
-  ///
-  /// @var IconData
-  ///
   final IconData icon;
 
   ///
   /// 是否可用。
-  ///
-  /// @var bool
-  ///
   final bool enabled;
 
   ///
   /// 点击动作；不可用时不触发。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onTap;
 
   ///
   /// 输出方块按钮。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。

@@ -102,6 +102,8 @@ class WordsDatabase(context: Context) :
         createLearningSessionTable(db)
         // 复习模块三张表：每日词库、模块会话、复习记录。
         createReviewSchema(db)
+        // 音节划分表：每个单词一条数据，拼写即主键，供“单词拼写”功能复用。
+        createSyllableDivisionsTable(db)
         // 最后建立查询索引。
         createIndexes(db)
     }
@@ -140,6 +142,8 @@ class WordsDatabase(context: Context) :
         createReviewSchema(db)
         // 分组排序表只是内部实现，幂等补建不会改动 group 业务字段。
         createGroupPositionsTable(db)
+        // 音节划分表同样幂等补建，覆盖任何历史升级遗漏。
+        createSyllableDivisionsTable(db)
     }
 
     /** 创建 words 表；spelling 只要求非空，不再带 UNIQUE。 */
@@ -1333,6 +1337,70 @@ class WordsDatabase(context: Context) :
                 FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
             )
             """.trimIndent(),
+        )
+    }
+
+    /**
+     * 创建音节划分表；一个单词一条数据，spelling 即主键。
+     *
+     * 这张表为未来的“单词拼写”功能服务：App 为每个单词缓存它的音节切分，
+     * 避免每次都靠算法现场算，也允许用户手动覆盖。syllables 用 JSON 数组
+     * 保存切好的块（如 ["tra","di","tion"]），source 标记来源，updated_at
+     * 记录最后修改时间，便于排查与排重。
+     */
+    private fun createSyllableDivisionsTable(db: SQLiteDatabase) {
+        // 建表语句带 IF NOT EXISTS，每次打开数据库重复调用完全安全。
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS syllable_divisions (
+                word TEXT PRIMARY KEY,
+                syllables TEXT NOT NULL,
+                source TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+
+    /** 按单词读取已保存的音节划分；表里没有时返回 null。 */
+    fun getSyllableDivision(word: String): Map<String, Any?>? {
+        // 精确查询主键，最多只会返回一行。
+        readableDatabase.query(
+            "syllable_divisions",
+            arrayOf("syllables", "source"),
+            "word = ?",
+            arrayOf(word),
+            null,
+            null,
+            null,
+            "1",
+        ).use { cursor ->
+            // 没有行表示这个单词还没算过或没手动设过。
+            if (!cursor.moveToFirst()) return null
+            // syllables 是 JSON 数组字符串，直接回传给 Dart 由 jsonDecode 还原成列表。
+            return mapOf(
+                "syllables" to cursor.getString(cursor.getColumnIndexOrThrow("syllables")),
+                "source" to cursor.getString(cursor.getColumnIndexOrThrow("source")),
+            )
+        }
+    }
+
+    /** 新增或覆盖一个单词的音节划分；主键冲突时整体替换。 */
+    fun saveSyllableDivision(word: String, syllablesJson: String, source: String) {
+        // ContentValues 对应 syllable_divisions 表的一整行。
+        val values = ContentValues().apply {
+            put("word", word)
+            put("syllables", syllablesJson)
+            put("source", source)
+            // 时间戳用毫秒，和项目里其它表保持一致，便于统一排重与调试。
+            put("updated_at", System.currentTimeMillis())
+        }
+        // word 是 PRIMARY KEY，冲突时整体替换：刷新备选、用户手动覆盖都只需一次写入。
+        writableDatabase.insertWithOnConflict(
+            "syllable_divisions",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
         )
     }
 

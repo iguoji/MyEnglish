@@ -13,9 +13,6 @@ import 'package:my_english/pages/home/widgets/word_sort_bar.dart';
 
 ///
 /// 验证从首页 State 抽离后的过滤、日期选择和稳定排序规则。
-///
-/// @return void
-///
 void main() {
   // 相同业务字段的记录必须保持输入顺序，避免页面刷新后行位置随机跳动。
   test('keeps original order when every business field is equal', () {
@@ -72,10 +69,6 @@ void main() {
 
     ///
     /// 创建指定分组视角的排序服务，其余参数保持固定。
-    ///
-    /// @param  GroupMode  mode
-    /// @return HomeWordSorter
-    ///
     HomeWordSorter sorter(GroupMode mode) => HomeWordSorter(
       mode: mode,
       field: WordSortField.date,

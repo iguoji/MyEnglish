@@ -1,4 +1,4 @@
-// convert.dart 提供 jsonDecode，作用类似 PHP 的 json_decode。
+// convert.dart 提供 jsonDecode，用于解析原生返回的 JSON 字符串。
 import 'dart:convert';
 
 // services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SQLite。
@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import '../models/word.dart';
 
 ///
-/// 单词 Store 接口，类似小程序 Store 或 PHP 的 WordStoreInterface。
+/// 单词 Store 接口：定义单词数据的读写契约，具体实现可以是本地或测试替身。
 ///
 /// 现在数据只来自本地持久化（Android 原生 SQLite），接口方法也围绕
 /// 「读取 / 增删改 / 整库导入 / 整库清空」这一组持久化操作设计。
@@ -16,75 +16,42 @@ import '../models/word.dart';
 abstract interface class WordStore {
   ///
   /// 一次读取全部未删除单词。
-  ///
-  /// @return `Future<List<Word>>`
-  ///
   Future<List<Word>> getAll();
 
   ///
   /// 按 id 读取指定单词（含 Meaning 与分组），用于复习后只回刷相关单词。
-  ///
-  /// @param  `List<int>`  ids
-  /// @return `Future<List<Word>>`
-  ///
   Future<List<Word>> getByIds(List<int> ids);
 
   ///
   /// 创建一个 Word，并返回主键。
-  ///
-  /// @param  Word  word
-  /// @return `Future<int>`
-  ///
   Future<int> create(Word word);
 
   ///
   /// 更新已有 Word。
-  ///
-  /// @param  Word  word
-  /// @return `Future<void>`
-  ///
   Future<void> update(Word word);
 
   ///
   /// 删除指定 Word（软删除）。
-  ///
-  /// @param  int  id
-  /// @return `Future<void>`
-  ///
   Future<void> delete(int id);
 
   ///
   /// 批量导入：先清空本地全部单词，再写入给定列表，保证导入即整库替换。
   ///
   /// 适用于导入原始 words.json（无分组信息，导入后单词回到未分组）。
-  ///
-  /// @param  `List<Word>`  words
-  /// @return `Future<void>`
-  ///
   Future<void> importWords(List<Word> words);
 
   ///
   /// 导入 words，以及文件中可选的 groups/members。
   ///
   /// 只有文件携带分组数据时才替换分组；未知数据库字段会被忽略。
-  ///
-  /// @param  `Map<String, Object?>`  data
-  /// @return `Future<void>`
-  ///
   Future<void> importData(Map<String, Object?> data);
 
   ///
   /// 从 SQLite 真实业务字段生成可写入 JSON 的单词与分组数据。
-  ///
-  /// @return `Future<Map<String, Object?>>`
-  ///
   Future<Map<String, Object?>> exportData();
 
   ///
   /// 清空本地全部单词数据（单词、释义、分组与成员）。
-  ///
-  /// @return `Future<void>`
-  ///
   Future<void> clearAll();
 }
 
@@ -97,41 +64,26 @@ abstract interface class WordStore {
 class LocalWordStore implements WordStore {
   ///
   /// 允许测试注入原生通道；正式 App 使用默认值。
-  ///
-  /// @param  MethodChannel?  channel
-  ///
   LocalWordStore({MethodChannel? channel})
     // 没有注入通道时使用 Android MainActivity 注册的固定名称。
     : _channel = channel ?? _defaultChannel;
 
   ///
   /// App 默认复用同一个实例。
-  ///
-  /// @var LocalWordStore
-  ///
   static final LocalWordStore instance = LocalWordStore();
 
   ///
   /// 通道名必须与 Android MainActivity 完全一致。
-  ///
-  /// @var MethodChannel
-  ///
   static const MethodChannel _defaultChannel = MethodChannel(
     'my_english/word_store',
   );
 
   ///
   /// SQLite 模式调用的原生通道。
-  ///
-  /// @var MethodChannel
-  ///
   final MethodChannel _channel;
 
   ///
   /// 读取全部数据，永远来自原生 SQLite。
-  ///
-  /// @return `Future<List<Word>>`
-  ///
   @override
   Future<List<Word>> getAll() async {
     // 直接走原生查询，不再有「JSON 内存」分支。
@@ -140,10 +92,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 只回刷本次复习涉及的单词，避免重新加载整库。
-  ///
-  /// @param  `List<int>`  ids
-  /// @return `Future<List<Word>>`
-  ///
   @override
   Future<List<Word>> getByIds(List<int> ids) async {
     // 空列表直接返回，避免原生拼出无意义的 IN ()。
@@ -161,10 +109,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 新增 Word；主体、释义和分组关系交给同一个原生事务，返回自增主键。
-  ///
-  /// @param  Word  word
-  /// @return `Future<int>`
-  ///
   @override
   Future<int> create(Word word) async {
     // 把模型字段转成原生通道可传输的 Map。
@@ -177,10 +121,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 更新 Word；主体、释义和分组关系由原生在同一个事务内整体替换。
-  ///
-  /// @param  Word  word
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> update(Word word) async {
     // 更新必须能定位已有记录。
@@ -195,10 +135,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 删除 Word；通过 deleted_at 软删除。
-  ///
-  /// @param  int  id
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> delete(int id) async {
     // 调用原生软删除，参数只带主键。
@@ -209,10 +145,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 批量导入：清空旧数据后整库替换写入。
-  ///
-  /// @param  `List<Word>`  words
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> importWords(List<Word> words) async {
     // 把每条 Word 转成原生可接收的 Map 列表。
@@ -223,9 +155,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 清空本地全部单词、释义、分组、记录、听音辨义候选缓存与学习会话。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> clearAll() async {
     // 原生统一删除全部业务表记录，候选缓存也在同一清理入口中删除。
@@ -234,10 +163,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 导入 words，以及文件中可选的 groups/members。
-  ///
-  /// @param  `Map<String, Object?>`  data
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> importData(Map<String, Object?> data) async {
     // 原生按真实表结构转换字段，并在文件带分组时映射新旧外键。
@@ -246,9 +171,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 读取原生层按 SQLite 实际表结构生成的导出对象。
-  ///
-  /// @return `Future<Map<String, Object?>>`
-  ///
   @override
   Future<Map<String, Object?>> exportData() async {
     final payload = await _channel.invokeMapMethod<Object?, Object?>(
@@ -263,9 +185,6 @@ class LocalWordStore implements WordStore {
 
   ///
   /// 从 Android SQLite 一次读取全部 Word/Meaning。
-  ///
-  /// @return `Future<List<Word>>`
-  ///
   Future<List<Word>> _loadSqliteWords() async {
     // Android 返回普通 List<Map>；原生 null 属于接口错误。
     final rawWords = await _channel.invokeListMethod<Object?>('getAllWords');
@@ -283,10 +202,6 @@ class LocalWordStore implements WordStore {
 /// 1) 顶层是数组：直接当作单词列表；
 /// 2) 顶层是对象且含 `words` 字段：取其中的数组（导出备份的结构）。
 /// 每条记录里不存在的字段由 [Word.fromMap] 自然忽略，多余字段也不影响解析。
-///
-/// @param  String  jsonText
-/// @return `List<Word>`
-///
 List<Word> parseWordsFromJsonText(String jsonText) {
   // jsonDecode 遇到语法错误时会抛 FormatException，首页会显示其 offset。
   final decoded = jsonDecode(jsonText);
@@ -304,11 +219,6 @@ List<Word> parseWordsFromJsonText(String jsonText) {
 
 ///
 /// 把动态 Map 数组逐条转换成强类型 Word，保持原始数量和顺序。
-///
-/// @param  `List<dynamic>`  rawWords
-/// @param  String  sourceLabel
-/// @return `List<Word>`
-///
 List<Word> _parseWordMaps(
   List<dynamic> rawWords, {
   required String sourceLabel,

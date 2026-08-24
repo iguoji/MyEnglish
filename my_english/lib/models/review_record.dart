@@ -9,33 +9,9 @@ import 'review_session.dart';
 /// - [difficultyBefore] / [difficultyAfter]：这次答题让难度怎么变的；
 /// - [reviewedAtBefore] / [reviewedAtAfter]：这次答题有没有推进复习时间。
 ///   巩固会话不推进复习时间，两个值会完全相同，一眼就能看出「练了但没算数」。
-///
-/// @property int id SQLite 自增主键。
-/// @property int wordId 本次复习的单词主键。
-/// @property int streak 连对次数：答对在上一条基础上 +1，答错归 0。
-/// @property ReviewModule? module 产生记录的复习模块；历史键无法识别时为 null。
-/// @property int? sessionId 所属会话主键；不属于任何会话时为 null。
-/// @property bool isCorrect 本次是否一气呵成（一个都没选错）。
-///
 class ReviewRecord {
   ///
   /// 创建一条复习记录。
-  ///
-  /// @param  int  id SQLite 自增主键。
-  /// @param  int  wordId 所属单词主键。
-  /// @param  int  streak 本次写入后的连对次数。
-  /// @param  ReviewModule?  module 产生记录的复习模块。
-  /// @param  int?  sessionId 所属会话主键。
-  /// @param  bool  isCorrect 本次是否零错误完成。
-  /// @param  int  wrongCount 本次选错次数。
-  /// @param  int  hintCount 本次使用提示次数。
-  /// @param  int  difficultyBefore 变动前难度。
-  /// @param  int  difficultyAfter 变动后难度。
-  /// @param  DateTime?  reviewedAtBefore 变动前的最近复习时间。
-  /// @param  DateTime?  reviewedAtAfter 变动后的最近复习时间。
-  /// @param  int  createdAt 写入时间的毫秒时间戳。
-  /// @param  String  createdDate 写入日期的 yyyy-MM-dd 文本。
-  ///
   const ReviewRecord({
     required this.id,
     required this.wordId,
@@ -65,9 +41,6 @@ class ReviewRecord {
   /// 答对就在这个词上一条记录的基础上 +1，答错直接归 0。跨模块累计——
   /// 听音辨义答对、词义连连接着答对，算连续两次。连对次数每满 5 的倍数
   /// （5、10、15…）就把难度降 1。
-  ///
-  /// @var int
-  ///
   final int streak;
 
   /// 产生记录的复习模块；历史或未知键无法识别时为 null。
@@ -107,17 +80,10 @@ class ReviewRecord {
   /// 这次答题有没有真的推进单词的复习时间。
   ///
   /// 巩固会话只练手不算数，前后两个时间会完全一样。
-  ///
-  /// @return bool 复习时间发生了变化返回 true。
-  ///
   bool get didAdvanceReview => reviewedAtBefore != reviewedAtAfter;
 
   ///
   /// 从原生记录数据创建模型。
-  ///
-  /// @param  `Map<Object?, Object?>`  map Android SQLite 返回的一行记录。
-  /// @return ReviewRecord 完成类型校验和默认值处理后的复习记录。
-  ///
   factory ReviewRecord.fromMap(Map<Object?, Object?> map) {
     // 主键缺失时无法唯一识别记录，拒绝构造不完整模型。
     final rawId = map['id'];
@@ -154,10 +120,6 @@ class ReviewRecord {
 
   ///
   /// 读取一个非负整数；缺失或类型错误时返回 0。
-  ///
-  /// @param  Object?  value 原生返回的动态值。
-  /// @return int 收窄后的非负整数。
-  ///
   static int _readInt(Object? value) {
     if (value is! num) return 0;
     final result = value.toInt();
@@ -166,10 +128,6 @@ class ReviewRecord {
 
   ///
   /// 把原生毫秒时间戳转成 DateTime；缺失或为 0 时返回 null。
-  ///
-  /// @param  Object?  value 原生返回的时间戳。
-  /// @return DateTime? 可用于展示的本地时间。
-  ///
   static DateTime? _readTime(Object? value) {
     // 0 在数据库里代表「从未复习过」，不能显示成 1970 年。
     if (value is! num || value.toInt() == 0) return null;
@@ -182,22 +140,9 @@ class ReviewRecord {
 ///
 /// 页面拿到它就能立刻显示「难度 +1」或「连对 5 次，难度 -1」，
 /// 不用再回头查一次数据库。
-///
-/// @property int streak 本次写入后的连对次数。
-/// @property bool isCorrect 本次是否一气呵成。
-/// @property int difficultyBefore 变动前难度。
-/// @property int difficultyAfter 变动后难度。
-///
 class ReviewRecordResult {
   ///
   /// 创建一次写入结果。
-  ///
-  /// @param  int  streak 本次写入后的连对次数。
-  /// @param  bool  isCorrect 本次是否零错误完成。
-  /// @param  int  difficultyBefore 变动前难度。
-  /// @param  int  difficultyAfter 变动后难度。
-  /// @param  bool  didAdvanceReview 复习时间是否被推进。
-  ///
   const ReviewRecordResult({
     required this.streak,
     required this.isCorrect,
@@ -223,17 +168,10 @@ class ReviewRecordResult {
 
   ///
   /// 难度相对上一次的变化量。
-  ///
-  /// @return int 正数表示变难，负数表示变简单，0 表示没动。
-  ///
   int get difficultyDelta => difficultyAfter - difficultyBefore;
 
   ///
   /// 从原生返回值创建结果。
-  ///
-  /// @param  `Map<Object?, Object?>`  map 原生事务结束后回传的数据。
-  /// @return ReviewRecordResult 页面可直接展示的写入结果。
-  ///
   factory ReviewRecordResult.fromMap(Map<Object?, Object?> map) {
     // 时间戳可能相等（巩固会话），比较前后值即可判断有没有推进。
     final before = map['reviewed_at_before'];

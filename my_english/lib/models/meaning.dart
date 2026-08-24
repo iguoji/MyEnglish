@@ -2,26 +2,9 @@ import 'model_value_parser.dart';
 
 ///
 /// 单词下的一组词性与释义。
-///
-/// @property int? id SQLite 自增主键。
-/// @property int? wordId 所属单词主键。
-/// @property int index 展示排序值。
-/// @property String pos 词性文本。
-/// @property `List<String>` definitions 中文释义列表。
-///
 class Meaning {
   ///
   /// 创建一组词性与释义。
-  ///
-  /// @param  int?  id SQLite 自增主键。
-  /// @param  int?  wordId 所属单词主键。
-  /// @param  int  index 展示排序值，数值越大越靠前。
-  /// @param  String  pos 词性文本。
-  /// @param  `List<String>`  definitions 中文释义列表。
-  /// @param  DateTime?  createdAt 创建时间。
-  /// @param  DateTime?  updatedAt 更新时间。
-  /// @param  DateTime?  deletedAt 软删除时间。
-  ///
   const Meaning({
     this.id,
     this.wordId,
@@ -35,37 +18,22 @@ class Meaning {
 
   ///
   /// SQLite 自增主键。
-  ///
-  /// @var int?
-  ///
   final int? id;
 
   ///
   /// 所属单词主键，对应数据库外键 word_id。
-  ///
-  /// @var int?
-  ///
   final int? wordId;
 
   ///
   /// 当前 Meaning 在一个 Word 中的排序值。
-  ///
-  /// @var int
-  ///
   final int index;
 
   ///
   /// 词性字符串。
-  ///
-  /// @var String
-  ///
   final String pos;
 
   ///
   /// 当前词性下的释义列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> definitions;
 
   ///
@@ -74,11 +42,8 @@ class Meaning {
   /// 原始 [pos] 保持原样存储（如 "N."、"VT."）；UI 展示时调用此 getter
   /// 得到 "n."、"vt."，保持数据层与展示层解耦。先去掉首尾空格，避免
   /// 旧数据只有空白字符时渲染出一个看不见但仍占位的词性。
-  ///
-  /// @return String 清理空格并统一小写后的展示词性。
-  ///
   String get displayPos {
-    // trim + toLowerCase 对应 PHP 的 strtolower(trim($pos))。
+    // 先去除首尾空格再统一转小写，得到规范化的展示词性。
     final normalizedPos = pos.trim().toLowerCase();
     // 空词性使用星号占位，避免页面绘制不可见的空白标签。
     return normalizedPos.isEmpty ? '*' : normalizedPos;
@@ -86,32 +51,18 @@ class Meaning {
 
   ///
   /// 创建时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? createdAt;
 
   ///
   /// 更新时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? updatedAt;
 
   ///
   /// 软删除时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? deletedAt;
 
   ///
   /// 把 JSON 或 MethodChannel 返回的 Map 转成 Meaning。
-  ///
-  /// @param  `Map<Object?, Object?>`  map 数据库行或导入文件中的释义对象。
-  /// @param  int?  fallbackWordId 嵌套数据缺少外键时使用的单词主键。
-  /// @return Meaning 完成字段校验且释义列表不可变的模型。
-  ///
   factory Meaning.fromMap(Map<Object?, Object?> map, {int? fallbackWordId}) {
     // definitions 对应 JSON 数组，缺失时允许按空释义列表处理。
     final rawDefinitions = map['definitions'];
@@ -122,7 +73,7 @@ class Meaning {
 
     // 将动态数组映射成字符串列表，并冻结结果避免页面直接修改模型。
     final definitions = List<String>.unmodifiable(
-      // 缺失字段等价于 PHP 的 $definitions ?? []。
+      // 缺失字段回退到空数组。
       (rawDefinitions as List? ?? const <Object?>[]).map((definition) {
         // null 不是有效释义，不能转换成误导用户的 "null" 文本。
         if (definition == null) {
@@ -155,9 +106,6 @@ class Meaning {
 
   ///
   /// 转成 MethodChannel 可传输 Map，供 SQLite 模式新增和编辑使用。
-  ///
-  /// @return `Map<String, Object?>` 原生 Meaning Store 接受的完整字段集合。
-  ///
   Map<String, Object?> toMap() {
     // 返回结构类似 Laravel 模型的 toArray()，可直接通过 MethodChannel 传输。
     return <String, Object?>{
@@ -182,9 +130,6 @@ class Meaning {
   /// 转成导出文件使用的数据。
   ///
   /// 数据库主键、外键和时间字段不属于可迁移的业务内容，因此不会写出。
-  ///
-  /// @return `Map<String, Object?>` 可写入备份 JSON 的释义业务字段。
-  ///
   Map<String, Object?> toExportMap() {
     // 导出结构只保留重新导入时真正需要的业务数据。
     return <String, Object?>{

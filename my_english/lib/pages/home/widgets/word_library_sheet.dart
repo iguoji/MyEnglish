@@ -126,9 +126,6 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
   }
 
   /// 切换抽屉状态，并同步启动或停止底部提示动画。
-  ///
-  /// @param  bool  expanded true 展开，false 收起。
-  /// @return void
   void _setExpanded(bool expanded) {
     // 状态没有变化时不重复通知首页。
     if (widget.expanded == expanded) return;
@@ -137,8 +134,6 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
   }
 
   /// 点击抽屉顶部手柄时切换展开状态。
-  ///
-  /// @return void
   void _toggle() => _setExpanded(!widget.expanded);
 
   /// 供外部测试或父组件展开抽屉。

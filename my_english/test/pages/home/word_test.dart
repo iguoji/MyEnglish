@@ -1,4 +1,4 @@
-// flutter_test 提供普通单元测试能力，作用类似 PHPUnit。
+// flutter_test 提供普通单元测试能力。
 import 'package:flutter_test/flutter_test.dart';
 // 引入 Meaning DTO。
 import 'package:my_english/models/meaning.dart';
@@ -7,9 +7,6 @@ import 'package:my_english/models/word.dart';
 
 ///
 /// 验证 MethodChannel Map 与 Word/Meaning 强类型模型的转换。
-///
-/// @return void
-///
 void main() {
   // fromMap 应完整读取 README 当前使用的字段。
   test('Word.fromMap parses nested meanings and nullable difficulty', () {

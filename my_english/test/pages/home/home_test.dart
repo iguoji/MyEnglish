@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 // services.dart 提供 MethodChannel，用于为分组 Store 注册测试桩。
 import 'package:flutter/services.dart';
-// flutter_test 提供 Widget 测试驱动，作用类似 PHPUnit 加小程序自动化工具。
+// flutter_test 提供 Widget 测试驱动能力。
 import 'package:flutter_test/flutter_test.dart';
 // 引入 Tabler 图标，用于按图标断言页脚图标项存在。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
@@ -37,9 +37,6 @@ import '../../support/memory_review_stores.dart';
 
 ///
 /// 注册首页 Widget 测试。
-///
-/// @return void
-///
 void main() {
   // 验证顶部问候、收录统计副标题与汉堡按钮。
   testWidgets('header shows greeting, subline and hamburger menu', (
@@ -1827,14 +1824,6 @@ void main() {
 
 ///
 /// 用内存 Store 渲染首页，并推进一帧等待异步 Future 完成。
-///
-/// @param  WidgetTester  tester
-/// @param  `List<Word>?`  words
-/// @param  SettingsStore?  settings
-/// @param  WordAudioPlayer?  audioPlayer
-/// @param  LearningSessionStore?  sessionStore
-/// @return `Future<void>`
-///
 Future<void> _pumpHome(
   WidgetTester tester, {
   List<Word>? words,
@@ -1878,11 +1867,6 @@ Future<void> _pumpHome(
 
 ///
 /// 断言多个文字从上到下按给定顺序显示。
-///
-/// @param  WidgetTester  tester
-/// @param  `List<String>`  texts
-/// @return void
-///
 void _expectTextsInVerticalOrder(WidgetTester tester, List<String> texts) {
   // 保存上一项 y 坐标，第一项之前使用负无穷。
   var previousTop = double.negativeInfinity;
@@ -1903,10 +1887,6 @@ void _expectTextsInVerticalOrder(WidgetTester tester, List<String> texts) {
 
 ///
 /// 从上到下读取当前列表每一行对应的 Word 主键。
-///
-/// @param  WidgetTester  tester
-/// @return `List<int?>`
-///
 List<int?> _visibleWordIds(WidgetTester tester) {
   // widgetList 按组件树顺序返回，与各分组 SliverList 从上到下的显示顺序一致。
   return tester
@@ -1916,10 +1896,7 @@ List<int?> _visibleWordIds(WidgetTester tester) {
 }
 
 ///
-/// 构造两条稳定测试数据，作用类似 PHPUnit fixture。
-///
-/// @return `List<Word>`
-///
+/// 构造两条稳定的测试数据。
 List<Word> _sampleWords() {
   // 返回 ability 和 abandon，供搜索用例区分匹配结果。
   return <Word>[
@@ -1947,32 +1924,19 @@ List<Word> _sampleWords() {
 class _MemoryWordStore implements WordStore {
   ///
   /// 接收初始 fixture，并复制为内部可变列表。
-  ///
-  /// @param  `List<Word>`  initial
-  ///
   _MemoryWordStore(List<Word> initial) : _words = List<Word>.of(initial);
 
   ///
   /// 内存中的单词集合。
-  ///
-  /// @var `List<Word>`
-  ///
   final List<Word> _words;
 
   ///
   /// 异步返回全部数据副本。
-  ///
-  /// @return `Future<List<Word>>`
-  ///
   @override
   Future<List<Word>> getAll() async => List<Word>.unmodifiable(_words);
 
   ///
   /// 只回刷测试中用到的指定 id 单词。
-  ///
-  /// @param  `List<int>`  ids
-  /// @return `Future<List<Word>>`
-  ///
   @override
   Future<List<Word>> getByIds(List<int> ids) async {
     // 按 id 过滤内存单词，保持与原生一致的语义。
@@ -1986,10 +1950,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 生成新的自增主键并追加。
-  ///
-  /// @param  Word  word
-  /// @return `Future<int>`
-  ///
   @override
   Future<int> create(Word word) async {
     // 计算当前最大主键。
@@ -2028,10 +1988,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 按主键替换。
-  ///
-  /// @param  Word  word
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> update(Word word) async {
     // 定位目标下标。
@@ -2044,10 +2000,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 按主键移除。
-  ///
-  /// @param  int  id
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> delete(int id) async {
     // 直接过滤目标。
@@ -2056,10 +2008,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 整库替换写入：先清空旧数据再装入导入列表。
-  ///
-  /// @param  `List<Word>`  words
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> importWords(List<Word> words) async {
     // 清空后追加导入副本。
@@ -2070,10 +2018,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 整库替换（含分组/成员）写入：内存 Store 只重建单词，分组由 UI 层负责。
-  ///
-  /// @param  `Map<String, Object?>`  data
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> importData(Map<String, Object?> data) async {
     // 顶层 words 才是单词数组；groups/members 在 UI 测试中不参与。
@@ -2096,9 +2040,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 组装内存测试所需的最小导出结构。
-  ///
-  /// @return `Future<Map<String, Object?>>`
-  ///
   @override
   Future<Map<String, Object?>> exportData() async => <String, Object?>{
     'words': _words.map((word) => word.toExportMap()).toList(),
@@ -2108,9 +2049,6 @@ class _MemoryWordStore implements WordStore {
 
   ///
   /// 清空全部内存单词。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> clearAll() async {
     // 清空内部列表。
@@ -2129,9 +2067,6 @@ class _ThrowingWordStore implements WordStore {
 
   ///
   /// 模拟 JSON 第三条数据损坏。
-  ///
-  /// @return `Future<List<Word>>`
-  ///
   @override
   Future<List<Word>> getAll() {
     // Future.error 对应异步 Store 抛出 FormatException。
@@ -2142,74 +2077,44 @@ class _ThrowingWordStore implements WordStore {
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @param  `List<int>`  ids
-  /// @return `Future<List<Word>>`
-  ///
   @override
   Future<List<Word>> getByIds(List<int> ids) async =>
       throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @param  Word  word
-  /// @return `Future<int>`
-  ///
   @override
   Future<int> create(Word word) async => throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @param  Word  word
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> update(Word word) async => throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @param  int  id
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> delete(int id) async => throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @param  `List<Word>`  words
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> importWords(List<Word> words) async =>
       throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @param  `Map<String, Object?>`  data
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> importData(Map<String, Object?> data) async =>
       throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @return `Future<Map<String, Object?>>`
-  ///
   @override
   Future<Map<String, Object?>> exportData() async => throw UnimplementedError();
 
   ///
   /// 其余接口不属于本测试流程。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> clearAll() async => throw UnimplementedError();
 }
@@ -2220,19 +2125,11 @@ class _ThrowingWordStore implements WordStore {
 class _SilentAudioPlayer extends WordAudioPlayer {
   ///
   /// 播放立即成功。
-  ///
-  /// @param  String  spelling
-  /// @param  PronunciationAccent  accent
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {}
 
   ///
   /// 停止同样立即成功。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> stop() async {}
 }
@@ -2243,39 +2140,22 @@ class _SilentAudioPlayer extends WordAudioPlayer {
 class _ControlledAudioPlayer extends WordAudioPlayer {
   ///
   /// 当前播放 Future 的完成器。
-  ///
-  /// @var `Completer<void>?`
-  ///
   Completer<void>? _completer;
 
   ///
   /// 累计真正进入 play 的次数。
-  ///
-  /// @var int
-  ///
   int playCount = 0;
 
   ///
   /// 最近一次拼写参数。
-  ///
-  /// @var String?
-  ///
   String? lastSpelling;
 
   ///
   /// 最近一次口音参数。
-  ///
-  /// @var PronunciationAccent?
-  ///
   PronunciationAccent? lastAccent;
 
   ///
   /// 保存参数并返回尚未完成的 Future。
-  ///
-  /// @param  String  spelling
-  /// @param  PronunciationAccent  accent
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) {
     // 记录调用次数。
@@ -2292,9 +2172,6 @@ class _ControlledAudioPlayer extends WordAudioPlayer {
 
   ///
   /// 模拟音频自然播放完成。
-  ///
-  /// @return void
-  ///
   void complete() {
     // 只在尚未结束时完成一次。
     if (!(_completer?.isCompleted ?? true)) _completer!.complete();
@@ -2302,9 +2179,6 @@ class _ControlledAudioPlayer extends WordAudioPlayer {
 
   ///
   /// 模拟页面主动停止。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> stop() async {
     // stop 也结束当前 Future。

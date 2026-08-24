@@ -13,33 +13,20 @@ import 'package:my_english/store/review_session.dart';
 class MemoryDailyWordSetStore implements DailyWordSetStore {
   ///
   /// 创建测试使用的内存词库 Store。
-  ///
-  /// @param  DailyWordSet?  initial 测试开始前预置的今日词库。
-  /// @param  String?  today 固定「今天」，便于构造跨天场景。
-  ///
   MemoryDailyWordSetStore({DailyWordSet? initial, String? today})
     : current = initial,
       _today = today ?? _defaultToday();
 
   ///
   /// 当前内存中的今日词库；null 表示今天还没建过。
-  ///
-  /// @var DailyWordSet?
-  ///
   DailyWordSet? current;
 
   ///
   /// 测试固定的「今天」，格式 yyyy-MM-dd。
-  ///
-  /// @var String
-  ///
   final String _today;
 
   ///
   /// saveToday 被调用的次数，用于断言「没有必要就不该重写词库」。
-  ///
-  /// @var int
-  ///
   int saveCount = 0;
 
   @override
@@ -70,9 +57,6 @@ class MemoryDailyWordSetStore implements DailyWordSetStore {
 
   ///
   /// 取当前设备日期的 yyyy-MM-dd 文本。
-  ///
-  /// @return String 补零后的日期。
-  ///
   static String _defaultToday() {
     final now = DateTime.now();
     return '${now.year.toString().padLeft(4, '0')}-'
@@ -90,10 +74,6 @@ class MemoryDailyWordSetStore implements DailyWordSetStore {
 class MemoryReviewSessionStore implements ReviewSessionStore {
   ///
   /// 创建测试使用的内存会话 Store。
-  ///
-  /// @param  `List<ReviewSession>`  initial 测试开始前预置的会话列表。
-  /// @param  String?  today 固定「今天」，便于构造跨天场景。
-  ///
   MemoryReviewSessionStore({
     List<ReviewSession> initial = const <ReviewSession>[],
     String? today,
@@ -102,23 +82,14 @@ class MemoryReviewSessionStore implements ReviewSessionStore {
 
   ///
   /// 当前内存中的全部会话，按创建顺序排列。
-  ///
-  /// @var `List<ReviewSession>`
-  ///
   final List<ReviewSession> sessions;
 
   ///
   /// 测试固定的「今天」，格式 yyyy-MM-dd。
-  ///
-  /// @var String
-  ///
   final String _today;
 
   ///
   /// 下一条会话使用的自增主键。
-  ///
-  /// @var int
-  ///
   int _nextId = 1;
 
   @override
@@ -266,14 +237,6 @@ class MemoryReviewSessionStore implements ReviewSessionStore {
   /// 生成一份只改动指定字段的会话副本。
   ///
   /// 模型本身不可变，内存 Store 用它模拟数据库的原地更新。
-  ///
-  /// @param  ReviewSession  session 原会话。
-  /// @param  ReviewSessionStatus?  status 新状态；null 表示不变。
-  /// @param  `Map<String, Object?>?`  state 新进度；null 表示不变。
-  /// @param  int?  wrongTotal 新累计错误数；null 表示不变。
-  /// @param  DateTime?  finishedAt 结算时间；null 表示不变。
-  /// @return ReviewSession 更新后的会话。
-  ///
   ReviewSession _copyWith(
     ReviewSession session, {
     ReviewSessionStatus? status,

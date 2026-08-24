@@ -54,10 +54,6 @@ extension CheckinLevelColor on CheckinLevel {
 ///
 class CheckinDay {
   /// 创建一天数据。
-  ///
-  /// @param  DateTime      date        当天日期。
-  /// @param  CheckinLevel  level       当天质量分档。
-  /// @param  int           reviewCount 当天去重复习单词数。
   const CheckinDay({
     required this.date,
     required this.level,
@@ -82,9 +78,6 @@ class CheckinDay {
 ///
 class CheckinHeatmapCard extends StatefulWidget {
   /// 创建卡片；默认展示本月。
-  ///
-  /// @param  int  dailyGoal 每日复习目标，用于把每天的复习量映射到分档。
-  /// @param  int  refreshToken 首页复习数据回刷序号，变化即代表需要重新查库。
   const CheckinHeatmapCard({
     required this.dailyGoal,
     required this.refreshToken,
@@ -99,9 +92,6 @@ class CheckinHeatmapCard extends StatefulWidget {
   ///
   /// 生活化解释：日历只在第一次出现时查一次数据库。首页每从复习模块返回一次
   /// 就把这个数字 +1，日历看到号变了才会重查，今天的色块因此能立刻变深。
-  ///
-  /// @var int
-  ///
   final int refreshToken;
 
   @override
@@ -133,10 +123,6 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
   /// 首页回刷序号变化时重新查询当前月份的打卡数据。
   ///
   /// 每日目标改变时同样要重查：色块分档是按目标算出来的，目标一变颜色也要跟着变。
-  ///
-  /// @param  CheckinHeatmapCard  oldWidget 上一次的配置。
-  /// @return void
-  ///
   @override
   void didUpdateWidget(covariant CheckinHeatmapCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -150,9 +136,6 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
 
   ///
   /// 查询选中月份每天的复习单词数（按单词去重）并转为分档。
-  ///
-  /// @return `Future<void>`
-  ///
   Future<void> _load() async {
     try {
       // 捕获发起时的月份，用于丢弃过期结果。
@@ -193,10 +176,6 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
 
   ///
   /// 切换月份：先铺该月"未复习"骨架，再立即查询。
-  ///
-  /// @param  DateTime  month 目标月份（取 1 号）。
-  /// @return void
-  ///
   void _selectMonth(DateTime month) {
     if (month.year == _month.year && month.month == _month.month) return;
     setState(() {
@@ -210,10 +189,6 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
 
   ///
   /// 选中一个具体日期，让月历只在该日期旁显示当天复习数量。
-  ///
-  /// @param  DateTime  date 被点击的日期。
-  /// @return void
-  ///
   void _selectDate(DateTime date) {
     // 日期格每次点击都把展示目标切换到当前日期。
     setState(() => _selectedDate = date);
@@ -221,18 +196,10 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
 
   ///
   /// 取某月 1 号（把任意日期归一到月份锚点）。
-  ///
-  /// @param  DateTime  d 任意日期。
-  /// @return DateTime 该月 1 号。
-  ///
   DateTime _firstDayOfMonth(DateTime d) => DateTime(d.year, d.month);
 
   ///
   /// 生成某月全"未复习"的骨架数据。
-  ///
-  /// @param  DateTime  month 月份锚点（1 号）。
-  /// @return `List<CheckinDay>` 该月每天都是 zero 档。
-  ///
   List<CheckinDay> _zeroDays(DateTime month) {
     // 该月天数。
     final dayCount = DateTime(month.year, month.month + 1, 0).day;
@@ -254,11 +221,6 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
   /// - 不足目标的 60% → 少量；
   /// - 达到 60% 且不超过目标（含正好达标）→ 达标；
   /// - 超过目标 → 超额。
-  ///
-  /// @param  int  count 当天去重复习单词数。
-  /// @param  int  goal  每日复习目标。
-  /// @return CheckinLevel 质量分档。
-  ///
   CheckinLevel _levelFor(int count, int goal) {
     // 没复习就是未复习。
     if (count <= 0) return CheckinLevel.zero;
@@ -604,12 +566,6 @@ class _CalendarGrid extends StatelessWidget {
 
   ///
   /// 渲染单个日历格。
-  ///
-  /// @param  `List<Object?>`  cells  含空位的格子序列。
-  /// @param  int               index  本格在序列中的下标。
-  /// @param  DateTime          today  今天（零点）。
-  /// @return Widget
-  ///
   Widget _buildCell(List<Object?> cells, int index, DateTime today) {
     // 越界或月首空位：透明占位，撑住网格结构。
     if (index >= cells.length || cells[index] == null) {
@@ -797,10 +753,6 @@ class _LegendItem extends StatelessWidget {
 
 ///
 /// 日期键：与原生 record 表 created_date 完全一致的 'yyyy-MM-dd'。
-///
-/// @param  DateTime  d
-/// @return String
-///
 String _dateKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'

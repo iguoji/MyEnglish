@@ -8,18 +8,12 @@ import '../widgets/word_sort_bar.dart';
 ///
 /// 首页单词过滤与稳定排序服务。
 ///
-/// 它只接收数据和排序参数，不持有 Widget 或页面状态，作用类似 PHP 中独立的
-/// Collection/Service：页面负责交互，本类负责可重复测试的业务比较规则。
+/// 它只接收数据和排序参数，不持有 Widget 或页面状态，是一个独立的纯函数服务：
+/// 页面负责交互，本类负责可重复测试的业务比较规则。
 ///
 class HomeWordSorter {
   ///
   /// 保存本次过滤与排序需要的全部只读参数。
-  ///
-  /// @param  GroupMode  mode
-  /// @param  WordSortField  field
-  /// @param  `Map<WordSortField, bool>`  directions
-  /// @param  String  query
-  ///
   const HomeWordSorter({
     required this.mode,
     required this.field,
@@ -29,38 +23,22 @@ class HomeWordSorter {
 
   ///
   /// 当前分组视角，用来决定日期字段的来源。
-  ///
-  /// @var GroupMode
-  ///
   final GroupMode mode;
 
   ///
   /// 当前选中的排序字段。
-  ///
-  /// @var WordSortField
-  ///
   final WordSortField field;
 
   ///
   /// 每个字段各自记住的升降序；true 为升序，false 为降序。
-  ///
-  /// @var `Map<WordSortField, bool>`
-  ///
   final Map<WordSortField, bool> directions;
 
   ///
   /// 已转成小写的搜索词；空字符串表示不过滤。
-  ///
-  /// @var String
-  ///
   final String query;
 
   ///
   /// 按当前分组模式返回列表行显示和日期排序共同使用的时间。
-  ///
-  /// @param  Word  word
-  /// @return DateTime?
-  ///
   DateTime? dateOf(Word word) => switch (mode) {
     // 更新时间视角读取 updatedAt。
     GroupMode.updated => word.updatedAt,
@@ -72,10 +50,6 @@ class HomeWordSorter {
 
   ///
   /// 先按拼写过滤，再使用稳定的多级规则排序并返回新列表。
-  ///
-  /// @param  `List<Word>`  source
-  /// @return `List<Word>`
-  ///
   List<Word> filterAndSort(List<Word> source) {
     // 不直接修改 Store 的源列表，避免一个分组排序影响另一个分组。
     final filtered = query.isEmpty
@@ -93,7 +67,7 @@ class HomeWordSorter {
     final isAscending = directions[field] ?? true;
     // 比较器先跑业务规则，完全相等时恢复输入顺序。
     filtered.sort((first, second) {
-      // 多级业务比较返回负数、0 或正数，与 PHP usort 的比较器约定相同。
+      // 多级业务比较返回负数、0 或正数，与标准比较器约定一致。
       final result = _compareWords(first, second, isAscending);
       // 已经分出先后时直接返回。
       if (result != 0) return result;
@@ -108,12 +82,6 @@ class HomeWordSorter {
 
   ///
   /// 按选中字段执行固定的多级比较链。
-  ///
-  /// @param  Word  first
-  /// @param  Word  second
-  /// @param  bool  isAscending
-  /// @return int
-  ///
   int _compareWords(Word first, Word second, bool isAscending) {
     // 每个入口都明确列出第二、第三层规则，避免相同主字段时顺序随机跳动。
     switch (field) {
@@ -167,12 +135,6 @@ class HomeWordSorter {
 
   ///
   /// 忽略大小写比较拼写，再按指定方向返回结果。
-  ///
-  /// @param  Word  first
-  /// @param  Word  second
-  /// @param  bool  isAscending
-  /// @return int
-  ///
   int _compareSpelling(Word first, Word second, bool isAscending) {
     // 搜索同样使用小写，因此过滤和排序对大小写的理解保持一致。
     final comparison = first.spelling.toLowerCase().compareTo(
@@ -184,14 +146,8 @@ class HomeWordSorter {
 
   ///
   /// 比较难度；null 按业务约定视为 0。
-  ///
-  /// @param  Word  first
-  /// @param  Word  second
-  /// @param  bool  isAscending
-  /// @return int
-  ///
   int _compareDifficulty(Word first, Word second, bool isAscending) {
-    // ?? 类似 PHP 的 null 合并运算符。
+    // ?? 是空值合并运算符，null 时取默认值。
     final comparison = (first.difficulty ?? 0).compareTo(
       second.difficulty ?? 0,
     );
@@ -203,12 +159,6 @@ class HomeWordSorter {
   /// 比较含义复杂度：先看释义条数，再看释义总字符数。
   ///
   /// 排序入口与次级规则都使用升序：含义少的单词排在前面，便于初学者从简单词入手。
-  ///
-  /// @param  Word  first
-  /// @param  Word  second
-  /// @param  bool  isAscending
-  /// @return int
-  ///
   int _compareMeaning(Word first, Word second, bool isAscending) {
     // 模型统一保证“释义数量 → 释义字符数”，本层只负责应用当前升降方向。
     final comparison = first.compareMeaningComplexityTo(second);
@@ -217,12 +167,6 @@ class HomeWordSorter {
 
   ///
   /// 比较当前视角对应的日期。
-  ///
-  /// @param  Word  first
-  /// @param  Word  second
-  /// @param  bool  isAscending
-  /// @return int
-  ///
   int _compareDate(Word first, Word second, bool isAscending) {
     // 升序时空日期排在最前，降序时排在最后，与难度 null=0 的方向语义一致。
     return _compareNullable<DateTime>(
@@ -236,11 +180,6 @@ class HomeWordSorter {
 
   ///
   /// 编号始终升序，没有编号的测试或临时数据排在已有编号之后。
-  ///
-  /// @param  Word  first
-  /// @param  Word  second
-  /// @return int
-  ///
   int _compareId(Word first, Word second) {
     // 两个编号都为空时返回 0，最后由输入下标保持稳定。
     return _compareNullable<int>(
@@ -253,14 +192,6 @@ class HomeWordSorter {
 
   ///
   /// 比较两个可空值，并明确控制空值位于开头还是末尾。
-  ///
-  /// @param  T?  first
-  /// @param  T?  second
-  /// @param  `int Function(T first, T second)`  compareValues
-  /// @param  bool  isAscending
-  /// @param  bool  nullsLast
-  /// @return int
-  ///
   int _compareNullable<T>(
     T? first,
     T? second,
@@ -280,11 +211,6 @@ class HomeWordSorter {
 
   ///
   /// 给普通升序比较结果应用用户选择的方向。
-  ///
-  /// @param  int  comparison
-  /// @param  bool  isAscending
-  /// @return int
-  ///
   int _applyDirection(int comparison, bool isAscending) {
     // 升序保持符号，降序翻转符号。
     return isAscending ? comparison : -comparison;

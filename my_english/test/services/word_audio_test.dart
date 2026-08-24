@@ -9,9 +9,6 @@ import 'package:my_english/store/settings.dart';
 
 ///
 /// 验证页面参数正确发送给 Android 音频服务。
-///
-/// @return void
-///
 void main() {
   // 初始化测试二进制消息环境。
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -38,7 +35,7 @@ void main() {
           return null;
         });
     // 通过可注入的测试通道创建播放器。
-    final player = NativeWordAudioPlayer(channel);
+    final player = LocalWordAudioPlayer(channel);
     // 播放英式单词。
     await player.play('  ability  ', PronunciationAccent.british);
     // 方法名必须是 play。
@@ -54,7 +51,7 @@ void main() {
   test('consumes the latest TTS playback source once', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async => true);
-    final player = NativeWordAudioPlayer(channel);
+    final player = LocalWordAudioPlayer(channel);
 
     await player.play('ability', PronunciationAccent.american);
 
@@ -71,7 +68,7 @@ void main() {
           throw PlatformException(code: 'AUDIO_INTERRUPTED');
         });
     // 创建播放器。
-    final player = NativeWordAudioPlayer(channel);
+    final player = LocalWordAudioPlayer(channel);
     // Dart 层转换成专用可忽略异常。
     await expectLater(
       player.play('ability', PronunciationAccent.american),
@@ -90,7 +87,7 @@ void main() {
           );
         });
     // 创建使用测试通道的播放器。
-    final player = NativeWordAudioPlayer(channel);
+    final player = LocalWordAudioPlayer(channel);
     // 页面应收到专用异常，且字符串就是可直接展示的中文原因。
     await expectLater(
       player.play('forest', PronunciationAccent.american),
@@ -115,7 +112,7 @@ void main() {
           );
         });
     // 创建播放器。
-    final player = NativeWordAudioPlayer(channel);
+    final player = LocalWordAudioPlayer(channel);
     // Dart 层转换成专用异常，页面可以显示联网或安装语音包提示。
     await expectLater(
       player.play('forest', PronunciationAccent.american),
@@ -140,7 +137,7 @@ void main() {
           );
         });
     // 创建播放器。
-    final player = NativeWordAudioPlayer(channel);
+    final player = LocalWordAudioPlayer(channel);
     // Dart 层转换成专用异常，便于页面按 TTS 失败处理。
     await expectLater(
       player.play('forest', PronunciationAccent.american),

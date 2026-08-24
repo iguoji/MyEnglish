@@ -3,38 +3,9 @@ import 'model_value_parser.dart';
 
 ///
 /// 单词及其释义、分组和复习信息。
-///
-/// @property int? id SQLite 自增主键。
-/// @property String spelling 英文拼写。
-/// @property `List<Meaning>` meanings 词性与释义列表。
-/// @property int? difficulty 当前学习难度。
-/// @property String? phoneticUk 英式音标。
-/// @property String? phoneticUs 美式音标。
-/// @property `List<int>` groupIds 所属分组主键。
-///
 class Word {
   ///
   /// 创建 Word；id 和时间在写入数据库前可以为空。
-  ///
-  /// @param  int?  id SQLite 自增主键。
-  /// @param  String  spelling 英文拼写。
-  /// @param  `List<Meaning>`  meanings 词性与释义列表。
-  /// @param  int?  difficulty 当前学习难度。
-  /// @param  String?  phoneticUk 英式音标。
-  /// @param  String?  phoneticUs 美式音标。
-  /// @param  `List<String>`  plural 复数形式。
-  /// @param  `List<String>`  thirdPersonSingular 第三人称单数形式。
-  /// @param  `List<String>`  gerund 现在分词形式。
-  /// @param  `List<String>`  pastTense 过去式。
-  /// @param  `List<String>`  pastParticiple 过去分词。
-  /// @param  `List<String>`  comparative 比较级。
-  /// @param  `List<String>`  superlative 最高级。
-  /// @param  `List<int>`  groupIds 所属分组主键。
-  /// @param  DateTime?  reviewedAt 最近复习时间。
-  /// @param  DateTime?  createdAt 创建时间。
-  /// @param  DateTime?  updatedAt 更新时间。
-  /// @param  DateTime?  deletedAt 软删除时间。
-  ///
   const Word({
     this.id,
     required this.spelling,
@@ -58,144 +29,84 @@ class Word {
 
   ///
   /// SQLite 自增主键。
-  ///
-  /// @var int?
-  ///
   final int? id;
 
   ///
   /// 英文拼写；允许多个 Word 使用相同 spelling，记录身份由 id 决定。
-  ///
-  /// @var String
-  ///
   final String spelling;
 
   ///
   /// 当前单词的全部 Meaning。
-  ///
-  /// @var `List<Meaning>`
-  ///
   final List<Meaning> meanings;
 
   ///
   /// 可空难度，最小值为 0 且没有最大值。
-  ///
-  /// @var int?
-  ///
   final int? difficulty;
 
   ///
   /// README phonetic_uk；空值表示词库尚未提供英式音标。
-  ///
-  /// @var String?
-  ///
   final String? phoneticUk;
 
   ///
   /// README phonetic_us；空值表示词库尚未提供美式音标。
-  ///
-  /// @var String?
-  ///
   final String? phoneticUs;
 
   ///
   /// 复数形式列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> plural;
 
   ///
   /// 第三人称单数形式列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> thirdPersonSingular;
 
   ///
   /// 现在分词形式列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> gerund;
 
   ///
   /// 过去式列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> pastTense;
 
   ///
   /// 过去分词列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> pastParticiple;
 
   ///
   /// 比较级形式列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> comparative;
 
   ///
   /// 最高级形式列表。
-  ///
-  /// @var `List<String>`
-  ///
   final List<String> superlative;
 
   ///
   /// 所属分组主键；空列表表示未分组，复制操作可使单词属于多个分组。
-  ///
-  /// @var `List<int>`
-  ///
   final List<int> groupIds;
 
   ///
   /// 最近复习时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? reviewedAt;
 
   ///
   /// 创建时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? createdAt;
 
   ///
   /// 更新时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? updatedAt;
 
   ///
   /// 软删除时间。
-  ///
-  /// @var DateTime?
-  ///
   final DateTime? deletedAt;
 
   ///
   /// 首页更新时间分组使用的日期。
-  ///
-  /// @return DateTime? 更新时间；缺失时回退创建时间。
-  ///
   DateTime? get effectiveDate => updatedAt ?? createdAt;
 
   ///
   /// 未指定分组模式时使用的列表日期。
   ///
   /// 依次回退到最近复习、创建和更新时间；三者均为空时返回 null。
-  ///
-  /// @return DateTime? 当前最适合展示的业务日期。
-  ///
   DateTime? get displayDate => reviewedAt ?? createdAt ?? updatedAt;
 
   ///
@@ -209,9 +120,6 @@ class Word {
   /// - 1 个 meaning、1 条 definition → 含义数 = 1（升序里最靠前）。
   /// - 1 个 meaning、2 条 definition → 含义数 = 2。
   /// - 2 个 meaning、各 1 条 definition → 含义数 = 2（与上例相等）。
-  ///
-  /// @return int 全部释义条数汇总；空释义自然计 0。
-  ///
   int get meaningCount =>
       meanings.fold(0, (sum, meaning) => sum + meaning.definitions.length);
 
@@ -221,9 +129,6 @@ class Word {
   /// [meaningCount] 只能区分释义有几条；当两个单词都只有一条释义时，
   /// 本字段继续区分“能力”和“进行某项工作的能力”这类复杂度差异。
   /// Dart 的 runes 按完整 Unicode 字符计数，中文不会被拆成错误的字节数。
-  ///
-  /// @return int 全部释义正文的字符数量；空白释义自然计 0。
-  ///
   int get meaningCharacterCount => meanings.fold(
     0,
     (sum, meaning) =>
@@ -241,10 +146,6 @@ class Word {
   /// 所有需要让“含义”参与单词排序的地方都必须调用本方法：第一层先比较
   /// 全部释义条数，只有条数相同时才比较全部释义正文的字符总数。这里不处理
   /// 升降序，调用方只需在最终结果上应用自己的方向，便不会让两层方向分裂。
-  ///
-  /// @param  Word  other 需要与当前单词比较的另一个单词。
-  /// @return int 负数表示当前单词含义更少或更短，应在升序中排在前面。
-  ///
   int compareMeaningComplexityTo(Word other) {
     // 第一层固定比较释义数量，这是所有含义排序不可跳过的首要条件。
     final byCount = meaningCount.compareTo(other.meaningCount);
@@ -255,10 +156,6 @@ class Word {
 
   ///
   /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。
-  ///
-  /// @param  `Map<Object?, Object?>`  map 数据库行或导入文件中的单词对象。
-  /// @return Word 完成字段校验、释义排序和列表冻结后的单词模型。
-  ///
   factory Word.fromMap(Map<Object?, Object?> map) {
     // 先读取必填拼写，逻辑类似 Laravel FormRequest 的 required 校验。
     final spelling = map['spelling']?.toString();
@@ -278,7 +175,7 @@ class Word {
 
     // 创建可变数组，按顺序接收已经完成类型转换的 Meaning 模型。
     final parsedMeanings = <Meaning>[];
-    // 缺失 meanings 时使用 const 空数组，效果类似 PHP 的 $items ?? []。
+    // 缺失 meanings 字段时回退到空数组，避免后续遍历空指针异常。
     final meaningItems = rawMeanings as List? ?? const <Object?>[];
     // 使用带下标的循环，让异常可以指出导入文件中的具体释义位置。
     for (var index = 0; index < meaningItems.length; index += 1) {
@@ -344,9 +241,6 @@ class Word {
 
   ///
   /// 转成 MethodChannel 可传输 Map，供 SQLite 模式 CRUD 使用。
-  ///
-  /// @return `Map<String, Object?>` 原生 Word Store 接受的字段集合。
-  ///
   Map<String, Object?> toMap() {
     // 返回 Map 类似 Laravel 模型的 toArray()，MethodChannel 可直接传输。
     return <String, Object?>{
@@ -382,9 +276,6 @@ class Word {
   /// 转成导出文件使用的数据。
   ///
   /// 日期统一使用 yyyy-MM-dd；分组关系使用导入流程识别的 groups 字段。
-  ///
-  /// @return `Map<String, Object?>` 可写入备份 JSON 的业务字段集合。
-  ///
   Map<String, Object?> toExportMap() {
     // 导出结构只使用 JSON 支持的字符串、数字、数组和对象。
     final map = <String, Object?>{
@@ -421,10 +312,6 @@ class Word {
   /// 返回移动到指定分组后的新 Word；null 表示移回"未分组"。
   ///
   /// 移动会替换全部分组关系；只有复制操作保留多个分组。
-  ///
-  /// @param  int?  newGroupId 目标分组主键；null 表示未分组。
-  /// @return Word 更新分组和更新时间后的新模型。
-  ///
   Word withGroup(int? newGroupId) {
     // 模型保持不可变，移动操作通过创建副本表达状态变化。
     return Word(
@@ -455,12 +342,8 @@ class Word {
   /// 返回加入指定分组后的新 Word（复制语义）。
   ///
   /// 保留当前分组并追加 [groupId]。
-  ///
-  /// @param  int  groupId 需要追加的目标分组主键。
-  /// @return Word 同时属于原分组和目标分组的新模型。
-  ///
   Word withAddedGroup(int groupId) {
-    // 扩展运算符对应 PHP 的数组展开，保留旧分组后追加目标分组。
+    // 用扩展运算符展开旧分组列表，再追加目标分组。
     return Word(
       id: id,
       spelling: spelling,
@@ -485,12 +368,6 @@ class Word {
 
   ///
   /// 返回按表单结果编辑后的新 Word，供"修改单词"提交时使用。
-  ///
-  /// @param  String  spelling 表单提交的新拼写。
-  /// @param  `List<Meaning>`  meanings 表单提交的新释义列表。
-  /// @param  int?  groupId 表单选择的单一分组；null 表示未分组。
-  /// @return Word 保留主键和创建时间、刷新业务字段后的新模型。
-  ///
   Word edited({
     required String spelling,
     required List<Meaning> meanings,
@@ -529,11 +406,6 @@ class Word {
 
 ///
 /// 把 JSON/MethodChannel 的动态值收窄为字符串数组。
-///
-/// @param  Object?  value 待解析值。
-/// @param  String  fieldName 错误信息使用的字段名。
-/// @return `List<String>` 缺失时返回空数组，否则返回不可修改列表。
-///
 List<String> _readStringList(Object? value, String fieldName) {
   // 老 words.json 没有词形字段时按空数组处理。
   if (value == null) return const <String>[];
@@ -551,10 +423,6 @@ List<String> _readStringList(Object? value, String fieldName) {
 ///
 /// 不引入 intl 依赖，用 ISO 字符串前 10 位即可得到稳定的年月日，
 /// 与 [Word.fromMap] 支持的 yyyy-MM-dd 解析格式完全对称。
-///
-/// @param  DateTime?  value 待导出的可空日期。
-/// @return String 完整日期时间；输入为空时返回空字符串。
-///
 String _exportDate(DateTime? value) {
   // 用户约定空日期导出为 ""，不显示 1970 年。
   if (value == null || value.millisecondsSinceEpoch == 0) return '';

@@ -1,6 +1,6 @@
 // dart:math 提供数学函数，用于贝塞尔控制点计算、数值归一化与命中区域判断。
 import 'dart:math' as math;
-// material.dart 提供画布、手势与布局组件，类比小程序内置的 canvas / view 集合。
+// material.dart 提供画布、手势与布局组件。
 import 'package:flutter/material.dart';
 
 // 引入设计稿色板令牌；曲线主色与背景色都从这里读取，自动适配浅色/深色。
@@ -101,9 +101,6 @@ class _TrendChartState extends State<TrendChart>
   int _selectedIndex = 0;
 
   /// 把一组数值换算成归一化位置：用这组数自身的最大/最小值归一化到 0..1。
-  ///
-  /// @param  `List<double>`  values
-  /// @return `List<double>`  位置（全部相等时返回全 0，即底部 30% 水平线）
   List<double> _fractionsFor(List<double> values) {
     if (values.isEmpty) return const [];
     var minV = values.first;
@@ -163,10 +160,6 @@ class _TrendChartState extends State<TrendChart>
   /// 逐项比较两组曲线原始数据是否完全一致。
   ///
   /// 标签或数值任一变化都属于一组新数据；只有全部相同才跳过动画与选中重置。
-  ///
-  /// @param  `List<TrendDataPoint>`  a 旧数据。
-  /// @param  `List<TrendDataPoint>`  b 新数据。
-  /// @return bool
   bool _sameData(List<TrendDataPoint> a, List<TrendDataPoint> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
@@ -181,8 +174,6 @@ class _TrendChartState extends State<TrendChart>
   /// （时长占比 = 自身位移 / 最大位移），因此所有节点以相同的像素速度
   /// 匀速移动（等价 CSS transition-timing-function: linear）：
   /// 位移小的节点提前到达终点并停住，位移最大的节点最后到达。
-  ///
-  /// @return `List<double>`
   List<double> _displayFractions() {
     final t = _controller.value; // 线性 0..1
     // 求全部节点中的最大位移。
@@ -214,9 +205,6 @@ class _TrendChartState extends State<TrendChart>
   ///
   /// 触控范围取 max(32, 节点间距的一半)，纵向不限制（整列高度都可点），
   /// 手指不需要精确点在小小的圆点上。
-  ///
-  /// @param  TapUpDetails  details
-  /// @return void
   void _handleTap(TapUpDetails details) {
     final size = context.size;
     if (size == null || widget.data.isEmpty) return;

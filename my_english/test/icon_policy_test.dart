@@ -1,4 +1,4 @@
-// dart:io 提供目录与文件读取能力，作用类似 PHP 的 DirectoryIterator 和 file_get_contents。
+// dart:io 提供目录与文件读取能力。
 import 'dart:io';
 
 // flutter_test 提供 test、expect 等测试 API。
@@ -6,13 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 ///
 /// 对源码执行图标规范检查，避免后续开发重新混入 Material 图标或文字型图标。
-///
-/// @return void
-///
 void main() {
   // 这一条测试扫描 lib 目录下的全部 Dart 源码。
   test('all interface icons use Tabler instead of built-in or text icons', () {
-    // Directory('lib') 对应小程序项目中的源码根目录。
+    // Directory('lib') 是项目的源码根目录。
     final sourceDirectory = Directory('lib');
     // 递归取出所有文件，再只保留 .dart 文件。
     final dartFiles = sourceDirectory

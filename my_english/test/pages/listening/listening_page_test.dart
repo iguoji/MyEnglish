@@ -24,9 +24,6 @@ import '../../support/memory_learning_session_store.dart';
 
 ///
 /// 注册随身听页面的布局、播放和恢复交互测试。
-///
-/// @return void
-///
 void main() {
   testWidgets('listening page mirrors player layout and reveal interaction', (
     tester,
@@ -316,7 +313,7 @@ void main() {
         .listSync(recursive: true)
         .whereType<File>()
         .where((file) => file.path.endsWith('.dart'));
-    // 把全部 Dart 文件连接成一份文本，类似 PHP 测试批量审计模板目录。
+    // 把全部 Dart 文件连接成一份文本，统一做批量文本检查。
     final source = sourceFiles
         .map((file) => file.readAsStringSync())
         .join('\n');
@@ -331,9 +328,6 @@ void main() {
 
 ///
 /// 随身听测试共用的固定单词列表。
-///
-/// @var `List<Word>`
-///
 final _words = <Word>[
   const Word(
     id: 1,
@@ -351,19 +345,11 @@ final _words = <Word>[
 class _ImmediateAudioPlayer extends WordAudioPlayer {
   ///
   /// 立即完成指定单词的模拟播放。
-  ///
-  /// @param  String  spelling
-  /// @param  PronunciationAccent  accent
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {}
 
   ///
   /// 立即完成模拟停止操作。
-  ///
-  /// @return `Future<void>`
-  ///
   @override
   Future<void> stop() async {}
 }

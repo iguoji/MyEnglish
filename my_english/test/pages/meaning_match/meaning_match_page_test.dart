@@ -84,11 +84,6 @@ Future<void> _pumpPage(
 ///
 /// 一张卡里有两个 AnimatedContainer：方形的卡片本体，和内侧那颗正圆锚点。
 /// 这里只挑方形的那个，避免误把锚点的装饰当成卡片本体。
-///
-/// @param  WidgetTester  tester 当前测试驱动器。
-/// @param  Key  cardKey 候选卡的外层 Key，如 `mm-left-0`。
-/// @return BoxDecoration 卡片本体当前的目标装饰。
-///
 BoxDecoration _cardDecoration(WidgetTester tester, Key cardKey) {
   final containers = tester.widgetList<AnimatedContainer>(
     find.descendant(
@@ -107,11 +102,6 @@ BoxDecoration _cardDecoration(WidgetTester tester, Key cardKey) {
 
 ///
 /// 取出某张候选卡当前的描边颜色。
-///
-/// @param  WidgetTester  tester 当前测试驱动器。
-/// @param  Key  cardKey 候选卡的外层 Key。
-/// @return Color 描边颜色。
-///
 Color _cardBorderColor(WidgetTester tester, Key cardKey) =>
     (_cardDecoration(tester, cardKey).border! as Border).top.color;
 

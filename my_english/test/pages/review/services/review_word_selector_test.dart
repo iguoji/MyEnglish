@@ -5,14 +5,6 @@ import 'package:my_english/pages/review/services/review_word_selector.dart';
 
 ///
 /// 构造一个用于排序断言的单词。
-///
-/// @param  int  id 主键，也是最后一层兜底比较依据。
-/// @param  String  spelling 英文拼写。
-/// @param  `List<String>`  definitions 中文释义列表。
-/// @param  int  difficulty 当前难度。
-/// @param  DateTime?  reviewedAt 最近复习时间；null 表示从未复习。
-/// @return Word 组装好的测试单词。
-///
 Word _word(
   int id,
   String spelling, {
@@ -31,17 +23,10 @@ Word _word(
 
 ///
 /// 取出选词结果的主键，让断言只关注顺序本身。
-///
-/// @param  `List<Word>`  words 选词结果。
-/// @return `List<int>` 主键顺序。
-///
 List<int> _ids(List<Word> words) => words.map((word) => word.id!).toList();
 
 ///
 /// 验证复习选词规则的六层比较顺序与补词时的排除能力。
-///
-/// @return void
-///
 void main() {
   test('从未复习的单词永远排在复习过的前面', () {
     final words = <Word>[

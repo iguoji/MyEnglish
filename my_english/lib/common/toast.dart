@@ -14,9 +14,6 @@ import 'package:flutter/material.dart';
 abstract final class Toast {
   ///
   /// 当前正在显示的 OverlayEntry；同一时间只保留一条 Toast。
-  ///
-  /// @var OverlayEntry?
-  ///
   static OverlayEntry? _currentEntry;
 
   ///
@@ -25,12 +22,6 @@ abstract final class Toast {
   /// [context] 用于获取根 Navigator 的 Overlay；传入任意 BuildContext 即可。
   /// [message] 是提示文案。
   /// [duration] 控制显示时长，默认 2 秒。
-  ///
-  /// @param  BuildContext  context
-  /// @param  String  message
-  /// @param  Duration  duration
-  /// @return void
-  ///
   static void show(
     BuildContext context,
     String message, {
@@ -76,11 +67,6 @@ abstract final class Toast {
 class _ToastView extends StatefulWidget {
   ///
   /// 创建 Toast 视图。
-  ///
-  /// @param  String  message
-  /// @param  Duration  duration
-  /// @param  VoidCallback  onDismiss
-  ///
   const _ToastView({
     required this.message,
     required this.duration,
@@ -89,30 +75,18 @@ class _ToastView extends StatefulWidget {
 
   ///
   /// 提示文案。
-  ///
-  /// @var String
-  ///
   final String message;
 
   ///
   /// 显示时长。
-  ///
-  /// @var Duration
-  ///
   final Duration duration;
 
   ///
   /// 定时器到期后的回调，用于移除 OverlayEntry。
-  ///
-  /// @var VoidCallback
-  ///
   final VoidCallback onDismiss;
 
   ///
   /// 创建状态。
-  ///
-  /// @return `State<_ToastView>`
-  ///
   @override
   State<_ToastView> createState() => _ToastViewState();
 }
@@ -124,23 +98,14 @@ class _ToastViewState extends State<_ToastView>
     with SingleTickerProviderStateMixin {
   ///
   /// 进场/退场动画控制器。
-  ///
-  /// @var AnimationController
-  ///
   late final AnimationController _controller;
 
   ///
   /// 动画曲线，0→1 进场、1→0 退场。
-  ///
-  /// @var `Animation<double>`
-  ///
   late final Animation<double> _animation;
 
   ///
   /// 定时器到期后自动移除。
-  ///
-  /// @return void
-  ///
   @override
   void initState() {
     // 保留父类初始化。
@@ -168,9 +133,6 @@ class _ToastViewState extends State<_ToastView>
 
   ///
   /// 释放动画控制器。
-  ///
-  /// @return void
-  ///
   @override
   void dispose() {
     // 释放控制器资源。
@@ -181,10 +143,6 @@ class _ToastViewState extends State<_ToastView>
 
   ///
   /// 输出底部居中的 Toast 视觉。
-  ///
-  /// @param  BuildContext  context
-  /// @return Widget
-  ///
   @override
   Widget build(BuildContext context) {
     // SafeArea 避开导航栏和状态栏。

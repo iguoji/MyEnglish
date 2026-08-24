@@ -10,11 +10,6 @@ import '../../../support/memory_review_stores.dart';
 
 ///
 /// 构造一个可入库的测试单词。
-///
-/// @param  int  id 主键。
-/// @param  DateTime?  reviewedAt 最近复习时间；null 表示从未复习。
-/// @return Word 组装好的测试单词。
-///
 Word _word(int id, {DateTime? reviewedAt}) => Word(
   id: id,
   // 拼写按编号补零，保证「拼写升序」与「编号升序」结论一致，断言更直观。
@@ -27,20 +22,11 @@ Word _word(int id, {DateTime? reviewedAt}) => Word(
 
 ///
 /// 生成 [count] 个从未复习过的单词，主键从 1 开始连续。
-///
-/// @param  int  count 需要的数量。
-/// @return `List<Word>` 测试词库。
-///
 List<Word> _words(int count) =>
     <Word>[for (var id = 1; id <= count; id += 1) _word(id)];
 
 ///
 /// 组装一个使用固定随机种子的复习流程，让巩固局抽词结果可复现。
-///
-/// @param  MemoryDailyWordSetStore  wordSetStore 内存词库 Store。
-/// @param  MemoryReviewSessionStore  sessionStore 内存会话 Store。
-/// @return ReviewFlow 可预测的复习流程服务。
-///
 ReviewFlow _flow(
   MemoryDailyWordSetStore wordSetStore,
   MemoryReviewSessionStore sessionStore,
@@ -52,9 +38,6 @@ ReviewFlow _flow(
 
 ///
 /// 验证「创建词库」与「创建会话」两条核心流程。
-///
-/// @return void
-///
 void main() {
   group('创建词库', () {
     test('今天第一次进模块时按排序规则选出目标数量并落库', () async {

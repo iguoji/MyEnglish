@@ -57,9 +57,6 @@ class HomeDashboard extends StatelessWidget {
   ///
   /// 趋势曲线与打卡日历各自持有异步查询结果，只在第一次出现时查库；
   /// 把这个序号透传下去，它们才知道“外面的复习数据变了，请重查一次”。
-  ///
-  /// @var int
-  ///
   final int refreshToken;
 
   /// 点击汉堡菜单。

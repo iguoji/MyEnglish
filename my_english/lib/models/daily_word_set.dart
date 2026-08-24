@@ -4,23 +4,9 @@
 /// 四个复习模块共用同一份，所以一天只有一条。[wordIds] 的顺序就是四个模块
 /// 当天共同使用的答题顺序；[wordCount] 冗余保存列表长度，让首页判断
 /// 「数量还等不等于设置里的每日复习」时不必先解析整个数组。
-///
-/// @property int id SQLite 自增主键，会话表用它做来源外键。
-/// @property String setDate 设备本地日期，格式固定为 yyyy-MM-dd。
-/// @property int wordCount 单词数量，恒等于 [wordIds] 的长度。
-/// @property `List<int>` wordIds 固定顺序的单词主键。
-///
 class DailyWordSet {
   ///
   /// 创建一份每日词库。
-  ///
-  /// @param  int  id SQLite 自增主键。
-  /// @param  String  setDate 设备本地日期，yyyy-MM-dd。
-  /// @param  int  wordCount 单词数量。
-  /// @param  `List<int>`  wordIds 固定顺序的单词主键。
-  /// @param  DateTime?  createdAt 今天第一次建库的时间。
-  /// @param  DateTime?  updatedAt 最后一次调整数量的时间。
-  ///
   const DailyWordSet({
     required this.id,
     required this.setDate,
@@ -50,10 +36,6 @@ class DailyWordSet {
 
   ///
   /// 把原生 MethodChannel 返回的数据转换成强类型模型。
-  ///
-  /// @param  `Map<Object?, Object?>`  map 原生词库数据。
-  /// @return DailyWordSet 完成校验的每日词库。
-  ///
   factory DailyWordSet.fromMap(Map<Object?, Object?> map) {
     // 主键缺失时会话无法把自己关联回来源词库，属于协议错误。
     final rawId = map['id'];
@@ -87,10 +69,6 @@ class DailyWordSet {
 
   ///
   /// 把原生毫秒时间戳转成 DateTime；缺失或为 0 时返回 null。
-  ///
-  /// @param  Object?  value 原生返回的时间戳。
-  /// @return DateTime? 可用于诊断展示的本地时间。
-  ///
   static DateTime? _readTime(Object? value) {
     if (value is! num || value.toInt() == 0) return null;
     return DateTime.fromMillisecondsSinceEpoch(value.toInt());

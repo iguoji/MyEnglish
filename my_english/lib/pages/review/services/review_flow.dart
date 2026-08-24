@@ -16,24 +16,14 @@ import 'review_word_selector.dart';
 class ReviewEntry {
   ///
   /// 创建一次模块入口结果。
-  ///
-  /// @param  ReviewSession  session 本局会话。
-  /// @param  `List<Word>`  words 按会话顺序组装的单词。
-  ///
   const ReviewEntry({required this.session, required this.words});
 
   ///
   /// 本局会话，含状态、类型与页面进度。
-  ///
-  /// @var ReviewSession
-  ///
   final ReviewSession session;
 
   ///
   /// 按会话固定顺序组装的最新单词数据。
-  ///
-  /// @var `List<Word>`
-  ///
   final List<Word> words;
 }
 
@@ -47,11 +37,6 @@ class ReviewEntry {
 class ReviewFlow {
   ///
   /// 创建复习流程服务。
-  ///
-  /// @param  DailyWordSetStore  wordSetStore 每日词库 Store。
-  /// @param  ReviewSessionStore  sessionStore 模块会话 Store。
-  /// @param  Random?  random 巩固局抽词用的随机源；测试可注入固定种子。
-  ///
   ReviewFlow({
     required this.wordSetStore,
     required this.sessionStore,
@@ -60,23 +45,14 @@ class ReviewFlow {
 
   ///
   /// 每日词库 Store。
-  ///
-  /// @var DailyWordSetStore
-  ///
   final DailyWordSetStore wordSetStore;
 
   ///
   /// 模块会话 Store。
-  ///
-  /// @var ReviewSessionStore
-  ///
   final ReviewSessionStore sessionStore;
 
   ///
   /// 巩固局「随机一半」使用的随机源。
-  ///
-  /// @var Random
-  ///
   final Random _random;
 
   ///
@@ -95,11 +71,6 @@ class ReviewFlow {
   /// 目标数量取「设置里的每日复习」和「词库里实际有多少词」中较小的那个。
   /// 词库只有 30 个词、目标却设成 100 时，如果不取小值，
   /// 每次打开模块都会白白重写一次词库，而且主线永远判不了完成。
-  ///
-  /// @param  `List<Word>`  allWords 完整且未软删除的本地词库。
-  /// @param  int  dailyGoal 设置里的每日复习数量。
-  /// @return `Future<DailyWordSet?>` 词库为空时返回 null。
-  ///
   Future<DailyWordSet?> resolveWordSet(
     List<Word> allWords, {
     required int dailyGoal,
@@ -166,12 +137,6 @@ class ReviewFlow {
   ///    单词是「今天随机一半 + 明天随机一半」，答题不推进复习时间；
   /// 3. 其余情况（今天没开过局 / 上一局中断或失败）→ 开一局**主线**，
   ///    单词就是今天的整份词库。
-  ///
-  /// @param  ReviewModule  module 目标复习模块。
-  /// @param  `List<Word>`  allWords 完整且未软删除的本地词库。
-  /// @param  int  dailyGoal 设置里的每日复习数量。
-  /// @return `Future<ReviewEntry?>` 词库为空或无法开局时返回 null。
-  ///
   Future<ReviewEntry?> openModule(
     ReviewModule module, {
     required List<Word> allWords,
@@ -243,12 +208,6 @@ class ReviewFlow {
   /// 把今天的词又抓回来。排除法在任何词库规模下都正确。
   ///
   /// 明天的词不够一半时，缺口由今天的词补足，保证这一局的题量不缩水。
-  ///
-  /// @param  `List<int>`  todayIds 今天词库的全部单词主键。
-  /// @param  `List<Word>`  allWords 完整且未软删除的本地词库。
-  /// @param  int  target 这一局需要的单词总数。
-  /// @return `List<int>` 打乱后的巩固局单词主键。
-  ///
   List<int> _buildReinforceWordIds({
     required List<int> todayIds,
     required List<Word> allWords,
@@ -278,11 +237,6 @@ class ReviewFlow {
 
   ///
   /// 从列表里随机抽取指定数量；数量超过列表长度时返回全部。
-  ///
-  /// @param  `List<int>`  source 候选主键。
-  /// @param  int  count 需要抽取的数量。
-  /// @return `List<int>` 抽取结果。
-  ///
   List<int> _pickRandom(List<int> source, int count) {
     // 需要的比有的还多，那就全都要。
     if (count >= source.length) return List<int>.of(source);
@@ -297,11 +251,6 @@ class ReviewFlow {
   ///
   /// 缺词的会话没法完整还原，与其让用户进去看到少了几题，
   /// 不如直接判定这一局失效、重开一局干净的。
-  ///
-  /// @param  `List<int>`  ids 会话保存的单词主键顺序。
-  /// @param  `Map<int, Word>`  wordsById 当前词库的主键索引。
-  /// @return `List<Word>?` 组装结果；有单词缺失时为 null。
-  ///
   List<Word>? _wordsFor(List<int> ids, Map<int, Word> wordsById) {
     final words = <Word>[];
     for (final id in ids) {
@@ -314,10 +263,6 @@ class ReviewFlow {
 
   ///
   /// 取出单词列表中的主键；无主键的临时数据会被跳过。
-  ///
-  /// @param  `List<Word>`  words 选词结果。
-  /// @return `List<int>` 主键列表。
-  ///
   List<int> _idsOf(List<Word> words) => <int>[
     for (final word in words)
       if (word.id != null) word.id!,
@@ -325,11 +270,6 @@ class ReviewFlow {
 
   ///
   /// 逐项比较两个主键列表是否完全一致（含顺序）。
-  ///
-  /// @param  `List<int>`  first 左侧列表。
-  /// @param  `List<int>`  second 右侧列表。
-  /// @return bool 完全一致返回 true。
-  ///
   bool _sameIds(List<int> first, List<int> second) {
     if (first.length != second.length) return false;
     for (var index = 0; index < first.length; index += 1) {

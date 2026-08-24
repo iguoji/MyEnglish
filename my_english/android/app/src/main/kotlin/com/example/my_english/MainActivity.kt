@@ -43,6 +43,9 @@ class MainActivity : FlutterActivity() {
     // 音频通道负责缓存、双来源下载和 MediaPlayer 播放。
     private val audioChannelName = "my_english/word_audio"
 
+    // 音节划分通道负责把每个单词的音节切分读写到原生 SQLite。
+    private val syllableChannelName = "my_english/syllable"
+
     // 离线预缓存进度事件通道：Kotlin 在后台批量缓存时持续推送 {cached,total,done}。
     private val audioCacheChannelName = "my_english/audio_cache"
 
@@ -513,6 +516,44 @@ class MainActivity : FlutterActivity() {
                         // 只保留数字类型 id，过滤任何异常元素。
                         val ids = payload.mapNotNull { (it as? Number)?.toLong() }
                         wordsDatabase.getWordsByIds(ids)
+                    }
+
+                    // 未登记的方法返回 Flutter 标准 notImplemented 错误。
+                    else -> result.notImplemented()
+                }
+            }
+
+        // 注册音节划分通道；Dart 通过它把每个单词的音节切分读写到原生 SQLite。
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, syllableChannelName)
+            // 每次 Dart invokeMethod 都会进入这个处理器。
+            .setMethodCallHandler { call, result ->
+                // when 类似 PHP 8 match，根据方法名路由到不同数据库操作。
+                when (call.method) {
+                    // 读取某单词已保存的音节划分。
+                    "getSyllableDivision" -> runDatabaseCall(result) {
+                        // 参数必须是 Dart 传来的单词字符串。
+                        val word = call.arguments as? String
+                            ?: error("getSyllableDivision 缺少单词参数")
+                        // 表里没有会返回 null，对应 Dart 的 SyllableRow?。
+                        wordsDatabase.getSyllableDivision(word)
+                    }
+
+                    // 新增或覆盖某单词的音节划分。
+                    "saveSyllableDivision" -> runDatabaseCall(result) {
+                        // 参数为 {word, syllables(JSON), source} 的 Map。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("saveSyllableDivision 缺少参数")
+                        val word = payload["word"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("saveSyllableDivision 缺少有效 word")
+                        val syllablesJson = payload["syllables"]?.toString()
+                            ?: error("saveSyllableDivision 缺少 syllables")
+                        val source = payload["source"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("saveSyllableDivision 缺少有效 source")
+                        // 主键冲突时整体替换，刷新/手动覆盖都只需一次写入，返回 null。
+                        wordsDatabase.saveSyllableDivision(word, syllablesJson, source)
+                        null
                     }
 
                     // 未登记的方法返回 Flutter 标准 notImplemented 错误。

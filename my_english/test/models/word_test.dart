@@ -5,9 +5,6 @@ import 'package:my_english/models/word.dart';
 
 ///
 /// 验证单词编辑时多对多分组不会被表单的单选界面意外破坏。
-///
-/// @return void
-///
 void main() {
   // 用户只改拼写且没有切换主分组时，应完整保留原来的多个分组。
   test('editing preserves all groups when primary group is unchanged', () {

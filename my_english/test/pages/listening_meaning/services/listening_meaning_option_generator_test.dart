@@ -9,9 +9,6 @@ import 'package:my_english/pages/listening_meaning/services/listening_meaning_op
 
 ///
 /// 验证听音辨义候选项的数量、拼写形态和词库相似度排序。
-///
-/// @return void
-///
 void main() {
   test('word distractors keep length and use plausible letter changes', () {
     // ability 有足够的同长度换位、元音和辅音替换结果。

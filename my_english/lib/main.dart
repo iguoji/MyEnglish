@@ -1,16 +1,13 @@
-// material.dart 提供 WidgetsFlutterBinding 和 runApp，作用类似小程序启动框架。
+// material.dart 提供 WidgetsFlutterBinding 和 runApp，是应用的启动入口。
 import 'package:flutter/material.dart';
 
-// 引入应用根组件，作用类似 PHP 入口 require App，或小程序加载 app 配置。
+// 引入应用根组件。
 import 'app.dart';
 // 引入全局设置 Store；启动时要先从 Android 本地存储读取它。
 import 'store/settings.dart';
 
 ///
-/// Dart 程序固定从 main 函数开始执行，对应 PHP 请求进入 index.php 的第一行。
-///
-/// @return `Future<void>`
-///
+/// Dart 程序固定从 main 函数开始执行，这里负责应用启动前的全部准备工作。
 Future<void> main() async {
   // 在调用原生 SharedPreferences 前初始化 Flutter 与 Android 的消息通道。
   WidgetsFlutterBinding.ensureInitialized();
