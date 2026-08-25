@@ -39,10 +39,10 @@ enum ReviewModule {
   /// 该玩法是否已经开发完成并开放使用。
   ///
   /// 未开放的模块在首页显示灰色「即将开放」，不参与三态进度。
-  bool get isAvailable => switch (this) {
-    listeningMeaning || meaningMatch => true,
-    spellingReinforcement || meaningWordChoice => false,
-  };
+ bool get isAvailable => switch (this) {
+    listeningMeaning || meaningMatch || spellingReinforcement => true,
+    meaningWordChoice => false,
+ };
 
   ///
   /// 从数据库键恢复模块；未知值返回 null 而不是抛错。
@@ -302,6 +302,34 @@ enum ReviewModuleProgress {
 }
 
 ///
+/// 复习卡片底部进度条的视觉阶段。
+///
+/// 进度条是双层叠加结构：底色表示「今日主线完成没完成」，前景色表示
+/// 「当前这一局走到了哪里」。把视觉规则集中在一个枚举里，UI 只管照着画，
+/// 不用在 Widget 里拼各种颜色与比例的组合判断。
+enum ReviewBarPhase {
+  ///
+  /// 今日主线还没开始：全灰。
+  idle,
+
+  ///
+  /// 今日主线进行中：灰底 + 绿色按本局已完成单词数比例填充。
+  dailyActive,
+
+  ///
+  /// 今日主线已完成、尚未开始巩固：全绿。
+  dailyDone,
+
+  ///
+  /// 巩固练习进行中：绿底 + 蓝色按巩固局已完成单词数比例填充。
+  reinforceActive,
+
+  ///
+  /// 巩固练习已完成：绿底 + 蓝色全满（底层绿色被完全覆盖，变成全蓝）。
+  reinforceDone,
+}
+
+///
 /// 某个模块今天的整体进度快照，由首页一次性读取四个模块后组装。
 class ReviewModuleState {
   ///
@@ -309,6 +337,9 @@ class ReviewModuleState {
   const ReviewModuleState({
     required this.progress,
     this.isReinforcing = false,
+    this.reviewedWordCount = 0,
+    this.totalWordCount = 0,
+    this.barPhase = ReviewBarPhase.idle,
   });
 
   ///
@@ -324,6 +355,18 @@ class ReviewModuleState {
   final bool isReinforcing;
 
   ///
+  /// 首页进度条分子：本局已经操作完毕的单词数。
+  final int reviewedWordCount;
+
+  ///
+  /// 首页进度条分母：本局总单词数。
+  final int totalWordCount;
+
+  ///
+  /// 进度条视觉阶段，直接决定底色与前景色。
+  final ReviewBarPhase barPhase;
+
+  ///
   /// 把原生返回的一行状态转换成首页可直接使用的进度。
   ///
   /// 原生给的是「今天最新一条会话的类型和状态」外加「今天主线过没过关」。
@@ -335,6 +378,9 @@ class ReviewModuleState {
     final kind = ReviewSessionKind.fromCode(map['kind']);
     final status = ReviewSessionStatus.fromCode(map['status']);
     final dailyCompleted = map['daily_completed'] == true;
+    final reviewedWordCount =
+        (map['reviewed_word_count'] as num?)?.toInt() ?? 0;
+    final totalWordCount = (map['total_word_count'] as num?)?.toInt() ?? 0;
     // 主线过关是最强信号，即使现在正开着一局巩固也照样显示「已完成」。
     if (dailyCompleted) {
       return ReviewModuleState(
@@ -343,12 +389,27 @@ class ReviewModuleState {
         isReinforcing:
             kind == ReviewSessionKind.reinforce &&
             status == ReviewSessionStatus.active,
+        reviewedWordCount: reviewedWordCount,
+        totalWordCount: totalWordCount,
+        // 巩固进行中→蓝在绿上；巩固完成→全蓝；其余→全绿。
+        barPhase: kind == ReviewSessionKind.reinforce &&
+                status == ReviewSessionStatus.active
+            ? ReviewBarPhase.reinforceActive
+            : kind == ReviewSessionKind.reinforce &&
+                    status == ReviewSessionStatus.completed
+                ? ReviewBarPhase.reinforceDone
+                : ReviewBarPhase.dailyDone,
       );
     }
     // 主线还没过关：只有「正开着一局主线」才算进行中。
     if (kind == ReviewSessionKind.daily &&
         status == ReviewSessionStatus.active) {
-      return const ReviewModuleState(progress: ReviewModuleProgress.active);
+      return ReviewModuleState(
+        progress: ReviewModuleProgress.active,
+        reviewedWordCount: reviewedWordCount,
+        totalWordCount: totalWordCount,
+        barPhase: ReviewBarPhase.dailyActive,
+      );
     }
     // 中断、失败或今天压根没开过局，都回到待完成。
     return ReviewModuleState.empty;

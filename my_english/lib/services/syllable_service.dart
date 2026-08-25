@@ -47,13 +47,23 @@ class SyllableService {
   /// 规则（确定且有限）：算法先给出全部合法断点；从最细切法开始，
   /// 每次合并"最弱的一个断点"变粗，直到整词；到头后再回到最细，循环。
   /// 注意：若存在用户手动划分，则刷新不覆盖它（手动最高优先级）。
-  Future<List<String>> nextAlternative(String word) async {
+  ///
+  /// [splitOnly] 为 true 时把"整词"这一档从循环里剔除，只在真正拆得开的切法
+  /// 之间轮换。拼写巩固的片段模式必须这样用：整词那一档只会生成一个候选按钮，
+  /// 点一下就过关，等于把题目送掉。若该词一种能拆开的切法都没有（如 bowl），
+  /// 则原样返回当前划分，调用方据此让它留在逐字母模式。
+  Future<List<String>> nextAlternative(
+    String word, {
+    bool splitOnly = false,
+  }) async {
     final display = word.trim();
     final w = display.toLowerCase();
     if (w.isEmpty) return [word];
     final row = await _store.getDivision(w);
     if (row != null && row.source == 'user') return row.parts; // 手动不参与刷新
-    final alts = _alternatives(display);
+    final alts = _splitOnlyFiltered(_alternatives(display), splitOnly);
+    // 一种能拆开的切法都没有：保持现状，不写库也不换档。
+    if (alts.isEmpty) return row?.parts ?? [display];
     // 找到当前存的是第几个备选；找不到就当成最细(0)，跳到下一个。
     int idx = -1;
     if (row != null) {
@@ -65,7 +75,7 @@ class SyllableService {
         }
       }
     }
-    final next = (idx + 1) % alts.length; // 循环：整词之后回到最细
+    final next = (idx + 1) % alts.length; // 循环：最后一档之后回到最细
     final parts = alts[next];
     await _store.saveDivision(w, parts, 'refresh');
     return parts;
@@ -78,6 +88,20 @@ class SyllableService {
   }
 
   // ----- 以下为内部实现 -----
+
+  /// 按需剔除"整词"那一档备选。
+  ///
+  /// [splitOnly] 为 false 时原样返回，保持既有调用方行为不变。
+  List<List<String>> _splitOnlyFiltered(
+    List<List<String>> alts,
+    bool splitOnly,
+  ) {
+    if (!splitOnly) return alts;
+    return [
+      for (final alt in alts)
+        if (alt.length > 1) alt,
+    ];
+  }
 
   /// 生成该词的"全部备选切法"，从最细到最粗（最后一个是整词）。
   ///

@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+  <title>拼写巩固 - Tabler 原型</title>
+
+  <!-- Tabler Core CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <!-- Tabler Icons CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+
+  <style>
+    :root { --app-px: 20px; }
+
+    body {
+      background-color: #f1f5f9;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+    }
+
+    .mobile-screen {
+      width: 100%;
+      max-width: 414px;
+      height: 100vh;
+      max-height: 844px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+    @media (min-width: 576px) {
+      .mobile-screen { border-radius: 28px; height: 820px; }
+    }
+
+    .app-padding-x {
+      padding-left: var(--app-px) !important;
+      padding-right: var(--app-px) !important;
+    }
+
+    /* ===== 占位格 ===== */
+    .slot-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .slot {
+      min-width: 48px; height: 48px;
+      padding: 0 8px;
+      display: flex; align-items: center; justify-content: center;
+      border: 1.5px dashed #cbd5e1;
+      border-radius: 10px;
+      background: #f8fafc;
+      font-size: 1.05rem; font-weight: 600;
+      color: var(--tblr-body-color);
+      transition: all .2s ease;
+    }
+    .slot.letter-slot { min-width: 40px; width: 40px; height: 40px; padding: 0; }
+    .slot.filled {
+      border: 1.5px solid var(--tblr-success);
+      background: var(--tblr-success-lt);
+      color: var(--tblr-success);
+      animation: popIn .25s ease;
+    }
+    .slot.error {
+      border-color: var(--tblr-danger);
+      background: var(--tblr-danger-lt);
+      color: var(--tblr-danger);
+      animation: shake .35s ease-in-out;
+    }
+    @keyframes popIn { 0%{transform:scale(.85);} 60%{transform:scale(1.06);} 100%{transform:scale(1);} }
+    @keyframes shake {
+      0%,100%{transform:translateX(0);} 20%,60%{transform:translateX(-4px);} 40%,80%{transform:translateX(4px);}
+    }
+
+    /* ===== 候选片段按钮 ===== */
+    .chunk-btn {
+      min-height: 44px; min-width: 52px;
+      padding: 6px 14px;
+      border: 1px solid #e6e8ec;
+      border-radius: 10px;
+      background: var(--tblr-bg-surface);
+      font-size: 1rem; font-weight: 600;
+      box-shadow: 0 1px 2px rgba(0,0,0,.03);
+      transition: all .18s ease;
+      cursor: pointer; user-select: none;
+    }
+    .chunk-btn:active { transform: scale(.96); }
+    .chunk-btn.used {
+      opacity: .35; pointer-events: none;
+      background: var(--tblr-success-lt);
+      border-color: var(--tblr-success);
+      color: var(--tblr-success);
+    }
+    .chunk-btn.error {
+      border-color: var(--tblr-danger) !important;
+      background: var(--tblr-danger-lt) !important;
+      color: var(--tblr-danger) !important;
+      animation: shake .35s ease-in-out;
+    }
+
+    /* ===== 自定义 26 键键盘 ===== */
+    .kb-row { display: flex; gap: 6px; justify-content: center; }
+    .kb-key {
+      flex: 1; max-width: 34px; height: 34px;
+      border: 1px solid #e6e8ec; border-radius: 8px;
+      background: var(--tblr-bg-surface);
+      font-size: .95rem; font-weight: 600;
+      box-shadow: 0 2px 0 rgba(0,0,0,.06);
+      cursor: pointer; user-select: none;
+      transition: all .12s ease;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .kb-key:active { transform: translateY(2px); box-shadow: none; background: #f1f5f9; }
+    .kb-key.fn { max-width: 46px; background: #f1f5f9; color: #626976; }
+
+    /* ===== 手动拆分字母条 ===== */
+    .split-letter {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.05rem; font-weight: 700;
+      position: relative;
+    }
+    .split-gap {
+      width: 18px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #cbd5e1;
+      transition: color .15s ease;
+    }
+    .split-gap:hover { color: var(--tblr-primary); }
+    .split-gap.active { color: var(--tblr-primary); }
+    .split-gap.active i { transform: scale(1.2); }
+
+    .fade-switch { animation: fadeIn .25s ease-out; }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+    .tool-btn {
+      width: 40px; height: 40px; border-radius: 10px;
+      border: 1px solid #e6e8ec; background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      color: #626976; cursor: pointer; transition: all .15s ease;
+    }
+    .tool-btn:active { transform: scale(.94); }
+    .tool-btn.active { border-color: var(--tblr-primary); color: var(--tblr-primary); background: var(--tblr-primary-lt); }
+  </style>
+</head>
+
+<body>
+<div class="mobile-screen">
+
+  <!-- ==================== 答题页 ==================== -->
+  <div id="game-view" class="h-100 d-flex flex-column">
+
+    <!-- 1. 顶部 Header (左返回图标严格居左，中 1/6 纯文本无背景，右侧占位保持居中) -->
+    <header class="app-padding-x pt-3 pb-2 d-flex align-items-center justify-content-between">
+      
+      <!-- 左侧：返回图标 -->
+      <div style="flex: 1;" class="d-flex justify-content-start">
+        <a href="javascript:void(0);" class="text-body p-0 border-0 bg-transparent d-inline-flex align-items-center text-decoration-none" title="返回">
+          <i class="ti ti-chevron-left fs-1 lh-1"></i>
+        </a>
+      </div>
+
+      <!-- 中间：1/6 纯文本无背景 -->
+      <div class="d-flex justify-content-center align-items-center">
+        <div class="fs-2 fw-bold text-body font-monospace lh-1">
+          <span id="current-progress">1</span><span id="total-progress"> / 6</span>
+        </div>
+      </div>
+
+      <!-- 右侧：占位（与左侧等宽，保证中间进度严格居中） -->
+      <div style="flex: 1;"></div>
+    </header>
+
+    <!-- 进度条 -->
+    <div class="app-padding-x pb-2">
+      <div class="progress progress-xs w-100 bg-light" style="height:3px; border-radius:2px;">
+        <div class="progress-bar bg-primary transition-all" id="progress-bar" style="width:0%;"></div>
+      </div>
+    </div>
+
+    <!-- 主体：点击空白区域重播音频 -->
+    <main class="flex-fill app-padding-x py-3 d-flex flex-column" id="main-area" onclick="onBlankTap(event)">
+
+      <!-- 词义提示 + 模式徽标 -->
+      <div class="text-center mb-3">
+        <span class="badge bg-blue-lt mb-2" id="mode-badge">音节拼写</span>
+        <div class="fs-3 text-muted" id="word-meaning">n. 传统；惯例</div>
+      </div>
+
+      <!-- 占位格区 -->
+      <div class="slot-row mb-4" id="slot-row"></div>
+
+      <!-- 作答区（候选片段 / 键盘 / 手动拆分） -->
+      <div class="flex-fill d-flex flex-column justify-content-end" id="answer-area"></div>
+
+      <!-- 底部工具条：刷新拆分 / 手动拆分 -->
+      <div class="d-flex justify-content-center gap-2 pt-3">
+        <button class="tool-btn" id="refresh-btn" title="换一种拆分方式" onclick="event.stopPropagation(); refreshSplit();">
+          <i class="ti ti-refresh fs-3"></i>
+        </button>
+        <button class="tool-btn" id="manual-btn" title="手动拆分" onclick="event.stopPropagation(); toggleManualSplit();">
+          <i class="ti ti-scissors fs-3"></i>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== 结束页 ==================== -->
+  <div id="result-view" class="h-100 d-none flex-column justify-content-center py-4" style="padding-left:50px; padding-right:50px;">
+    <div class="w-100 d-flex flex-column gap-4">
+      <div class="text-center">
+        <div class="avatar avatar-xl rounded-circle bg-green-lt mb-3 mx-auto shadow-sm">
+          <i class="ti ti-confetti fs-1 text-success"></i>
+        </div>
+        <h2 class="card-title fs-1 fw-bold mb-1">拼写完成</h2>
+        <p class="text-muted small mb-0">本组单词已全部拼写完毕</p>
+      </div>
+
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="card card-sm bg-light-subtle text-center py-3 border">
+            <div class="text-muted small mb-1"><i class="ti ti-check text-success me-1"></i>完成词汇</div>
+            <div class="display-6 fw-bold text-success" id="stat-done">0</div>
+            <div class="text-muted text-xs" id="stat-total">总词量 6</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card card-sm bg-light-subtle text-center py-3 border">
+            <div class="text-muted small mb-1"><i class="ti ti-x text-danger me-1"></i>拼写失误</div>
+            <div class="display-6 fw-bold text-danger" id="stat-errors">0</div>
+            <div class="text-muted text-xs">次</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card card-sm bg-light-subtle text-center py-3 border">
+            <div class="text-muted small mb-1"><i class="ti ti-flame text-orange me-1"></i>一次拼对</div>
+            <div class="display-6 fw-bold text-orange" id="stat-perfect">0</div>
+            <div class="text-muted text-xs">个单词</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card card-sm bg-light-subtle text-center py-3 border">
+            <div class="text-muted small mb-1"><i class="ti ti-clock text-primary me-1"></i>用时</div>
+            <div class="fs-1 fw-bold font-monospace text-primary pt-1" id="stat-time">00:00</div>
+            <div class="text-muted text-xs">本组训练</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex flex-column">
+        <button type="button" class="btn btn-primary w-100 py-2 fs-3" onclick="restart()">
+          <i class="ti ti-rotate-clockwise me-1"></i>再练一组
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+<script>
+/* ============================================================
+ * 数据：每个单词可配置多套拆分方案（splits），
+ * 无 splits 或拆分无效的词自动进入键盘模式。
+ * confusables 为每个正确片段准备 1~3 个形近/音近干扰项。
+ * ============================================================ */
+const WORDS = [
+  {
+    word: "tradition", meaning: "n. 传统；惯例",
+    splits: [["tra","di","tion"], ["trad","i","tion"]],
+    confusables: { "tra":["tre","trae"], "di":["de","dy"], "tion":["sion","tian"], "trad":["tred","trat"], "i":["e","y"] }
+  },
+  {
+    word: "bowl", meaning: "n. 碗；钵",
+    splits: [] // 算法无法拆分 → 键盘模式
+  },
+  {
+    word: "beautiful", meaning: "adj. 美丽的；漂亮的",
+    splits: [["beau","ti","ful"], ["be","au","ti","ful"]],
+    confusables: { "beau":["buae","biau"], "ti":["te","ty"], "ful":["fl","full"], "be":["ba","bi"], "au":["ao","ua"] }
+  },
+  {
+    word: "cat", meaning: "n. 猫",
+    splits: []
+  },
+  {
+    word: "important", meaning: "adj. 重要的；重大的",
+    splits: [["im","por","tant"], ["im","port","ant"]],
+    confusables: { "im":["em","in"], "por":["per","pro"], "tant":["tent","tont"], "port":["pert","prot"], "ant":["ent","ont"] }
+  },
+  {
+    word: "garden", meaning: "n. 花园；菜园",
+    splits: [["gar","den"]],
+    confusables: { "gar":["ger","gra"], "den":["dan","din"] }
+  }
+];
+
+/* ===== 全局状态 ===== */
+let wordIdx = 0;          // 当前单词下标
+let splitIdx = 0;         // 当前使用的拆分方案下标
+let mode = "chunk";       // chunk=候选片段 / keyboard=键盘
+let filledCount = 0;      // 已填充的占位格数
+let chunkQueue = [];      // 当前打乱的候选片段
+let typedLetters = [];    // 键盘模式已输入字母
+let manualMode = false;   // 是否处于手动拆分编辑态
+let manualCuts = [];      // 手动拆分点（字母下标之后）
+let errorCount = 0;
+let perfectCount = 0;
+let wordHadError = false;
+let startTime = Date.now();
+
+const $ = id => document.getElementById(id);
+
+/* ===== 语音播放（原型用浏览器 TTS 代替音频文件） ===== */
+function speakCurrent() {
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(WORDS[wordIdx].word);
+    u.lang = "en-US"; u.rate = 0.85;
+    speechSynthesis.speak(u);
+  } catch (e) { /* 原型环境无音频时静默 */ }
+}
+
+/* 点击页面空白区域重播：仅当点击落在非交互元素上 */
+function onBlankTap(e) {
+  if (e.target.closest("button, a, .chunk-btn, .kb-key, .split-gap")) return;
+  speakCurrent();
+}
+
+/* ===== 进入某个单词 ===== */
+function loadWord() {
+  const w = WORDS[wordIdx];
+  splitIdx = 0; filledCount = 0; typedLetters = [];
+  manualMode = false; manualCuts = []; wordHadError = false;
+  mode = (w.splits && w.splits.length > 0) ? "chunk" : "keyboard";
+
+  $("current-progress").textContent = wordIdx + 1;
+  $("total-progress").textContent = " / " + WORDS.length;
+  $("progress-bar").style.width = (wordIdx / WORDS.length * 100) + "%";
+  $("word-meaning").textContent = w.meaning;
+  $("mode-badge").textContent = mode === "chunk" ? "音节拼写" : "逐字母拼写";
+  $("mode-badge").className = "badge mb-2 " + (mode === "chunk" ? "bg-blue-lt" : "bg-purple-lt");
+  $("manual-btn").classList.remove("active");
+
+  renderSlots();
+  renderAnswerArea();
+  setTimeout(speakCurrent, 350); // 进入单词自动播放
+}
+
+/* ===== 渲染占位格 ===== */
+function renderSlots() {
+  const w = WORDS[wordIdx];
+  const row = $("slot-row");
+  row.innerHTML = "";
+  if (mode === "chunk") {
+    w.splits[splitIdx].forEach((seg, i) => {
+      const d = document.createElement("div");
+      d.className = "slot" + (i < filledCount ? " filled" : "");
+      d.textContent = i < filledCount ? seg : "";
+      row.appendChild(d);
+    });
+  } else {
+    w.word.split("").forEach((ch, i) => {
+      const d = document.createElement("div");
+      d.className = "slot letter-slot" + (i < typedLetters.length ? " filled" : "");
+      d.textContent = i < typedLetters.length ? typedLetters[i] : "";
+      row.appendChild(d);
+    });
+  }
+}
+
+/* ===== 渲染作答区 ===== */
+function renderAnswerArea() {
+  const area = $("answer-area");
+  area.innerHTML = "";
+  area.classList.remove("fade-switch"); void area.offsetWidth; area.classList.add("fade-switch");
+
+  if (manualMode) { renderManualSplit(area); return; }
+  if (mode === "chunk") renderChunks(area); else renderKeyboard(area);
+}
+
+/* --- 候选片段模式 --- */
+function buildChunkQueue() {
+  const w = WORDS[wordIdx];
+  const segs = w.splits[splitIdx];
+  const pool = [];
+  segs.forEach((seg, i) => {
+    pool.push({ text: seg, correct: true, order: i });
+    (w.confusables?.[seg] || []).slice(0, 3).forEach(c => pool.push({ text: c, correct: false }));
+  });
+  // 打乱
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  chunkQueue = pool;
+}
+
+function renderChunks(area) {
+  if (chunkQueue.length === 0) buildChunkQueue();
+  const wrap = document.createElement("div");
+  wrap.className = "d-flex flex-wrap justify-content-center gap-2";
+  chunkQueue.forEach(item => {
+    const b = document.createElement("button");
+    b.className = "chunk-btn" + (item.used ? " used" : "");
+    b.textContent = item.text;
+    b.onclick = e => { e.stopPropagation(); pickChunk(item, b); };
+    wrap.appendChild(b);
+  });
+  area.appendChild(wrap);
+}
+
+function pickChunk(item, btn) {
+  const w = WORDS[wordIdx];
+  const expect = w.splits[splitIdx][filledCount];
+  // 判错：选错内容，或内容正确但顺序错
+  if (!item.correct || item.text !== expect) {
+    markError(btn);
+    return;
+  }
+  item.used = true;
+  btn.classList.add("used");
+  filledCount++;
+  renderSlots();
+  if (filledCount >= w.splits[splitIdx].length) nextWord();
+}
+
+/* --- 键盘模式 --- */
+function renderKeyboard(area) {
+  const kb = document.createElement("div");
+  kb.className = "d-flex flex-column gap-2";
+  ["qwertyuiop", "asdfghjkl", "zxcvbnm"].forEach((rowStr, ri) => {
+    const row = document.createElement("div");
+    row.className = "kb-row";
+    if (ri === 2) {
+      const del = document.createElement("button");
+      del.className = "kb-key fn";
+      del.innerHTML = '<i class="ti ti-backspace"></i>';
+      del.onclick = e => { e.stopPropagation(); backspace(); };
+      row.appendChild(del);
+    }
+    rowStr.split("").forEach(ch => {
+      const k = document.createElement("button");
+      k.className = "kb-key";
+      k.textContent = ch;
+      k.onclick = e => { e.stopPropagation(); typeLetter(ch, k); };
+      row.appendChild(k);
+    });
+    kb.appendChild(row);
+  });
+  area.appendChild(kb);
+}
+
+function typeLetter(ch, keyEl) {
+  const w = WORDS[wordIdx];
+  const expect = w.word[typedLetters.length];
+  if (typedLetters.length >= w.word.length) return;
+  if (ch !== expect) {
+    markError(keyEl);
+    flashSlotError(typedLetters.length);
+    return;
+  }
+  typedLetters.push(ch);
+  renderSlots();
+  if (typedLetters.length >= w.word.length) nextWord();
+}
+
+function backspace() {
+  if (typedLetters.length === 0) return;
+  typedLetters.pop();
+  renderSlots();
+}
+
+/* --- 手动拆分 --- */
+function toggleManualSplit() {
+  manualMode = !manualMode;
+  $("manual-btn").classList.toggle("active", manualMode);
+  if (manualMode && manualCuts.length === 0) manualCuts = [];
+  renderAnswerArea();
+}
+
+function renderManualSplit(area) {
+  const w = WORDS[wordIdx];
+  const wrap = document.createElement("div");
+  wrap.className = "d-flex flex-column align-items-center gap-3";
+
+  const tip = document.createElement("div");
+  tip.className = "text-muted small";
+  tip.innerHTML = '<i class="ti ti-info-circle me-1"></i>点击字母间隙添加 / 取消拆分点';
+  wrap.appendChild(tip);
+
+  const bar = document.createElement("div");
+  bar.className = "d-flex align-items-center justify-content-center flex-wrap";
+  w.word.split("").forEach((ch, i) => {
+    const l = document.createElement("div");
+    l.className = "split-letter";
+    l.textContent = ch;
+    bar.appendChild(l);
+    if (i < w.word.length - 1) {
+      const g = document.createElement("div");
+      g.className = "split-gap" + (manualCuts.includes(i + 1) ? " active" : "");
+      g.innerHTML = '<i class="ti ti-slash fs-4"></i>';
+      g.onclick = e => {
+        e.stopPropagation();
+        const p = i + 1;
+        manualCuts = manualCuts.includes(p) ? manualCuts.filter(c => c !== p) : [...manualCuts, p].sort((a,b)=>a-b);
+        renderAnswerArea();
+      };
+      bar.appendChild(g);
+    }
+  });
+  wrap.appendChild(bar);
+
+  const actions = document.createElement("div");
+  actions.className = "d-flex gap-2";
+  const ok = document.createElement("button");
+  ok.className = "btn btn-primary";
+  ok.innerHTML = '<i class="ti ti-check me-1"></i>按此拆分作答';
+  ok.disabled = manualCuts.length === 0;
+  ok.onclick = e => { e.stopPropagation(); applyManualSplit(); };
+  const cancel = document.createElement("button");
+  cancel.className = "btn";
+  cancel.textContent = "取消";
+  cancel.onclick = e => { e.stopPropagation(); toggleManualSplit(); };
+  actions.appendChild(ok); actions.appendChild(cancel);
+  wrap.appendChild(actions);
+
+  area.appendChild(wrap);
+}
+
+function applyManualSplit() {
+  const w = WORDS[wordIdx];
+  // 依据拆分点切出片段
+  const segs = [];
+  let prev = 0;
+  [...manualCuts, w.word.length].forEach(c => { segs.push(w.word.slice(prev, c)); prev = c; });
+  // 写入词数据并切到候选片段模式（即使原词被算法判定为不可拆分）
+  w.splits = w.splits || [];
+  w.splits.push(segs);
+  splitIdx = w.splits.length - 1;
+  mode = "chunk";
+  filledCount = 0; chunkQueue = [];
+  manualMode = false;
+  $("manual-btn").classList.remove("active");
+  $("mode-badge").textContent = "手动拆分";
+  $("mode-badge").className = "badge mb-2 bg-teal-lt";
+  renderSlots();
+  renderAnswerArea();
+}
+
+/* --- 刷新拆分：存在其他合法方案则切换，否则维持原状 --- */
+function refreshSplit() {
+  const w = WORDS[wordIdx];
+  if (mode === "keyboard" || !w.splits || w.splits.length <= 1) {
+    // 无其他拆分方式：按钮抖动提示维持原状
+    const b = $("refresh-btn");
+    b.style.animation = "shake .35s ease-in-out";
+    setTimeout(() => b.style.animation = "", 400);
+    return;
+  }
+  splitIdx = (splitIdx + 1) % w.splits.length;
+  filledCount = 0; chunkQueue = [];
+  renderSlots();
+  renderAnswerArea();
+}
+
+/* ===== 错误反馈 ===== */
+function markError(el) {
+  errorCount++; wordHadError = true;
+  el.classList.add("error");
+  setTimeout(() => el.classList.remove("error"), 400);
+}
+function flashSlotError(i) {
+  const slots = $("slot-row").children;
+  if (slots[i]) { slots[i].classList.add("error"); setTimeout(() => slots[i].classList.remove("error"), 400); }
+}
+
+/* ===== 流程推进 ===== */
+function nextWord() {
+  if (!wordHadError) perfectCount++;
+  setTimeout(() => {
+    wordIdx++;
+    if (wordIdx >= WORDS.length) showResult(); else loadWord();
+  }, 500);
+}
+
+function showResult() {
+  $("progress-bar").style.width = "100%";
+  const secs = Math.round((Date.now() - startTime) / 1000);
+  const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+  const ss = String(secs % 60).padStart(2, "0");
+  $("stat-done").textContent = WORDS.length;
+  $("stat-total").textContent = "总词量 " + WORDS.length;
+  $("stat-errors").textContent = errorCount;
+  $("stat-perfect").textContent = perfectCount;
+  $("stat-time").textContent = mm + ":" + ss;
+  $("game-view").classList.add("d-none");
+  $("result-view").classList.remove("d-none");
+  $("result-view").classList.add("d-flex");
+}
+
+function restart() {
+  wordIdx = 0; errorCount = 0; perfectCount = 0; startTime = Date.now();
+  $("result-view").classList.add("d-none");
+  $("result-view").classList.remove("d-flex");
+  $("game-view").classList.remove("d-none");
+  loadWord();
+}
+
+loadWord();
+</script>
+</body>
+</html>

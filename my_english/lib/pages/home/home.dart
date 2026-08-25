@@ -38,6 +38,8 @@ import '../listening_meaning/listening_meaning_page.dart';
 import '../listening/listening_page.dart';
 // 词义连连骨架页（顶部框架已就位，候选词区域待接入）。
 import '../meaning_match/meaning_match_page.dart';
+// 拼写巩固页：听发音、看释义拼出单词，片段与逐字母两种作答方式。
+import '../spelling_reinforcement/spelling_reinforcement_page.dart';
 // 三个未开发复习模块使用各自标题的独立占位页面。
 import '../review/review_unavailable_page.dart';
 // 分组 Store 通过原生 SQLite 提供持久化的自定义分组数据。
@@ -1031,13 +1033,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 词义连连：传入本局会话（续玩）、会话 Store 与设置 Store（倒计时 +30 写全局）。
         final playAgain = await Navigator.of(context).push<bool>(
           MaterialPageRoute<bool>(
-            builder: (_) => MeaningMatchPage(
-              words: entry.words,
-              title: module.label,
-              reviewSession: entry.session,
-              reviewSessionStore: _reviewSessionStore,
-              settings: _settings,
-            ),
+           builder: (_) => MeaningMatchPage(
+             words: entry.words,
+             title: module.label,
+             reviewSession: entry.session,
+             reviewSessionStore: _reviewSessionStore,
+             settings: _settings,
+              audioPlayer: _audioPlayer,
+              accent: _settings.accent,
+           ),
           ),
         );
         if (!mounted) return;
@@ -1049,8 +1053,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _openReviewModule(module);
         }
       case ReviewModule.spellingReinforcement:
+        // 拼写巩固：传入本局会话（续玩）、会话 Store、发音服务与当前口音。
+        final playAgain = await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            builder: (_) => SpellingReinforcementPage(
+              words: entry.words,
+              title: module.label,
+              reviewSession: entry.session,
+              audioPlayer: _audioPlayer,
+              accent: _settings.accent,
+              reviewSessionStore: _reviewSessionStore,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        // 拼完一局回来，三态、头部数字与曲线一起重算。
+        await _refreshReviewDashboard();
+        // 结算页点了「再练一组」：由 ReviewFlow 重新判断该开主线还是巩固。
+        if (playAgain == true && mounted) {
+          await _openReviewModule(module);
+        }
       case ReviewModule.meaningWordChoice:
-        // 上面的 isAvailable 判断已经拦下这两个，这里只是让 switch 覆盖完整。
+        // 上面的 isAvailable 判断已经拦下这个，这里只是让 switch 覆盖完整。
         break;
     }
   }

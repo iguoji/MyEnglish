@@ -177,7 +177,37 @@ class _ModeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // 玩法尚未开放时不显示任何进度，避免「待完成」让用户以为漏做了任务。
     final isAvailable = module.isAvailable;
-    final isCompleted = state.progress == ReviewModuleProgress.completed;
+    final phase = state.barPhase;
+    // 底色：今日主线已完成走绿底（巩固的地基），否则灰底。
+    final baseGreen = phase == ReviewBarPhase.dailyDone ||
+        phase == ReviewBarPhase.reinforceActive ||
+        phase == ReviewBarPhase.reinforceDone;
+    final baseColor =
+        !isAvailable || !baseGreen ? tokens.sub : const Color(0xFF2FB344);
+    // 前景叠加层：主线进行中用绿色，巩固用蓝色，按本局已完成单词数比例填充。
+    final Color? fillColor;
+    final double fillRatio;
+    switch (phase) {
+      case ReviewBarPhase.idle:
+      case ReviewBarPhase.dailyDone:
+        fillColor = null;
+        fillRatio = 0;
+      case ReviewBarPhase.dailyActive:
+        fillColor = const Color(0xFF2FB344);
+        fillRatio = state.totalWordCount > 0
+            ? (state.reviewedWordCount / state.totalWordCount)
+                .clamp(0.0, 1.0)
+            : 0.0;
+      case ReviewBarPhase.reinforceActive:
+        fillColor = AppTokens.accent;
+        fillRatio = state.totalWordCount > 0
+            ? (state.reviewedWordCount / state.totalWordCount)
+                .clamp(0.0, 1.0)
+            : 0.0;
+      case ReviewBarPhase.reinforceDone:
+        fillColor = AppTokens.accent;
+        fillRatio = 1.0;
+    }
     // 三种状态三种颜色：待完成用 Tabler 红制造压力，进行中用主色，完成用成功绿。
     final badgeColor = !isAvailable
         ? tokens.textSecondary
@@ -280,20 +310,21 @@ class _ModeCard extends StatelessWidget {
               ),
               // 描述与底部指示条之间留出间距。
               const SizedBox(height: 10),
-              // 底部指示条：不再是百分比进度条，只用整条颜色表达状态。
-              // 已完成填满绿色，进行中填满主色，其余保持灰底。
+              // 底部进度条双层叠加：底色=今日主线完成度（灰/绿），
+              // 前景=当前这一局进度（绿=主线，蓝=巩固），按已完成单词比例填充。
               ClipRRect(
                 borderRadius: BorderRadius.circular(2),
                 child: SizedBox(
                   height: 4,
-                  child: Container(
-                    color: !isAvailable
-                        ? tokens.sub
-                        : isCompleted
-                        ? const Color(0xFF2FB344)
-                        : state.progress == ReviewModuleProgress.active
-                        ? AppTokens.accent
-                        : tokens.sub,
+                  child: Stack(
+                    children: [
+                      Container(color: baseColor),
+                      if (fillColor != null && fillRatio > 0)
+                        FractionallySizedBox(
+                          widthFactor: fillRatio,
+                          child: Container(color: fillColor),
+                        ),
+                    ],
                   ),
                 ),
               ),

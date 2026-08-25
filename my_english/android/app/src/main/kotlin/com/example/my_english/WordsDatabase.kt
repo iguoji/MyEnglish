@@ -1726,8 +1726,8 @@ class WordsDatabase(context: Context) :
         val result = ArrayList<Map<String, Any?>>()
         readableDatabase.rawQuery(
             """
-            SELECT s.module, s.kind, s.status
-            FROM review_sessions AS s
+           SELECT s.module, s.kind, s.status, s.state_json
+           FROM review_sessions AS s
             INNER JOIN (
                 SELECT module, MAX(id) AS max_id
                 FROM review_sessions
@@ -1739,6 +1739,8 @@ class WordsDatabase(context: Context) :
             arrayOf(localDateString()),
         ).use { cursor ->
             while (cursor.moveToNext()) {
+                // 解析最新会话的页面快照，取出首页进度条要的分子分母。
+                val stateJson = cursor.getString(3)
                 result.add(
                     linkedMapOf(
                         "module" to cursor.getString(0),
@@ -1746,11 +1748,24 @@ class WordsDatabase(context: Context) :
                         "status" to cursor.getInt(2),
                         // 首页还要区分「今天主线到底过没过」，因此额外带上这一位。
                         "daily_completed" to hasCompletedDailySession(cursor.getString(0)),
+                        // 首页进度条：已完成单词数 / 总单词数。
+                        "reviewed_word_count" to parseStateInt(stateJson, "reviewedWordCount"),
+                        "total_word_count" to parseStateInt(stateJson, "totalWordCount"),
                     ),
                 )
             }
         }
         return result
+    }
+
+    /** 从会话页面快照（JSON）里安全读取一个整数字段；坏数据返回 0。 */
+    private fun parseStateInt(stateJson: String?, key: String): Int {
+        if (stateJson.isNullOrBlank()) return 0
+        return try {
+            JSONObject(stateJson).optInt(key, 0)
+        } catch (e: Exception) {
+            0
+        }
     }
 
     /** 今天这个模块有没有一条已完成的主线会话。 */

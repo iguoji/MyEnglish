@@ -448,6 +448,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     state: <String, Object?>{
       // 保存当前单词在固定学习列表中的下标。
       'wordIndex': _wordIndex,
+      // 首页进度条用：已完成提交的单词数 / 本局总单词数。
+      'reviewedWordCount': _wordIndex + (_isCurrentWordComplete ? 1 : 0),
+      'totalWordCount': widget.words.length,
       // 保存拼写或释义阶段。
       'stage': _stage.name,
       // 保存当前词性组下标。

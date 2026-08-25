@@ -18,6 +18,8 @@ import '../../models/review_session.dart';
 // 引入全局设置 Store，读取与修改词义连连倒计时。
 import '../../store/settings.dart';
 // 引入复习记录 Store，每连对一张左卡就写一条记录。
+// 引入发音服务，选中单词卡时播放读音。
+import '../../services/word_audio.dart';
 import '../../store/review_record.dart';
 // 引入复习会话 Store，进度冻结/续玩与结算都走它。
 import '../../store/review_session.dart';
@@ -188,6 +190,8 @@ class MeaningMatchPage extends StatefulWidget {
     this.reviewSessionStore,
     this.recordStore,
     this.settings,
+    this.audioPlayer,
+    this.accent = PronunciationAccent.american,
     super.key,
   }) : assert(words.length > 0, '词义连连至少需要一个单词');
 
@@ -217,6 +221,15 @@ class MeaningMatchPage extends StatefulWidget {
   ///
   /// 全局设置 Store；正式环境使用 Android 持久化，测试可注入内存实现。
   final SettingsStore? settings;
+
+  ///
+  /// 与首页、随身听共用的发音服务；选中单词卡时播放读音。
+  /// 正式环境由首页注入，测试可不传（选中时不发声，不影响连线逻辑）。
+  final WordAudioPlayer? audioPlayer;
+
+  ///
+  /// 当前发音口音；默认美式，与首页一致。
+  final PronunciationAccent accent;
 
   ///
   /// 创建词义连连页面状态。
@@ -686,6 +699,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         _selectedSide = side;
         _selectedIndex = index;
       });
+      // 选中单词卡时播放发音，让用户听着读音去找对应释义。
+      if (side == _CardSide.left) unawaited(_playLeftCardAudio(index));
       return;
     }
     // 点的还是同一侧：再点一次同一张则取消选中，点别的则改选（与原型一致）。
@@ -698,12 +713,33 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
           _selectedIndex = index;
         }
       });
+      // 改选到另一张单词卡时也播放发音；点同一张取消选中则不重复播放。
+      if (side == _CardSide.left && _selectedIndex == index) {
+        unawaited(_playLeftCardAudio(index));
+      }
       return;
     }
     // 点的是另一侧：尝试把“已选的那张”与“这张”配对。
     final leftIndex = side == _CardSide.left ? index : _selectedIndex;
     final rightIndex = side == _CardSide.left ? _selectedIndex : index;
     _attemptMatch(leftIndex, rightIndex);
+  }
+
+  ///
+  /// 播放左卡（单词）的发音。
+  ///
+  /// 词义连连左卡是英文单词，选中即播放，让用户边听读音边找对应释义。
+  /// 没有注入发音服务（测试场景）时静默跳过，不阻塞连线交互。
+  Future<void> _playLeftCardAudio(int leftIndex) async {
+    final player = widget.audioPlayer;
+    if (player == null) return;
+    final spelling = _currentPairs[leftIndex].spelling;
+    if (spelling.trim().isEmpty) return;
+    try {
+      await player.play(spelling.trim(), widget.accent);
+    } catch (error) {
+      debugPrint('词义连连播放发音失败：$error');
+    }
   }
 
   ///
@@ -841,6 +877,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       });
     } else {
       // 最后一组也连完：全部卡片操作完一遍，整局结束并判定过关。
+      // 必须先停表：结算页展示期间定时器若仍在跑，剩余时间会继续往下掉。
+      _timer?.cancel();
       setState(() => _completed = true);
       _syncPulse();
       unawaited(_finishSession());
@@ -918,6 +956,9 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     'matchedPairs': _matchedPairs,
     // 本局总配对数。
     'totalPairs': _totalPairs,
+    // 首页进度条用：已完成的单词数 / 本局总单词数。
+    'reviewedWordCount': _matchedPairs,
+    'totalWordCount': _totalPairs,
     // 是否已全部连完。
     'completed': _completed,
     // 是否超时结束。
