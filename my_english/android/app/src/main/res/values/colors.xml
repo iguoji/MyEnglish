@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 窗口背景色：Flutter 内容未覆盖的系统导航区会露出这个颜色，
+         取值与页面背景 page 一致（AppTheme.backgroundColor），避免底部突兀的白块。 -->
+    <color name="window_background">#FFF6F8FB</color>
+</resources>

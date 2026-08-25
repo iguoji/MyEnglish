@@ -158,15 +158,13 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
       // Stack 把完全隐藏的词库面板与独立提示图标放在同一层管理。
       child: Stack(
         children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: AnimatedSlide(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic,
-              // Offset(0, 1) 表示下移自身完整高度，收起后一个像素也不露出。
-              offset: widget.expanded ? Offset.zero : const Offset(0, 1),
+          // 词库面板：只在展开时存在。收起时彻底不渲染，
+          // 避免 AnimatedSlide 阴影在屏幕底部留下白色残留。
+          if (widget.expanded)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
               child: Container(
                 key: const Key('word-library-surface'),
                 height: fullHeight,
@@ -221,18 +219,19 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
                       child: _WordLibraryLearningBar(
                         targetCount: widget.targetCount,
                         hasListeningSession: widget.hasListeningSession,
-                        hasListeningMeaningSession: widget.hasListeningMeaningSession,
+                        hasListeningMeaningSession:
+                            widget.hasListeningMeaningSession,
                         onOpenListening: widget.onOpenListening,
                         onOpenListeningMeaning: widget.onOpenListeningMeaning,
                         onContinueListening: widget.onContinueListening,
-                        onContinueListeningMeaning: widget.onContinueListeningMeaning,
+                        onContinueListeningMeaning:
+                            widget.onContinueListeningMeaning,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
           if (!widget.expanded)
             Positioned(
               // SafeArea 已排除系统导航区，再留 18 像素呼吸空间。
@@ -336,7 +335,9 @@ class _WordLibraryLearningBar extends StatelessWidget {
                 targetCount: targetCount,
                 emphasized: true,
                 hasResume: hasListeningMeaningSession,
-                continueKey: const Key('word-library-listening-meaning-continue'),
+                continueKey: const Key(
+                  'word-library-listening-meaning-continue',
+                ),
                 onOpen: onOpenListeningMeaning,
                 onContinue: onContinueListeningMeaning,
                 tokens: tokens,

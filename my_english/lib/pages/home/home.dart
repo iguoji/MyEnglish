@@ -1033,15 +1033,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 词义连连：传入本局会话（续玩）、会话 Store 与设置 Store（倒计时 +30 写全局）。
         final playAgain = await Navigator.of(context).push<bool>(
           MaterialPageRoute<bool>(
-           builder: (_) => MeaningMatchPage(
-             words: entry.words,
-             title: module.label,
-             reviewSession: entry.session,
-             reviewSessionStore: _reviewSessionStore,
-             settings: _settings,
+            builder: (_) => MeaningMatchPage(
+              words: entry.words,
+              title: module.label,
+              reviewSession: entry.session,
+              reviewSessionStore: _reviewSessionStore,
+              settings: _settings,
               audioPlayer: _audioPlayer,
               accent: _settings.accent,
-           ),
+            ),
           ),
         );
         if (!mounted) return;
@@ -2163,6 +2163,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Scaffold 是页面根骨架；endDrawer 提供右侧抽屉。
     return Scaffold(
       key: _scaffoldKey,
+      backgroundColor: AppTokens.of(context).page,
       // 右侧抽屉菜单。
       endDrawer: HomeDrawer(
         // 添加单词：先关抽屉再开表单。
@@ -2185,7 +2186,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // 作者邮箱：复制到剪贴板并提示。
         onCopyEmail: () => unawaited(_copyEmail()),
       ),
-      // SafeArea 避开状态栏、刘海和底部手势区。
+      // SafeArea 只避让顶部状态栏与刘海；底部不避让，避免在屏幕底部留出
+      // 一块固定色块。手势导航区的呼吸空间由各内容区域自行留 padding。
       body: PopScope<void>(
         // 词库展开时，系统返回手势先执行“收起词库”；收起后才允许离开首页。
         canPop: !_wordLibraryExpanded,
@@ -2194,6 +2196,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           setState(() => _wordLibraryExpanded = false);
         },
         child: SafeArea(
+          bottom: false,
           // Listener 包住整棵页面内容，只旁听已经命中的原始触摸事件，不会像
           // Stack 顶层透明组件那样挡住下面的菜单按钮、卡片和滚动区域。
           child: Listener(
