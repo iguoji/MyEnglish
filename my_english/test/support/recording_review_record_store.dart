@@ -63,6 +63,14 @@ class RecordingReviewRecordStore implements ReviewRecordStore {
       const <String, int>{};
 
   @override
+  Future<Map<String, int>> getDailyMasteredCounts({DateTime? since}) async =>
+      const <String, int>{};
+
+  @override
+  Future<Map<String, int>> getDailyTotalCounts({DateTime? since}) async =>
+      const <String, int>{};
+
+  @override
   Future<Map<String, int>> getMonthlyReviewCounts({DateTime? since}) async =>
       const <String, int>{};
 }

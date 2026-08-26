@@ -276,7 +276,7 @@ void main() {
       );
     });
 
-    test('词库总量不足两倍目标时，明天的词不够就由今天补足', () async {
+    test('词库总量不足两倍目标时，明天的词有多少拿多少，不用今天的补足', () async {
       final wordSetStore = MemoryDailyWordSetStore();
       final sessionStore = MemoryReviewSessionStore();
       final flow = _flow(wordSetStore, sessionStore);
@@ -299,8 +299,9 @@ void main() {
         dailyGoal: 4,
       );
 
-      // 题量仍然是 4，缺口由今天的词补上，且没有重复。
-      expect(reinforce!.session.wordIds, hasLength(4));
+      // 今天固定随机拿一半 ceil(4×0.5)=2；明天只剩 1 个可选，就只拿 1 个。
+      // 题量因此是 3 而不是 4——明天不够时不拿今天的来补。
+      expect(reinforce!.session.wordIds, hasLength(3));
       expect(
         reinforce.session.wordIds.toSet().length,
         reinforce.session.wordIds.length,

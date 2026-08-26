@@ -61,14 +61,13 @@ abstract final class ReviewWordSelector {
       ..sort(comparePrimary);
     final primaryPicked = primarySorted.take(primaryCount).toList();
 
-    // 第二层候选：排除第一层已选主键，避免同一个词出现两次。
-    final primaryIds = <int>{
-      for (final word in primaryPicked)
-        if (word.id != null) word.id!,
-    };
+    // 第二层候选：排除第一层已选中的对象本身，避免同一个词出现两次。
+    // 用 identity 而不是主键判断：无主键的临时数据没有 id 可比，
+    // 只按主键排除的话会漏掉它们，导致同一个对象被两层各选一次。
+    final primaryPickedSet = Set<Word>.identity()..addAll(primaryPicked);
     final secondaryCandidates = <Word>[
       for (final word in candidates)
-        if (word.id == null || !primaryIds.contains(word.id)) word,
+        if (!primaryPickedSet.contains(word)) word,
     ];
 
     // 第二层：复习时间优先。

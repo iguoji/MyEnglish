@@ -63,8 +63,7 @@ class ReviewFlow {
   ///    第一层按难度降序取 40%，第二层按复习时间升序取剩下的 60%。
   /// 2. 已经建过 → 先剔除已被删除的单词，再比对数量：
   ///    - 多了：从前面截取，多出来的那部分丢掉；
-  ///    - 少了：**排除已有的那些**，再按**两层规则**补足差额。
-  ///      补词与首次建库走同一套两层分配，保证 40/60 比例不被打破。
+  ///    - 少了：**排除已有的那些**，再按**两层规则**补足差额（40/60 按差额分）。
   ///      这里必须排除已有 id——已经练过的词复习时间刚被推进，会掉到排序后面，
   ///      而没练的词还排在最前，不排除的话补进来的就是词库里已有的那几个，
   ///      同一个词会在词库里出现两次。
@@ -119,7 +118,8 @@ class ReviewFlow {
 
     if (kept.length < target) {
       // 目标调大了或有词被删了：排除已有的，再按两层规则补足差额。
-      // 补词也走两层分配，与首次建库一致，保证两层 40/60 比例不被打破。
+      // 与文档「按规则拿词(还需补充数量, 会话词库.单词列表)」一致：
+      // 40/60 是按**这次补的差额**分的，不是回过头去重算整份词库的比例。
       final supplement = ReviewWordSelector.selectTwoLayer(
         available,
         limit: target - kept.length,
@@ -212,30 +212,38 @@ class ReviewFlow {
   /// 最后面去了，跳过前 N 个反而会跳错位置；词库总量不足两倍目标时更会直接
   /// 把今天的词又抓回来。排除法在任何词库规模下都正确。
   ///
-  /// 明天的词不够一半时，缺口由今天的词补足，保证这一局的题量不缩水。
+  /// 明天的词不够一半时就少拿几个，不用今天的词补足——这一局的题量允许缩水。
   List<int> _buildReinforceWordIds({
     required List<int> todayIds,
     required List<Word> allWords,
     required int target,
   }) {
-    // 一半向下取整：与《复习模块》文档「取整(全局设置.每日复习 * 0.5)」对齐。
-    // 目标 100 时明天候选 50、今天随机 50；奇数时明天候选向下取整，
-    // 余下那一个名额自动落到今天随机那批。
-    final halfTarget = (target * 0.5).floor();
+    // 一半向上取整：与第一层配额 `ceil(limit × 0.4)` 统一，
+    // 文档里的「取整」在本项目一律按向上取整实现。
+    // 目标 100 时今天随机 50、明天候选 50；奇数各自向上取整，
+    // 两边都宁可多一个，不会少题。
+    final halfTarget = (target * 0.5).ceil();
 
     // 明天的候选：同一套两层规则，排除今天这批。
+    // 先滤掉没落库的临时词：它们会白占配额，最后又因为没有主键被丢掉，
+    // 导致明天这一半凭空少几个。
+    final selectable = <Word>[
+      for (final word in allWords)
+        if (word.id != null) word,
+    ];
     final tomorrowIds = <int>[
       for (final word in ReviewWordSelector.selectTwoLayer(
-        allWords,
+        selectable,
         limit: halfTarget,
         exclude: todayIds.toSet(),
       ))
         if (word.id != null) word.id!,
     ];
 
-    // 今天的一半随机抽；明天不够时今天多出一些补上。
-    final todayQuota = target - tomorrowIds.length;
-    final todayPicked = _pickRandom(todayIds, todayQuota);
+    // 今天固定随机抽一半；明天不够也不拿今天的来补，这一局就短一点。
+    // 「明天有多少拿多少，没有就算了」是确认过的规则：巩固局本来就是加练，
+    // 用今天的词填满反而会让同一批词在一局里被反复问到。
+    final todayPicked = _pickRandom(todayIds, halfTarget);
 
     // 两批混在一起再整体打乱，避免前半局全是今天、后半局全是明天。
     final merged = <int>[...todayPicked, ...tomorrowIds]..shuffle(_random);

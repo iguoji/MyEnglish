@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // flutter_test 提供组件渲染、点击和断言能力。
 import 'package:flutter_test/flutter_test.dart';
-// 引入被测试的首页复习质量卡片。
+// 引入被测试的首页复习总数卡片。
 import 'package:my_english/pages/home/widgets/dashboard/checkin_heatmap_card.dart';
 
 ///
-/// 注册复习质量月历的交互测试。
+/// 注册复习总数月历的交互测试。
 void main() {
   // 正式 RecordStore 使用的通道名；测试在此截获每日统计查询。
   const recordChannel = MethodChannel('my_english/word_store');
@@ -28,9 +28,10 @@ void main() {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
-    // 模拟 Android 返回“今天复习了 137 个不同单词”。
+    // 模拟 Android 返回“今天不论对错练了 137 个不同单词”。
+    // 热力图口径是「复习总数」，走的是 getDailyTotalCounts。
     messenger.setMockMethodCallHandler(recordChannel, (call) async {
-      if (call.method == 'getDailyReviewCounts') {
+      if (call.method == 'getDailyTotalCounts') {
         return <Map<String, Object?>>[
           <String, Object?>{'date': dateKey, 'count': reviewCount},
         ];
@@ -44,7 +45,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          // 首页会在复习质量卡片外再留 20 像素，此处复刻真实布局宽度。
+          // 首页会在复习总数卡片外再留 20 像素，此处复刻真实布局宽度。
           body: Padding(
             padding: EdgeInsets.all(20),
             // refreshToken 是首页发给卡片的“数据变了”通知单号；
