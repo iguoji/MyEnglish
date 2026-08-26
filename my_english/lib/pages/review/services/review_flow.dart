@@ -59,10 +59,12 @@ class ReviewFlow {
   /// 拿到今天的每日词库；数量与设置对不上时就地修正。
   ///
   /// 流程（对应《复习模块》文档的「创建词库」）：
-  /// 1. 今天还没建过 → 按排序规则选出目标数量，落库；
+  /// 1. 今天还没建过 → 按两层规则选出目标数量，落库；
+  ///    第一层按难度降序取 40%，第二层按复习时间升序取剩下的 60%。
   /// 2. 已经建过 → 先剔除已被删除的单词，再比对数量：
   ///    - 多了：从前面截取，多出来的那部分丢掉；
-  ///    - 少了：**排除已有的那些**，再从排序结果里补足差额。
+  ///    - 少了：**排除已有的那些**，再按**单层规则**（第二层）补足差额。
+  ///      补词只走第二层，不重新做难度分流，避免替换掉用户已在练的词。
   ///      这里必须排除已有 id——已经练过的词复习时间刚被推进，会掉到排序后面，
   ///      而没练的词还排在最前，不排除的话补进来的就是词库里已有的那几个，
   ///      同一个词会在词库里出现两次。
@@ -91,9 +93,11 @@ class ReviewFlow {
     final wordsById = <int, Word>{for (final word in available) word.id!: word};
     final existing = await wordSetStore.getToday();
 
-    // 今天第一次进复习模块：按固定排序选出前 target 个。
+    // 今天第一次进复习模块：按两层规则选出前 target 个。
+    // 第一层拿走难度最高的 40%，第二层补上复习时间最早的 60%，
+    // 两者合并即今天的词库（顺序为第一层在前、第二层在后）。
     if (existing == null) {
-      return wordSetStore.saveToday(_idsOf(ReviewWordSelector.select(
+      return wordSetStore.saveToday(_idsOf(ReviewWordSelector.selectTwoLayer(
         available,
         limit: target,
       )));
@@ -202,7 +206,7 @@ class ReviewFlow {
   ///
   /// 组装巩固局的单词：今天随机一半 + 明天随机一半。
   ///
-  /// 「明天的词」= 按同一套排序规则、**排除今天这批**之后排在最前面的那些。
+  /// 「明天的词」= 按同一套**两层规则**、**排除今天这批**之后排在最前面的那些。
   /// 这里不用「跳过前 N 个」的写法：今天的词刚被推进过复习时间，已经掉到排序
   /// 最后面去了，跳过前 N 个反而会跳错位置；词库总量不足两倍目标时更会直接
   /// 把今天的词又抓回来。排除法在任何词库规模下都正确。
@@ -216,9 +220,9 @@ class ReviewFlow {
     // 一半向上取整：目标 100 时今天出 50、明天出 50。
     final halfTarget = (target / 2).ceil();
 
-    // 明天的候选：同一套排序规则，排除今天这批。
+    // 明天的候选：同一套两层规则，排除今天这批。
     final tomorrowIds = <int>[
-      for (final word in ReviewWordSelector.select(
+      for (final word in ReviewWordSelector.selectTwoLayer(
         allWords,
         limit: halfTarget,
         exclude: todayIds.toSet(),

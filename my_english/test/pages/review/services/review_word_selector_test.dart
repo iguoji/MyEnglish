@@ -127,4 +127,122 @@ void main() {
     // 排序发生在内部副本上，外部列表必须原封不动。
     expect(_ids(words), <int>[3, 1, 2]);
   });
+
+  // ──────────────────────────────────────────────────────────────
+  //  两层选词（selectTwoLayer）测试组
+  // ──────────────────────────────────────────────────────────────
+
+  test('两层选词：第一层优先抓难度最高的词', () {
+    // 4 个词难度依次 1/2/3/4，其余字段完全一致（都没复习过、释义相同）。
+    final words = <Word>[
+      _word(1, 'a', difficulty: 1),
+      _word(2, 'b', difficulty: 2),
+      _word(3, 'c', difficulty: 3),
+      _word(4, 'd', difficulty: 4),
+    ];
+
+    // limit=4 → 第一层 ceil(4×0.4)=2，按难度降序取 [4, 3]；
+    // 第二层排除 {3,4} 后剩 [1,2]，按第二层规则（复习时间全空→含义全同→
+    // 难度降序）排成 [2, 1]。
+    // 合并结果：第一层 [4,3] + 第二层 [2,1] = [4,3,2,1]。
+    expect(
+      _ids(ReviewWordSelector.selectTwoLayer(words, limit: 4)),
+      <int>[4, 3, 2, 1],
+    );
+  });
+
+  test('两层选词：第二层按复习时间排，不被难度干扰', () {
+    // 第一层把高难度词挑走后，第二层剩下的词复习时间各不相同。
+    final words = <Word>[
+      // 难度 5、复习在 8 月：会被第一层抓走。
+      _word(1, 'a', difficulty: 5, reviewedAt: DateTime(2026, 8)),
+      // 难度 1、复习在 1 月：第二层里复习最早，应排最前。
+      _word(2, 'b', difficulty: 1, reviewedAt: DateTime(2026, 1)),
+      // 难度 3、没复习过：第二层里 null 最优先。
+      _word(3, 'c', difficulty: 3),
+      // 难度 2、复习在 8 月：第二层里复习最晚，排最后。
+      _word(4, 'd', difficulty: 2, reviewedAt: DateTime(2026, 8)),
+    ];
+
+    // 第一层 ceil(4×0.4)=2，按难度降序：a(5)、c(3) → [1, 3]。
+    // 第二层排除 {1,3} 后剩 b(复习1月)、d(复习8月)，
+    // 按第二层规则复习时间升序：b(1月) 在 d(8月) 前 → [2, 4]。
+    // 注意 d 难度(2) 比 b 难度(1) 高，但第二层复习时间优先级高于难度，
+    // 所以 b 仍排在 d 前面——这正是两层规则的意义。
+    expect(
+      _ids(ReviewWordSelector.selectTwoLayer(words, limit: 4)),
+      <int>[1, 3, 2, 4],
+    );
+  });
+
+  test('两层选词：10 个词按 40/60 分配，第一层 4 个第二层 6 个', () {
+    // 难度 1~10 的十个词，都没复习过、释义一致。
+    final words = <Word>[
+      for (var i = 1; i <= 10; i++) _word(i, 'w$i', difficulty: i),
+    ];
+
+    // limit=10 → 第一层 ceil(10×0.4)=4，按难度降序取 [10,9,8,7]；
+    // 第二层排除后剩难度 1~6 的词，按第二层规则（复习时间全空→含义全同→
+    // 难度降序）排成 [6,5,4,3,2,1]。
+    // 合并 [10,9,8,7, 6,5,4,3,2,1]。
+    expect(
+      _ids(ReviewWordSelector.selectTwoLayer(words, limit: 10)),
+      <int>[10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+    );
+  });
+
+  test('两层选词：exclude 参数对两层都生效', () {
+    final words = <Word>[
+      for (var i = 1; i <= 5; i++) _word(i, 'w$i', difficulty: i),
+    ];
+
+    // 排除 {5} 后第一层难度降序最高的是 4、3，取前 ceil(5×0.4)=2 个 → [4, 3]；
+    // 第二层排除 {4,3,5} 后剩 [1,2]，配额 3 但只够取 2 个 → [2, 1]。
+    // 合并 [4, 3, 2, 1]。
+    expect(
+      _ids(
+        ReviewWordSelector.selectTwoLayer(
+          words,
+          limit: 5,
+          exclude: <int>{5},
+        ),
+      ),
+      <int>[4, 3, 2, 1],
+    );
+  });
+
+  test('两层选词：词库不足目标时返回全部，不报错', () {
+    final words = <Word>[
+      _word(1, 'a', difficulty: 1),
+      _word(2, 'b', difficulty: 2),
+    ];
+
+    // limit=10 但只有 2 个词：第一层 ceil(10×0.4)=4，但只能取到 2 个；
+    // 第二层候选已被第一层抽空，取 0 个。合并 [2, 1]（难度降序）。
+    expect(
+      _ids(ReviewWordSelector.selectTwoLayer(words, limit: 10)),
+      <int>[2, 1],
+    );
+  });
+
+  test('两层选词：目标非正数或词库为空时返回空列表', () {
+    final words = <Word>[_word(1, 'a')];
+    expect(ReviewWordSelector.selectTwoLayer(words, limit: 0), isEmpty);
+    expect(ReviewWordSelector.selectTwoLayer(words, limit: -3), isEmpty);
+    expect(
+      ReviewWordSelector.selectTwoLayer(const <Word>[], limit: 5),
+      isEmpty,
+    );
+  });
+
+  test('两层选词不会改变调用方持有的原始列表顺序', () {
+    final words = <Word>[
+      _word(3, 'c', difficulty: 3),
+      _word(1, 'a', difficulty: 1),
+      _word(2, 'b', difficulty: 2),
+    ];
+    ReviewWordSelector.selectTwoLayer(words, limit: 3);
+    // 排序发生在内部副本上，外部列表必须原封不动。
+    expect(_ids(words), <int>[3, 1, 2]);
+  });
 }
