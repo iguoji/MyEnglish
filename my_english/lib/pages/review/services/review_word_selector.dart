@@ -147,31 +147,34 @@ abstract final class ReviewWordSelector {
   }
 
   ///
-  /// **第二层**比较两个单词的复习优先级（即旧版六层规则）。
+  /// **第二层**比较两个单词的复习优先级。
   ///
   /// 规则（依次比较，前一项分出胜负就不再看后面）：
   /// 1. 复习时间升序——先没复习过的，再上次复习得早的，最后刚复习过的；
-  /// 2. 含义数量升序——释义条数少的先来，因为它更好记；
-  /// 3. 含义字数升序——条数一样时，释义正文更短的先来；
-  /// 4. 难度降序——难的排前面，多练几遍；
+  /// 2. 难度降序——复习时间相同时，难的排前面，多练几遍；
+  /// 3. 含义数量升序——释义条数少的先来，因为它更好记；
+  /// 4. 含义字数升序——条数一样时，释义正文更短的先来；
   /// 5. 单词升序——按字母 A→Z；
   /// 6. 编号升序——最后的稳定兜底，保证同样的词库永远排出同样的顺序。
+  ///
+  /// 与第一层 [comparePrimary] 的区别只在「难度」与「复习时间」谁先谁后：
+  /// 第一层难度打头（专门挑难词），第二层复习时间打头（专门挑久未复习的词）。
   static int compare(Word first, Word second) {
     // 第一层：复习时间升序，没复习过的（null）永远排在最前面。
     // 这一层等价于 MySQL 的 `ORDER BY reviewed_at ASC`，NULL 视为最小。
     final byReviewed = _compareNullableDate(first.reviewedAt, second.reviewedAt);
     if (byReviewed != 0) return byReviewed;
 
-    // 第二、三层：含义复杂度升序。统一比较器固定执行
-    // 「释义条数 → 释义字符数」，两层都采用升序，简单的词先背。
-    final byMeaning = first.compareMeaningComplexityTo(second);
-    if (byMeaning != 0) return byMeaning;
-
-    // 第四层：难度降序。越难的越靠前；null 与首页约定一致按 0 处理。
+    // 第二层：难度降序。复习时间相同时，越难的越靠前；null 按 0 处理。
     final byDifficulty = (second.difficulty ?? 0).compareTo(
       first.difficulty ?? 0,
     );
     if (byDifficulty != 0) return byDifficulty;
+
+    // 第三、四层：含义复杂度升序。统一比较器固定执行
+    // 「释义条数 → 释义字符数」，两层都采用升序，简单的词先背。
+    final byMeaning = first.compareMeaningComplexityTo(second);
+    if (byMeaning != 0) return byMeaning;
 
     // 第五层：英文拼写忽略大小写后按 A 到 Z 排列。
     final bySpelling = first.spelling.toLowerCase().compareTo(
