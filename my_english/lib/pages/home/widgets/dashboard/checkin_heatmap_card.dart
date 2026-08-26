@@ -66,14 +66,14 @@ class CheckinDay {
   /// 当天质量分档。
   final CheckinLevel level;
 
-  /// 当天去重复习的单词数量；点击日期后直接显示这个数字。
+  /// 当天「不论对错」的去重复习单词总数；点击日期后直接显示这个数字。
   final int reviewCount;
 }
 
 ///
 /// 月历式打卡质量卡片：月份选择器 + 日历色块 + 统计分布条 + 图例。
 ///
-/// 数据来自原生 record 表的真实聚合（选中月份每天去重单词数），
+/// 数据来自原生 record 表的真实聚合（选中月份每天「不论对错」的去重单词数），
 /// 按每日目标分档；查询失败或无记录时显示全"未复习"骨架。
 ///
 class CheckinHeatmapCard extends StatefulWidget {
@@ -135,14 +135,15 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
   }
 
   ///
-  /// 查询选中月份每天的复习单词数（按单词去重）并转为分档。
+  /// 查询选中月份每天的复习单词数（不论对错、按单词去重）并转为分档。
   Future<void> _load() async {
     try {
       // 捕获发起时的月份，用于丢弃过期结果。
       final month = _month;
       // since 取该月 1 号；原生会把该日期之后的所有天都返回，
       // 下面在 Dart 侧再按"属于该月"过滤一遍。
-      final counts = await LocalReviewRecordStore.instance.getDailyReviewCounts(
+      // 「复习总数」口径：不论对错都算，只要这天练过的去重单词数。
+      final counts = await LocalReviewRecordStore.instance.getDailyTotalCounts(
         since: month,
       );
       // 异步期间卡片可能已移除或切换了月份。
@@ -296,7 +297,7 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 头部：左"复习质量"、中年月选择器（整行居中）、右连续天数。
+          // 头部：左"复习总数"、中年月选择器（整行居中）、右连续天数。
           // 两侧 Expanded 平分剩余宽度，中间选择器按自然宽度布局，
           // 因此年月选择器恰好落在整行正中；两侧文字带省略号，
           // 极端窄屏/大字体下收缩截断而不会溢出。
@@ -305,7 +306,7 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
               // 左：卡片标题（占位可收缩）。
               Expanded(
                 child: Text(
-                  '复习质量',
+                  '复习总数',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -613,8 +614,9 @@ class _CalendarGrid extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                // 深蓝底用白字，浅蓝/灰底用主文字色，保证可读。
-                color: day.level == CheckinLevel.three
+                // 深蓝底（达标 + 超额）用白字，浅蓝/灰底用次文字色，保证可读。
+                color: day.level == CheckinLevel.three ||
+                        day.level == CheckinLevel.two
                     ? Colors.white
                     : day.level == CheckinLevel.zero
                     ? tokens.textSecondary

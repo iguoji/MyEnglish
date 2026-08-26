@@ -508,6 +508,18 @@ class MainActivity : FlutterActivity() {
                         wordsDatabase.getMonthlyReviewCounts(since)
                     }
 
+                    // 按天统计「掌握」单词数（0 错 0 提醒），供趋势曲线「掌握量」使用。
+                    "getDailyMasteredCounts" -> runDatabaseCall(result) {
+                        val since = (call.arguments as? Map<*, *>)?.get("since") as? String
+                        wordsDatabase.getDailyMasteredCounts(since)
+                    }
+
+                    // 按天统计「不论对错」的复习单词总数，供打卡热力图「复习总数」使用。
+                    "getDailyTotalCounts" -> runDatabaseCall(result) {
+                        val since = (call.arguments as? Map<*, *>)?.get("since") as? String
+                        wordsDatabase.getDailyTotalCounts(since)
+                    }
+
                     // 按 id 读取指定单词，供复习后只回刷相关单词。
                     "getWordsByIds" -> runDatabaseCall(result) {
                         // 读取 Dart 传来的 id 列表。

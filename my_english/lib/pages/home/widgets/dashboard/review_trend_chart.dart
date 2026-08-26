@@ -35,7 +35,7 @@ extension TrendRangeLabel on TrendRange {
 ///
 /// 顶部仪表盘第一块：时间范围 tab + 平滑趋势曲线。
 ///
-/// 数据来自原生 record 表的真实聚合（每天按单词去重）：
+/// 数据来自原生 record 表的真实聚合（每天「0 错 0 提醒」的去重单词数）：
 /// 进入页面时先渲染"空数据"（全 0 的水平直线），异步查询完成后由
 /// [TrendChart] 内部把节点平滑滑动到目标位置。
 ///
@@ -143,7 +143,8 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   ///
   /// 按范围查询真实数据并组装成曲线节点。
   ///
-  /// 7天 / 30天都使用日粒度，走 [ReviewRecordStore.getDailyReviewCounts]。
+  /// 7天 / 30天都使用日粒度，走 [ReviewRecordStore.getDailyMasteredCounts]。
+  /// 「掌握量」口径比旧「复习量」更严：只要 0 错 0 提醒的记录。
   Future<List<TrendDataPoint>> _loadPoints(TrendRange range) async {
     final today = DateTime.now();
     final store = LocalReviewRecordStore.instance;
@@ -152,7 +153,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
       case TrendRange.week:
         // 7 天：今天往前数 6 天到今天，每天一个节点。
         final since = today.subtract(const Duration(days: _nodeCount - 1));
-        final counts = await store.getDailyReviewCounts(since: since);
+        final counts = await store.getDailyMasteredCounts(since: since);
         return [
           for (var i = 0; i < _nodeCount; i++)
             () {
@@ -166,7 +167,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 
       case TrendRange.month:
         // 30 天：跨度 30 天，7 个节点按天数均分（含首尾端点）。
-        final counts = await store.getDailyReviewCounts(
+        final counts = await store.getDailyMasteredCounts(
           since: today.subtract(const Duration(days: 30)),
         );
         return [
@@ -212,9 +213,9 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 头部行：左侧"复习量"标题徽章 + 右侧时间选择器。
+        // 头部行：左侧"掌握量"标题徽章 + 右侧时间选择器。
         // 字号约定：时间选择器 13（与首页"已收录 xx 个单词"副标题一致），
-        // 复习量徽章 11（比它小 2px）。两个 tab 直接平铺，不进滚动容器、
+        // 掌握量徽章 11（比它小 2px）。两个 tab 直接平铺，不进滚动容器、
         // 也不套 FittedBox 之类的整体缩放，保证字号所见即所得。
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: _edgeInset),
@@ -236,7 +237,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Text(
-                    '复习量',
+                    '掌握量',
                     style: TextStyle(
                       // 比时间选择器小 2px。
                       fontSize: 11,

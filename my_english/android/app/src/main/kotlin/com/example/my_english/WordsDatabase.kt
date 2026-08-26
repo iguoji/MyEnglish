@@ -2246,6 +2246,75 @@ class WordsDatabase(context: Context) :
     }
 
     /**
+     * 按天统计「掌握」单词数（每天按单词去重），供首页趋势曲线「掌握量」使用。
+     *
+     * 「掌握」的口径比「一次做对」更严格：要求这一遍既没错过（wrong_count=0）
+     * 也没用过提示（hint_count=0），即用户口中「0 错 0 提醒」的记录。
+     *
+     * @param sinceDate 起始日期（含），格式 yyyy-MM-dd；传 null 表示统计全部历史。
+     * @return 按日期升序的列表，每项形如 {date: "2026-08-18", count: 8}。
+     */
+    fun getDailyMasteredCounts(sinceDate: String?): List<Map<String, Any?>> {
+        val result = ArrayList<Map<String, Any?>>()
+        // 过滤条件：没错且没提示，才是真正的「掌握」。
+        val filter = "wrong_count = 0 AND hint_count = 0"
+        val where = if (sinceDate == null) {
+            "WHERE $filter"
+        } else {
+            "WHERE created_date >= ? AND $filter"
+        }
+        readableDatabase.rawQuery(
+            """
+            SELECT created_date, COUNT(DISTINCT word_id)
+            FROM review_records
+            $where
+            GROUP BY created_date
+            ORDER BY created_date ASC
+            """.trimIndent(),
+            if (sinceDate == null) null else arrayOf(sinceDate),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                result.add(mapOf("date" to cursor.getString(0), "count" to cursor.getInt(1)))
+            }
+        }
+        return result
+    }
+
+    /**
+     * 按天统计「不论对错」的复习单词总数（每天按单词去重），供打卡热力图「复习总数」使用。
+     *
+     * 只要这一天练过的词就算数，不论答对还是答错、用没用提示。
+     * 这一指标反映的是「练了几个」，而不是「掌握几个」。
+     *
+     * @param sinceDate 起始日期（含），格式 yyyy-MM-dd；传 null 表示统计全部历史。
+     * @return 按日期升序的列表，每项形如 {date: "2026-08-18", count: 15}。
+     */
+    fun getDailyTotalCounts(sinceDate: String?): List<Map<String, Any?>> {
+        val result = ArrayList<Map<String, Any?>>()
+        // 不加任何对错过滤，按日期分组统计去重单词数。
+        val where = if (sinceDate == null) {
+            ""
+        } else {
+            "WHERE created_date >= ?"
+        }
+        readableDatabase.rawQuery(
+            """
+            SELECT created_date, COUNT(DISTINCT word_id)
+            FROM review_records
+            $where
+            GROUP BY created_date
+            ORDER BY created_date ASC
+            """.trimIndent(),
+            if (sinceDate == null) null else arrayOf(sinceDate),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                result.add(mapOf("date" to cursor.getString(0), "count" to cursor.getInt(1)))
+            }
+        }
+        return result
+    }
+
+    /**
      * 读取今日全部复习记录，供「今日复习」明细展示。
      *
      * 这里返回的是原始记录（含答错的那些），去重和过滤交给调用方，

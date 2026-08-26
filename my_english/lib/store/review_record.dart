@@ -55,6 +55,20 @@ abstract interface class ReviewRecordStore {
   Future<Map<String, int>> getDailyReviewCounts({DateTime? since});
 
   ///
+  /// 按天统计「掌握」单词数（每天按单词去重）。
+  ///
+  /// 口径比 [getDailyReviewCounts] 更严：要求这一遍既没错过也没用过提示
+  /// （0 错 0 提醒）。首页趋势曲线「掌握量」用的就是这个值。
+  Future<Map<String, int>> getDailyMasteredCounts({DateTime? since});
+
+  ///
+  /// 按天统计「不论对错」的复习单词总数（每天按单词去重）。
+  ///
+  /// 只要这一天练过就算，反映「练了几个」而非「掌握几个」。
+  /// 首页打卡热力图「复习总数」用的就是这个值。
+  Future<Map<String, int>> getDailyTotalCounts({DateTime? since});
+
+  ///
   /// 按月统计复习单词数（每月按单词去重）。
   Future<Map<String, int>> getMonthlyReviewCounts({DateTime? since});
 }
@@ -188,7 +202,34 @@ class LocalReviewRecordStore implements ReviewRecordStore {
   }
 
   ///
-  /// 按月统计复习单词数（每月按单词去重），供趋势曲线「半年 / 一年」档使用。
+  /// 按天统计「掌握」单词数（每天按单词去重），供趋势曲线「掌握量」使用。
+  ///
+  /// 口径比 [getDailyReviewCounts] 更严：0 错 0 提醒才算掌握。
+  @override
+  Future<Map<String, int>> getDailyMasteredCounts({DateTime? since}) async {
+    final args = since == null
+        ? null
+        : <String, Object?>{'since': _dateKey(since)};
+    final raw = await _channel.invokeListMethod<Object?>(
+      'getDailyMasteredCounts',
+      args,
+    );
+    return _readCounts(raw, 'date');
+  }
+
+  ///
+  /// 按天统计「不论对错」的复习单词总数，供打卡热力图「复习总数」使用。
+  @override
+  Future<Map<String, int>> getDailyTotalCounts({DateTime? since}) async {
+    final args = since == null
+        ? null
+        : <String, Object?>{'since': _dateKey(since)};
+    final raw = await _channel.invokeListMethod<Object?>(
+      'getDailyTotalCounts',
+      args,
+    );
+    return _readCounts(raw, 'date');
+  }
   ///
   /// 按月去重才是正确口径：同一个词在同月的两天各拿下一次，月度只应算 1 次
   /// ——所以不能把每日去重数相加，而由 SQLite 直接按月 GROUP BY。
