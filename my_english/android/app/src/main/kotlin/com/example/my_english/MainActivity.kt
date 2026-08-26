@@ -531,9 +531,12 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     // 读取某单词已保存的音节划分。
                     "getSyllableDivision" -> runDatabaseCall(result) {
-                        // 参数必须是 Dart 传来的单词字符串。
-                        val word = call.arguments as? String
-                            ?: error("getSyllableDivision 缺少单词参数")
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("getSyllableDivision 缺少参数")
+                        // 参数必须是 Dart 传来的。
+                        val word = payload["word"]?.toString()?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?: error("getSyllableDivision 缺少有效 word")
                         // 表里没有会返回 null，对应 Dart 的 SyllableRow?。
                         wordsDatabase.getSyllableDivision(word)
                     }

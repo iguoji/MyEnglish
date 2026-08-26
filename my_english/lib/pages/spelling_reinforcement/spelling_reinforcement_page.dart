@@ -329,6 +329,13 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   Timer? _unlockTimer;
 
   ///
+  /// 刷新按钮抖动的复位定时器。
+  ///
+  /// 与 [_unlockTimer] 分开：这两段抖动可能在 350 毫秒内先后发生，
+  /// 共用一把定时器会让先开始的那段永远复位不了。
+  Timer? _refreshShakeTimer;
+
+  ///
   /// 切换到下一个单词的定时器。
   Timer? _advanceTimer;
 
@@ -468,7 +475,9 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     // 先恢复历史进度（可能直接恢复到已结算状态），再准备当前单词。
     _restoreProgress();
     if (!_showSummary) {
-      unawaited(_prepareCurrentWord(autoSpeak: true));
+      // keepProgress 必须为 true：上一行刚恢复出来的「当前词已填几格 / 已拼哪些
+      // 字母」由 _adoptParts 决定保留还是清零，漏传就等于把续玩进度扔掉。
+      unawaited(_prepareCurrentWord(autoSpeak: true, keepProgress: true));
       _startElapsedTimer();
     } else {
       _preparing = false;
@@ -552,7 +561,27 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     });
     // 作答区整块淡入上移，对应原型的 fade-switch。
     _fadeController.forward(from: 0);
+    // 恢复的快照可能正好停在「最后一格已填、还没翻页」那半秒里（用户就在那时
+    // 退出）。这种词其实已经拼完了，必须接着把它翻过去：片段模式下所有正确
+    // 片段都已变灰不可点，用户手上没有任何操作能让它继续，这一局会卡死。
+    if (keepProgress && _isCurrentWordComplete) {
+      _onWordSolved();
+      return;
+    }
     if (autoSpeak) _scheduleAutoSpeak();
+  }
+
+  ///
+  /// 当前单词是不是已经拼完了。
+  ///
+  /// 两种作答方式各有各的「拼完」标准：片段模式看格子填满没有，
+  /// 逐字母模式看字符数够不够。空拼写的脏数据不算拼完，否则会一直自动翻页。
+  bool get _isCurrentWordComplete {
+    if (_mode == SpellingMode.chunk) {
+      return _parts.isNotEmpty && _filledChunks >= _parts.length;
+    }
+    final target = _currentWord.spelling.trim();
+    return target.isNotEmpty && _typedLetters.length >= target.length;
   }
 
   ///
@@ -684,6 +713,9 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// （同一个文本可能在池里出现多次，只能靠下标区分）。
   void _onChunkTap(int index) {
     if (_showSummary || _inputLocked || _manualMode || _preparing) return;
+    // 格子已经填满就不再取「这一格该填什么」——那会越界。填满后正常是锁着输入
+    // 等翻页，但恢复进度时可能一进来就是填满状态。
+    if (_filledChunks >= _parts.length) return;
     // 已经用掉的按钮不再响应（视觉上也是变灰的）。
     if (_isChunkUsed(index)) return;
     final expected = _parts[_filledChunks];
@@ -959,8 +991,11 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   void _shakeRefreshButton() {
     setState(() => _refreshShaking = true);
     _shakeController.forward(from: 0);
-    _unlockTimer?.cancel();
-    _unlockTimer = Timer(
+    // 刻意不复用 _unlockTimer：那把定时器归答错反馈用。两者共用的话，抖动这
+    // 350 毫秒里答一次错就会把这里的复位回调取消掉，_refreshShaking 永久停在
+    // true，之后每次答错刷新按钮都会莫名跟着一起抖。
+    _refreshShakeTimer?.cancel();
+    _refreshShakeTimer = Timer(
       const Duration(milliseconds: SpellingLayout.shakeDurationMs),
       () {
         if (!mounted) return;
@@ -1104,6 +1139,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _elapsedTimer?.cancel();
     _advanceTimer?.cancel();
     _unlockTimer?.cancel();
+    _refreshShakeTimer?.cancel();
     _autoSpeakTimer?.cancel();
     Navigator.pop(context, true);
   }
@@ -1142,6 +1178,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _elapsedTimer?.cancel();
     _advanceTimer?.cancel();
     _unlockTimer?.cancel();
+    _refreshShakeTimer?.cancel();
     _autoSpeakTimer?.cancel();
     _fadeController.dispose();
     _shakeController.dispose();
@@ -1524,30 +1561,36 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              for (final letter in rows[rowIndex].split('')) ...<Widget>[
-                Flexible(
-                  child: _KeyboardKey(
-                    key: Key('spelling-key-$letter'),
-                    label: letter,
-                    isWrong: _wrongKeyLabel == letter,
-                    tokens: tokens,
-                    shake: _shakeController,
-                    onTap: () => _onKeyTap(letter),
+              // 间隔只加在按键之间，不能每颗键后面都挂一个：行尾多出来的那 6 像素
+              // 会算进 Row 的宽度，整行跟着左偏 3 像素，与有退格键的第三行错位。
+              for (final (index, letter) in rows[rowIndex].split('').indexed)
+                ...<Widget>[
+                  if (index > 0)
+                    const SizedBox(width: SpellingLayout.keyGap),
+                  Flexible(
+                    child: _KeyboardKey(
+                      key: Key('spelling-key-$letter'),
+                      label: letter,
+                      isWrong: _wrongKeyLabel == letter,
+                      tokens: tokens,
+                      shake: _shakeController,
+                      onTap: () => _onKeyTap(letter),
+                    ),
                   ),
-                ),
-                const SizedBox(width: SpellingLayout.keyGap),
-              ],
+                ],
               // 第三行末尾补一个退格键，宽度略大于字母键。
-              if (rowIndex == rows.length - 1)
+              if (rowIndex == rows.length - 1) ...<Widget>[
+                const SizedBox(width: SpellingLayout.keyGap),
                 _KeyboardKey(
                   key: const Key('spelling-key-backspace'),
-                 icon: TablerIcons.backspace,
-                 isFunction: true,
+                  icon: TablerIcons.backspace,
+                  isFunction: true,
                   isWrong: false,
-                 tokens: tokens,
-                 shake: _shakeController,
-                 onTap: _onBackspace,
+                  tokens: tokens,
+                  shake: _shakeController,
+                  onTap: _onBackspace,
                 ),
+              ],
             ],
           ),
         ],
@@ -2027,6 +2070,10 @@ class _SpellingSlot extends StatelessWidget {
             tokens.card,
           );
 
+    // 片段格不设固定宽度，靠 minWidth + 内容撑开；因此内部居中必须用
+    // 会收缩包裹的 Center(widthFactor/heightFactor: 1)。
+    // 不能用裸 Center 或 Container.alignment：这两种写法在有界约束下都会
+    // 把格子撑到父级最大宽度，Wrap 里就变成一格一行。
     Widget slot = Container(
       width: isLetterSlot ? SpellingLayout.letterSlotSize : null,
       height: isLetterSlot
@@ -2049,6 +2096,8 @@ class _SpellingSlot extends StatelessWidget {
         ),
       ),
       child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
         child: Text(
           text,
           style: TextStyle(
@@ -2163,6 +2212,8 @@ class _ChunkButton extends StatelessWidget {
         child: Opacity(
           // 已用片段保留 35% 不透明度，既能看清又明确表示「用过了」。
           opacity: isUsed ? SpellingLayout.chunkUsedOpacity : 1,
+          // 候选按钮同样是「minWidth + 内容」定宽，内部居中必须用会收缩
+          // 包裹的 Center(widthFactor/heightFactor: 1)，否则会撑满整行。
           child: Container(
             constraints: const BoxConstraints(
               minWidth: SpellingLayout.chunkMinWidth,
@@ -2173,11 +2224,12 @@ class _ChunkButton extends StatelessWidget {
               horizontal: SpellingLayout.chunkPaddingHorizontal,
             ),
             decoration: BoxDecoration(
-              borderRadius:
-                  BorderRadius.circular(SpellingLayout.chunkRadius),
+              borderRadius: BorderRadius.circular(SpellingLayout.chunkRadius),
               border: Border.all(color: borderColor),
             ),
             child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
               child: Text(
                 text,
                 style: TextStyle(

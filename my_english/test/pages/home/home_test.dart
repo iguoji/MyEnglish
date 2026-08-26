@@ -103,8 +103,9 @@ void main() {
     await _pumpHome(tester, expandWordLibrary: false);
     // 点击前页面中没有占位页的文字。
     expect(find.text('暂未开放'), findsNothing);
-    // 点击尚未开放的「拼写巩固」；这类模块不建词库也不开会话，直接进占位页。
-    await tester.tap(find.text('拼写巩固'));
+    // 点击尚未开放的「看义选词」；这类模块不建词库也不开会话，直接进占位页。
+    // 原先点的是「拼写巩固」，那个模块已经上线，改点当前唯一未开放的玩法。
+    await tester.tap(find.text('看义选词'));
     await tester.pumpAndSettle();
 
     // 占位页明确告知该玩法尚未开放，并顺带展示今天的词单规模。
