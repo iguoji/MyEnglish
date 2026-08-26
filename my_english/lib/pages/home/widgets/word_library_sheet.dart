@@ -307,6 +307,8 @@ class _WordLibraryLearningBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
     return ColoredBox(
+      // 测试用它定位这一条，确认词库列表正好长到操作栏顶边为止。
+      key: const Key('word-library-learning-bar'),
       color: tokens.card,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),

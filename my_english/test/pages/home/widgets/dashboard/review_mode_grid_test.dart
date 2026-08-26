@@ -36,7 +36,7 @@ void main() {
                 ReviewModule.meaningMatch: ReviewModuleState(
                   progress: ReviewModuleProgress.active,
                 ),
-                // 未开放的两个模块即使有状态也只显示「即将开放」。
+                // 拼写巩固也已开放，今天同样过关了。
                 ReviewModule.spellingReinforcement: ReviewModuleState(
                   progress: ReviewModuleProgress.completed,
                 ),
@@ -61,13 +61,14 @@ void main() {
     // 词义连连采用更短的单行描述，不再在两列卡片里换行。
     final matchingDescription = tester.widget<Text>(find.text('释义配对 · 连续匹配'));
     expect(matchingDescription.maxLines, 1);
-    // 三态徽章：已完成 / 进行中各一张，未开放的两张统一灰色文案。
-    expect(find.text('已完成'), findsOneWidget);
+    // 三态徽章：听音辨义与拼写巩固已完成，词义连连进行中；
+    // 只剩看义选词还没开放，显示灰色「即将开放」。
+    expect(find.text('已完成'), findsNWidgets(2));
     expect(find.text('进行中'), findsOneWidget);
-    expect(find.text('即将开放'), findsNWidgets(2));
+    expect(find.text('即将开放'), findsOneWidget);
     // 百分比彻底下线，任何一张卡片都不该再出现「%」。
     expect(find.textContaining('%'), findsNothing);
-    // 没有会话记录的模块回落到「待完成」——这里四张卡都有状态或未开放，故为 0。
+    // 没有会话记录的模块回落到「待完成」——这里三张已开放的卡都有状态，故为 0。
     expect(find.text('待完成'), findsNothing);
 
     // 四张卡片依次点击，回调必须带回各自的模块标识。
@@ -108,9 +109,9 @@ void main() {
       ),
     );
 
-    // 两个已开放模块显示待完成，两个未开放模块仍是「即将开放」。
-    expect(find.text('待完成'), findsNWidgets(2));
-    expect(find.text('即将开放'), findsNWidgets(2));
+    // 三个已开放模块显示待完成，只剩看义选词是「即将开放」。
+    expect(find.text('待完成'), findsNWidgets(3));
+    expect(find.text('即将开放'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

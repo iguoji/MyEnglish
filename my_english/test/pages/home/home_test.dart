@@ -437,8 +437,16 @@ void main() {
     // 物理高度同样换算成逻辑高度。
     final logicalHeight =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
-    // Expanded 让列表底部到达屏幕底部。
-    expect(tester.getBottomRight(listFinder).dy, logicalHeight);
+    // Expanded 让列表一直长到底部学习操作栏为止：列表底边正好接上
+    // 「随身听 / 听音辨义」那一条，两者之间不留任何空隙。
+    final learningBar = find.byKey(const Key('word-library-learning-bar'));
+    expect(
+      tester.getBottomRight(listFinder).dy,
+      tester.getTopLeft(learningBar).dy,
+    );
+    // 操作栏下面只剩 SafeArea 给系统手势区留的 12 像素呼吸位，
+    // 也就是说列表下方除了这条操作栏没有别的东西。
+    expect(tester.getBottomRight(learningBar).dy, logicalHeight - 12);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -484,15 +492,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('上滑查看词库'), findsNothing);
-      // 词库表面完整位于可视区域下方，没有露出搜索框或白色抽屉。
+      // 收起时词库面板压根不渲染（生产代码刻意不保留屏幕外的实例，
+      // 免得 AnimatedSlide 的阴影在屏幕底部留下一条白边）。
       final logicalWidth =
           tester.view.physicalSize.width / tester.view.devicePixelRatio;
       final logicalHeight =
           tester.view.physicalSize.height / tester.view.devicePixelRatio;
-      final hiddenSurfaceTop = tester.getTopLeft(
-        find.byKey(const Key('word-library-surface')),
-      );
-      expect(hiddenSurfaceTop.dy, greaterThanOrEqualTo(logicalHeight));
+      expect(find.byKey(const Key('word-library-surface')), findsNothing);
 
       // 从屏幕中部上滑，而不是依赖底部图标或抽屉手柄。
       await tester.dragFrom(
@@ -1616,7 +1622,8 @@ void main() {
       findsOneWidget,
     );
     // 继续按钮固定在随身听入口的最右侧，并保持 40 像素独立点击宽度。
-    expect(playerContinue.right, closeTo(playerAction.right, 0.1));
+    // 入口外框有 1 像素描边，按钮画在描边内侧，所以右边缘正好差这 1 像素。
+    expect(playerContinue.right, closeTo(playerAction.right - 1, 0.1));
     expect(playerContinue.width, 40);
 
     // 点击随身听继续后，恢复列表必须使用历史顺序，而非首页当前顺序。
@@ -1750,6 +1757,13 @@ void main() {
       );
       // 等待异步 getAll 进入 catch 并刷新页面。
       await tester.pump();
+      // 错误态渲染在词库列表区，而列表区默认收在底部抽屉里；
+      // 和其他用例一样先展开抽屉，才看得到这段错误。
+      final sheetState = tester.state(
+        find.byKey(const Key('word-library-sheet')),
+      );
+      (sheetState as dynamic).expand();
+      await tester.pumpAndSettle();
 
       // 保留用户可理解的错误标题。
       expect(find.text('单词数据加载失败'), findsOneWidget);
