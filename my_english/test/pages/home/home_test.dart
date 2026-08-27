@@ -483,17 +483,24 @@ void main() {
   testWidgets(
     'word library starts hidden and opens from a global upward swipe',
     (tester) async {
+      // 把测试画布加高到一屏装下整套首页：上滑提示文字已移入文档流、位于
+      // 复习模式入口下方，默认 600 逻辑高视口下 ListView 懒加载不会渲染到
+      // 列表末尾；加高后无需真实滚动，也就不会误触全局「上滑展开」手势。
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
       // 本用例必须观察默认状态，因此不调用测试 helper 的自动展开步骤。
       await _pumpHome(tester, expandWordLibrary: false);
 
-      // 收起时只显示一段静态的上滑提示文字，不再渲染上滑动画图标。
+      // 文档流里只保留这段静态文字，不再渲染上滑动画图标。
+      final hintFinder = find.byKey(const Key('word-library-swipe-indicator'));
       expect(
-        find.byKey(const Key('word-library-swipe-indicator')),
+        hintFinder,
         findsOneWidget,
       );
-      expect(find.text('---向上滑动展开词库---'), findsOneWidget);
+      expect(find.text('向上滑动展开词库'), findsOneWidget);
       // 收起时词库面板压根不渲染（生产代码刻意不保留屏幕外的实例，
-      // 免得 AnimatedSlide 的阴影在屏幕底部留下一条白边）。
+      // 免得入场动画留下一条白边）。
       final logicalWidth =
           tester.view.physicalSize.width / tester.view.devicePixelRatio;
       final logicalHeight =
@@ -515,9 +522,11 @@ void main() {
         find.byKey(const Key('word-library-surface')),
       );
       expect(visibleSurfaceTop.dy, lessThan(logicalHeight));
+      // 上滑提示已移入首页文档流、跟随复习模式入口出现，展开后仍被上层
+      // 面板覆盖，这里确认它确实还在文档流里。
       expect(
         find.byKey(const Key('word-library-swipe-indicator')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(find.text('搜索单词'), findsOneWidget);
 

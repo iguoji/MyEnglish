@@ -77,9 +77,9 @@ class HomeDashboard extends StatelessWidget {
     return Container(
       color: tokens.page,
       child: ListView(
-        // 底部 72 = 40 像素箭头点击区 + 18 像素安全距离 + 14 像素呼吸空间。
-        // 原来的 140 同时照顾旧悬浮学习按钮；按钮移除后不再保留那块大空白。
-        padding: const EdgeInsets.fromLTRB(0, 20, 0, 72),
+        // 底部留 24 像素呼吸空间即可：上滑提示文字已移入文档流，
+        // 不再需要在屏幕底部为悬浮图标预留固定高度的空白区。
+        padding: const EdgeInsets.fromLTRB(0, 20, 0, 24),
         children: [
           // 顶部问候与统计行（留在安全边界内）。
           Padding(
@@ -115,6 +115,32 @@ class HomeDashboard extends StatelessWidget {
               moduleStates: reviewModuleStates,
               dailyGoal: reviewModeDailyGoal,
               onOpenModule: onOpenModule,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // 底部上滑提示：与曲线图、热力图、复习模块同级，排在它们之后、
+          // 停靠在列表底部；用左右分隔线把文字夹在中间，字体与颜色沿用
+          // 「每个模块描述」同款小字，而不是固定在屏幕底部的悬浮层。
+          Padding(
+            padding: horizontalPadding,
+            child: Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    '向上滑动展开词库',
+                    key: const Key('word-library-swipe-indicator'),
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: tokens.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
             ),
           ),
         ],

@@ -11,9 +11,10 @@ import 'word_search_field.dart';
 ///
 /// 底部词库抽屉：可拖拽展开的搜索 + 筛选 + 单词列表容器。
 ///
-/// 抽屉内容恒定按屏幕 88% 高度布局；收起时用 [AnimatedSlide] 完整移出
-/// 屏幕，首页底部只保留一段静态的上滑提示文字。展开时抽屉滑回原位，内部
-/// Column 的布局高度始终不变，因此动画过程中不会发生内容挤压或溢出。
+/// 抽屉内容恒定按屏幕 88% 高度布局；展开时用 TweenAnimationBuilder 从屏幕
+/// 底部滑出进场，收起时瞬间移除、不保留屏幕外的实例以免阴影残留。上滑提示
+/// 文字已移入首页文档流，跟随复习模式入口出现，不再由抽屉自己绘制。
+/// 内部 Column 的布局高度始终不变，因此动画过程中不会发生内容挤压或溢出。
 ///
 class WordLibrarySheet extends StatefulWidget {
   /// 创建抽屉。
@@ -111,109 +112,88 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
       // Stack 把完全隐藏的词库面板与底部提示文字放在同一层管理。
       child: Stack(
         children: [
-          // 词库面板：只在展开时存在。收起时彻底不渲染，
-          // 避免 AnimatedSlide 阴影在屏幕底部留下白色残留。
+          // 词库面板：只在展开时存在。用 TweenAnimationBuilder 做出从屏幕
+          // 底部滑出的入场动画；收起时彻底不渲染，避免留下白色阴影残留。
           if (widget.expanded)
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: Container(
-                key: const Key('word-library-surface'),
-                height: fullHeight,
-                decoration: BoxDecoration(
-                  color: tokens.card,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
+              // Offset(0, 1) 表示把面板向下平移自身高度，视觉上正好落到
+              // 屏幕下方；动画结束时归位，看起来就是「从下滑出」的效果。
+              child: TweenAnimationBuilder<Offset>(
+                tween: Tween(begin: const Offset(0, 1), end: Offset.zero),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                // FractionalTranslation 按自身尺寸比例平移，不改变布局占位。
+                builder: (context, offset, child) => FractionalTranslation(
+                  translation: offset,
+                  child: child,
+                ),
+                child: Container(
+                  key: const Key('word-library-surface'),
+                  height: fullHeight,
+                  decoration: BoxDecoration(
+                    color: tokens.card,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: tokens.cardShadow,
+                        blurRadius: 24,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: tokens.cardShadow,
-                      blurRadius: 24,
-                      offset: const Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    // 顶部先留 8 像素，不让手柄紧贴圆角边缘；当前交互明确为点击收起。
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: GestureDetector(
-                        onTap: _toggle,
-                        behavior: HitTestBehavior.opaque,
-                        child: const _DragHandle(),
-                      ),
-                    ),
-                    // header 区：搜索 + 筛选 + 排序。
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-                      child: Column(
-                        children: [
-                          WordSearchField(onChanged: widget.onSearchChanged),
-                          const SizedBox(height: 12),
-                          widget.groupFilterBar,
-                          const SizedBox(height: 12),
-                          widget.wordSortBar,
-                          if (widget.selectionBar is! SizedBox) ...[
-                            const SizedBox(height: 10),
-                            widget.selectionBar,
-                          ],
-                        ],
-                      ),
-                    ),
-                    // 列表区填满抽屉剩余高度。
-                    Expanded(child: widget.listContent),
-                    // SafeArea 自动读取系统底部操作区；若外层已经避让过，
-                    // Flutter 会把这部分归零，避免同一安全距离被重复计算。
-                    SafeArea(
-                      top: false,
-                      minimum: const EdgeInsets.only(bottom: 12),
-                      child: _WordLibraryLearningBar(
-                        targetCount: widget.targetCount,
-                        hasListeningSession: widget.hasListeningSession,
-                        hasListeningMeaningSession:
-                            widget.hasListeningMeaningSession,
-                        onOpenListening: widget.onOpenListening,
-                        onOpenListeningMeaning: widget.onOpenListeningMeaning,
-                        onContinueListening: widget.onContinueListening,
-                        onContinueListeningMeaning:
-                            widget.onContinueListeningMeaning,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (!widget.expanded)
-            Positioned(
-              // SafeArea 已排除系统导航区，再留 18 像素呼吸空间。
-              left: 0,
-              right: 0,
-              bottom: 18,
-              child: Center(
-                child: Tooltip(
-                  message: '展开词库',
-                  child: GestureDetector(
-                    key: const Key('word-library-swipe-indicator'),
-                    onTap: expand,
-                    behavior: HitTestBehavior.opaque,
-                    // 提示采用「每个模块的描述」同款小字，避免在底部喧宾夺主。
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        '---向上滑动展开词库---',
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: tokens.textSecondary,
-                          height: 1.3,
+                  child: Column(
+                    children: [
+                      // 顶部先留 8 像素，不让手柄紧贴圆角边缘；当前交互明确为点击收起。
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: GestureDetector(
+                          onTap: _toggle,
+                          behavior: HitTestBehavior.opaque,
+                          child: const _DragHandle(),
                         ),
                       ),
-                    ),
+                      // header 区：搜索 + 筛选 + 排序。
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                        child: Column(
+                          children: [
+                            WordSearchField(onChanged: widget.onSearchChanged),
+                            const SizedBox(height: 12),
+                            widget.groupFilterBar,
+                            const SizedBox(height: 12),
+                            widget.wordSortBar,
+                            if (widget.selectionBar is! SizedBox) ...[
+                              const SizedBox(height: 10),
+                              widget.selectionBar,
+                            ],
+                          ],
+                        ),
+                      ),
+                      // 列表区填满抽屉剩余高度。
+                      Expanded(child: widget.listContent),
+                      // SafeArea 自动读取系统底部操作区；若外层已经避让过，
+                      // Flutter 会把这部分归零，避免同一安全距离被重复计算。
+                      SafeArea(
+                        top: false,
+                        minimum: const EdgeInsets.only(bottom: 12),
+                        child: _WordLibraryLearningBar(
+                          targetCount: widget.targetCount,
+                          hasListeningSession: widget.hasListeningSession,
+                          hasListeningMeaningSession:
+                              widget.hasListeningMeaningSession,
+                          onOpenListening: widget.onOpenListening,
+                          onOpenListeningMeaning: widget.onOpenListeningMeaning,
+                          onContinueListening: widget.onContinueListening,
+                          onContinueListeningMeaning:
+                              widget.onContinueListeningMeaning,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
