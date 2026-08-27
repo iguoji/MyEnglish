@@ -41,17 +41,18 @@ abstract interface class WordStore {
   Future<void> importWords(List<Word> words);
 
   ///
-  /// 导入 words，以及文件中可选的 groups/members。
+  /// 导入完整备份：words，以及文件可选的 groups/members/设置/会话/复习记录等。
   ///
   /// 只有文件携带分组数据时才替换分组；未知数据库字段会被忽略。
   Future<void> importData(Map<String, Object?> data);
 
   ///
-  /// 从 SQLite 真实业务字段生成可写入 JSON 的单词与分组数据。
+  /// 从 SQLite 真实业务字段生成可写入 JSON 的完整数据（含设置由原生并入）。
   Future<Map<String, Object?>> exportData();
 
   ///
-  /// 清空本地全部单词数据（单词、释义、分组与成员）。
+  /// 清空本地全部业务数据（单词、释义、分组/成员、每日词库、复习会话与记录、
+  /// 学习会话、听音候选项缓存、音节划分缓存）；设置与音频缓存由调用方另行清空。
   Future<void> clearAll();
 }
 

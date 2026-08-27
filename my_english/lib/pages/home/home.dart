@@ -1585,9 +1585,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final Map<String, Object?> payload;
       if (decoded is List) {
         // 旧 words.json 是顶层数组，只包装 words，不制造额外版本信息。
+        // 空数组意味着没有任何内容，直接提示后返回，不做任何改动。
+        if (decoded.isEmpty) {
+          _showSnackBar('文件中没有可导入的数据');
+          return;
+        }
         payload = <String, Object?>{'words': decoded};
       } else if (decoded is Map && decoded['words'] is List) {
-        // 完整导出对象保留 groups/members；只接收字符串键。
+        // 完整备份对象除 words 外还带 groups/settings/会话/复习记录等；只接收字符串键。
         payload = <String, Object?>{
           for (final entry in decoded.entries)
             if (entry.key is String) entry.key! as String: entry.value,
@@ -1595,8 +1600,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       } else {
         throw const FormatException('导入文件必须是单词数组或包含 words 数组的对象');
       }
-      final words = payload['words']! as List;
-      if (words.isEmpty) {
+
+      final words = payload['words'] as List? ?? const <Object?>[];
+      // 只要文件携带词库、分组、设置或任一学习数据中的一种就允许导入；
+      // 纯空对象不做任何改动，避免误触把本机数据整库清空。
+      final hasRestorableData = words.isNotEmpty ||
+          (payload['groups'] as List?)?.isNotEmpty == true ||
+          payload['settings'] is Map ||
+          (payload['daily_word_sets'] as List?)?.isNotEmpty == true ||
+          (payload['review_sessions'] as List?)?.isNotEmpty == true ||
+          (payload['review_records'] as List?)?.isNotEmpty == true ||
+          (payload['learning_sessions'] as List?)?.isNotEmpty == true;
+      if (!hasRestorableData) {
         _showSnackBar('文件中没有可导入的单词');
         return;
       }
@@ -1605,22 +1620,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final importedCount = words.length;
       // 文件携带 groups 才会替换分组，此时同步刷新内存列表。
       if (payload['groups'] is List) await _groups.load();
+      // 备份里带有设置时，从原生把导入后的值重新读回内存（主题/口音/每日目标）。
+      if (payload['settings'] is Map) await _settings.reload();
       // 文件操作期间首页可能已退出，后续不能再更新页面状态或发起页面刷新。
       if (!mounted) return;
       // 原生整库导入会同步清除学习会话，首页立即移除两个“继续”按钮。
-      if (mounted) {
-        setState(() {
-          _learningSessions = const <LearningSessionType, LearningSession>{};
-          // 整库导入会清空原生的每日词库、会话与复习记录，内存同步失效。
-          _dailyWordSet = null;
-          _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
-          _reviewCount = 0;
-        });
+      setState(() {
+        _learningSessions = const <LearningSessionType, LearningSession>{};
+        // 整库导入会清空原生的每日词库、会话与复习记录，内存同步失效。
+        _dailyWordSet = null;
+        _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
+        _reviewCount = 0;
+      });
+      // 整库数据已替换：重载单词列表，并重算今日词库/复习进度/继续入口，
+      // 让首页在导入「另一台设备的完整备份」后立即反映还原结果。
+      await _loadWords();
+      await _refreshReviewDashboard();
+      if (!mounted) return;
+      if (payload['settings'] is Map || payload['review_records'] is List) {
+        _showSnackBar('已导入全部数据（词库/设置/会话/复习等）');
+      } else {
+        _showSnackBar('已导入 $importedCount 个单词');
       }
-      // 重新加载首页列表，让新数据立即显示。
-      unawaited(_loadWords());
-      // 提示成功导入的数量。
-      _showSnackBar('已导入 $importedCount 个单词');
     } on FormatException catch (error) {
       // JSON 结构或字段错误，显示具体原因便于修正文件。
       _showSnackBar('导入失败：${error.message}');
@@ -1633,13 +1654,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 数据导出：把本地全部单词、分组与成员关系聚合为 JSON，通过系统保存框写出。
   ///
-  /// 导出结构在 words.json 基础上新增 groups 与 members 两段，原生 importData
-  /// 导入时连同分组与多对多关系整库还原，避免备份丢失归类信息。
+  /// 导出结构在 words.json 基础上包含分组、成员、设置、每日词库、复习会话与
+  /// 记录、学习会话、听音候选项缓存和音节划分等全部本地数据，原生 importData
+  /// 导入时整库还原，保证换机或重装后能完整恢复学习进度与统计结果。
   Future<void> _exportData() async {
     // 先关闭抽屉，避免遮挡系统保存框。
     Navigator.of(context).pop();
     try {
-      // 原生层直接读取 words/meanings/groups/group_members 真实字段。
+      // 原生层读取 SQLite 全部业务字段并并入设置，生成完整备份对象。
       final payload = await _store.exportData();
       // 缩进格式，便于人读与二次编辑。
       final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
@@ -1655,9 +1677,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (savedUri == null) return;
       // 系统保存框返回时首页可能已经销毁。
       if (!mounted) return;
-      // 提示导出数量（系统已落盘到用户指定的位置）。
-      final exportedWords = payload['words'] as List? ?? const <Object?>[];
-      _showSnackBar('已导出 ${exportedWords.length} 个单词');
+      _showSnackBar('已导出全部数据（词库/设置/会话/复习等）');
     } catch (error) {
       // 读取或保存异常，显示可读详情。
       _showSnackBar('导出失败：${_describeLoadError(error)}');
@@ -1665,7 +1685,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 清空数据：二次确认后清空单词、释义与全部设置。
+  /// 清空数据：二次确认后清空词库、全部会话与复习记录、候选/音节缓存、设置
+  /// 与离线语音缓存，恢复到首次安装状态。
   Future<void> _clearData() async {
     // 先关闭抽屉，避免遮挡确认弹窗。
     Navigator.of(context).pop();
@@ -1674,7 +1695,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 用户取消则什么都不做。
     if (!confirmed || !mounted) return;
     try {
-      // 清空 SQLite 全部业务数据，包含单词、释义、分组、记录、候选缓存和学习会话。
+      // 清空 SQLite 全部业务数据，含单词、释义、分组、记录、候选/音节缓存与学习会话。
       await _store.clearAll();
       // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
       await _settings.clearAll();
@@ -1692,8 +1713,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
         _reviewCount = 0;
       });
-      // 重新加载空列表。
+      // 重新加载空列表，并刷新今日词库/复习进度/继续入口，让卡片立即归零。
       unawaited(_loadWords());
+      unawaited(_refreshReviewDashboard());
       // 提示已清空。
       _showSnackBar('已清空全部本地数据');
     } catch (error) {

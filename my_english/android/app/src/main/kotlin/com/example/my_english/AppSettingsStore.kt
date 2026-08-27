@@ -111,6 +111,28 @@ class AppSettingsStore(context: Context) {
         }
     }
 
+    /**
+     * 从导入的完整备份批量写入全部设置。
+     *
+     * 只接受可识别的合法值；个别字段缺失或格式不对时静默跳过，不中断整体导入，
+     * 让词库等更关键的数据始终能恢复成功。
+     */
+    fun setAll(values: Map<*, *>) {
+        val accent = values[ACCENT_KEY] as? String
+        if (accent == AMERICAN || accent == BRITISH) setAccent(accent)
+        val theme = values[THEME_KEY] as? String
+        if (theme == LIGHT || theme == DARK) setTheme(theme)
+        val separator = values[DEFINITION_SEPARATOR_KEY] as? String
+        if (separator == IDEOGRAPHIC_COMMA ||
+            separator == FULL_WIDTH_COMMA ||
+            separator == FULL_WIDTH_SEMICOLON
+        ) setDefinitionSeparator(separator)
+        val dailyGoal = (values[DAILY_GOAL_KEY] as? Number)?.toInt()
+        if (dailyGoal != null && dailyGoal >= 0) setDailyGoal(dailyGoal)
+        val duration = (values[MEANING_MATCH_DURATION_KEY] as? Number)?.toInt()
+        if (duration != null && duration >= 0) setMeaningMatchDuration(duration)
+    }
+
     /** 所有稳定键值集中在 companion object，类似 PHP 类常量。 */
     private companion object {
         // SharedPreferences 口音键。

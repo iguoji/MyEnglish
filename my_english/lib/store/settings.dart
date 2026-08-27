@@ -360,6 +360,36 @@ class SettingsStore extends ChangeNotifier {
   }
 
   ///
+  /// 从原生重新读取全部设置并覆盖内存值。
+  ///
+  /// 供「导入完整备份」后调用：备份里携带设置时，界面（主题、口音、每日目标）
+  /// 需要跟随导入后的磁盘内容同步，而不是继续显示导入前的旧值。
+  Future<void> reload() async {
+    // 内存模式（测试或旧原生壳）没有通道可读，保持现状即可。
+    if (_channel == null) return;
+    try {
+      final values = await _channel.invokeMapMethod<String, Object?>(
+        'getSettings',
+      );
+      _accent = _accentFromStorage(values?['accent']);
+      _theme = _themeFromStorage(values?['theme']);
+      _definitionSeparator = _definitionSeparatorFromStorage(
+        values?['definitionSeparator'],
+      );
+      _dailyGoal = _dailyGoalFromStorage(values?['dailyGoal']);
+      _meaningMatchDuration = _meaningMatchDurationFromStorage(
+        values?['meaningMatchDuration'],
+      );
+      notifyListeners();
+    } on PlatformException catch (error) {
+      // 单次重载失败不阻断导入，界面继续使用旧值。
+      debugPrint('本地设置重载失败，沿用当前设置：$error');
+    } on MissingPluginException catch (error) {
+      debugPrint('本地设置通道未注册，跳过重载：$error');
+    }
+  }
+
+  ///
   /// 把原生字符串转换成强类型口音。
   static PronunciationAccent _accentFromStorage(Object? value) {
     // 只有明确保存 british 才使用英式，其余值都采用默认美式。

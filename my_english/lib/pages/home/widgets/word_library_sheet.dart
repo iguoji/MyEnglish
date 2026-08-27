@@ -1,6 +1,6 @@
 // material.dart 提供布局、滚动与动画组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 提供底部上滑提示与抽屉手柄图标。
+// tabler_icons_plus 提供抽屉内部与底部操作栏等图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
@@ -12,7 +12,7 @@ import 'word_search_field.dart';
 /// 底部词库抽屉：可拖拽展开的搜索 + 筛选 + 单词列表容器。
 ///
 /// 抽屉内容恒定按屏幕 88% 高度布局；收起时用 [AnimatedSlide] 完整移出
-/// 屏幕，首页底部只保留独立的上滑动画图标。展开时抽屉滑回原位，内部
+/// 屏幕，首页底部只保留一段静态的上滑提示文字。展开时抽屉滑回原位，内部
 /// Column 的布局高度始终不变，因此动画过程中不会发生内容挤压或溢出。
 ///
 class WordLibrarySheet extends StatefulWidget {
@@ -84,52 +84,12 @@ class WordLibrarySheet extends StatefulWidget {
 ///
 /// 管理抽屉展开/收起状态。
 ///
-class _WordLibrarySheetState extends State<WordLibrarySheet>
-    with SingleTickerProviderStateMixin {
-  /// 底部提示图标的往返动画控制器。
-  late final AnimationController _hintController;
-
-  /// 图标在很小范围内上下浮动，表达“向上滑”的方向。
-  late final Animation<Offset> _hintOffset;
-
-  @override
-  void initState() {
-    super.initState();
-    // 动画每 850 毫秒移动一次，往返循环，不做快速闪烁。
-    _hintController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 850),
-    );
-    // 只移动图标自身高度的 16%，幅度小且不会触碰其他底部控件。
-    _hintOffset =
-        Tween<Offset>(
-          begin: const Offset(0, 0.12),
-          end: const Offset(0, -0.16),
-        ).animate(
-          CurvedAnimation(parent: _hintController, curve: Curves.easeInOut),
-        );
-    // 默认抽屉隐藏时播放上滑提示；若父页面要求展开则保持停止。
-    if (!widget.expanded) _hintController.repeat(reverse: true);
-  }
-
-  @override
-  void didUpdateWidget(covariant WordLibrarySheet oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 父页面改变展开状态后，同步控制底部提示动画是否运行。
-    if (oldWidget.expanded != widget.expanded) {
-      if (widget.expanded) {
-        _hintController.stop();
-      } else {
-        _hintController.repeat(reverse: true);
-      }
-    }
-  }
-
-  /// 切换抽屉状态，并同步启动或停止底部提示动画。
+class _WordLibrarySheetState extends State<WordLibrarySheet> {
+  /// 切换抽屉状态，并同步通知首页更新展开状态。
   void _setExpanded(bool expanded) {
     // 状态没有变化时不重复通知首页。
     if (widget.expanded == expanded) return;
-    // 首页收到通知后 setState，并把新值重新传回本组件播放动画。
+    // 首页收到通知后 setState，把新值重新传回本组件。
     widget.onExpandedChanged(expanded);
   }
 
@@ -142,20 +102,13 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
   }
 
   @override
-  void dispose() {
-    // 释放循环动画使用的逐帧资源。
-    _hintController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
     // 展开高度固定为屏幕的 88%；抽屉整体恒定此高度布局，永不溢出。
     final screenHeight = MediaQuery.of(context).size.height;
     final fullHeight = screenHeight * 0.88;
     return Positioned.fill(
-      // Stack 把完全隐藏的词库面板与独立提示图标放在同一层管理。
+      // Stack 把完全隐藏的词库面板与底部提示文字放在同一层管理。
       child: Stack(
         children: [
           // 词库面板：只在展开时存在。收起时彻底不渲染，
@@ -240,20 +193,24 @@ class _WordLibrarySheetState extends State<WordLibrarySheet>
               bottom: 18,
               child: Center(
                 child: Tooltip(
-                  message: '上滑查看词库',
+                  message: '展开词库',
                   child: GestureDetector(
                     key: const Key('word-library-swipe-indicator'),
                     onTap: expand,
                     behavior: HitTestBehavior.opaque,
-                    child: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: SlideTransition(
-                        position: _hintOffset,
-                        child: Icon(
-                          TablerIcons.chevronsUp,
-                          size: 24,
+                    // 提示采用「每个模块的描述」同款小字，避免在底部喧宾夺主。
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        '---向上滑动展开词库---',
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 11,
                           color: tokens.textSecondary,
+                          height: 1.3,
                         ),
                       ),
                     ),

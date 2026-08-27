@@ -486,12 +486,12 @@ void main() {
       // 本用例必须观察默认状态，因此不调用测试 helper 的自动展开步骤。
       await _pumpHome(tester, expandWordLibrary: false);
 
-      // 收起时只显示底部动画图标，旧的文字提示不再占据一整条白色面板。
+      // 收起时只显示一段静态的上滑提示文字，不再渲染上滑动画图标。
       expect(
         find.byKey(const Key('word-library-swipe-indicator')),
         findsOneWidget,
       );
-      expect(find.text('上滑查看词库'), findsNothing);
+      expect(find.text('---向上滑动展开词库---'), findsOneWidget);
       // 收起时词库面板压根不渲染（生产代码刻意不保留屏幕外的实例，
       // 免得 AnimatedSlide 的阴影在屏幕底部留下一条白边）。
       final logicalWidth =
@@ -507,8 +507,7 @@ void main() {
       );
       // 先刷新一帧，让首页状态传到抽屉并正式创建滑入动画。
       await tester.pump();
-      // 再推进超过抽屉 300 毫秒的固定时长；若手势未触发展开，底部提示图标会
-      // 继续循环动画，因此不能使用会一直等待动画停止的 pumpAndSettle。
+      // 再推进覆盖抽屉 300 毫秒滑入动画的固定时长，确认手势确实触发了展开。
       await tester.pump(const Duration(milliseconds: 400));
 
       // 面板进入屏幕、底部提示图标消失，证明全屏区域确实接受了手势。

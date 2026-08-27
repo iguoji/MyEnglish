@@ -566,6 +566,9 @@ class WordsDatabase(context: Context) :
             db.delete("review_records", null, null)
             db.delete("review_sessions", null, null)
             db.delete("daily_word_sets", null, null)
+            // 音节划分缓存、听音候选项缓存与学习会话都在单词主键之上，一并清空，
+            // 避免删除单词后残留失效的拼写/选项/继续入口。
+            db.delete("syllable_divisions", null, null)
             db.delete("group_members", null, null)
             db.delete("groups", null, null)
             db.delete("meanings", null, null)
@@ -784,6 +787,8 @@ class WordsDatabase(context: Context) :
             // 导入会替换词库，与旧单词主键绑定的记录、候选和会话也失效。
             db.delete("listening_meaning_option_cache", null, null)
             db.delete("learning_sessions", null, null)
+            // 音节划分缓存同样挂在单词拼写上，整库替换后全部作废，随导入重新填充。
+            db.delete("syllable_divisions", null, null)
             // 复习记录、会话和每日词库保存的都是旧词库主键，整库替换后必须同时作废。
             db.delete("review_records", null, null)
             db.delete("review_sessions", null, null)
@@ -793,7 +798,11 @@ class WordsDatabase(context: Context) :
             db.delete("words", null, null)
             // 只有文件明确携带 groups 时才替换分组；原始 words.json 继续保留本地分组。
             val replacesGroups = payload["groups"] is List<*>
-            if (replacesGroups) db.delete("groups", null, null)
+            if (replacesGroups) {
+                db.delete("groups", null, null)
+                // 分组界面顺序表随分组一起作废，导入时会按备份重新还原。
+                db.delete("group_positions", null, null)
+            }
 
             // 先用当前数据库中的分组主键建立默认映射，支持仅导入 words 的情况。
             val groupIdMap = mutableMapOf<Long, Long>()
@@ -866,6 +875,82 @@ class WordsDatabase(context: Context) :
                 insertGroupMember(db, newGroup, newWord)
             }
 
+            // 分组界面顺序：备份自带时按它还原，否则沿用按数组顺序生成的默认排序。
+            val rawPositions = payload["group_positions"] as? List<*> ?: emptyList<Any?>()
+            if (rawPositions.isNotEmpty()) {
+                db.delete("group_positions", null, null)
+                for (raw in rawPositions) {
+                    val row = raw as? Map<*, *> ?: continue
+                    val newGroupId = remapId(row["group_id"], groupIdMap) ?: continue
+                    saveGroupPosition(db, newGroupId, parseImportInteger(row["position"]).toInt())
+                }
+            }
+
+            // 每日词库：word_ids_json 里的旧单词 id 统一重映射到新主键。
+            val dailyWordSetIdMap = mutableMapOf<Long, Long>()
+            val rawDailyWordSets = payload["daily_word_sets"] as? List<*> ?: emptyList<Any?>()
+            for (raw in rawDailyWordSets) {
+                val row = raw as? Map<*, *> ?: continue
+                val oldId = positiveId(row["id"]) ?: continue
+                val values = buildImportValues(db, "daily_word_sets", row)
+                values.put("word_ids_json", remapIdListToJson(row["word_ids_json"], wordIdMap) ?: "[]")
+                val newId = insertRow(db, "daily_word_sets", values)
+                dailyWordSetIdMap[oldId] = newId
+            }
+
+            // 复习会话：重映射每日词库外键与单词快照里的旧 id。
+            val reviewSessionIdMap = mutableMapOf<Long, Long>()
+            val rawReviewSessions = payload["review_sessions"] as? List<*> ?: emptyList<Any?>()
+            for (raw in rawReviewSessions) {
+                val row = raw as? Map<*, *> ?: continue
+                val oldId = positiveId(row["id"]) ?: continue
+                val values = buildImportValues(db, "review_sessions", row)
+                values.put("word_ids_json", remapIdListToJson(row["word_ids_json"], wordIdMap) ?: "[]")
+                val newWordSetId = remapId(row["word_set_id"], dailyWordSetIdMap)
+                if (newWordSetId != null) values.put("word_set_id", newWordSetId) else values.putNull("word_set_id")
+                val newId = insertRow(db, "review_sessions", values)
+                reviewSessionIdMap[oldId] = newId
+            }
+
+            // 复习记录：重映射单词与会话主键；指向已不存在单词的记录直接跳过。
+            val rawReviewRecords = payload["review_records"] as? List<*> ?: emptyList<Any?>()
+            for (raw in rawReviewRecords) {
+                val row = raw as? Map<*, *> ?: continue
+                val newWordId = remapId(row["word_id"], wordIdMap) ?: continue
+                val values = buildImportValues(db, "review_records", row)
+                values.put("word_id", newWordId)
+                val newSessionId = remapId(row["session_id"], reviewSessionIdMap)
+                if (newSessionId != null) values.put("session_id", newSessionId) else values.putNull("session_id")
+                insertRow(db, "review_records", values)
+            }
+
+            // 学习会话：重映射单词快照里的旧 id。
+            val rawLearningSessions = payload["learning_sessions"] as? List<*> ?: emptyList<Any?>()
+            for (raw in rawLearningSessions) {
+                val row = raw as? Map<*, *> ?: continue
+                val values = buildImportValues(db, "learning_sessions", row)
+                values.put("word_ids_json", remapIdListToJson(row["word_ids_json"], wordIdMap) ?: "[]")
+                insertRow(db, "learning_sessions", values)
+            }
+
+            // 听音候选项缓存：只重映射外键，key 本身保留备份里的原值。
+            val rawOptionCache = payload["listening_meaning_option_cache"] as? List<*> ?: emptyList<Any?>()
+            for (raw in rawOptionCache) {
+                val row = raw as? Map<*, *> ?: continue
+                val values = buildImportValues(db, "listening_meaning_option_cache", row)
+                val newWordId = remapId(row["word_id"], wordIdMap)
+                if (newWordId != null) values.put("word_id", newWordId) else values.putNull("word_id")
+                insertRow(db, "listening_meaning_option_cache", values)
+            }
+
+            // 音节划分缓存：以单词拼写为主键，不依赖 id，直接原样还原。
+            val rawSyllableDivisions = payload["syllable_divisions"] as? List<*> ?: emptyList<Any?>()
+            for (raw in rawSyllableDivisions) {
+                val row = raw as? Map<*, *> ?: continue
+                if (row["word"]?.toString().isNullOrBlank()) continue
+                insertRow(db, "syllable_divisions", buildImportValues(db, "syllable_divisions", row))
+            }
+
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -902,7 +987,8 @@ class WordsDatabase(context: Context) :
                 put("meanings", meaningsByWord[wordId] ?: emptyList<Map<String, Any?>>())
             }
         }
-        // 分组数组顺序代表界面顺序，group_positions 不作为业务字段导出。
+        // 分组数组顺序代表界面顺序；单独的 group_positions 同时导出一份，
+        // 供导入时按备份精确还原拖动顺序。
         val groupColumns = tableColumns(db, "groups")
         val groups = mutableListOf<Map<String, Any?>>()
         db.rawQuery(
@@ -923,6 +1009,46 @@ class WordsDatabase(context: Context) :
             "words" to words,
             "groups" to groups,
             "members" to exportRows(db, "group_members", null),
+            // 分组界面顺序独立保存，导出以完整备份一份，导入时用它还原拖动顺序。
+            "group_positions" to exportRows(db, "group_positions", null),
+            // 每日词库、复习会话/记录、学习会话、听音候选项与音节划分全部导出，
+            // 保证备份在另一台设备或换机重装后能完整还原学习进度与统计结果。
+            "daily_word_sets" to exportRows(
+                db,
+                "daily_word_sets",
+                null,
+                jsonArrayColumns = setOf("word_ids_json"),
+            ),
+            "review_sessions" to exportRows(
+                db,
+                "review_sessions",
+                null,
+                jsonArrayColumns = setOf("word_ids_json", "state_json"),
+            ),
+            "review_records" to exportRows(
+                db,
+                "review_records",
+                null,
+                jsonArrayColumns = setOf("extra_json"),
+            ),
+            "learning_sessions" to exportRows(
+                db,
+                "learning_sessions",
+                null,
+                jsonArrayColumns = setOf("word_ids_json", "state_json"),
+            ),
+            "listening_meaning_option_cache" to exportRows(
+                db,
+                "listening_meaning_option_cache",
+                null,
+                jsonArrayColumns = setOf("distractors_json"),
+            ),
+            "syllable_divisions" to exportRows(
+                db,
+                "syllable_divisions",
+                null,
+                jsonArrayColumns = setOf("syllables"),
+            ),
         )
     }
 
@@ -986,10 +1112,20 @@ class WordsDatabase(context: Context) :
     /** 根据 SQLite 声明类型写入一个 JSON 值。 */
     private fun putImportValue(values: ContentValues, column: TableColumn, rawValue: Any?) {
         val name = column.name
-        // id 空值或非正数不伪造 0 号记录，而是交给 SQLite 自增。
+        // 整数主键沿用正数校验（空值或非正数不伪造 0 号记录，交给 SQLite 自增）。
         if (column.primaryKey) {
-            val id = positiveId(rawValue) ?: return
-            values.put(name, id)
+            return if (column.declaredType.contains("INT") ||
+                column.declaredType.contains("REAL")
+            ) {
+                val id = positiveId(rawValue) ?: return
+                values.put(name, id)
+            } else {
+                // 文本主键（learning_sessions.session_type、候选缓存 cache_key、
+                // syllable_divisions.word）直接保留原字符串，不能走整数正数校验。
+                val text = rawValue?.toString()?.trim().orEmpty()
+                if (text.isEmpty()) return
+                values.put(name, text)
+            }
             return
         }
         // SQLite 把日期保存为 INTEGER，通过 README 统一的 *_at 命名识别日期语义。
@@ -1034,6 +1170,47 @@ class WordsDatabase(context: Context) :
             else -> null
         }
         return parsed?.takeIf { it > 0 }
+    }
+
+    /**
+     * 把单个主键按映射表换算成导入后的新主键。
+     *
+     * 空值或映射表里查不到（对应记录未随备份一起导入）时返回 null，
+     * 调用方决定是置空外键还是整行跳过。
+     */
+    private fun remapId(value: Any?, idMap: Map<Long, Long>): Long? {
+        val oldId = positiveId(value) ?: return null
+        return idMap[oldId]
+    }
+
+    /**
+     * 把 JSON 数组里的旧主键列表按映射表换算成新主键。
+     *
+     * 备份里 daily_word_sets / review_sessions / learning_sessions 的
+     * word_ids_json 就是这样的列表；查不到的 id 直接丢弃，返回序列化后的新数组，
+     * 保证还原后这些快照只指向真正存在的单词。
+     */
+    private fun remapIdListToJson(value: Any?, idMap: Map<Long, Long>): String? {
+        val items: List<Any?> = when (value) {
+            is List<*> -> value
+            is String -> {
+                val text = value.trim()
+                if (text.isEmpty()) emptyList()
+                else try {
+                    val array = JSONArray(text)
+                    List(array.length()) { index -> array.get(index) }
+                } catch (_: Exception) {
+                    return null
+                }
+            }
+            else -> return null
+        }
+        val remapped = JSONArray()
+        for (item in items) {
+            val newId = remapId(item, idMap) ?: continue
+            remapped.put(newId)
+        }
+        return remapped.toString()
     }
 
     /** 导入日期并统一转为毫秒时间戳；空值或错误日期返回 0。 */
@@ -1169,24 +1346,57 @@ class WordsDatabase(context: Context) :
                 column.declaredType.contains("REAL") ||
                     column.declaredType.contains("FLOA") ||
                     column.declaredType.contains("DOUB") -> cursor.getDouble(index)
-                column.name in jsonArrayColumns -> decodeExportArray(cursor.getString(index))
+                column.name in jsonArrayColumns -> decodeExportJson(cursor.getString(index))
                 else -> cursor.getString(index)
             }
         }
         return row
     }
 
-    /** 把明确声明为数组的 SQLite TEXT 字段还原为 JSON 数组。 */
-    private fun decodeExportArray(value: String): Any {
+    /**
+     * 把声明为 JSON 的 SQLite TEXT 字段还原为可导出的 Dart 值。
+     *
+     * 数组字段（如 word_ids_json、definitions）还原成 JSON 数组，
+     * 对象字段（如 state_json、extra_json）还原成 JSON 对象，保留嵌套结构，
+     * 便于备份文件既好读、导入时也能原样还原。
+     */
+    private fun decodeExportJson(value: String): Any {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) return trimmed
         return try {
-            val array = JSONArray(value)
-            List(array.length()) { index ->
-                val item = array.get(index)
-                if (item == JSONObject.NULL) null else item
+            when (trimmed[0]) {
+                '[' -> toExportValue(JSONArray(trimmed))
+                '{' -> toExportValue(JSONObject(trimmed))
+                // 理论上是纯文本字段，原样返回即可。
+                else -> trimmed
             }
         } catch (_: Exception) {
+            // JSON 损坏时保持原字符串，不让一个坏字段拖垮整份导出。
             value
         }
+    }
+
+    /**
+     * 把 org.json 的值递归转成 MethodChannel 可序列化的标准容器。
+     *
+     * JSONObject 转成 Map、JSONArray 转成 List，避免把 org.json 对象原样放到
+     * 导出结果里——那部分对象类型 Flutter 通道不支持，会导致整份导出崩溃。
+     */
+    private fun toExportValue(json: Any): Any = when (json) {
+        is JSONObject -> {
+            val map = LinkedHashMap<String, Any?>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                map[key] = toExportValue(json.get(key))
+            }
+            map
+        }
+        is JSONArray -> List(json.length()) { index ->
+            val item = json.get(index)
+            if (item == JSONObject.NULL) null else toExportValue(item)
+        }
+        else -> json
     }
 
     /** 毫秒时间戳导出为本机时区的完整日期时间；0 导出空字符串。 */
