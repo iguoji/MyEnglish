@@ -118,23 +118,35 @@ abstract final class ListeningMeaningOptionGenerator {
 
   ///
   /// 从首页词库的全部释义中生成固定数量的不重复干扰项。
+  ///
+  /// [excludeDefinitions] 是本条正确答案所在单词自身的全部释义集合：同一个单词
+  /// 往往有多个含义（例如 ability 的“能力 / 才能”），它们不能互相充当干扰项。
+  /// 传入后这些释义会在排序前被直接剔除，保证候选只来自其他单词。
   static List<String> buildDefinitionDistractors({
     required String correct,
     required List<Word> sourceWords,
     int count = 3,
+    Set<String> excludeDefinitions = const <String>{},
   }) {
     // count 为 0 时直接返回空列表。
     if (count <= 0) return const <String>[];
-    // 中文释义也先清理可能的首尾空格。
+    // 中文释义也先清理可能的首尾空格；排除集同样统一去除首尾空白再比较。
     final normalizedCorrect = correct.trim();
+    final normalizedExcluded = excludeDefinitions
+        .map((definition) => definition.trim())
+        .where((definition) => definition.isNotEmpty)
+        .toSet();
     // 集合保证同一释义在多个单词中出现时只作为一个候选项。
     final distractors = <String>{};
-    // 展平 Word -> Meaning -> definitions 三层数据，得到首页词库的全部释义。
+    // 展平 Word -> Meaning -> definitions 三层数据，得到首页词库的全部释义；
+    // 当前单词自身的全部含义直接剔除，避免拿它的其他含义当混淆项。
     final sourceDefinitions = <String>[
       for (final word in sourceWords)
         for (final meaning in word.meanings)
           for (final definition in meaning.definitions)
-            if (definition.trim().isNotEmpty) definition.trim(),
+            if (definition.trim().isNotEmpty &&
+                !normalizedExcluded.contains(definition.trim()))
+              definition.trim(),
     ];
     // 同字数优先，其次才比较编辑距离与公共前缀。
     for (final definition in _rankBySimilarity(
@@ -199,10 +211,14 @@ abstract final class ListeningMeaningOptionGenerator {
 
   ///
   /// 为长按刷新寻找一个尚未出现在当前四选一中的新中文释义干扰项。
+  ///
+  /// [excludeDefinitions] 语义同 [buildDefinitionDistractors]：刷新后的新候选
+  /// 也必须避开当前单词自身的全部含义，避免“换一道”却还看到同词的其他释义。
   static String? findReplacementDefinitionDistractor({
     required String correct,
     required List<Word> sourceWords,
     required Iterable<String> excluded,
+    Set<String> excludeDefinitions = const <String>{},
   }) {
     // 中文释义按去除首尾空格后的完整文本判重。
     final normalizedExcluded = excluded.map((value) => value.trim()).toSet();
@@ -211,6 +227,7 @@ abstract final class ListeningMeaningOptionGenerator {
       correct: correct,
       sourceWords: sourceWords,
       count: 64,
+      excludeDefinitions: excludeDefinitions,
     );
     // 找到第一条未显示的释义就返回。
     for (final candidate in candidates) {

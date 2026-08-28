@@ -506,12 +506,24 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
 
   ///
+  /// 当前单词自身的全部中文释义集合。
+  ///
+  /// 一个单词往往有多个含义（例如 ability 的“能力 / 才能”），这些含义只能作为
+  /// 同一道释义题的正确答案之一，永远不能互相充当混淆项。这里把它们收集起来，
+  /// 传给释义干扰项生成器，让候选彻底避开当前单词。
+  Set<String> get _currentWordProviderExcludedDefinitions => {
+    for (final meaning in _currentWord.meanings)
+      for (final definition in meaning.definitions)
+        if (definition.trim().isNotEmpty) definition.trim(),
+  };
+
+  ///
   /// 当前小题的稳定缓存 key；内容字段参与 key，数据被编辑后会自然切换到新缓存。
   String get _currentOptionCacheKey {
     // 拼写题由版本、类型、单词主键和当前拼写共同确定。
     if (_stage == ListeningMeaningStage.word) {
       return jsonEncode(<Object?>[
-        'v1',
+        'v2',
         'word',
         _currentWord.id,
         _currentWord.spelling,
@@ -520,7 +532,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 释义题还要区分 Meaning 与其中的第几条定义，避免同词多义互相覆盖。
     final meaning = _availableMeanings[_meaningIndex];
     return jsonEncode(<Object?>[
-      'v1',
+      'v2',
       'definition',
       _currentWord.id,
       _currentWord.spelling,
@@ -546,6 +558,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             correct: _currentCorrectAnswer,
             sourceWords: widget.words,
             count: count,
+            excludeDefinitions: _currentWordProviderExcludedDefinitions,
           );
   }
 
@@ -599,7 +612,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
-  bool _isValidCachedOptions(ListeningMeaningOptionCacheEntry cache, String correct) {
+  bool _isValidCachedOptions(
+    ListeningMeaningOptionCacheEntry cache,
+    String correct,
+  ) {
     // 取出三个干扰项，下面统一执行数量和文本检查。
     final distractors = cache.distractors;
     // 必须精确三项，否则继续使用页面已经同步生成的标准结果。
@@ -898,6 +914,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             correct: _currentCorrectAnswer,
             sourceWords: widget.words,
             excluded: excluded,
+            excludeDefinitions: _currentWordProviderExcludedDefinitions,
           );
     // 极小或异常词库可能耗尽所有可用变体，此时保留原候选并给出说明。
     if (replacement == null) {
@@ -1290,7 +1307,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         // 完成后把正确单词带进步骤，便于在步骤下方直接回显。
         word: _currentWord.spelling,
         // 拼写阶段结束后，单词步骤即视为完成；否则当前就是进行中的那一步。
-        status: _stage == ListeningMeaningStage.definition || _isCurrentWordComplete
+        status:
+            _stage == ListeningMeaningStage.definition || _isCurrentWordComplete
             ? ListeningMeaningStepStatus.done
             : (_stage == ListeningMeaningStage.word
                   ? ListeningMeaningStepStatus.active
@@ -1521,7 +1539,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                   ListeningMeaningLayout.pageInset,
                   ListeningMeaningLayout.questionVerticalInset,
                   ListeningMeaningLayout.pageInset,
-                  bottomOverlayHeight + ListeningMeaningLayout.questionVerticalInset,
+                  bottomOverlayHeight +
+                      ListeningMeaningLayout.questionVerticalInset,
                 ),
                 // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
                 child: Align(
@@ -1754,7 +1773,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                       ),
                       // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
                       if (index < _options.length - 1)
-                        const SizedBox(height: ListeningMeaningLayout.optionGap),
+                        const SizedBox(
+                          height: ListeningMeaningLayout.optionGap,
+                        ),
                     ],
                   ],
                 ),
@@ -1846,7 +1867,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                   foregroundColor: tokens.textMedium,
                   side: BorderSide(color: tokens.inputBorder),
                   // 高度由外层 SizedBox 决定，这里去掉按钮自带的最小宽高限制。
-                  minimumSize: const Size(0, ListeningMeaningLayout.actionHeight),
+                  minimumSize: const Size(
+                    0,
+                    ListeningMeaningLayout.actionHeight,
+                  ),
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1877,7 +1901,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                   backgroundColor: AppTokens.accent,
                   foregroundColor: Colors.white,
                   // 与左侧按钮保持同样的高度基准和无额外内边距。
-                  minimumSize: const Size(0, ListeningMeaningLayout.actionHeight),
+                  minimumSize: const Size(
+                    0,
+                    ListeningMeaningLayout.actionHeight,
+                  ),
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1954,7 +1981,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     );
   }
 }
-
 
 ///
 /// 听音辨义顶栏使用的无文字 Tabler 图标按钮。
@@ -2220,7 +2246,9 @@ class _OptionCardState extends State<_OptionCard>
           onTap: wrong ? null : widget.onTap,
           // 长按不参与答题判定，只打开刷新候选词确认框。
           onLongPress: widget.onLongPress,
-          borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
+          borderRadius: BorderRadius.circular(
+            ListeningMeaningLayout.cardRadius,
+          ),
           child: Container(
             height: ListeningMeaningLayout.optionHeight,
             padding: const EdgeInsets.symmetric(
@@ -2228,7 +2256,9 @@ class _OptionCardState extends State<_OptionCard>
               vertical: 6,
             ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
+              borderRadius: BorderRadius.circular(
+                ListeningMeaningLayout.cardRadius,
+              ),
               border: Border.all(
                 color: wrong ? AppTokens.danger : tokens.inputBorder,
               ),

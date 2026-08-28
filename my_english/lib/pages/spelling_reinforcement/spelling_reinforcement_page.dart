@@ -416,24 +416,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       _total > 0 ? (_outcomes.length / _total).clamp(0.0, 1.0) : 0.0;
 
   ///
-  /// 当前单词的中文释义（取第一条非空释义）。
-  ///
-  /// 拼写巩固考的是「听到发音 + 看到中文，能不能写出来」，所以释义是题面的一部分，
-  /// 必须一直可见。没有释义的词条只显示发音提示。
-  String get _currentMeaning {
-    for (final meaning in _currentWord.meanings) {
-      for (final definition in meaning.definitions) {
-        final trimmed = definition.trim();
-        if (trimmed.isEmpty) continue;
-        // 带上词性前缀，和词库列表里的展示口径一致。
-        final pos = meaning.pos.trim();
-        return pos.isEmpty ? trimmed : '$pos $trimmed';
-      }
-    }
-    return '（这个词还没有中文释义）';
-  }
-
-  ///
   /// 当前单词是否允许手动拆分。
   ///
   /// 含空格、连字符或撇号的词条（ice cream、T-shirt、I'm）拆出来的片段会很怪，
@@ -471,7 +453,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       session: widget.reviewSession,
     );
     // 音节服务：正式环境走 Android SQLite，测试可注入内存实现。
-    _syllables = widget.syllableService ?? SyllableService(LocalSyllableStore());
+    _syllables =
+        widget.syllableService ?? SyllableService(LocalSyllableStore());
     // 先恢复历史进度（可能直接恢复到已结算状态），再准备当前单词。
     _restoreProgress();
     if (!_showSummary) {
@@ -1302,7 +1285,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   }
 
   ///
-  /// 构建答题主体：词义提示 + 占位格 + 作答区 + 底部工具条。
+  ///
+  /// 构建答题主体：模式徽标 + 占位格 + 全部含义 + 作答区 + 底部工具条。
   ///
   /// 整块主体都可以点：点在空白处（不是按钮上）会重播发音，与原型一致。
   /// behavior: opaque 让透明的空白区域也能接收点击。
@@ -1312,23 +1296,28 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       behavior: HitTestBehavior.opaque,
       onTap: () => unawaited(_playAudio()),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: SpellingLayout.pageInset,
-          vertical: SpellingLayout.bodyVerticalInset,
+        padding: const EdgeInsets.fromLTRB(
+          SpellingLayout.pageInset,
+          SpellingLayout.bodyVerticalInset,
+          SpellingLayout.pageInset,
+          SpellingLayout.bodyVerticalInset + SpellingLayout.toolBarBottomGap,
         ),
         child: Column(
           children: [
+            // 顶部只有模式徽标，不再叠加释义和喇叭。
             _buildQuestionHeader(tokens),
-            const SizedBox(height: SpellingLayout.meaningBottomGap),
+            const SizedBox(height: SpellingLayout.badgeBottomGap),
+            // 中间是拼写占位格。
             _buildSlotRow(tokens),
+            const SizedBox(height: SpellingLayout.meaningBottomGap),
+            // 占位格之后展示当前单词的全部含义与词性，作为拼写时的确认参照。
+            _buildMeanings(tokens),
             const SizedBox(height: SpellingLayout.slotBottomGap),
             // 作答区贴着底部：键盘和候选块靠下，拇指更容易够到。
             Expanded(
               child: Align(
                 alignment: Alignment.bottomCenter,
-                child: SingleChildScrollView(
-                  child: _buildAnswerArea(tokens),
-                ),
+                child: SingleChildScrollView(child: _buildAnswerArea(tokens)),
               ),
             ),
             const SizedBox(height: SpellingLayout.toolBarTop),
@@ -1340,10 +1329,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   }
 
   ///
-  /// 构建题面：模式徽标 + 中文释义 + 喇叭按钮。
+  /// 构建题面顶部：只显示当前模式徽标，帮助用户知道自己在练哪种拼写。
   ///
-  /// 喇叭按钮是刻意加的：原型只支持「点空白处重播」，没有任何可见入口，
-  /// 用读屏软件也触发不了。这里补一个显式按钮，点空白重播的行为同时保留。
+  /// 中文释义移到占位格下方 [_buildMeanings] 集中展示，顶部不再重复出现；
+  /// 同时去掉了原先的喇叭按钮，发音仍可通过点空白区域重播。
   Widget _buildQuestionHeader(AppTokens tokens) {
     // 三种作答方式各有一个颜色，和原型的三种徽标底色对应。
     final (label, color) = switch (_mode) {
@@ -1355,6 +1344,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     final badgeLabel = isManual ? '手动拆分' : label;
     final badgeColor = isManual ? _kTeal : color;
 
+    // 顶部只保留一个居中的模式徽标。
     return Column(
       children: [
         Container(
@@ -1381,39 +1371,85 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
             ),
           ),
         ),
-        const SizedBox(height: SpellingLayout.badgeBottomGap),
-        Text(
-          _currentMeaning,
-          key: const Key('spelling-meaning'),
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+      ],
+    );
+  }
+
+  ///
+  /// 构建当前单词的全部含义与词性列表。
+  ///
+  /// 放在占位格下方，借鉴随身听的排版：每条含义都从同一根竖线起，左边固定
+  /// 宽度的词性列（n. / vt. …）严格对齐，右侧展示该词性下的全部中文释义，
+  /// 让用户在拼写答案时能一眼比对其中的任一含义。
+  Widget _buildMeanings(AppTokens tokens) {
+    // 过滤出至少含有一条有效释义的词性组，无数据的组不占用版面。
+    final meanings = _currentWord.meanings
+        .where((meaning) {
+          return meaning.definitions.any((d) => d.trim().isNotEmpty);
+        })
+        .toList(growable: false);
+    // 完全没有释义时给一句话，避免整段含义区空白。
+    if (meanings.isEmpty) {
+      return Center(
+        child: Text(
+          '（这个词还没有中文释义）',
           style: TextStyle(
-            color: tokens.textSecondary,
+            color: tokens.muted,
             fontSize: SpellingLayout.meaningTextSize,
           ),
         ),
-        const SizedBox(height: SpellingLayout.badgeBottomGap),
-        // 喇叭按钮：播放中换成音量图标，和听音辨义的播放反馈口径一致。
-        SizedBox(
-          width: SpellingLayout.speakerButtonSize,
-          height: SpellingLayout.speakerButtonSize,
-          child: InkWell(
-            key: const Key('spelling-speaker'),
-            onTap: () => unawaited(_playAudio()),
-            borderRadius: BorderRadius.circular(
-              SpellingLayout.speakerButtonSize / 2,
-            ),
-            child: Center(
-              child: Icon(
-                _isPlaying ? TablerIcons.volume : TablerIcons.volume2,
-                size: SpellingLayout.speakerIconSize,
-                color: AppTokens.accent,
+      );
+    }
+    // 居中但内容左对齐，行内用 Row 让词性与释义各自固定在一列里。
+    return Align(
+      alignment: Alignment.center,
+      child: ConstrainedBox(
+        // 限制最大宽度，避免超长释义在平板上横向铺满整行影响阅读。
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < meanings.length; index += 1) ...[
+              if (index > 0)
+                const SizedBox(height: SpellingLayout.meaningRowGap),
+              // 词性在固定宽度列，释义撑满剩余宽度，纵向都从顶部开始对齐。
+              Row(
+                key: Key('spelling-meaning-${meanings[index].index}'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: SpellingLayout.posColumnWidth,
+                    child: Text(
+                      meanings[index].displayPos,
+                      key: Key('spelling-pos-${meanings[index].index}'),
+                      style: TextStyle(
+                        color: tokens.textSecondary,
+                        fontSize: SpellingLayout.meaningPosTextSize,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: SpellingLayout.posMeaningGap),
+                  Expanded(
+                    child: Text(
+                      meanings[index].definitions
+                          .map((definition) => definition.trim())
+                          .where((definition) => definition.isNotEmpty)
+                          .join('，'),
+                      key: Key('spelling-definition-${meanings[index].index}'),
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontSize: SpellingLayout.meaningTextSize,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -1556,28 +1592,31 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) ...<Widget>[
+        for (
+          var rowIndex = 0;
+          rowIndex < rows.length;
+          rowIndex += 1
+        ) ...<Widget>[
           if (rowIndex > 0) const SizedBox(height: SpellingLayout.keyRowGap),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               // 间隔只加在按键之间，不能每颗键后面都挂一个：行尾多出来的那 6 像素
               // 会算进 Row 的宽度，整行跟着左偏 3 像素，与有退格键的第三行错位。
-              for (final (index, letter) in rows[rowIndex].split('').indexed)
-                ...<Widget>[
-                  if (index > 0)
-                    const SizedBox(width: SpellingLayout.keyGap),
-                  Flexible(
-                    child: _KeyboardKey(
-                      key: Key('spelling-key-$letter'),
-                      label: letter,
-                      isWrong: _wrongKeyLabel == letter,
-                      tokens: tokens,
-                      shake: _shakeController,
-                      onTap: () => _onKeyTap(letter),
-                    ),
+              for (final (index, letter)
+                  in rows[rowIndex].split('').indexed) ...<Widget>[
+                if (index > 0) const SizedBox(width: SpellingLayout.keyGap),
+                Flexible(
+                  child: _KeyboardKey(
+                    key: Key('spelling-key-$letter'),
+                    label: letter,
+                    isWrong: _wrongKeyLabel == letter,
+                    tokens: tokens,
+                    shake: _shakeController,
+                    onTap: () => _onKeyTap(letter),
                   ),
-                ],
+                ),
+              ],
               // 第三行末尾补一个退格键，宽度略大于字母键。
               if (rowIndex == rows.length - 1) ...<Widget>[
                 const SizedBox(width: SpellingLayout.keyGap),
@@ -1698,10 +1737,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
             TextButton(
               key: const Key('spelling-cancel-split'),
               onPressed: _toggleManualSplit,
-              child: Text(
-                '取消',
-                style: TextStyle(color: tokens.textSecondary),
-              ),
+              child: Text('取消', style: TextStyle(color: tokens.textSecondary)),
             ),
           ],
         ),
@@ -1808,9 +1844,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
               ),
               const SizedBox(height: 4),
               Text(
-                weak.isEmpty
-                    ? '本组 $_total 个单词全部一次拼对'
-                    : '本组 $_total 个单词已全部拼写完毕',
+                weak.isEmpty ? '本组 $_total 个单词全部一次拼对' : '本组 $_total 个单词已全部拼写完毕',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: SpellingLayout.summarySubtitleSize,
@@ -1824,10 +1858,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                     child: _SummaryStatCard(
+                      child: _SummaryStatCard(
                         key: const Key('spelling-stat-perfect'),
-                       icon: TablerIcons.flame,
-                       label: '一次拼对',
+                        icon: TablerIcons.flame,
+                        label: '一次拼对',
                         value: '$_perfectCount',
                         unit: '共 $_total 个',
                         color: _kSuccess,
@@ -1836,10 +1870,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                     ),
                     const SizedBox(width: SpellingLayout.summaryStatGap),
                     Expanded(
-                     child: _SummaryStatCard(
+                      child: _SummaryStatCard(
                         key: const Key('spelling-stat-errors'),
-                       icon: TablerIcons.x,
-                       label: '拼写失误',
+                        icon: TablerIcons.x,
+                        label: '拼写失误',
                         value: '$_errors',
                         unit: '次',
                         color: AppTokens.danger,
@@ -1856,10 +1890,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                     child: _SummaryStatCard(
+                      child: _SummaryStatCard(
                         key: const Key('spelling-stat-weak'),
-                       icon: TablerIcons.bulb,
-                       label: '需加强',
+                        icon: TablerIcons.bulb,
+                        label: '需加强',
                         value: '${weak.length}',
                         unit: '个单词',
                         color: _kOrange,
@@ -1868,10 +1902,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                     ),
                     const SizedBox(width: SpellingLayout.summaryStatGap),
                     Expanded(
-                     child: _SummaryStatCard(
+                      child: _SummaryStatCard(
                         key: const Key('spelling-stat-time'),
-                       icon: TablerIcons.clock,
-                       label: '用时',
+                        icon: TablerIcons.clock,
+                        label: '用时',
                         value: _formatElapsed(),
                         unit: '本组训练',
                         color: AppTokens.accent,
@@ -2193,8 +2227,11 @@ class _ChunkButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 状态色：判错优先（红），已用次之（绿），否则无。
-    final stateColor =
-        isWrong ? AppTokens.danger : isUsed ? _kSuccess : null;
+    final stateColor = isWrong
+        ? AppTokens.danger
+        : isUsed
+        ? _kSuccess
+        : null;
     final borderColor = stateColor ?? tokens.border;
     final background = stateColor == null
         ? tokens.card
@@ -2457,15 +2494,12 @@ class _ToolButton extends StatelessWidget {
             width: SpellingLayout.toolButtonSize,
             height: SpellingLayout.toolButtonSize,
             decoration: BoxDecoration(
-              borderRadius:
-                  BorderRadius.circular(SpellingLayout.toolButtonRadius),
+              borderRadius: BorderRadius.circular(
+                SpellingLayout.toolButtonRadius,
+              ),
               border: Border.all(color: borderColor),
             ),
-            child: Icon(
-              icon,
-              size: SpellingLayout.toolIconSize,
-              color: color,
-            ),
+            child: Icon(icon, size: SpellingLayout.toolIconSize, color: color),
           ),
         ),
       ),

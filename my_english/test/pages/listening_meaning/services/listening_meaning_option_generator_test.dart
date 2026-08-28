@@ -116,6 +116,43 @@ void main() {
     expect(distractors.every((item) => item.runes.length == 2), isTrue);
   });
 
+  test('definition distractors skip the current word own meanings', () {
+    // correct 是 ability 的「能力」，同词还有「才能」这个含义，两者不能互做干扰项。
+    const sourceWords = <Word>[
+      Word(
+        spelling: 'ability',
+        meanings: <Meaning>[
+          Meaning(index: 1, pos: 'n.', definitions: <String>['能力', '才能']),
+        ],
+      ),
+      Word(
+        spelling: 'energy',
+        meanings: <Meaning>[
+          Meaning(index: 1, pos: 'n.', definitions: <String>['能量']),
+        ],
+      ),
+      Word(
+        spelling: 'strength',
+        meanings: <Meaning>[
+          Meaning(index: 1, pos: 'n.', definitions: <String>['实力']),
+        ],
+      ),
+    ];
+    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+      correct: '能力',
+      sourceWords: sourceWords,
+      excludeDefinitions: const <String>{'能力', '才能'},
+    );
+
+    // 「才能」与正确词同属一个单词，绝不进入干扰列表。
+    expect(distractors, isNot(contains('才能')));
+    expect(distractors, isNot(contains('能力')));
+    // 排掉同词含义后仍能凑齐三个唯一干扰项，并优先保留其他单词的释义。
+    expect(distractors, hasLength(3));
+    expect(distractors.toSet(), hasLength(3));
+    expect(distractors, containsAll(<String>['能量', '实力']));
+  });
+
   test('replacement helpers skip every currently visible candidate', () {
     // 先取得初始英文四选一中的三个干扰项。
     final initialWords = ListeningMeaningOptionGenerator.buildWordDistractors(

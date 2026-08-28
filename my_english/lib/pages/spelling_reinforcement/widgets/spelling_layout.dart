@@ -74,26 +74,39 @@ abstract final class SpellingLayout {
   static const double badgeTextSize = 12;
 
   ///
-  /// 词义提示文字字号（原型 `fs-3`，Tabler 下等于 1rem）。
-  static const double meaningTextSize = 16;
+  /// 词性标签列固定宽度，用于让多条含义中的词性纵向严格对齐。
+  ///
+  /// 生活化解释：每条含义都从同一根竖线开始写词性（n. / vt. …），
+  /// 词性不论长短都在同一列，右边解释整体整齐成一条边。
+  static const double posColumnWidth = 48;
 
   ///
-  /// 词义下方喇叭按钮的边长。
-  ///
-  /// 原型只支持「点空白处重播」，没有任何可见入口，也没法用读屏软件触发。
-  /// 这里补一个显式按钮，同时保留点空白重播。
-  static const double speakerButtonSize = 40;
+  /// 词性列与中文释义之间的水平间距。
+  static const double posMeaningGap = 8;
 
   ///
-  /// 喇叭按钮内 Tabler 图标的字号。
-  static const double speakerIconSize = 20;
+  /// 相邻两条含义之间的纵向间距。
+  static const double meaningRowGap = 6;
 
   ///
-  /// 词义与占位格之间的距离（原型 `.text-center` 的 `mb-3`）。
+  /// 含义区中词性标签的文字字号。
+  ///
+  /// 生活化解释：词性（n. / vt.）只是分类小标签，视觉要轻，不能和正文抢注意力。
+  static const double meaningPosTextSize = 12.5;
+
+  ///
+  /// 含义区中词性标签与释义正文共用的字号。
+  ///
+  /// 生活化解释：比原来单条「词义提示」稍微小一点，让后移的含义区作为补充说明，
+  /// 不要喧宾夺主地盖过上方的占位格。
+  static const double meaningTextSize = 14;
+
+  ///
+  /// 占位格与下方含义区之间的距离（原型 `#slot-row` 的 `mb-4`）。
   static const double meaningBottomGap = 16;
 
   ///
-  /// 占位格与作答区之间的距离（原型 `#slot-row` 的 `mb-4`）。
+  /// 含义区与下方作答区之间的距离。
   static const double slotBottomGap = 24;
 
   ///
@@ -234,6 +247,13 @@ abstract final class SpellingLayout {
   ///
   /// 两个工具按钮之间的间距（原型工具条 `gap-2`）。
   static const double toolButtonGap = 8;
+
+  ///
+  /// 底部工具条与屏幕安全区之间额外保留的距离。
+  ///
+  /// 生活化解释：确保「刷新拆分」和「手动拆分」两个工具按钮不会贴着屏幕底部
+  /// 的系统手势条或导航区，单手点击时更从容、不会误触首页手势。
+  static const double toolBarBottomGap = 12;
 
   ///
   /// 工具条与上方作答区之间的距离（原型工具条 `pt-3`）。
