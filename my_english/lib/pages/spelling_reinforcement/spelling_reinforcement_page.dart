@@ -663,10 +663,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     setState(() => _isPlaying = true);
     try {
       // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
-      await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
-      // 只有真正由离线 TTS 成功朗读时才显示一次来源提示。
-      if (!_hasShownTtsNotice &&
-          await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
+      await widget.audioPlayer.playRandomChannel(_currentWord.spelling, widget.accent);
+      // 随机渠道模式下 TTS 可能是被故意选中（而非网络兜底），此时不提示网络不可用。
+      final playback = widget.audioPlayer.consumeLastPlayback();
+      if (!_hasShownTtsNotice && playback.usedTts && !playback.isRandomChannel) {
         _hasShownTtsNotice = true;
         if (mounted) {
           Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');

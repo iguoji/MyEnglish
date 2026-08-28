@@ -1,3 +1,6 @@
+// dart:math 提供 Random，用于验证随机渠道挑选只返回合法来源。
+import 'dart:math';
+
 // services.dart 提供 MethodChannel、MethodCall 与 PlatformException。
 import 'package:flutter/services.dart';
 // flutter_test 提供测试消息通道和断言。
@@ -45,6 +48,43 @@ void main() {
       'spelling': 'ability',
       'accent': 'british',
     });
+  });
+
+  // 随机渠道必须走 playChannel，渠道取自三个合法来源、口音跟随用户设置。
+  test('playRandomChannel sends a valid channel and the selected accent', () async {
+    // 保存原生收到的最后一次调用。
+    MethodCall? receivedCall;
+    // 假原生立即完成播放。
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          // 记录调用。
+          receivedCall = call;
+          // null 表示播放成功完成。
+          return null;
+        });
+    // 通过可注入的测试通道创建播放器。
+    final player = LocalWordAudioPlayer(channel);
+    // 随机渠道播放英式单词。
+    await player.playRandomChannel('ability', PronunciationAccent.british);
+    // 方法名必须是 playChannel，且必须携带口音与合法渠道。
+    expect(receivedCall?.method, 'playChannel');
+    expect(receivedCall?.arguments?['spelling'], 'ability');
+    expect(receivedCall?.arguments?['accent'], 'british');
+    expect(
+      receivedCall?.arguments?['channel'],
+      anyOf('beingfine', 'youdao', 'tts'),
+    );
+  });
+
+  // 无论随机源怎么取，挑选结果都只能落在已定义的渠道里。
+  test('pickRandomChannel only returns defined channels', () {
+    // 固定种子反复挑选，验证每次结果都在合法集合内。
+    final rng = Random(20260828);
+    final valid =
+        PronunciationChannel.values.map((c) => c.storageValue).toSet();
+    for (var i = 0; i < 100; i++) {
+      expect(valid, contains(pickRandomChannel(rng).storageValue));
+    }
   });
 
   // Android 返回 true 时，Dart 必须识别本次由 TTS 完成，且读取一次后立即消费。

@@ -706,10 +706,11 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     setState(() => _isPlaying = true);
     try {
       // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
-      await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
-      // 只有真正由离线 TTS 成功朗读时才显示一次来源提示。
-      if (!_hasShownTtsNotice &&
-          await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
+      await widget.audioPlayer.playRandomChannel(_currentWord.spelling, widget.accent);
+      // 只有非随机渠道且真正由离线 TTS 兜底朗读时才显示一次来源提示；
+      // 随机渠道模式下 TTS 可能是被故意选中，不再提示“网络不可用”。
+      final playback = widget.audioPlayer.consumeLastPlayback();
+      if (!_hasShownTtsNotice && playback.usedTts && !playback.isRandomChannel) {
         _hasShownTtsNotice = true;
         if (mounted) {
           Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
@@ -720,10 +721,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       // 只重试解码失败，不重试网络失败，避免无网时让用户额外等待两轮超时。
       if (mounted && generation == _playGeneration) {
         try {
-          await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
-          // 解码失败重试成功后，同样检查真实播放来源。
+          await widget.audioPlayer.playRandomChannel(_currentWord.spelling, widget.accent);
+          // 解码失败重试成功后，同样检查真实播放来源（不含随机渠道）。
+          final retryPlayback = widget.audioPlayer.consumeLastPlayback();
           if (!_hasShownTtsNotice &&
-              await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
+              retryPlayback.usedTts &&
+              !retryPlayback.isRandomChannel) {
             _hasShownTtsNotice = true;
             if (mounted) {
               Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');

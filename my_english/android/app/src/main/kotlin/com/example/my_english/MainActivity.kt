@@ -679,6 +679,18 @@ class MainActivity : FlutterActivity() {
                         wordAudioPlayer.play(spelling, accent, result)
                     }
 
+                    // 按 Dart 指定的发音渠道播放当前单词（渠道级缓存，供复习模块随机重听）。
+                    "playChannel" -> {
+                        // arguments 对应 Dart 传来的普通 Map。
+                        val payload = call.arguments as? Map<*, *>
+                        // 读取拼写、口音与渠道；缺失时交给服务输出统一参数错误。
+                        val spelling = payload?.get("spelling") as? String ?: ""
+                        val accent = payload?.get("accent") as? String ?: ""
+                        val channel = payload?.get("channel") as? String ?: ""
+                        // 只解析并播放该渠道；完成前不立即调用 result。
+                        wordAudioPlayer.playChannel(spelling, accent, channel, result)
+                    }
+
                     // 页面销毁或进入后台时停止当前播放。
                     "stop" -> wordAudioPlayer.stop(result)
 

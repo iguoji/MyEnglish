@@ -736,7 +736,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     final spelling = _currentPairs[leftIndex].spelling;
     if (spelling.trim().isEmpty) return;
     try {
-      await player.play(spelling.trim(), widget.accent);
+      await player.playRandomChannel(spelling.trim(), widget.accent);
     } catch (error) {
       debugPrint('词义连连播放发音失败：$error');
     }

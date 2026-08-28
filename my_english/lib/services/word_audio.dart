@@ -1,8 +1,54 @@
+// dart:math 提供 Random，用于从发音渠道中随机挑一个来朗读同一单词。
+import 'dart:math';
+
 // services.dart 提供 MethodChannel 与 PlatformException，用于调用 Android 原生播放器。
 import 'package:flutter/services.dart';
 
 // 口音枚举属于全局设置模型，音频服务和任何页面都可以共同使用。
 import '../store/settings.dart';
+
+///
+/// 单词发音的来源渠道。
+///
+/// 同一个单词在选中口音之下可能被多个音源朗读。以后新增音源时，只要原生播放器
+/// 支持并加入本枚举，随机渠道播放就能自动覆盖到它。
+///
+enum PronunciationChannel {
+  ///
+  /// 不背单词：网络 MP3 音源。
+  beingfine('beingfine', '不背单词'),
+
+  ///
+  /// 有道：网络 MP3 音源。
+  youdao('youdao', '有道'),
+
+  ///
+  /// 系统离线英语 TTS：设备本地朗读。
+  tts('tts', '系统TTS');
+
+  ///
+  /// 渠道搭配固定枚举值。
+  const PronunciationChannel(this.storageValue, this.label);
+
+  ///
+  /// 原生协议使用的稳定英文值；改动会破坏与 Android 侧的约定。
+  final String storageValue;
+
+  ///
+  /// 界面与日志使用的中文名称。
+  final String label;
+}
+
+///
+/// 等概率从全部发音渠道中随机挑选一个。
+///
+/// [random] 允许测试注入固定随机源；不传时使用系统随机源。
+///
+PronunciationChannel pickRandomChannel([Random? random]) {
+  final rng = random ?? Random();
+  return PronunciationChannel.values[
+      rng.nextInt(PronunciationChannel.values.length)];
+}
 
 ///
 /// 页面依赖的音频接口；未来循环播放页和测试替身都可以复用这份约定。
@@ -20,11 +66,37 @@ abstract class WordAudioPlayer {
   Future<void> stop();
 
   ///
+  /// 用随机挑选的发音渠道朗读一个单词。
+  ///
+  /// 默认实现退化为普通 [play]，这样测试替身和旧实现无需逐个补方法也能编译；
+  /// 生产实现（[LocalWordAudioPlayer]）才会真正随机挑选来源。三个复习模块统一
+  /// 走本方法，反复点按重听时就能听到不同来源的发音，更容易辨清单词。
+  Future<void> playRandomChannel(
+    String spelling,
+    PronunciationAccent accent,
+  ) async {
+    // 测试替身与旧实现仍按「固定渠道」行为播放，避免破坏现有用例。
+    await play(spelling, accent);
+  }
+
+  ///
   /// 读取并消费最近一次播放是否由本地 TTS 完成。
   ///
   /// 测试替身和旧播放器默认返回 false；Android 原生实现返回本次 play 的真实来源。
   /// 页面据此只在当前页面第一次使用 TTS 时显示提示。
   Future<bool> consumeLastPlaybackUsedTts() async => false;
+
+  ///
+  /// 读取并消费最近一次播放的详细来源信息。
+  ///
+  /// 返回是否由本地 TTS 完成，以及本次是否是随机渠道播放。随机渠道模式下 TTS
+  /// 可能是被故意随机选中（而不是网络不可用的兜底），页面据此决定要不要提示
+  /// “当前网络音频不可用”。
+  ///
+  /// 默认实现按“非 TTS、非随机”处理，测试替身和旧实现无需覆盖。
+  ({bool usedTts, bool isRandomChannel}) consumeLastPlayback() {
+    return (usedTts: false, isRandomChannel: false);
+  }
 
   ///
   /// 显示或刷新锁屏/通知栏的媒体控制（标题=拼写，副标题=首条释义）。
@@ -132,25 +204,59 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   /// 最近一次已经完成的播放是否使用了本地 TTS。
   bool? _lastPlaybackUsedTts;
 
+  /// 最近一次播放是否来自随机渠道（供页面判断 TTS 是故意选中还是兜底）。
+  bool _playbackWasRandomChannel = false;
+
   ///
   /// 把拼写和口音发送给 Android；原生 Future 会持续到音频播放结束。
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {
+    // 不携带渠道参数，原生按既有固定顺序解析音源。
+    await _invokePlay('play', <String, Object?>{
+      // trim 防止数据源首尾空格进入 URL 和缓存文件名。
+      'spelling': spelling.trim(),
+      // 使用稳定英文值区分美式与英式缓存目录。
+      'accent': accent.storageValue,
+    });
+  }
+
+  ///
+  /// 用随机挑选的渠道朗读单词。
+  ///
+  /// 随机结果限定在用户设置的口音之内，不擅自切换美式/英式；每次重听都有机会
+  /// 听到另一种来源的发音，从而更容易辨清难词。
+  @override
+  Future<void> playRandomChannel(
+    String spelling,
+    PronunciationAccent accent,
+  ) async {
+    // 等概率挑选一个发音渠道（不背单词 / 有道 / 系统TTS）。
+    final channel = pickRandomChannel();
+    // 把渠道传给原生，让它只解析并播放这一个具体来源。
+    await _invokePlay('playChannel', <String, Object?>{
+      // trim 防止数据源首尾空格进入 URL 和缓存文件名。
+      'spelling': spelling.trim(),
+      // 使用稳定英文值区分美式与英式缓存目录。
+      'accent': accent.storageValue,
+      // 原生据此只请求该渠道，并读写渠道级缓存。
+      'channel': channel.storageValue,
+    });
+  }
+
+  ///
+  /// 通用播放调用：负责发送通道请求并统一转换原生错误。
+  ///
+  /// [method] 区分普通播放（play）与按渠道播放（playChannel）。
+  Future<void> _invokePlay(String method, Map<String, Object?> args) async {
     // 新请求开始时丢弃上一条尚未消费的来源，避免异常流程遗留旧状态。
     _lastPlaybackUsedTts = null;
     try {
       // Map 是这次原生调用需要传递的参数集合。
-      final usedTts = await _channel.invokeMethod<bool>(
-        'play',
-        <String, Object?>{
-          // trim 防止数据源首尾空格进入 URL 和缓存文件名。
-          'spelling': spelling.trim(),
-          // 使用稳定英文值区分美式与英式缓存目录。
-          'accent': accent.storageValue,
-        },
-      );
+      final usedTts = await _channel.invokeMethod<bool>(method, args);
       // Android 返回 true 表示本次由离线 TTS 完成，null 按网络 MP3 兼容处理。
       _lastPlaybackUsedTts = usedTts ?? false;
+      // 只有按渠道播放（随机模式）才标记随机渠道，普通播放保持兜底语义。
+      _playbackWasRandomChannel = method == 'playChannel';
     } on PlatformException catch (error) {
       // 新单词替换旧播放不是用户可见错误，转换成专用异常供页面忽略。
       if (error.code == 'AUDIO_INTERRUPTED' || error.code == 'AUDIO_STOPPED') {
@@ -178,11 +284,23 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   ///
   /// Android 原生在 play Future 结束时把播放来源保存于通道结果；本方法读取该结果。
   @override
-  Future<bool> consumeLastPlaybackUsedTts() async {
-    // 读取后立即清空，避免下一个 MP3 播放误继承上一次 TTS 状态。
-    final usedTts = _lastPlaybackUsedTts ?? false;
+  Future<bool> consumeLastPlaybackUsedTts() async => consumeLastPlayback().usedTts;
+
+  ///
+  /// 读取并消费最近一次播放的完整来源信息。
+  ///
+  /// [usedTts] 表示本次是否由本地 TTS 完成；[isRandomChannel] 表示是否来自随机
+  /// 渠道播放。读取一次后立即清空，避免下一次播放误继承上一次的状态。
+  @override
+  ({bool usedTts, bool isRandomChannel}) consumeLastPlayback() {
+    final info = (
+      usedTts: _lastPlaybackUsedTts ?? false,
+      isRandomChannel: _playbackWasRandomChannel,
+    );
+    // 清空两个状态，保证只被消费一次。
     _lastPlaybackUsedTts = null;
-    return usedTts;
+    _playbackWasRandomChannel = false;
+    return info;
   }
 
   ///

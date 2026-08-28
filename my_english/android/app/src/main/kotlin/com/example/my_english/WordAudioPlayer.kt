@@ -278,6 +278,99 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         }
     }
 
+    /**
+     * 按 Dart 指定的发音渠道播放当前单词。
+     *
+     * 与 [play]（固定顺序兜底）不同，这里只解析并播放用户随机选中的那一个来源，
+     * 让反复重听的用户能听到不同发音。渠道下载失败或设备离线时，自动回退到
+     * 口音级离线缓存，最后才轮到系统 TTS，保证每次点击都有声音。
+     */
+    fun playChannel(
+        spelling: String,
+        accent: String,
+        channel: String,
+        result: MethodChannel.Result,
+    ) {
+        // 清理首尾空格，防止生成无意义 URL。
+        val normalizedSpelling = spelling.trim()
+        // 空拼写无法请求发音。
+        if (normalizedSpelling.isEmpty()) {
+            result.error("AUDIO_ARGUMENT_ERROR", "单词拼写不能为空", null)
+            return
+        }
+        // 缓存目录只接受两个已约定口音值。
+        if (accent != AMERICAN && accent != BRITISH) {
+            result.error("AUDIO_ARGUMENT_ERROR", "不支持的发音口音：$accent", null)
+            return
+        }
+        // 渠道必须来自 Dart 约定的三个来源。
+        if (channel != CHANNEL_BEINGFINE &&
+            channel != CHANNEL_YOUDAO &&
+            channel != CHANNEL_TTS
+        ) {
+            result.error("AUDIO_ARGUMENT_ERROR", "不支持的发音渠道：$channel", null)
+            return
+        }
+
+        // 递增编号会让仍在下载的旧任务失效。
+        requestGeneration += 1
+        // 保存当前请求编号供异步阶段逐次核验。
+        val generation = requestGeneration
+        // 停止旧播放器，并让旧 Dart Future 以“已被替换”结束。
+        interruptCurrent("AUDIO_INTERRUPTED", "已开始播放另一个单词")
+        // 当前调用要等到完成或失败时再回传。
+        pendingResult = result
+
+        // 下载和文件 IO 放入后台线程。
+        downloadExecutor.execute {
+            try {
+                // 指定 TTS 渠道时不尝试网络，直接朗读。
+                if (channel == CHANNEL_TTS) {
+                    mainHandler.post {
+                        if (generation == requestGeneration) {
+                            startTtsFallback(normalizedSpelling, accent, generation)
+                        }
+                    }
+                    return@execute
+                }
+
+                // 明确离线或最近 5 分钟网络音频已失败：先复用口音级离线缓存，
+                // 没有离线缓存再退回系统 TTS。
+                if (shouldSkipNetworkAudio()) {
+                    val offlineCache = findCachedAudioFile(normalizedSpelling, accent)
+                    mainHandler.post {
+                        if (generation != requestGeneration) return@post
+                        if (offlineCache != null) startPlayer(offlineCache, generation)
+                        else startTtsFallback(normalizedSpelling, accent, generation)
+                    }
+                    return@execute
+                }
+
+                // 在线：只下载并播放被选中的这一个渠道。
+                val audioFile =
+                    resolveChannelFile(normalizedSpelling, accent, channel, generation)
+                // 网络音频成功，说明上一段失败记录已过时，允许继续尝试 MP3。
+                clearNetworkAudioFailure()
+                // MediaPlayer 必须回到主线程创建和启动。
+                mainHandler.post {
+                    if (generation == requestGeneration) startPlayer(audioFile, generation)
+                }
+            } catch (error: Throwable) {
+                // 指定渠道失败时记录 5 分钟网络失败，降低后续请求的重复等待。
+                if (generation == requestGeneration && error is NetworkResolutionException) {
+                    recordNetworkAudioFailure(error)
+                }
+                // 该渠道不可用时，先复用口音级离线缓存，再退回系统 TTS。
+                val offlineCache = findCachedAudioFile(normalizedSpelling, accent)
+                mainHandler.post {
+                    if (generation != requestGeneration) return@post
+                    if (offlineCache != null) startPlayer(offlineCache, generation)
+                    else startTtsFallback(normalizedSpelling, accent, generation)
+                }
+            }
+        }
+    }
+
     /** 页面销毁或 App 进入后台时主动停止。 */
     fun stop(result: MethodChannel.Result) {
         // 让后台中的旧下载完成后不能再启动播放器。
@@ -481,8 +574,60 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     /** 标记两个网络音源均已实际请求但都不可用。 */
     private class NetworkResolutionException(message: String) : RuntimeException(message)
 
-    /** 根据口音生成“不背单词 -> 有道”的准确 HTTPS URL。 */
-    private fun buildSources(spelling: String, accent: String): List<Pair<String, String>> {
+    /**
+     * 解析单个发音渠道的缓存文件；缺失时才请求该渠道自己的 URL。
+     *
+     * 每个渠道使用独立子目录缓存：这样同一单词反复重听时能命中不同来源的文件，
+     * 而不是永远只听到第一次成功下载的那一份声音。
+     */
+    private fun resolveChannelFile(
+        spelling: String,
+        accent: String,
+        channel: String,
+        generation: Long,
+    ): File {
+        // 计算该渠道专属缓存位置。
+        val target = channelCacheFile(spelling, accent, channel)
+        // 已有该渠道的有效缓存直接返回。
+        if (isLikelyMp3(target)) return target
+        // 残缺旧缓存不能反复交给 MediaPlayer。
+        if (target.exists()) target.delete()
+        // 确保渠道子目录存在。
+        val parent = target.parentFile
+        check(parent != null && (parent.exists() || parent.mkdirs())) {
+            "无法创建音频渠道缓存目录"
+        }
+        // 记录下载开始时的缓存纪元；清空动作会改变它，使旧下载不能重新落正式文件。
+        val initialCacheEpoch = cacheEpoch.get()
+        // 只请求被选中渠道这一个来源；失败抛 NetworkResolutionException。
+        downloadToCache(
+            channelUrl(spelling, accent, channel),
+            target,
+            generation,
+            cancelEnabled = true,
+            initialCacheEpoch,
+        )
+        return target
+    }
+
+    /** 计算某个 (spelling, accent, channel) 的渠道级缓存文件位置，不触发下载。 */
+    private fun channelCacheFile(
+        spelling: String,
+        accent: String,
+        channel: String,
+    ): File {
+        // 渠道目录与口音目录嵌套，复用与小写 URL-safe Base64 相同的单层文件规则。
+        val channelDirectory = File(appContext.cacheDir, "word_audio/$accent/$channel")
+        val cacheKey = Base64.encodeToString(
+            spelling.lowercase(Locale.ROOT).toByteArray(StandardCharsets.UTF_8),
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+        )
+        // mp3 后缀帮助 MediaPlayer 判断文件容器格式。
+        return File(channelDirectory, "$cacheKey.mp3")
+    }
+
+    /** 根据口音与指定渠道生成准确 HTTPS URL；只支持不背单词与有道两个网络渠道。 */
+    private fun channelUrl(spelling: String, accent: String, channel: String): String {
         // URLEncoder 默认把空格写成 +，路径中改用标准 %20。
         val encodedSpelling = URLEncoder.encode(
             spelling,
@@ -492,15 +637,24 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         val beingFineAccent = if (accent == AMERICAN) "US" else "UK"
         // 有道 type=2 是美式，type=1 是英式。
         val youdaoType = if (accent == AMERICAN) "2" else "1"
+        return when (channel) {
+            CHANNEL_BEINGFINE ->
+                "https://audio.beingfine.cn/speeches/$beingFineAccent/" +
+                    "$beingFineAccent-speech/$encodedSpelling.mp3"
+            CHANNEL_YOUDAO ->
+                "https://dict.youdao.com/dictvoice?audio=$encodedSpelling&type=$youdaoType"
+            else -> error("不支持的发音渠道：$channel")
+        }
+    }
+
+    /** 根据口音生成“不背单词 -> 有道”的准确 HTTPS URL，供普通固定顺序播放使用。 */
+    private fun buildSources(spelling: String, accent: String): List<Pair<String, String>> {
         // List 保持明确优先级。
         return listOf(
             // 第一优先：不背单词。
-            "不背单词" to
-                "https://audio.beingfine.cn/speeches/$beingFineAccent/" +
-                "$beingFineAccent-speech/$encodedSpelling.mp3",
+            "不背单词" to channelUrl(spelling, accent, CHANNEL_BEINGFINE),
             // 第二优先：有道。
-            "有道" to
-                "https://dict.youdao.com/dictvoice?audio=$encodedSpelling&type=$youdaoType",
+            "有道" to channelUrl(spelling, accent, CHANNEL_YOUDAO),
         )
     }
 
@@ -1175,6 +1329,16 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
 
         // 英式缓存目录名与 Dart storageValue 一致。
         const val BRITISH = "british"
+
+        // 发音渠道：与 Dart 侧 PronunciationChannel.storageValue 一一对应。
+        // 随机渠道播放时，原生据此只解析并缓存这一个来源。
+        const val CHANNEL_BEINGFINE = "beingfine"
+
+        // 有道网络音频渠道。
+        const val CHANNEL_YOUDAO = "youdao"
+
+        // 系统离线英语 TTS 渠道：不做网络请求，直接朗读。
+        const val CHANNEL_TTS = "tts"
 
         // 每个网络来源最多等待 1 秒；超时后立即尝试下一个音源或后续 TTS 兜底。
         const val NETWORK_TIMEOUT_MILLIS = 1_000
