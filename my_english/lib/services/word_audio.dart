@@ -1,6 +1,3 @@
-// dart:math 提供 Random，用于从发音渠道中随机挑一个来朗读同一单词。
-import 'dart:math';
-
 // services.dart 提供 MethodChannel 与 PlatformException，用于调用 Android 原生播放器。
 import 'package:flutter/services.dart';
 
@@ -11,7 +8,7 @@ import '../store/settings.dart';
 /// 单词发音的来源渠道。
 ///
 /// 同一个单词在选中口音之下可能被多个音源朗读。以后新增音源时，只要原生播放器
-/// 支持并加入本枚举，随机渠道播放就能自动覆盖到它。
+/// 支持并加入本枚举，轮转渠道播放就能自动覆盖到它。
 ///
 enum PronunciationChannel {
   ///
@@ -40,14 +37,14 @@ enum PronunciationChannel {
 }
 
 ///
-/// 等概率从全部发音渠道中随机挑选一个。
+/// 根据轮转下标取出发音渠道。
 ///
-/// [random] 允许测试注入固定随机源；不传时使用系统随机源。
+/// 调用方每播放一次就把下标加一；超过最后一个渠道后会自动回到第一个，
+/// 因此表现为“甲、乙、丙、甲、乙、丙……”的稳定伪随机顺序。
 ///
-PronunciationChannel pickRandomChannel([Random? random]) {
-  final rng = random ?? Random();
-  return PronunciationChannel.values[
-      rng.nextInt(PronunciationChannel.values.length)];
+PronunciationChannel pickNextChannel(int index) {
+  final channels = PronunciationChannel.values;
+  return channels[index % channels.length];
 }
 
 ///
@@ -66,11 +63,11 @@ abstract class WordAudioPlayer {
   Future<void> stop();
 
   ///
-  /// 用随机挑选的发音渠道朗读一个单词。
+  /// 用轮转挑选的发音渠道朗读一个单词。
   ///
   /// 默认实现退化为普通 [play]，这样测试替身和旧实现无需逐个补方法也能编译；
-  /// 生产实现（[LocalWordAudioPlayer]）才会真正随机挑选来源。三个复习模块统一
-  /// 走本方法，反复点按重听时就能听到不同来源的发音，更容易辨清单词。
+  /// 生产实现（[LocalWordAudioPlayer]）才会真正按顺序轮转来源。三个复习模块统一
+  /// 走本方法，反复点按重听时就能轮流听到不同来源的发音，更容易辨清单词。
   Future<void> playRandomChannel(
     String spelling,
     PronunciationAccent accent,
@@ -89,11 +86,11 @@ abstract class WordAudioPlayer {
   ///
   /// 读取并消费最近一次播放的详细来源信息。
   ///
-  /// 返回是否由本地 TTS 完成，以及本次是否是随机渠道播放。随机渠道模式下 TTS
-  /// 可能是被故意随机选中（而不是网络不可用的兜底），页面据此决定要不要提示
+  /// 返回是否由本地 TTS 完成，以及本次是否来自轮转渠道播放。轮转渠道模式下 TTS
+  /// 可能是被故意按顺序选中（而不是网络不可用的兜底），页面据此决定要不要提示
   /// “当前网络音频不可用”。
   ///
-  /// 默认实现按“非 TTS、非随机”处理，测试替身和旧实现无需覆盖。
+  /// 默认实现按“非 TTS、非轮转渠道”处理，测试替身和旧实现无需覆盖。
   ({bool usedTts, bool isRandomChannel}) consumeLastPlayback() {
     return (usedTts: false, isRandomChannel: false);
   }
@@ -204,8 +201,11 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   /// 最近一次已经完成的播放是否使用了本地 TTS。
   bool? _lastPlaybackUsedTts;
 
-  /// 最近一次播放是否来自随机渠道（供页面判断 TTS 是故意选中还是兜底）。
+  /// 最近一次播放是否来自轮转渠道（供页面判断 TTS 是故意选中还是兜底）。
   bool _playbackWasRandomChannel = false;
+
+  /// 下一次按渠道播放时应使用的渠道下标，从 [PronunciationChannel.values] 第一项开始。
+  int _nextChannelIndex = 0;
 
   ///
   /// 把拼写和口音发送给 Android；原生 Future 会持续到音频播放结束。
@@ -221,17 +221,18 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   }
 
   ///
-  /// 用随机挑选的渠道朗读单词。
+  /// 用轮转挑选的渠道朗读单词。
   ///
-  /// 随机结果限定在用户设置的口音之内，不擅自切换美式/英式；每次重听都有机会
-  /// 听到另一种来源的发音，从而更容易辨清难词。
+  /// 渠道按“不背单词 -> 有道 -> 系统 TTS -> 不背单词……”的顺序轮转，且始终限定
+  /// 在用户设置的口音之内，不擅自切换美式/英式。
   @override
   Future<void> playRandomChannel(
     String spelling,
     PronunciationAccent accent,
   ) async {
-    // 等概率挑选一个发音渠道（不背单词 / 有道 / 系统TTS）。
-    final channel = pickRandomChannel();
+    // 先取出当前轮转下标对应的渠道，再推进下标，让下一次播放换到下一家。
+    final channel = pickNextChannel(_nextChannelIndex);
+    _nextChannelIndex += 1;
     // 把渠道传给原生，让它只解析并播放这一个具体来源。
     await _invokePlay('playChannel', <String, Object?>{
       // trim 防止数据源首尾空格进入 URL 和缓存文件名。
@@ -255,7 +256,7 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
       final usedTts = await _channel.invokeMethod<bool>(method, args);
       // Android 返回 true 表示本次由离线 TTS 完成，null 按网络 MP3 兼容处理。
       _lastPlaybackUsedTts = usedTts ?? false;
-      // 只有按渠道播放（随机模式）才标记随机渠道，普通播放保持兜底语义。
+      // 只有按渠道播放（轮转模式）才标记轮转渠道，普通播放保持兜底语义。
       _playbackWasRandomChannel = method == 'playChannel';
     } on PlatformException catch (error) {
       // 新单词替换旧播放不是用户可见错误，转换成专用异常供页面忽略。
@@ -284,12 +285,13 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   ///
   /// Android 原生在 play Future 结束时把播放来源保存于通道结果；本方法读取该结果。
   @override
-  Future<bool> consumeLastPlaybackUsedTts() async => consumeLastPlayback().usedTts;
+  Future<bool> consumeLastPlaybackUsedTts() async =>
+      consumeLastPlayback().usedTts;
 
   ///
   /// 读取并消费最近一次播放的完整来源信息。
   ///
-  /// [usedTts] 表示本次是否由本地 TTS 完成；[isRandomChannel] 表示是否来自随机
+  /// [usedTts] 表示本次是否由本地 TTS 完成；[isRandomChannel] 表示是否来自轮转
   /// 渠道播放。读取一次后立即清空，避免下一次播放误继承上一次的状态。
   @override
   ({bool usedTts, bool isRandomChannel}) consumeLastPlayback() {

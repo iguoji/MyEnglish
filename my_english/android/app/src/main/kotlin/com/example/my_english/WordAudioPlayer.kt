@@ -281,8 +281,8 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     /**
      * 按 Dart 指定的发音渠道播放当前单词。
      *
-     * 与 [play]（固定顺序兜底）不同，这里只解析并播放用户随机选中的那一个来源，
-     * 让反复重听的用户能听到不同发音。渠道下载失败或设备离线时，自动回退到
+     * 与 [play]（固定顺序兜底）不同，这里只解析并播放 Dart 按轮转顺序选中的那一个
+     * 来源，让反复重听的用户能听到不同发音。渠道下载失败或设备离线时，自动回退到
      * 口音级离线缓存，最后才轮到系统 TTS，保证每次点击都有声音。
      */
     fun playChannel(
@@ -334,10 +334,13 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
                     return@execute
                 }
 
-                // 明确离线或最近 5 分钟网络音频已失败：先复用口音级离线缓存，
-                // 没有离线缓存再退回系统 TTS。
+                // 明确离线或最近 5 分钟网络音频已失败：先复用本渠道离线缓存，
+                // 没有本渠道缓存再退回旧版口音级缓存，最后才轮到系统 TTS。
                 if (shouldSkipNetworkAudio()) {
-                    val offlineCache = findCachedAudioFile(normalizedSpelling, accent)
+                    // 优先复用本次被选中渠道自己的缓存；只有渠道缓存缺失时才退回旧版口音级缓存。
+                    val offlineCache = channelCacheFile(normalizedSpelling, accent, channel)
+                        .takeIf { isLikelyMp3(it) }
+                        ?: findCachedAudioFile(normalizedSpelling, accent)
                     mainHandler.post {
                         if (generation != requestGeneration) return@post
                         if (offlineCache != null) startPlayer(offlineCache, generation)
@@ -360,8 +363,10 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
                 if (generation == requestGeneration && error is NetworkResolutionException) {
                     recordNetworkAudioFailure(error)
                 }
-                // 该渠道不可用时，先复用口音级离线缓存，再退回系统 TTS。
-                val offlineCache = findCachedAudioFile(normalizedSpelling, accent)
+                // 该渠道不可用时，先复用本渠道已有缓存，再退回旧版口音级缓存和系统 TTS。
+                val offlineCache = channelCacheFile(normalizedSpelling, accent, channel)
+                    .takeIf { isLikelyMp3(it) }
+                    ?: findCachedAudioFile(normalizedSpelling, accent)
                 mainHandler.post {
                     if (generation != requestGeneration) return@post
                     if (offlineCache != null) startPlayer(offlineCache, generation)
@@ -492,16 +497,29 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         UNKNOWN,
     }
 
-    /** 仅下载并缓存、不触发播放；复用与播放相同的来源与校验（供离线预缓存使用）。 */
-    private fun precacheResolve(spelling: String, accent: String, generation: Long) {
+    /** 仅下载并缓存某个网络渠道、不触发播放；复用渠道播放相同的来源与校验。 */
+    private fun precacheResolveChannel(
+        spelling: String,
+        accent: String,
+        channel: String,
+        generation: Long,
+    ) {
         val normalized = spelling.trim()
         // 空拼写不值得请求。
         if (normalized.isEmpty()) return
         // 只接受约定的两种口音。
         if (accent != AMERICAN && accent != BRITISH) return
+        // 离线预缓存只处理真正会产生文件的网络渠道；TTS 没有可缓存内容。
+        if (channel !in NETWORK_CHANNELS) return
         // 预缓存任务不能被播放/停止的 requestGeneration 取消，因此关闭取消检查；
         // 用 precacheGeneration 作为临时文件命名空间即可避免并发写冲突。
-        resolveAudioFileInternal(normalized, accent, generation, cancelEnabled = false)
+        resolveChannelFileInternal(
+            normalized,
+            accent,
+            channel,
+            generation,
+            cancelEnabled = false,
+        )
     }
 
     /** 计算某个 (spelling, accent) 的预期缓存文件位置，不触发下载。 */
@@ -575,7 +593,7 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     private class NetworkResolutionException(message: String) : RuntimeException(message)
 
     /**
-     * 解析单个发音渠道的缓存文件；缺失时才请求该渠道自己的 URL。
+     * 解析单个发音渠道的缓存文件（播放路径），缺失时才请求该渠道自己的 URL。
      *
      * 每个渠道使用独立子目录缓存：这样同一单词反复重听时能命中不同来源的文件，
      * 而不是永远只听到第一次成功下载的那一份声音。
@@ -585,6 +603,28 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         accent: String,
         channel: String,
         generation: Long,
+    ): File {
+        return resolveChannelFileInternal(
+            spelling,
+            accent,
+            channel,
+            generation,
+            cancelEnabled = true,
+        )
+    }
+
+    /**
+     * 渠道级缓存解析实现：先查该渠道本地缓存，缺失时才请求该渠道 URL。
+     *
+     * [cancelEnabled] 为 true 时供播放路径在下载过程中响应 requestGeneration；
+     * 为 false 时供离线预缓存使用，任务只受 precacheGeneration 控制。
+     */
+    private fun resolveChannelFileInternal(
+        spelling: String,
+        accent: String,
+        channel: String,
+        generation: Long,
+        cancelEnabled: Boolean,
     ): File {
         // 计算该渠道专属缓存位置。
         val target = channelCacheFile(spelling, accent, channel)
@@ -604,7 +644,7 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
             channelUrl(spelling, accent, channel),
             target,
             generation,
-            cancelEnabled = true,
+            cancelEnabled,
             initialCacheEpoch,
         )
         return target
@@ -758,8 +798,10 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     }
 
     /**
-     * 离线预缓存全部单词的双口音音频：在新线程池中并发下载并写入缓存目录，
-     * 每完成一个任务都推进结束计数，但只有磁盘上形成有效 MP3 时才增加缓存成功数。
+     * 离线预缓存全部单词的全渠道音频：每个网络渠道、每种口音都会尝试下载。
+     *
+     * 任务数虽为“单词 × 美/英 × 网络渠道”，但上报给 Dart 的进度以单词为单位：
+     * 某个单词只要存在任意一家渠道同时缓存了美式和英式，就计为已缓存一个单词。
      *
      * 该任务只依赖 applicationContext 与独立的线程池，不持有任何 Flutter Widget，
      * 因此用户关闭抽屉或返回首页后仍在后台继续，直到全部完成或启动新一轮预缓存。
@@ -770,49 +812,122 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     ) {
         // 新一轮预缓存让上一批尚未执行的任务立即退出，避免重复下载。
         val myGeneration = precacheGeneration.incrementAndGet()
-        // 每个单词都要缓存美式与英式两份。
-        val tasks = spellings.flatMap { spelling ->
-            listOf(AMERICAN to spelling, BRITISH to spelling)
-        }
-        val total = tasks.size
-        // 没有单词时直接回报"已完成"，让 Dart 收起进度条。
-        if (total == 0) {
+        // 清洗空拼写并保持原有顺序；重复单词仍按调用方传入的条数统计。
+        val words = spellings.map { it.trim() }.filter { it.isNotEmpty() }
+        val totalWords = words.size
+        // 没有单词时直接回报“已完成”，让 Dart 收起进度条。
+        if (totalWords == 0) {
             onProgress(myGeneration, 0, 0, true)
             return
         }
-        // 独立计数器严格区分“任务结束”和“缓存成功”，并可由 JVM 单元测试验证。
-        val progress = PrecacheProgress(total)
-        for ((accent, spelling) in tasks) {
-            // 线程池若已随 Activity 销毁被关闭，提交会被拒绝；此处静默吞掉，
-            // 避免 RejectedExecutionException 冒泡到调用方导致无任何进度回调。
-            try {
-                precacheExecutor.execute {
-                    // 已有新一轮预缓存或用户重复点击时，旧任务直接退出。
-                    if (myGeneration != precacheGeneration.get()) return@execute
-                    // 先假定本任务失败；只有解析得到有效缓存后才切换为成功。
-                    var cacheSucceeded = false
-                    // 单个单词失败（音源缺失 / 网络错误）只跳过，不影响其他任务。
+
+        // 先在线程池里扫描一次磁盘已有缓存，避免第一次进度事件把初始百分比打回 0。
+        try {
+            precacheExecutor.execute {
+                if (myGeneration != precacheGeneration.get()) return@execute
+                val initialStates = buildPrecacheStates(words)
+                if (myGeneration != precacheGeneration.get()) return@execute
+                val progress = PrecacheWordProgress(
+                    total = totalWords,
+                    taskCount = totalWords * NETWORK_CHANNELS.size * 2,
+                    initialStates = initialStates,
+                )
+                submitPrecacheTasks(words, progress, myGeneration, onProgress)
+            }
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            // 执行器已关闭：本批只能立即结束，不伪造任何缓存成功数。
+            onProgress(myGeneration, 0, totalWords, true)
+        }
+    }
+
+    /**
+     * 把所有“单词 × 口音 × 网络渠道”任务提交到预缓存线程池。
+     *
+     * [progress] 负责把并发任务的渠道/口音成功信息合并成“单词是否完整缓存”的进度。
+     */
+    private fun submitPrecacheTasks(
+        words: List<String>,
+        progress: PrecacheWordProgress,
+        myGeneration: Long,
+        onProgress: (batch: Long, cached: Int, total: Int, done: Boolean) -> Unit,
+    ) {
+        for ((wordIndex, spelling) in words.withIndex()) {
+            for (accent in listOf(AMERICAN, BRITISH)) {
+                for (channel in NETWORK_CHANNELS) {
+                    // 线程池若已随 Activity 销毁被关闭，提交会被拒绝；此处静默吞掉，
+                    // 避免 RejectedExecutionException 冒泡到调用方导致无任何进度回调。
                     try {
-                        precacheResolve(spelling, accent, myGeneration)
-                        // precacheResolve 正常返回说明磁盘上已有或刚写入了有效 MP3。
-                        cacheSucceeded = true
-                    } catch (_: Throwable) {
-                        // 离线预缓存以"尽量填满"为目标，单个失败无需中断整体。
+                        precacheExecutor.execute {
+                            // 已有新一轮预缓存或用户重复点击时，旧任务直接退出。
+                            if (myGeneration != precacheGeneration.get()) return@execute
+                            // 先假定本任务失败；只有解析得到有效缓存后才切换为成功。
+                            var cacheSucceeded = false
+                            // 单个任务失败（音源缺失 / 网络错误）只跳过，不影响其他任务。
+                            try {
+                                precacheResolveChannel(spelling, accent, channel, myGeneration)
+                                // 正常返回说明磁盘上已有或刚写入了有效 MP3。
+                                cacheSucceeded = true
+                            } catch (_: Throwable) {
+                                // 离线预缓存以“尽量填满”为目标，单个失败无需中断整体。
+                            }
+                            // 下载期间若已清空缓存或启动新批次，旧任务结果不再回写界面。
+                            if (myGeneration != precacheGeneration.get()) return@execute
+                            // 无论成功或失败都记录任务结束，但只有形成完整单词才增加 cached。
+                            val snapshot = progress.finish(
+                                wordIndex,
+                                channel,
+                                accent,
+                                cacheSucceeded,
+                            )
+                            onProgress(
+                                myGeneration,
+                                snapshot.cached,
+                                snapshot.total,
+                                snapshot.done,
+                            )
+                        }
+                    } catch (_: java.util.concurrent.RejectedExecutionException) {
+                        // 线程池已关闭：保留真实成功数，并把本批标记结束，绝不伪造 100%。
+                        val snapshot = progress.stopped()
+                        onProgress(myGeneration, snapshot.cached, snapshot.total, snapshot.done)
+                        return
                     }
-                    // 下载期间若已清空缓存或启动新批次，旧任务结果不再回写界面。
-                    if (myGeneration != precacheGeneration.get()) return@execute
-                    // 无论成功或失败都记录任务结束，但只有成功才增加 cached。
-                    val snapshot = progress.finish(cacheSucceeded)
-                    // 同时带上批次号，主线程发送事件前还会再次确认它没有过期。
-                    onProgress(myGeneration, snapshot.cached, snapshot.total, snapshot.done)
                 }
-            } catch (_: java.util.concurrent.RejectedExecutionException) {
-                // 线程池已关闭：保留真实成功数，并把本批标记结束，绝不伪造 100%。
-                val snapshot = progress.stopped()
-                onProgress(myGeneration, snapshot.cached, snapshot.total, snapshot.done)
-                return
             }
         }
+    }
+
+    /**
+     * 扫描磁盘，把当前已经存在的渠道级缓存整理成进度计数器的初始状态。
+     *
+     * 旧版本的口音级缓存虽然不知道当初来自哪一家渠道，但既然美式和英式都有，
+     * 就足以让该单词先计为“已缓存”；后续全渠道任务仍会继续补齐各渠道文件。
+     */
+    private fun buildPrecacheStates(
+        words: List<String>,
+    ): Map<Int, Map<String, Set<String>>> {
+        val result = HashMap<Int, Map<String, Set<String>>>()
+        for ((wordIndex, spelling) in words.withIndex()) {
+            val channelStates = HashMap<String, MutableSet<String>>()
+            for (channel in NETWORK_CHANNELS) {
+                val accents = mutableSetOf<String>()
+                if (isLikelyMp3(channelCacheFile(spelling, AMERICAN, channel))) {
+                    accents += AMERICAN
+                }
+                if (isLikelyMp3(channelCacheFile(spelling, BRITISH, channel))) {
+                    accents += BRITISH
+                }
+                if (accents.isNotEmpty()) channelStates[channel] = accents
+            }
+            if (isLikelyMp3(expectedCacheFile(spelling, AMERICAN)) &&
+                isLikelyMp3(expectedCacheFile(spelling, BRITISH))
+            ) {
+                channelStates[LEGACY_CACHE_CHANNEL] =
+                    mutableSetOf(AMERICAN, BRITISH)
+            }
+            if (channelStates.isNotEmpty()) result[wordIndex] = channelStates
+        }
+        return result
     }
 
     /** 判断准备发送到 Dart 的预缓存事件是否仍属于当前有效批次。 */
@@ -821,19 +936,33 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         return batch == precacheGeneration.get()
     }
 
-    /** 统计当前词库中已缓存的音频数量（美式 + 英式），用于在抽屉里显示初始百分比。 */
+    /** 统计当前词库中已完整缓存发音的单词数，用于在抽屉里显示初始百分比。 */
     fun getCacheProgress(spellings: List<String>): Pair<Int, Int> {
-        // 总数 = 单词数 × 2（美式 + 英式）。
-        val total = spellings.size * 2
+        // 总数 = 词库单词数。
+        val total = spellings.size
         // 没有任何单词时返回空进度。
         if (total == 0) return 0 to 0
-        // 逐个检查预期缓存文件是否为有效 MP3，计数已缓存数量。
+        // 逐个检查该单词是否已有任意一家渠道同时缓存美式和英式。
         var cached = 0
         for (spelling in spellings) {
-            if (isLikelyMp3(expectedCacheFile(spelling, AMERICAN))) cached += 1
-            if (isLikelyMp3(expectedCacheFile(spelling, BRITISH))) cached += 1
+            if (hasAnyChannelForBothAccents(spelling)) cached += 1
         }
         return cached to total
+    }
+
+    /** 判断某个单词是否至少有一家渠道同时拥有美式和英式有效 MP3。 */
+    private fun hasAnyChannelForBothAccents(spelling: String): Boolean {
+        // 兼容旧版本口音级缓存：两份都在，就相当于曾经有一家渠道下载成功。
+        if (isLikelyMp3(expectedCacheFile(spelling, AMERICAN)) &&
+            isLikelyMp3(expectedCacheFile(spelling, BRITISH))
+        ) {
+            return true
+        }
+        // 新版本口径：任意一个网络渠道的美式、英式渠道级缓存都存在即可。
+        return NETWORK_CHANNELS.any { channel ->
+            isLikelyMp3(channelCacheFile(spelling, AMERICAN, channel)) &&
+                isLikelyMp3(channelCacheFile(spelling, BRITISH, channel))
+        }
     }
 
     /**
@@ -1339,6 +1468,13 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
 
         // 系统离线英语 TTS 渠道：不做网络请求，直接朗读。
         const val CHANNEL_TTS = "tts"
+
+        // 离线预缓存会尝试下载的网络渠道；系统 TTS 是设备实时合成，没有文件可缓存。
+        val NETWORK_CHANNELS = listOf(CHANNEL_BEINGFINE, CHANNEL_YOUDAO)
+
+        // 旧版本的口音级缓存只保留一份“任意网络渠道成功”的结果；进度统计时把它
+        // 当作一个虚拟渠道，避免升级后明明已有离线发音却显示成 0%。
+        const val LEGACY_CACHE_CHANNEL = "_legacy"
 
         // 每个网络来源最多等待 1 秒；超时后立即尝试下一个音源或后续 TTS 兜底。
         const val NETWORK_TIMEOUT_MILLIS = 1_000

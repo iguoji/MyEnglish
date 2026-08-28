@@ -13,8 +13,8 @@ import 'package:flutter/services.dart';
 /// 因此用户关闭抽屉、返回首页甚至切到其它页面后，批量缓存仍能在后台继续推进，
 /// 百分比通过事件通道实时回传，重新打开抽屉即可看到最新进度。
 ///
-/// 百分比口径与需求一致：总数 = 词库单词数 × 2（美式 + 英式），
-/// 已缓存 = 当前磁盘上已存在有效 MP3 的 (单词, 口音) 对数。
+/// 百分比口径与需求一致：总数 = 词库单词数；已缓存 = 至少有一个网络渠道同时
+/// 拥有美式和英式有效 MP3 的单词数。
 ///
 class WordAudioCache extends ChangeNotifier {
   ///
@@ -57,11 +57,11 @@ class WordAudioCache extends ChangeNotifier {
   bool _subscribed = false;
 
   ///
-  /// 已缓存音频数（美式 + 英式）。
+  /// 已缓存单词数：该单词只要有一家渠道同时缓存了美式和英式，就计为 1。
   int _cached = 0;
 
   ///
-  /// 需要缓存的音频总数 = 词库单词数 × 2（美式 + 英式）。
+  /// 需要统计的词库单词总数。
   int _total = 0;
 
   ///
@@ -108,8 +108,8 @@ class WordAudioCache extends ChangeNotifier {
     final generation = ++_wordListGeneration;
     // 记录参与缓存的单词，供 start() 触发预缓存使用。
     _spellings = snapshot;
-    // 总数恒为单词数的两倍（美式 + 英式各一份）。
-    _total = spellings.length * 2;
+    // 总数按“单词数”计算；一个单词不是拆成美式、英式两笔。
+    _total = spellings.length;
     // 询问原生当前已缓存数量，得到真实的初始百分比。
     try {
       // 注意：原生 getCacheProgress 期望参数是一个 Map（键为 'spellings'），
@@ -121,7 +121,7 @@ class WordAudioCache extends ChangeNotifier {
       );
       // 等待期间词库已再次刷新时，旧结果不能覆盖新词库的进度。
       if (generation != _wordListGeneration) return;
-      // 原生返回 {cached,total}，total 以原生实际计算为准（理论上等于两倍单词数）。
+      // 原生返回 {cached,total}，total 以原生实际计算为准（理论上等于单词数）。
       _cached = (result?['cached'] as num?)?.toInt() ?? 0;
       _total = (result?['total'] as num?)?.toInt() ?? _total;
     } on PlatformException {

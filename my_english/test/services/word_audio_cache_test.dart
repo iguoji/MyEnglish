@@ -35,10 +35,10 @@ void main() {
       );
       // 用例结束关闭控制器。
       addTearDown(events.close);
-      // 假原生返回初始 0/4，并接受 precache 与 clearAudioCache。
+      // 假原生返回初始 0/2，并接受 precache 与 clearAudioCache。
       messenger.setMockMethodCallHandler(channel, (call) async {
         if (call.method == 'getCacheProgress') {
-          return <String, Object?>{'cached': 0, 'total': 4};
+          return <String, Object?>{'cached': 0, 'total': 2};
         }
         return null;
       });
@@ -56,11 +56,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(listenCount, 1);
 
-      // 四个任务只成功一个但整批已结束，百分比必须是真实 25%，不能显示 100%。
-      events.add(<String, Object?>{'cached': 1, 'total': 4, 'done': true});
+      // 两个单词只有一个已完整缓存，百分比必须是真实 50%，不能显示 100%。
+      events.add(<String, Object?>{'cached': 1, 'total': 2, 'done': true});
       await Future<void>.delayed(Duration.zero);
       expect(cache.cached, 1);
-      expect(cache.percent, 25);
+      expect(cache.percent, 50);
       expect(cache.isCaching, isFalse);
 
       // 清空后重新装载词表并启动第二批。
@@ -72,7 +72,7 @@ void main() {
       expect(listenCount, 1);
 
       // 原有订阅可以继续接收第二批事件。
-      events.add(<String, Object?>{'cached': 2, 'total': 4, 'done': false});
+      events.add(<String, Object?>{'cached': 2, 'total': 2, 'done': false});
       await Future<void>.delayed(Duration.zero);
       expect(cache.cached, 2);
       expect(cache.percent, 50);

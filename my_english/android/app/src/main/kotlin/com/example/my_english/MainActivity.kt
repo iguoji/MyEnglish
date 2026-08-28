@@ -679,7 +679,7 @@ class MainActivity : FlutterActivity() {
                         wordAudioPlayer.play(spelling, accent, result)
                     }
 
-                    // 按 Dart 指定的发音渠道播放当前单词（渠道级缓存，供复习模块随机重听）。
+                    // 按 Dart 指定的发音渠道播放当前单词（渠道级缓存，供复习模块轮转重听）。
                     "playChannel" -> {
                         // arguments 对应 Dart 传来的普通 Map。
                         val payload = call.arguments as? Map<*, *>
@@ -694,7 +694,7 @@ class MainActivity : FlutterActivity() {
                     // 页面销毁或进入后台时停止当前播放。
                     "stop" -> wordAudioPlayer.stop(result)
 
-                    // 离线预缓存：Dart 传入全部单词拼写，Kotlin 后台并发缓存并
+                    // 离线预缓存：Dart 传入全部单词拼写，Kotlin 后台并发尝试全部网络渠道，
                     // 通过音频进度事件通道实时上报 {cached,total,done}。方法本身
                     // 立即返回，缓存任务在独立线程池中长期运行，不受抽屉关闭影响。
                     "precache" -> {
@@ -727,7 +727,7 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
 
-                    // 查询当前已缓存的音频数量（美式 + 英式），用于抽屉显示初始百分比。
+                    // 查询当前已有任意渠道完整缓存美式与英式的单词数，用于抽屉显示初始百分比。
                     "getCacheProgress" -> {
                         // 读取 Dart 传来的拼写字符串列表。
                         val payload = call.arguments as? Map<*, *>
