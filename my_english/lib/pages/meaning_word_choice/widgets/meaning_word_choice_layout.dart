@@ -81,38 +81,15 @@ abstract final class MeaningWordChoiceLayout {
   /// 气泡最低高度；三点动画气泡内容很小时也不至于显得又窄又扁。
   static const double bubbleMinHeight = 36;
 
-  /// ===== 右下角候选区（悬浮定位） =====
+  /// ===== 候选词区（文档流，一行两个） =====
 
   ///
-  /// 候选区与气泡区之间的间距。
+  /// 候选区与上方聊天区之间的间距。
   static const double candidateTop = 12;
 
   ///
-  /// 候选区自身留白（左右与底部）。
+  /// 候选按钮内部左右留白。
   static const double candidateInset = 12;
-
-  ///
-  /// 候选区悬浮在右下角时距离屏幕右缘与底缘的距离。
-  ///
-  /// 生活化解释：像 CSS 的 `position: absolute; right: 20px; bottom: 20px`，
-  /// 候选按钮组脱离普通文档流，悬浮盖在聊天气泡之上。
-  static const double candidateFloatEdge = 20;
-
-  ///
-  /// 候选词左侧 A/B/C/D 序号方块的固定边长。
-  static const double optionBadgeSize = 28;
-
-  ///
-  /// 序号方块的圆角。
-  static const double optionBadgeRadius = 5;
-
-  ///
-  /// 序号方块内字母的字号。
-  static const double optionBadgeTextSize = 12;
-
-  ///
-  /// 序号方块与候选单词之间的水平间距。
-  static const double optionBadgeGap = 10;
 
   ///
   /// 单个候选按钮的固定高度。
@@ -131,8 +108,20 @@ abstract final class MeaningWordChoiceLayout {
   static const double candidateTextSize = 15;
 
   ///
-  /// 候选区最大宽度；数量多时在范围内自动换行成两列。
-  static const double candidateMaxWidth = 176;
+  /// 候选词左侧 A/B/C/D 序号方块的固定边长。
+  static const double optionBadgeSize = 28;
+
+  ///
+  /// 序号方块的圆角。
+  static const double optionBadgeRadius = 5;
+
+  ///
+  /// 序号方块内字母的字号。
+  static const double optionBadgeTextSize = 12;
+
+  ///
+  /// 序号方块与候选单词之间的水平间距。
+  static const double optionBadgeGap = 10;
 
   /// ===== 「正在输入」三点动画 =====
 
@@ -149,8 +138,10 @@ abstract final class MeaningWordChoiceLayout {
   static const double typingBubbleWidth = 58;
 
   ///
-  /// 假「正在输入」的持续时间，结束后含义/单词气泡才真正出现。
-  static const Duration typingDelay = Duration(milliseconds: 400);
+  /// 假「正在输入」的持续时间。
+  ///
+  /// 900ms 恰好让三个点从左到右完整点亮一遍再出内容，用户能看清整个过程。
+  static const Duration typingDelay = Duration(milliseconds: 900);
 
   /// ===== 结算页 =====
 

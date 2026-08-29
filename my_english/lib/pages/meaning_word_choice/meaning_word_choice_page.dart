@@ -669,18 +669,12 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
             if (_completed)
               Expanded(child: _buildSummary(tokens))
             else
-              // 答题区：聊天气泡铺满，候选词「绝对定位」悬浮在右下角。
+              // 文档流布局：顶部 + 聊天区 + 候选词区，候选词不再悬浮。
               Expanded(
-                child: Stack(
-                  key: const Key('meaning-word-choice-game-stack'),
-                  fit: StackFit.expand,
+                child: Column(
                   children: [
-                    // 第一层：铺满的聊天气泡区。
-                    _buildChat(tokens),
-                    // 第二层：悬浮候选区，类似 CSS 的
-                    // `position: absolute; right: 20px; bottom: 20px`，
-                    // 脱离文档流盖在气泡上方。
-                    _buildFloatingCandidates(tokens),
+                    Expanded(child: _buildChat(tokens)),
+                    _buildCandidates(tokens),
                   ],
                 ),
               ),
@@ -973,40 +967,42 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 构建悬浮候选区：类似 CSS `position: absolute; right: 20px; bottom: 20px`，
-  /// 脱离文档流盖在聊天气泡上方。
+  /// 构建候选词区（文档流，位于聊天区下方）。
   ///
-  /// 状态用颜色表达：点错的词置灰加删除线；答对的词留在原位、变成
-  /// 词义连连同款的绿色禁用态，一眼看到「这题对上了」。
-  Widget _buildFloatingCandidates(AppTokens tokens) {
+  /// 布局类似 flex 纵向结构：顶部 + 聊天区 + 候选词区；候选词**一行两个**，
+  /// 宽度按可用空间均分。状态用颜色表达：点错的词置灰加删除线；
+  /// 答对的词留在原位、变成词义连连同款的绿色禁用态。
+  Widget _buildCandidates(AppTokens tokens) {
     // 候选词全部保留（答对的不再移除，只变色）。
     final visible = _candidates;
     if (visible.isEmpty) return const SizedBox.shrink();
 
-    // 数量超过 4 个时改两列网格，否则竖排单列。
-    final isGrid = visible.length > 4;
-    final buttonWidth = isGrid
-        ? (MeaningWordChoiceLayout.candidateMaxWidth -
-                  MeaningWordChoiceLayout.candidateGap) /
-              2
-        : MeaningWordChoiceLayout.candidateMaxWidth;
-
-    return Positioned(
-      right: MeaningWordChoiceLayout.candidateFloatEdge,
-      bottom: MeaningWordChoiceLayout.candidateFloatEdge,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: MeaningWordChoiceLayout.candidateMaxWidth,
-        ),
-        child: Wrap(
-          alignment: WrapAlignment.end,
-          spacing: MeaningWordChoiceLayout.candidateGap,
-          runSpacing: MeaningWordChoiceLayout.candidateGap,
-          children: <Widget>[
-            for (var index = 0; index < visible.length; index += 1)
-              _buildCandidateButton(tokens, visible[index], index, buttonWidth),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        MeaningWordChoiceLayout.pageInset,
+        MeaningWordChoiceLayout.candidateTop,
+        MeaningWordChoiceLayout.pageInset,
+        MeaningWordChoiceLayout.pageInset,
+      ),
+      // 用父级实际宽度算按钮宽度：一行两个，各占 (宽 − 间距) / 2。
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final buttonWidth =
+              (constraints.maxWidth - MeaningWordChoiceLayout.candidateGap) / 2;
+          return Wrap(
+            spacing: MeaningWordChoiceLayout.candidateGap,
+            runSpacing: MeaningWordChoiceLayout.candidateGap,
+            children: <Widget>[
+              for (var index = 0; index < visible.length; index += 1)
+                _buildCandidateButton(
+                  tokens,
+                  visible[index],
+                  index,
+                  buttonWidth,
+                ),
+            ],
+          );
+        },
       ),
     );
   }
