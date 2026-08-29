@@ -77,7 +77,7 @@ abstract final class MeaningWordChoiceLayout {
   /// 气泡内词性标签的文字字号（比正文略小、颜色更轻）。
   static const double bubblePosTextSize = 11.5;
 
-  /// ===== 右下角候选区 =====
+  /// ===== 右下角候选区（悬浮定位） =====
 
   ///
   /// 候选区与气泡区之间的间距。
@@ -86,6 +86,19 @@ abstract final class MeaningWordChoiceLayout {
   ///
   /// 候选区自身留白（左右与底部）。
   static const double candidateInset = 12;
+
+  ///
+  /// 候选区悬浮在右下角时距离屏幕右缘与底缘的距离。
+  ///
+  /// 生活化解释：像 CSS 的 `position: absolute; right: 20px; bottom: 20px`，
+  /// 候选按钮组脱离普通文档流，悬浮盖在聊天气泡之上。
+  static const double candidateFloatEdge = 20;
+
+  ///
+  /// 气泡区底部预留的空白，避免最后一个气泡被悬浮候选区遮住。
+  ///
+  /// 估算值 = 候选区悬浮高度（4 行按钮 + 间距）+ 底部边距，多留一点更稳。
+  static const double chatBottomReserved = 240;
 
   ///
   /// 单个候选按钮的固定高度。
@@ -106,6 +119,24 @@ abstract final class MeaningWordChoiceLayout {
   ///
   /// 候选区最大宽度；数量多时在范围内自动换行成两列。
   static const double candidateMaxWidth = 176;
+
+  /// ===== 「正在输入」三点动画 =====
+
+  ///
+  /// 三点动画里每个圆点的直径。
+  static const double typingDotSize = 6;
+
+  ///
+  /// 相邻圆点之间的间距。
+  static const double typingDotGap = 4;
+
+  ///
+  /// 三点动画气泡的固定宽度（容纳三个点 + 间距）。
+  static const double typingBubbleWidth = 58;
+
+  ///
+  /// 假「正在输入」的持续时间，结束后含义气泡才真正出现。
+  static const Duration typingDelay = Duration(milliseconds: 650);
 
   /// ===== 结算页 =====
 

@@ -1076,7 +1076,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _openReviewModule(module);
         }
       case ReviewModule.meaningWordChoice:
-        // 看义选词：传入本局会话（续玩）与会话 Store；不需要发音服务。
+        // 看义选词：传入本局会话（续玩）、会话 Store 与发音服务。
         final playAgain = await Navigator.of(context).push<bool>(
           MaterialPageRoute<bool>(
             builder: (_) => MeaningWordChoicePage(
@@ -1084,6 +1084,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               title: module.label,
               reviewSession: entry.session,
               reviewSessionStore: _reviewSessionStore,
+              audioPlayer: _audioPlayer,
+              accent: _settings.accent,
             ),
           ),
         );
