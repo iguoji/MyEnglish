@@ -40,6 +40,8 @@ import '../listening/listening_page.dart';
 import '../meaning_match/meaning_match_page.dart';
 // 拼写巩固页：听发音、看释义拼出单词，片段与逐字母两种作答方式。
 import '../spelling_reinforcement/spelling_reinforcement_page.dart';
+// 看义选词页：看中文含义，从候选词里选出匹配的英文单词。
+import '../meaning_word_choice/meaning_word_choice_page.dart';
 // 三个未开发复习模块使用各自标题的独立占位页面。
 import '../review/review_unavailable_page.dart';
 // 分组 Store 通过原生 SQLite 提供持久化的自定义分组数据。
@@ -1074,8 +1076,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _openReviewModule(module);
         }
       case ReviewModule.meaningWordChoice:
-        // 上面的 isAvailable 判断已经拦下这个，这里只是让 switch 覆盖完整。
-        break;
+        // 看义选词：传入本局会话（续玩）与会话 Store；不需要发音服务。
+        final playAgain = await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            builder: (_) => MeaningWordChoicePage(
+              words: entry.words,
+              title: module.label,
+              reviewSession: entry.session,
+              reviewSessionStore: _reviewSessionStore,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        // 选完一局回来，三态、头部数字与曲线一起重算。
+        await _refreshReviewDashboard();
+        // 结算页点了「再来一轮」：由 ReviewFlow 重新判断该开主线还是巩固。
+        if (playAgain == true && mounted) {
+          await _openReviewModule(module);
+        }
     }
   }
 

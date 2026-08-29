@@ -40,8 +40,9 @@ enum ReviewModule {
   ///
   /// 未开放的模块在首页显示灰色「即将开放」，不参与三态进度。
  bool get isAvailable => switch (this) {
-    listeningMeaning || meaningMatch || spellingReinforcement => true,
-    meaningWordChoice => false,
+    listeningMeaning || meaningMatch || spellingReinforcement ||
+          meaningWordChoice =>
+      true,
  };
 
   ///
