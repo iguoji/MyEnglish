@@ -8,19 +8,22 @@ import 'package:flutter_test/flutter_test.dart';
 // Tabler 图标用于确认播放状态没有回退成文字符号。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
-// 引入单词与释义模型。
-import 'package:my_english/models/learning_session.dart';
+// 引入单词、会话模型与进度出口。
+import 'package:my_english/models/session.dart';
+import 'package:my_english/models/session_record.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入随身听页面。
 import 'package:my_english/pages/listening/listening_page.dart';
 // 引入随身听布局尺寸，用与生产代码相同的标准核对圆角。
 import 'package:my_english/pages/listening/widgets/listening_layout.dart';
-// 引入音频接口与口音枚举。
+// 引入音频接口与设置（口音、释义分隔符、播放偏好都在设置表）。
 import 'package:my_english/services/word_audio.dart';
+import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/store/settings.dart';
 
-import '../../support/memory_learning_session_store.dart';
+// 测试用内存会话 Store。
+import '../../support/memory_session_store.dart';
 
 ///
 /// 注册随身听页面的布局、播放和恢复交互测试。
@@ -29,13 +32,15 @@ void main() {
     tester,
   ) async {
     final audio = _ImmediateAudioPlayer();
+    // 2.0 起播放偏好（含释义分隔符）全部住在设置表。
+    final settings = SettingsStore.inMemory();
+    await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
     await tester.pumpWidget(
       MaterialApp(
         home: ListeningPage(
           words: _words,
           audioPlayer: audio,
-          accent: PronunciationAccent.american,
-          definitionSeparator: '，',
+          settings: settings,
         ),
       ),
     );
@@ -100,10 +105,10 @@ void main() {
       find.byKey(const Key('listening-spelling-slot')),
     );
     final hiddenPosRect = tester.getRect(
-      find.byKey(const Key('listening-pos-1')),
+      find.byKey(const Key('listening-pos-101')),
     );
     final hiddenDefinitionRect = tester.getRect(
-      find.byKey(const Key('listening-definition-1')),
+      find.byKey(const Key('listening-definition-101')),
     );
     // startGesture 只触发按下而不立即抬起，对应真机手指持续按住答案卡。
     final peekGesture = await tester.startGesture(
@@ -117,11 +122,11 @@ void main() {
       hiddenSpellingRect,
     );
     expect(
-      tester.getRect(find.byKey(const Key('listening-pos-1'))),
+      tester.getRect(find.byKey(const Key('listening-pos-101'))),
       hiddenPosRect,
     );
     expect(
-      tester.getRect(find.byKey(const Key('listening-definition-1'))),
+      tester.getRect(find.byKey(const Key('listening-definition-101'))),
       hiddenDefinitionRect,
     );
     // 抬起手指恢复骨架态，供后面的常显按钮继续验证。
@@ -133,7 +138,7 @@ void main() {
     await tester.tap(find.byKey(const Key('toggle-listening-answer')));
     await tester.pump();
     expect(find.text('ability'), findsWidgets);
-    // 同一词性的中文定义使用设置符号连接在一个 Text 中。
+    // 同一词性的中文定义使用设置的分隔符连接在一个 Text 中（此处为全角逗号）。
     expect(find.text('能力，才能'), findsOneWidget);
     expect(find.text('能力'), findsNothing);
     expect(find.text('才能'), findsNothing);
@@ -202,16 +207,16 @@ void main() {
     // 测试结束后恢复默认画布，避免影响同文件后续用例。
     addTearDown(() => tester.binding.setSurfaceSize(null));
     // 两条词性让测试可以观察第一条多行释义是否把第二条词性向下挤。
-    const words = <Word>[
+    final words = <Word>[
       Word(
         spelling: 'layout',
-        meanings: <Meaning>[
+        meanings: const <Meaning>[
           Meaning(
-            index: 2,
+            id: 201,
             pos: 'n.',
-            definitions: <String>['布局以及一段足够长的中文释义，用来确认窄屏幕中换行后的真实高度也会在骨架状态提前保留'],
+            definition: '布局以及一段足够长的中文释义，用来确认窄屏幕中换行后的真实高度也会在骨架状态提前保留',
           ),
-          Meaning(index: 1, pos: 'v.', definitions: <String>['安排']),
+          Meaning(id: 202, pos: 'v.', definition: '安排'),
         ],
       ),
     ];
@@ -221,7 +226,7 @@ void main() {
         home: ListeningPage(
           words: words,
           audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
+          settings: SettingsStore.inMemory(),
         ),
       ),
     );
@@ -229,10 +234,10 @@ void main() {
 
     // 保存骨架态第一条释义槽位和第二条词性的坐标。
     final hiddenDefinitionRect = tester.getRect(
-      find.byKey(const Key('listening-definition-2')),
+      find.byKey(const Key('listening-definition-201')),
     );
     final hiddenSecondPosRect = tester.getRect(
-      find.byKey(const Key('listening-pos-1')),
+      find.byKey(const Key('listening-pos-202')),
     );
     // 按住答案卡切换成真实的多行释义。
     final peekGesture = await tester.startGesture(
@@ -242,11 +247,11 @@ void main() {
 
     // 第一条释义槽位高度和第二条词性位置必须逐像素保持不变。
     expect(
-      tester.getRect(find.byKey(const Key('listening-definition-2'))),
+      tester.getRect(find.byKey(const Key('listening-definition-201'))),
       hiddenDefinitionRect,
     );
     expect(
-      tester.getRect(find.byKey(const Key('listening-pos-1'))),
+      tester.getRect(find.byKey(const Key('listening-pos-202'))),
       hiddenSecondPosRect,
     );
 
@@ -255,57 +260,58 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets(
-    'listening restores and updates the persisted playback position',
-    (tester) async {
-      // 历史会话停在第二个词，并且离开前处于暂停状态。
-      const session = LearningSession(
-        type: LearningSessionType.listening,
-        wordIds: <int>[1, 2],
-        state: <String, Object?>{
-          'index': 1,
-          'completedRepeats': 1,
-          'isPlaying': false,
-          'revealAll': true,
-          'repeat': 3,
-          'interval': 4,
-          'loop': false,
-        },
-      );
-      // 内存 Store 用于观察页面进入和跳词后写出的最新快照。
-      final sessionStore = MemoryLearningSessionStore(<LearningSession>[
-        session,
-      ]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ListeningPage(
-            words: _words,
-            audioPlayer: _ImmediateAudioPlayer(),
-            accent: PronunciationAccent.american,
-            initialSession: session,
-            sessionStore: sessionStore,
-          ),
+  testWidgets('listening restores the persisted playback position', (
+    tester,
+  ) async {
+    // 历史会话停在第二个词（cursor=1），展开释义偏好来自设置表。
+    final store = MemorySessionStore();
+    final settings = SettingsStore.inMemory();
+    await settings.setListeningRevealAll(true);
+    final session = Session(
+      id: 1,
+      module: ReviewModule.listening,
+      kind: SessionKind.daily,
+      status: SessionStatus.active,
+      wordSetId: 1,
+      items: const <int>[1, 2],
+      cursor: 1,
+      elapsed: 0,
+      date: '2026-08-29',
+      createdAt: DateTime.now(),
+    );
+    final progress = SessionProgress(
+      store: store,
+      session: session,
+      records: const <SessionRecord>[],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ListeningPage(
+          words: _words,
+          audioPlayer: _ImmediateAudioPlayer(),
+          settings: settings,
+          progress: progress,
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      // 首帧直接停在第二个词；暂停状态和显示答案偏好也完整恢复。
-      expect(find.text('2 / 2'), findsOneWidget);
-      expect(find.byIcon(TablerIcons.playerPlay), findsOneWidget);
-      expect(find.byIcon(TablerIcons.eye), findsOneWidget);
-      expect(sessionStore.sessions.single.state['index'], 1);
+    // 首帧直接停在第二个词，且展开释义偏好已生效。
+    expect(find.text('2 / 2'), findsOneWidget);
+    expect(find.byIcon(TablerIcons.eye), findsOneWidget);
+    // 进入页面即保存一次「播到第几个」。
+    expect(store.progressWrites, isNotEmpty);
+    expect(store.progressWrites.last.cursor, 1);
 
-      // 主动回到上一个词后，页面立即把新下标覆盖进同一条会话。
-      await tester.tap(find.text('上一个'));
-      await tester.pump();
-      expect(find.text('1 / 2'), findsOneWidget);
-      expect(sessionStore.sessions.single.state['index'], 0);
-      expect(sessionStore.sessions.single.wordIds, <int>[1, 2]);
+    // 主动回到上一个词后，页面立即把新下标保存进会话。
+    await tester.tap(find.text('上一个'));
+    await tester.pump();
+    expect(find.text('1 / 2'), findsOneWidget);
+    expect(store.progressWrites.last.cursor, 0);
 
-      // 销毁页面并释放控制器。
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
+    // 销毁页面并释放控制器。
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   test('listening directory rejects negative visual positioning', () {
     // 递归读取随身听页面和 widgets 子目录，避免拆分文件后绕过布局规则。
@@ -329,14 +335,18 @@ void main() {
 ///
 /// 随身听测试共用的固定单词列表。
 final _words = <Word>[
-  const Word(
+  Word(
     id: 1,
     spelling: 'ability',
-    meanings: <Meaning>[
-      Meaning(index: 1, pos: 'n.', definitions: <String>['能力', '才能']),
+    meanings: const <Meaning>[
+      Meaning(id: 101, pos: 'n.', definition: '能力'),
+      Meaning(id: 102, pos: 'n.', definition: '才能'),
     ],
   ),
-  const Word(id: 2, spelling: 'abandon'),
+  Word(
+    id: 2,
+    spelling: 'abandon',
+  ),
 ];
 
 ///

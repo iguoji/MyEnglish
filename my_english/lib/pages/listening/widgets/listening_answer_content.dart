@@ -79,10 +79,11 @@ class ListeningAnswerContent extends StatelessWidget {
         ),
         // 单词与第一条词性之间保持固定 12 像素距离。
         const SizedBox(height: 12),
-        // 每条 Meaning 交给独立组件循环渲染。
-        for (final meaning in word.meanings)
+        // 每个词性分组交给独立组件循环渲染；分组由模型统一整理好，
+        // 页面不再自己分一遍。
+        for (final group in word.meaningGroups)
           _MeaningAnswerBlock(
-            meaning: meaning,
+            group: group,
             definitionSeparator: definitionSeparator,
             definitionStyle: definitionStyle,
             tokens: tokens,
@@ -113,7 +114,7 @@ class _MeaningAnswerBlock extends StatelessWidget {
   ///
   /// 所有影响排版的数据都由父组件传入，避免子组件产生额外状态。
   const _MeaningAnswerBlock({
-    required this.meaning,
+    required this.group,
     required this.definitionSeparator,
     required this.definitionStyle,
     required this.tokens,
@@ -122,7 +123,7 @@ class _MeaningAnswerBlock extends StatelessWidget {
 
   ///
   /// 当前词性和它的全部中文释义。
-  final Meaning meaning;
+  final MeaningGroup group;
 
   ///
   /// 多条释义之间使用的全角连接符号。
@@ -144,8 +145,8 @@ class _MeaningAnswerBlock extends StatelessWidget {
   /// Flutter 绘制当前词性块时调用 build。
   @override
   Widget build(BuildContext context) {
-    // 一个词性的 definitions 先连接成同一段文字，避免不必要的强制换行。
-    final joinedDefinitions = meaning.definitions.join(definitionSeparator);
+    // 同词性的多条释义先连接成同一段文字，避免不必要的强制换行。
+    final joinedDefinitions = group.joinedDefinitions(definitionSeparator);
     // 骨架只估算视觉宽度，真实行高仍由 _StableAnswerSlot 精确测量。
     final skeletonWidth =
         (ListeningLayout.definitionSkeletonBaseWidth +
@@ -159,9 +160,9 @@ class _MeaningAnswerBlock extends StatelessWidget {
       children: [
         // 词性始终可见，不参与答案遮挡。
         Text(
-          meaning.displayPos,
+          group.pos,
           // 稳定 key 让测试可以读取按住前后的绝对坐标。
-          key: Key('listening-pos-${meaning.index}'),
+          key: Key('listening-pos-${group.meanings.first.id}'),
           style: TextStyle(
             color: tokens.textSecondary,
             fontSize: 12.5,
@@ -176,7 +177,7 @@ class _MeaningAnswerBlock extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 7),
           // 释义槽位提前预留真实文字换行高度，显示时不会推动后续内容。
           child: _StableAnswerSlot(
-            key: Key('listening-definition-${meaning.index}'),
+            key: Key('listening-definition-${group.meanings.first.id}'),
             text: joinedDefinitions,
             style: definitionStyle,
             revealed: revealed,

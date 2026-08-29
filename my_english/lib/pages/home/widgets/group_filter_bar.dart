@@ -7,28 +7,18 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 import '../../../common/theme.dart';
 
 ///
-/// 首页分组视角；决定列表按什么维度分组显示。
+/// 首页分段视角；决定列表按什么维度切分显示。
 ///
+/// 2.0 去掉了「自定义分组」以及「更新时间 / 加入时间」两个日期视角：
+/// 分组功能整体下线，日期一律看复习时间——那才是决定「该不该再练」的字段。
 enum GroupMode {
   ///
-  /// 按用户自定义分组。
-  custom,
-
-  ///
-  /// 按难度数值分组。
+  /// 按难度数值分段。
   difficulty,
 
   ///
-  /// 按复习时间分组（枚举顺序即下拉菜单顺序，插在"更新时间"前面）。
+  /// 按复习时间分段。
   reviewed,
-
-  ///
-  /// 按更新时间分组。
-  updated,
-
-  ///
-  /// 按加入时间分组。
-  added,
 }
 
 ///
@@ -38,11 +28,8 @@ extension GroupModeDetails on GroupMode {
   ///
   /// 模式按钮与下拉菜单显示的名称。
   String get label => switch (this) {
-    GroupMode.custom => '分组',
     GroupMode.difficulty => '难度',
     GroupMode.reviewed => '复习时间',
-    GroupMode.updated => '更新时间',
-    GroupMode.added => '加入时间',
   };
 }
 
@@ -82,8 +69,7 @@ class GroupFilterBar extends StatelessWidget {
     required this.chips,
     required this.onModeSelected,
     required this.onChipSelected,
-    required this.onOpenManage,
-    super.key,
+      super.key,
   });
 
   ///
@@ -101,10 +87,6 @@ class GroupFilterBar extends StatelessWidget {
   ///
   /// 点击某个筛选 chip；参数为 sectionKey，null 表示"全部"。
   final ValueChanged<String?> onChipSelected;
-
-  ///
-  /// 打开分组管理面板；仅自定义分组模式下可用。
-  final VoidCallback onOpenManage;
 
   ///
   /// 输出模式按钮、chips 滚动区与管理按钮。
@@ -254,31 +236,6 @@ class GroupFilterBar extends StatelessWidget {
                   ),
                 );
               },
-            ),
-          ),
-        ),
-        // chips 与管理按钮之间的间距。
-        const SizedBox(width: 10),
-        // 分组管理入口；非自定义分组模式降低透明度表示不可用。
-        Opacity(
-          opacity: mode == GroupMode.custom ? 1 : 0.35,
-          child: InkWell(
-            // key 供测试打开分组管理。
-            key: const Key('open-manage'),
-            onTap: onOpenManage,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              // 32×32 方形按钮。
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: tokens.card,
-                border: Border.all(color: tokens.inputBorder),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              // 文件夹 + 齿轮，直接表达"管理分组/分类"的语义，比原先的调节滑块更贴切。
-              child: Icon(TablerIcons.folderCog, size: 16, color: tokens.muted),
             ),
           ),
         ),

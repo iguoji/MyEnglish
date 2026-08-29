@@ -11,20 +11,13 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 import '../../common/theme.dart';
 // 引入单词数据模型，首页会把当天固定词单传进来。
 import '../../models/word.dart';
-// 引入统一的字段解析辅助函数。
-import '../../models/model_value_parser.dart';
 // 引入复习会话模型：模块标识、主线/巩固类型与状态。
-import '../../models/review_session.dart';
 // 引入全局设置 Store，读取与修改词义连连倒计时。
 import '../../store/settings.dart';
-// 引入复习记录 Store，每连对一张左卡就写一条记录。
 // 引入发音服务，选中单词卡时播放读音。
 import '../../services/word_audio.dart';
-import '../../store/review_record.dart';
-// 引入复习会话 Store，进度冻结/续玩与结算都走它。
-import '../../store/review_session.dart';
-// 引入统一的进度出口，屏蔽「长期会话」与「复习会话」的差别。
-import '../review/services/session_progress_sink.dart';
+// 引入统一的进度出口：写进度、记每次点击、结算难度都走它。
+import '../review/services/session_progress.dart';
 // 引入集中管理的页面布局尺寸。
 import 'widgets/meaning_match_layout.dart';
 
@@ -78,11 +71,16 @@ class MatchPair {
     required this.wordId,
     required this.spelling,
     required this.definition,
+    required this.meaningId,
   });
 
   ///
   /// 单词主键。
   final int? wordId;
+
+  ///
+  /// 这一对用的是这个单词的哪一条释义；写记录时要带上它。
+  final int? meaningId;
 
   ///
   /// 左侧英文拼写。
@@ -186,9 +184,7 @@ class MeaningMatchPage extends StatefulWidget {
   const MeaningMatchPage({
     required this.words,
     required this.title,
-    required this.reviewSession,
-    this.reviewSessionStore,
-    this.recordStore,
+    required this.progress,
     this.settings,
     this.audioPlayer,
     this.accent = PronunciationAccent.american,
@@ -204,19 +200,11 @@ class MeaningMatchPage extends StatefulWidget {
   final String title;
 
   ///
-  /// 本局复习会话，由首页的 ReviewFlow 判定后传入。
+  /// 本局的进度出口，由首页的 ReviewFlow 判定后传入。
   ///
-  /// 它同时决定三件事：进度存到哪一局、复习记录归到哪一局，
+  /// 它同时决定三件事：进度存到哪一局、每次点击记到哪一局，
   /// 以及答题要不要推进单词的复习时间（巩固局不推进）。
-  final ReviewSession reviewSession;
-
-  ///
-  /// 复习会话存储；正式环境使用 SQLite，测试可注入内存实现。
-  final ReviewSessionStore? reviewSessionStore;
-
-  ///
-  /// 复习记录存储；每连对一张左卡就写一条。
-  final ReviewRecordStore? recordStore;
+  final SessionProgress progress;
 
   ///
   /// 全局设置 Store；正式环境使用 Android 持久化，测试可注入内存实现。
@@ -248,7 +236,9 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   ///
   /// 确定性随机种子：同一份词单 + 同一种子，出题结果完全一致，
   /// 这样离场再回来时“续玩”能还原完全一样的棋盘（含右列顺序）。
-  static const int _seed = 0x4D65616E; // 'Mean'
+  ///
+  /// 棋盘每组固定几行；数据列表在开局时就补齐成了它的整数倍。
+  static const int _groupSize = 5;
 
   ///
   /// 所有分组（每组 5 对），确定性生成后不会再变。
@@ -386,25 +376,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       widget.settings ?? SettingsStore.inMemory();
 
   ///
-  /// 正式页面复用 SQLite 单例，Widget 测试可传入内存 Store。
-  ReviewSessionStore get _sessionStore =>
-      widget.reviewSessionStore ?? LocalReviewSessionStore.instance;
-
-  ///
-  /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
-  ReviewRecordStore get _recordStore =>
-      widget.recordStore ?? LocalReviewRecordStore.instance;
-
-  ///
-  /// 本局进度的落盘出口，在 initState 里创建一次。
-  late final SessionProgressSink _progress;
-
-  ///
-  /// 本局答题是否需要推进单词的复习时间。
-  ///
-  /// 只有「无限巩固练习」不推进——那批词里混着明天要背的，
-  /// 推进了明天就选不到它们了。
-  bool get _updatesReviewedAt => widget.reviewSession.updatesReviewedAt;
+  /// 本局进度的落盘出口。
+  SessionProgress get _progress => widget.progress;
 
   ///
   /// 当前组内每张左卡累计连错的次数。
@@ -434,7 +407,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
 
   ///
   /// 已匹配总对数 = 已完成整组数 × 5 + 当前组已连数（单调不减）。
-  int get _matchedPairs => _groupIndex * 5 + _matchedLeft.length;
+  int get _matchedPairs => _groupIndex * _groupSize + _matchedLeft.length;
 
   ///
   /// 是否展示结算页（完成或超时后）。
@@ -481,12 +454,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       vsync: this,
       duration: Duration(milliseconds: MeaningMatchLayout.pulseDurationMs),
     );
-    // 进度出口：词义连连只会从首页复习模块进入，因此固定写复习会话。
-    _progress = ReviewSessionProgressSink(
-      store: _sessionStore,
-      session: widget.reviewSession,
-    );
-    // 第一步：确定性生成全部棋盘（与词单顺序、种子都固定）。
+    // 第一步：按会话的数据列表还原棋盘（配对在开局时就已经定好并落库）。
     _buildGroups();
     // 第二步：若有可续玩的历史会话则恢复，否则开启新一局。
     _restoreOrStart();
@@ -503,139 +471,113 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   ///
   /// 按固定种子与词单顺序生成所有分组（每组 5 对）。
   ///
-  /// 末组不足 5 个时，从前面单词里随机补齐（同一组内不重复，避免左右出现
-  /// 同一单词造成歧义）；每个单词的含义从其“含义列表”中随机挑一条。
+  /// 按会话的数据列表还原棋盘。
+  ///
+  /// 「哪个单词配哪条释义」在开局时就已经定好并写进了数据列表，页面只负责
+  /// 把它切成每组 5 行、再决定右列的显示顺序。这样中途退出再进来，棋盘
+  /// 与第一次进来时完全一样——不再依赖「同一个随机种子能算出同样结果」。
   void _buildGroups() {
-    // 只保留至少含一条释义的单词，没有释义的单词无法出题，直接跳过。
-    final playable = widget.words
-        .where((word) => word.meanings.any((m) => m.definitions.isNotEmpty))
-        .toList(growable: false);
-    // 极端情况下词单全无释义，退化为用原始词单，保证页面不空（不会崩溃）。
-    final source = playable.isNotEmpty ? playable : widget.words;
+    // 数据列表的元素是 [单词id, 含义id]；单词与释义都从会话带来的词表里查。
+    final wordsById = <int, Word>{
+      for (final word in widget.words)
+        if (word.id != null) word.id!: word,
+    };
+    final pairs = <MatchPair>[];
+    for (final item in _progress.session.pairItems) {
+      final word = wordsById[item.wordId];
+      // 单词被删了就跳过这一对；开局时已经校验过，这里只是兜底。
+      if (word == null) continue;
+      // 按含义主键找那条释义；找不到（被编辑掉了）时退化用第一条。
+      final meaning = word.allMeanings
+          .where((candidate) => candidate.id == item.meaningId)
+          .followedBy(word.allMeanings)
+          .firstOrNull;
+      if (meaning == null) continue;
+      pairs.add(
+        MatchPair(
+          wordId: word.id,
+          spelling: word.spelling,
+          definition: meaning.definition,
+          meaningId: meaning.id,
+        ),
+      );
+    }
 
-    // 固定种子保证“续玩”时重新生成完全相同的棋盘与右列顺序。
-    final rnd = Random(_seed);
+    // 右列顺序仍按会话 id 派生的固定种子打乱：同一局每次进来顺序一致，
+    // 不同局之间又不会重样。
+    final random = Random(_progress.session.id);
     final groups = <List<MatchPair>>[];
     final rightOrders = <List<int>>[];
-
-    // 每 5 个词切一组；最后一组不足 5 个时补满。
-    for (var i = 0; i < source.length; i += 5) {
-      // chunk 收集本组要用的单词（原始顺序）。
-      final chunk = <Word>[
-        for (var j = i; j < min(i + 5, source.length); j += 1) source[j],
-      ];
-      // 末组补满：从打乱后的词单里挑尚未在本组出现的词，避免同组左右重复。
-      if (chunk.length < 5) {
-        final pool = List<Word>.from(source)..shuffle(rnd);
-        var p = 0;
-        while (chunk.length < 5 && p < pool.length) {
-          final candidate = pool[p];
-          p += 1;
-          if (!chunk.contains(candidate)) chunk.add(candidate);
-        }
-        // 词单数本身就不足 5 时允许重复兜底，保证每组仍是 5 张。
-        while (chunk.length < 5) {
-          chunk.add(source[rnd.nextInt(source.length)]);
-        }
-      }
-
-      // 为组内每个单词随机挑一条含义，组成 5 对候选。
-      final pairs = <MatchPair>[
-        for (final word in chunk)
-          MatchPair(
-            wordId: word.id,
-            spelling: word.spelling,
-            definition: _pickDefinition(word, rnd),
-          ),
-      ];
-      groups.add(List<MatchPair>.unmodifiable(pairs));
-
-      // 右列顺序：把 0..4 洗牌，右列第 k 张显示 pairs[order[k]]。
-      final order = [0, 1, 2, 3, 4]..shuffle(rnd);
+    // 数据列表在开局时就补齐成了 5 的整数倍，这里直接按 5 切。
+    for (var i = 0; i + _groupSize <= pairs.length; i += _groupSize) {
+      groups.add(List<MatchPair>.unmodifiable(pairs.sublist(i, i + _groupSize)));
+      final order = List<int>.generate(_groupSize, (index) => index)
+        ..shuffle(random);
       rightOrders.add(List<int>.unmodifiable(order));
     }
 
     _groups = List<List<MatchPair>>.unmodifiable(groups);
     _rightOrders = List<List<int>>.unmodifiable(rightOrders);
     // 总局数 = 组数 × 5（每组固定 5 行）。
-    _totalPairs = _groups.length * 5;
-  }
-
-  ///
-  /// 从单词的含义列表中随机挑一条中文释义。
-  String _pickDefinition(Word word, Random rnd) {
-    // 只保留有释义的词性与条目，避免选中空释义。
-    final meanings = word.meanings
-        .where((meaning) => meaning.definitions.isNotEmpty)
-        .toList(growable: false);
-    // 理论上 buildGroups 已过滤，这里仍兜底：没有可用释义就返回空串。
-    if (meanings.isEmpty) return '';
-    final meaning = meanings[rnd.nextInt(meanings.length)];
-    return meaning.definitions[rnd.nextInt(meaning.definitions.length)];
+    _totalPairs = _groups.length * _groupSize;
   }
 
   ///
   /// 从会话恢复或开启新一局。
   ///
-  /// 恢复条件：会话未标记完成，且剩余时间 > 0（超时或已完成的历史都视为新一局，
-  /// 因为超时后时间归零无法继续、完成后按“完成后重置”也应重开）。
+  /// 2.0 起不再靠一份页面快照还原现场，而是**回放这一局的点击记录**：
+  /// 每连对一次都写了一条记录，把它们按「第几对」摊回棋盘即可。
+  /// 剩余时间由会话里的「所用时间」反推，比存一个随时会过期的剩余毫秒更稳。
   void _restoreOrStart() {
-    final state = _progress.initialState;
-    // 恢复条件：这一局没连完，而且还有剩余时间。
-    // 超时后时间归零无法继续、连完之后按「完成即重开」也应重新开局。
-    if (state.isNotEmpty &&
-        state['completed'] != true &&
-        readIntOrFallback(state['remainingMs'], fallback: 0) > 0) {
-      // 恢复分组下标（夹在合法范围内，防止旧快照越界）。
-      _groupIndex = readIntOrFallback(
-        state['groupIndex'],
-        fallback: 0,
-      ).clamp(0, _groups.length - 1);
-      // 恢复已连上的左右下标（保存在内存的 Set 里，绘制连线时用）。
-      _matchedLeft.addAll(_readIntList(state['matchedLeft']));
-      _matchedRight.addAll(_readIntList(state['matchedRight']));
-      // 由左右下标并行还原连线列表，供贝塞尔曲线绘制。
-      final lefts = _readIntList(state['matchedLeft']);
-      final rights = _readIntList(state['matchedRight']);
-      for (var k = 0; k < lefts.length && k < rights.length; k += 1) {
-        _matchedConnections.add((lefts[k], rights[k]));
+    // 分母：本局总时长永远取自全局设置（点 +30s 加时也会同步抬高这个设置）。
+    _totalMs = _settings.meaningMatchDuration * 1000;
+    // 已用时间来自会话字段，单位是秒。
+    final elapsedMs = _progress.session.elapsed * 1000;
+    _remainingMs = (_totalMs - elapsedMs).clamp(0, _totalMs);
+
+    // 累计连错数直接由记录数出来：中途退出再进来必须接着数，
+    // 否则错完就退、退完再进，随手能刷出一局「全对」。
+    _errors = _progress.wrongCount;
+
+    // 已连对的配对：按 (单词, 含义) 建索引，再对照棋盘还原到具体格子。
+    final matched = <String>{
+      for (final record in _progress.allRecords)
+        if (record.isCorrect && record.meaningId != null)
+          '${record.wordId}:${record.meaningId}',
+    };
+    // 一对都没连过就是全新一局。
+    if (matched.isEmpty) return;
+
+    // 从第一组往后扫，整组连完就跳下一组；碰到没连完的那组就停在那里。
+    for (var group = 0; group < _groups.length; group += 1) {
+      final pairs = _groups[group];
+      final doneInGroup = <int>[];
+      for (var index = 0; index < pairs.length; index += 1) {
+        final pair = pairs[index];
+        if (matched.contains('${pair.wordId}:${pair.meaningId}')) {
+          doneInGroup.add(index);
+        }
       }
-      // 恢复剩余时间与统计。
-      _remainingMs = readIntOrFallback(state['remainingMs'], fallback: 0);
-      _bestStreak = max(
-        0,
-        readIntOrFallback(state['bestStreak'], fallback: 0),
-      );
-      // 累计错误数以会话字段为准：中途退出再进来必须接着数，
-      // 否则错完就退、退完再进，随手能刷出一局「全对」。
-      _errors = max(_progress.initialWrongTotal, 0);
-      // 恢复进度条分母；旧快照没存过 totalMs 时，用“剩余时间”和“全局设置”里较大的一个兜底。
-      _totalMs = readIntOrFallback(state['totalMs'], fallback: 0);
-      if (_totalMs < _remainingMs) {
-        _totalMs = max(_remainingMs, _settings.meaningMatchDuration * 1000);
+      // 整组都连完了，继续看下一组。
+      if (doneInGroup.length == pairs.length && group + 1 < _groups.length) {
+        continue;
       }
-      // 已完成/超时标志保持初始 false（能走到这里说明都未触发）。
-    } else {
-      // 新一局：剩余时间直接取自全局设置（秒 × 1000），进度条分母同值。
-      _remainingMs = _settings.meaningMatchDuration * 1000;
-      _totalMs = _remainingMs;
+      _groupIndex = group;
+      // 把这一组已经连对的格子摊回棋盘：左卡下标 → 右列位置。
+      final order = _rightOrders[group];
+      for (final leftIndex in doneInGroup) {
+        final rightIndex = order.indexOf(leftIndex);
+        if (rightIndex < 0) continue;
+        _matchedLeft.add(leftIndex);
+        _matchedRight.add(rightIndex);
+        _matchedConnections.add((leftIndex, rightIndex));
+        // 已经连对过的卡不再重复写记录、重复结算。
+        _recordedLefts.add('$group:$leftIndex');
+      }
+      break;
     }
   }
 
-  ///
-  /// 从 JSON 状态读取一个整数列表（越界或坏值统一忽略）。
-  List<int> _readIntList(Object? value) {
-    if (value is! List) return const <int>[];
-    final result = <int>[];
-    for (final item in value) {
-      if (item is num) {
-        final v = item.toInt();
-        // 下标必须落在当前组 0..4 内，超出说明快照损坏，丢弃该条。
-        if (v >= 0 && v < 5) result.add(v);
-      }
-    }
-    return result;
-  }
 
   ///
   /// 启动每秒倒数；归零即触发超时结算。
@@ -769,7 +711,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         _errors += 1;
         _streak = 0;
         // 这一下算在左卡头上：左卡才是用户正在安置的那个单词。等它最终连对时，
-        // 累计的错误次数会一起写进复习记录，用来更新连对次数与难度。
+        // 结算会看「本局这个词错过没有」，据此调整难度。
         _wrongByLeftIndex[leftIndex] = (_wrongByLeftIndex[leftIndex] ?? 0) + 1;
         // 记下是哪两张卡连错，两张子卡看到属性变化就会自己红框抖动。
         // 以前这里改用 GlobalKey 去调子卡的 shake()，但那个键实际挂在卡片内层的
@@ -779,13 +721,17 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       }
     });
     if (correctLeft == leftIndex) {
-      // 这张左卡尘埃落定，立刻写一条复习记录（含它这一路上错了几次）。
+      // 这张左卡尘埃落定，记一次「连对」并给这个单词结算。
       unawaited(_recordLeftCard(leftIndex));
+    } else {
+      // 连错也要留痕：中途退出再进来时，「哪几对已经连上了」全靠回放这些记录，
+      // 而且没有这条记录，结算就看不出这个词本局错过。
+      unawaited(_recordWrongMatch(leftIndex, rightIndex));
     }
     unawaited(_persist());
     if (correctLeft == leftIndex) {
-      // 当前组 5 张全连完：进入下一组或整局完成。
-      if (_matchedLeft.length >= 5) _onGroupComplete();
+      // 当前组全部连完：进入下一组或整局完成。
+      if (_matchedLeft.length >= _groupSize) _onGroupComplete();
     } else {
       // 抖动播完之前锁住点击，保证这段红色反馈完整可见（补充稿 isProcessing）。
       _lockInputForShake();
@@ -793,11 +739,35 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   }
 
   ///
-  /// 一张左卡连对后，写一条复习记录。
+  /// 连错一次时记一条记录。
   ///
-  /// 时机：这张卡刚刚连对，说明用户对这个单词的判断已经尘埃落定。此时把
-  /// [_wrongByLeftIndex] 里累计的连错次数一起交给原生，由它在一个事务里
-  /// 更新连对次数、难度和复习时间。
+  /// [input] 记的是用户**点歪的那条释义**——它才是「你当时选了什么」，
+  /// 回看记录时能一眼看出是把哪两个词混淆了。
+  Future<void> _recordWrongMatch(int leftIndex, int rightIndex) async {
+    final pair = _currentPairs[leftIndex];
+    final wordId = pair.wordId;
+    // 末组补位可能造出没有主键的临时数据，这类卡跳过写入。
+    if (wordId == null) return;
+    // 右列第 rightIndex 张显示的是 pairs[_currentOrder[rightIndex]] 的释义。
+    final chosen = _currentPairs[_currentOrder[rightIndex]];
+    try {
+      await _progress.record(
+        wordId: wordId,
+        meaningId: pair.meaningId,
+        input: chosen.definition,
+        isCorrect: false,
+      );
+    } catch (error) {
+      // 写入失败不阻断游戏，最多这一次连错没留痕。
+      debugPrint('写入词义连连连错记录失败：$error');
+    }
+  }
+
+  ///
+  /// 一张左卡连对后，记一次点击并给这个单词结算。
+  ///
+  /// 时机：这张卡刚刚连对，说明用户对这个单词的判断已经尘埃落定。
+  /// 结算会看「本局这个词有没有点错过」，据此更新难度与复习时间。
   ///
   /// 没连上的卡（比如超时时还剩两张）不写记录——没练到就不算数。
   Future<void> _recordLeftCard(int leftIndex) async {
@@ -805,29 +775,28 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     final key = '$_groupIndex:$leftIndex';
     // 恢复进度后重连同一张卡不该再写一条，用集合挡住重复。
     if (!_recordedLefts.add(key)) return;
+    final pair = _currentPairs[leftIndex];
+    final wordId = pair.wordId;
     // 末组补位可能造出没有主键的临时数据，这类卡跳过写入。
-    final wordId = _currentPairs[leftIndex].wordId;
     if (wordId == null) return;
     try {
-      await _recordStore.add(
+      // 先记这一次「连对了」；之前的每次连错在发生时就已经记过。
+      await _progress.record(
         wordId: wordId,
-        module: ReviewModule.meaningMatch,
-        // 记录挂到本局会话上，结算与回溯都能对上号。
-        sessionId: widget.reviewSession.id,
-        // 连错次数为 0 时原生判定为「一气呵成」，连对次数才会往上走。
-        wrongCount: _wrongByLeftIndex[leftIndex] ?? 0,
-        // 词义连连没有提示功能，这里恒为 0。
-        hintCount: 0,
-        // 巩固局不推进复习时间，否则明天那批词今天就被消耗掉了。
-        updateReviewedAt: _updatesReviewedAt,
+        meaningId: pair.meaningId,
+        input: pair.definition,
+        isCorrect: true,
       );
+      // 再结算这个词：本局它一次都没错才算这一轮答对。
+      await _progress.settle(wordId);
     } catch (error) {
-      // 记录写入失败不该打断正在进行的一局；集合里放回去，
+      // 写入失败不该打断正在进行的一局；集合里放回去，
       // 万一后面又连到这张卡还能补写一次。
       _recordedLefts.remove(key);
-      debugPrint('写入词义连连复习记录失败：$error');
+      debugPrint('写入词义连连记录失败：$error');
     }
   }
+
 
   ///
   /// 锁住棋盘点击，等连错抖动播完再解锁并撤掉红色。
@@ -929,60 +898,34 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
 
   ///
   /// 把当前进度写入 SQLite；页面交互先完成，持久化失败不阻断游戏。
-  Future<void> _persist() => _progress.save(
+  ///
+  /// 2.0 起只写两个数：做到第几对、已经花了多少秒。剩下的现场（哪几对连上了、
+  /// 错了几次）全部由这一局的点击记录反查得出，不再维护一份会漂移的快照。
+  Future<void> _persist() async {
     // 已结算的局不能再被 dispose 时的延迟保存写回「进行中」。
-    enabled: !_showSummary,
-    // 累计连错数决定这一局的成败，必须和进度一起落盘。
-    wrongTotal: _errors,
-    state: _buildStateSnapshot(),
-  );
+    if (_showSummary) return;
+    await _progress.save(cursor: _matchedPairs, elapsed: _elapsedSeconds);
+  }
 
   ///
-  /// 组装一份可持久化的本局进度快照。
+  /// 本局已用秒数 = 总时长 − 剩余时长。
   ///
-  /// 保存进度和结算都要用到同一份字段，抽出来避免两处写法漂移。
-  Map<String, Object?> _buildStateSnapshot() => <String, Object?>{
-    // 当前分组下标。
-    'groupIndex': _groupIndex,
-    // 已连上的左卡下标（与右列位置一一对应）。
-    'matchedLeft': _matchedLeft.toList(growable: false),
-    // 已连上的右卡位置。
-    'matchedRight': _matchedRight.toList(growable: false),
-    // 剩余毫秒，续玩时据此恢复倒计时。
-    'remainingMs': _remainingMs,
-    // 本局总时长毫秒，续玩时据此还原时间进度条比例。
-    'totalMs': _totalMs,
-    // 已匹配总对数，结算页与调试用。
-    'matchedPairs': _matchedPairs,
-    // 本局总配对数。
-    'totalPairs': _totalPairs,
-    // 首页进度条用：已完成的单词数 / 本局总单词数。
-    'reviewedWordCount': _matchedPairs,
-    'totalWordCount': _totalPairs,
-    // 是否已全部连完。
-    'completed': _completed,
-    // 是否超时结束。
-    'timedOut': _timedOut,
-    // 连对最高纪录，结算页展示用。
-    'bestStreak': _bestStreak,
-    // 连错次数，结算页展示用。
-    'errors': _errors,
-    // 已经写过复习记录的左卡下标，防止「换组前重复写」与恢复后重复写。
-    'recordedLefts': _recordedLefts.toList(growable: false),
-  };
+  /// 存「已用」而不是「剩余」：点 +30s 加时会把总时长一起抬高，
+  /// 只有已用时间在任何加时下都单调递增，续玩时反推剩余永远算得对。
+  int get _elapsedSeconds => ((_totalMs - _remainingMs) ~/ 1000).clamp(0, 1 << 30);
 
   ///
   /// 给这一局结算。
   ///
   /// 判定规则和听音辨义一致：只要把这一局全部卡片操作完一遍（[_completed]
-  /// 为 true，即 5 组全部连完）就算「完成」，中途连错次数只影响结算页展示
+  /// 为 true，即全部组都连完）就算「完成」，中途连错次数只影响结算页展示
   /// 和单词个体难度，不再影响整局成败；只有倒计时耗尽、没能连完全部卡片
   /// （[_completed] 仍为 false）才算「失败」。
   Future<void> _finishSession() => _progress.finish(
     // 全部连完即算过关，不再要求零连错。
     perfect: _completed,
-    state: _buildStateSnapshot(),
-    wrongTotal: _errors,
+    cursor: _matchedPairs,
+    elapsed: _elapsedSeconds,
   );
 
   ///

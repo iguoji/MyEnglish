@@ -1,30 +1,44 @@
 import 'dart:math';
 
-import '../../../models/daily_word_set.dart';
-import '../../../models/review_session.dart';
+import '../../../models/session.dart';
+import '../../../models/session_record.dart';
 import '../../../models/word.dart';
-import '../../../store/daily_word_set.dart';
-import '../../../store/review_session.dart';
-import 'review_word_selector.dart';
+import '../../../models/word_set.dart';
+import '../../../store/session.dart';
+import '../../../store/word.dart';
 
 ///
 /// 打开一个复习模块时需要的全部东西。
 ///
-/// [session] 是这一局本身，[words] 是按会话顺序组装好的最新单词数据。
-/// 页面拿到它就能直接开始答题，不必再回头查词库。
+/// 页面拿到它就能直接开始答题，不必再回头查词库：
+/// - [session] 是这一局本身，含数据列表、当前进度和已用时间；
+/// - [words] 是这一局涉及的全部单词（含释义），按主键索引取用；
+/// - [records] 是这一局已经产生的点击记录，用来还原「做到哪、踩过哪些坑」。
 ///
 class ReviewEntry {
   ///
   /// 创建一次模块入口结果。
-  const ReviewEntry({required this.session, required this.words});
+  const ReviewEntry({
+    required this.session,
+    required this.words,
+    required this.records,
+  });
 
   ///
-  /// 本局会话，含状态、类型与页面进度。
-  final ReviewSession session;
+  /// 本局会话。
+  final Session session;
 
   ///
-  /// 按会话固定顺序组装的最新单词数据。
-  final List<Word> words;
+  /// 这一局涉及的全部单词，按主键索引。
+  final Map<int, Word> words;
+
+  ///
+  /// 这一局已经产生的点击记录；全新一局时是空列表。
+  final List<SessionRecord> records;
+
+  ///
+  /// 这是不是一局刚开的新局（还没有任何记录）。
+  bool get isFresh => records.isEmpty && session.cursor == 0;
 }
 
 ///
@@ -38,216 +52,457 @@ class ReviewFlow {
   ///
   /// 创建复习流程服务。
   ReviewFlow({
-    required this.wordSetStore,
+    required this.wordStore,
     required this.sessionStore,
     Random? random,
   }) : _random = random ?? Random();
 
   ///
-  /// 每日词库 Store。
-  final DailyWordSetStore wordSetStore;
+  /// 单词 Store：选词、按主键回捞单词都靠它。
+  final WordStore wordStore;
 
   ///
-  /// 模块会话 Store。
-  final ReviewSessionStore sessionStore;
+  /// 词库 + 会话 + 记录 Store。
+  final SessionStore sessionStore;
 
   ///
   /// 巩固局「随机一半」使用的随机源。
   final Random _random;
 
   ///
-  /// 拿到今天的每日词库；数量与设置对不上时就地修正。
+  /// 第一层（难词）占目标数量的比例；0.4 即 40%。
+  static const double primaryRatio = 0.4;
+
+  ///
+  /// 词义连连的棋盘固定几张一组；数据列表要补齐成它的整数倍。
+  static const int _matchGroupSize = 5;
+
+  ///
+  /// 按两层规则挑单词。
+  ///
+  /// - 第一层占 `ceil(数量 × 0.4)`：难度降序打头，专挑最难的；
+  /// - 第二层占剩下的：复习时间升序打头，专挑最久没碰的，并排除第一层已选中的。
+  ///
+  /// 排序完全交给 SQLite——`words` 表上那两个索引就是为这两层建的，
+  /// 排序不落临时表，也不必把整个词库搬到内存里排一遍。
+  Future<List<int>> pickTwoLayer({
+    required int limit,
+    List<int> exclude = const <int>[],
+  }) async {
+    // 目标非正数时没有可选单词。
+    if (limit <= 0) return const <int>[];
+    // 向上取整：目标 5 时第一层拿 2 个而不是 1 个，宁可多一个也不少一个。
+    final primaryCount = (limit * primaryRatio).ceil();
+    final hard = await wordStore.pickWords(
+      limit: primaryCount,
+      exclude: exclude,
+      layer: PickLayer.hard,
+    );
+    // 第二层配额 = 总数 − 第一层实际拿到的；第一层因向上取整超出时夹到 0。
+    final secondaryCount = limit - hard.length;
+    if (secondaryCount <= 0) return hard;
+    final stale = await wordStore.pickWords(
+      limit: secondaryCount,
+      // 必须排除第一层已选中的，否则同一个词会在词库里出现两次。
+      exclude: <int>[...exclude, ...hard],
+      layer: PickLayer.stale,
+    );
+    return List<int>.unmodifiable(<int>[...hard, ...stale]);
+  }
+
+  ///
+  /// 拿到今天的复习词库；数量与设置对不上时就地修正。
   ///
   /// 流程（对应《复习模块》文档的「获取词库」）：
-  /// 1. 今天还没建过 → 按两层规则选出目标数量，落库；
-  ///    第一层按难度降序取 40%，第二层按复习时间升序取剩下的 60%。
+  /// 1. 今天还没建过 → 按两层规则选出目标数量，连同「明日单词列表」一起落库；
   /// 2. 已经建过 → 先剔除已被删除的单词，再比对数量：
   ///    - 多了：从前面截取，多出来的那部分丢掉；
-  ///    - 少了：**排除已有的那些**，再按**两层规则**补足差额（40/60 按差额分）。
+  ///    - 少了：**排除已有的那些**，再按两层规则补足差额。
   ///      这里必须排除已有 id——已经练过的词复习时间刚被推进，会掉到排序后面，
-  ///      而没练的词还排在最前，不排除的话补进来的就是词库里已有的那几个，
-  ///      同一个词会在词库里出现两次。
+  ///      而没练的词还排在最前，不排除的话补进来的就是词库里已有的那几个。
   ///    - 正好：只有在剔除过删除词时才需要重新落库，否则原样返回。
   ///
-  /// 目标数量取「设置里的每日复习」和「词库里实际有多少词」中较小的那个。
-  /// 词库只有 30 个词、目标却设成 100 时，如果不取小值，
-  /// 每次打开模块都会白白重写一次词库，而且主线永远判不了完成。
-  Future<DailyWordSet?> resolveWordSet(
-    List<Word> allWords, {
+  /// 目标数量取「设置里的每日复习」和「词库里实际有多少词」中较小的那个：
+  /// 词库只有 30 个词、目标却设成 100 时，如果不取小值，每次打开模块都会白白
+  /// 重写一次词库，而且主线永远判不了完成。
+  Future<WordSet?> resolveWordSet({
     required int dailyGoal,
+    required int libraryCount,
+    required String date,
   }) async {
-    // 只有已经落库、拿到主键的单词才能进词库。
-    final available = <Word>[
-      for (final word in allWords)
-        if (word.id != null) word,
-    ];
     // 一个可用单词都没有，谈不上建库。
-    if (available.isEmpty) return null;
+    if (libraryCount <= 0) return null;
     // 目标不能超过实际拥有的单词数，否则永远补不满。
-    final target = dailyGoal < available.length ? dailyGoal : available.length;
+    final target = dailyGoal < libraryCount ? dailyGoal : libraryCount;
     // 目标为 0（用户把每日复习设成了 0）同样没有词库可建。
     if (target <= 0) return null;
 
-    // 按主键建索引，后面判断「这个词还在不在」是 O(1)。
-    final wordsById = <int, Word>{for (final word in available) word.id!: word};
-    final existing = await wordSetStore.getToday();
+    final existing = await sessionStore.getLatestWordSet(date);
 
     // 今天第一次进复习模块：按两层规则选出前 target 个。
-    // 第一层拿走难度最高的 40%，第二层补上复习时间最早的 60%，
-    // 两者合并即今天的词库（顺序为第一层在前、第二层在后）。
     if (existing == null) {
-      return wordSetStore.saveToday(_idsOf(ReviewWordSelector.selectTwoLayer(
-        available,
-        limit: target,
-      )));
+      final today = await pickTwoLayer(limit: target);
+      return _createWordSet(today: today, target: target, date: date);
     }
 
+    // 确认词库里的每个词都还在（可能被用户删掉了）。
+    final alive = await wordStore.getByIds(existing.todayWordIds);
+    final aliveIds = <int>{for (final word in alive) word.id!};
     // 保留仍存在单词的原始顺序；被删掉的主键直接剔除。
     final kept = <int>[
-      for (final id in existing.wordIds)
-        if (wordsById.containsKey(id)) id,
+      for (final id in existing.todayWordIds)
+        if (aliveIds.contains(id)) id,
     ];
     // 剔除过内容说明词库被编辑过，即使数量凑巧对得上也要重新落库。
-    final wasRepaired = kept.length != existing.wordIds.length;
+    final wasRepaired = kept.length != existing.todayWordIds.length;
 
     if (kept.length > target) {
       // 目标调小了：从前面截取。会话已经在改设置时被中断，
       // 所以「截掉后面那截」不会丢掉用户正在做的进度。
-      return wordSetStore.saveToday(kept.sublist(0, target));
+      return _createWordSet(today: kept.sublist(0, target), target: target, date: date);
     }
-
     if (kept.length < target) {
       // 目标调大了或有词被删了：排除已有的，再按两层规则补足差额。
-      // 与文档「按规则拿词(还需补充数量, 会话词库.单词列表)」一致：
       // 40/60 是按**这次补的差额**分的，不是回过头去重算整份词库的比例。
-      final supplement = ReviewWordSelector.selectTwoLayer(
-        available,
+      final supplement = await pickTwoLayer(
         limit: target - kept.length,
-        exclude: kept.toSet(),
+        exclude: kept,
       );
-      return wordSetStore.saveToday(<int>[...kept, ..._idsOf(supplement)]);
+      return _createWordSet(
+        today: <int>[...kept, ...supplement],
+        target: target,
+        date: date,
+      );
     }
-
     // 数量正好：只有真的剔除过删除词才需要重写，否则原样复用。
-    if (wasRepaired) return wordSetStore.saveToday(kept);
+    if (wasRepaired) {
+      return _createWordSet(today: kept, target: target, date: date);
+    }
     return existing;
+  }
+
+  ///
+  /// 落库一份新词库，同时算好今天的「明日单词列表」。
+  ///
+  /// 明日列表 = 同一套两层规则、排除今天这批之后排在最前面的一半（向上取整）。
+  /// 它只服务于今天的巩固局：主线过关后再进模块，抽的是「今天一半 + 明天一半」。
+  /// 明天会重新建库，不会复用这份列表。
+  Future<WordSet> _createWordSet({
+    required List<int> today,
+    required int target,
+    required String date,
+  }) async {
+    // 一半向上取整：与第一层配额 ceil(limit × 0.4) 统一，
+    // 文档里的「取整」在本项目一律按向上取整实现。
+    final halfTarget = (target * 0.5).ceil();
+    // 明天的词有多少拿多少，凑不满一半也不用今天的词去补——
+    // 巩固局本来就是加练，用今天的词填满反而会让同一批词被反复问到。
+    final tomorrow = await pickTwoLayer(limit: halfTarget, exclude: today);
+    final id = await sessionStore.createWordSet(
+      wordCount: target,
+      todayWordIds: today,
+      tomorrowWordIds: tomorrow,
+      date: date,
+    );
+    return WordSet(
+      id: id,
+      wordCount: today.length,
+      todayWordIds: List<int>.unmodifiable(today),
+      tomorrowWordIds: List<int>.unmodifiable(tomorrow),
+      date: date,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
   }
 
   ///
   /// 拿到这个模块现在该进的这一局。
   ///
-  /// 流程（对应《复习模块》文档的「创建会话」）：
+  /// 流程（对应《复习模块》文档的「点击模块」）：
   /// 1. 今天最新一条会话还在「进行中」且单词仍然有效 → 直接续上；
   /// 2. 今天已经有一局「完成」的主线 → 开一局**巩固**，
-  ///    单词是「今天随机一半 + 明天随机一半」，答题不推进复习时间；
+  ///    单词是「今天随机一半 + 明天一半」，答题不推进复习时间；
   /// 3. 其余情况（今天没开过局 / 上一局中断或失败）→ 开一局**主线**，
   ///    单词就是今天的整份词库。
   Future<ReviewEntry?> openModule(
     ReviewModule module, {
-    required List<Word> allWords,
     required int dailyGoal,
+    required int libraryCount,
+    required String date,
   }) async {
-    // 第一步永远是备好今天的词库，四个模块共用同一份。
-    final wordSet = await resolveWordSet(allWords, dailyGoal: dailyGoal);
+    // 第一步永远是备好今天的词库，全部模块共用同一份。
+    final wordSet = await resolveWordSet(
+      dailyGoal: dailyGoal,
+      libraryCount: libraryCount,
+      date: date,
+    );
     if (wordSet == null) return null;
 
-    final wordsById = <int, Word>{
-      for (final word in allWords)
-        if (word.id != null) word.id!: word,
-    };
-
     // 第二步：看看今天这个模块最新一条会话是什么情况。
-    final latest = await sessionStore.getLatest(module);
+    final latest = await sessionStore.getLatestSession(module, date);
     if (latest != null && latest.isActive) {
-      final resumed = _wordsFor(latest.wordIds, wordsById);
-      // 单词全都还在，才有可能续上这一局。
-      if (resumed != null) {
-        // 主线局还要额外确认单词和今天的词库仍然一致：设置改过、词库补过词
-        // 之后，旧的主线进度已经代表不了「今天的任务」，必须换新局。
-        final matchesWordSet =
-            latest.kind == ReviewSessionKind.reinforce ||
-            _sameIds(latest.wordIds, wordSet.wordIds);
-        if (matchesWordSet) {
-          return ReviewEntry(session: latest, words: resumed);
-        }
-      }
+      final resumed = await _resume(latest, wordSet);
+      if (resumed != null) return resumed;
       // 走到这里说明这一局已经没法续了，收尾成「中断」再开新局。
-      await sessionStore.finish(
+      await sessionStore.finishSession(
         sessionId: latest.id,
-        status: ReviewSessionStatus.aborted,
+        status: SessionStatus.aborted,
       );
     }
 
     // 第三步：今天主线过关了没有，决定开主线还是开巩固。
-    final completedDaily = await sessionStore.getCompletedDaily(module);
-    final wordIds = completedDaily == null
-        ? wordSet.wordIds
-        : _buildReinforceWordIds(
-            todayIds: wordSet.wordIds,
-            allWords: allWords,
-            target: wordSet.wordIds.length,
-          );
+    final completedDaily = await sessionStore.getCompletedDailySession(module, date);
+    final kind = completedDaily == null ? SessionKind.daily : SessionKind.reinforce;
+    final wordIds = kind == SessionKind.daily
+        ? wordSet.todayWordIds
+        : _buildReinforceWordIds(wordSet);
 
-    final words = _wordsFor(wordIds, wordsById);
-    // 组装不出完整单词说明词库刚刚发生了变化，交给调用方提示后重试。
+    // 按主键顺序组装单词；缺词说明词库刚变过，交给调用方提示后重试。
+    final words = await _wordsInOrder(wordIds);
     if (words == null || words.isEmpty) return null;
 
-    final session = await sessionStore.create(
+    // 数据列表的形状由模块决定，见 ReviewModule 各自的注释。
+    final items = _buildItems(module, wordIds, words);
+    // 一条题都出不来（比如全部单词都没有释义）时不开局。
+    if (items.isEmpty) return null;
+
+    final sessionId = await sessionStore.createSession(
       module: module,
-      kind: completedDaily == null
-          ? ReviewSessionKind.daily
-          : ReviewSessionKind.reinforce,
+      kind: kind,
       // 巩固局的单词横跨今明两天，词库编号只作为来源标记留档。
       wordSetId: wordSet.id,
-      wordIds: wordIds,
+      items: items,
+      date: date,
     );
-    return ReviewEntry(session: session, words: words);
+    final session = await sessionStore.getLatestSession(module, date);
+    // 刚建的这一局必须能立刻读回来，读不到说明写入没生效。
+    if (session == null || session.id != sessionId) {
+      throw StateError('新建的${module.label}会话无法读回');
+    }
+    return ReviewEntry(
+      session: session,
+      words: <int, Word>{for (final word in words) word.id!: word},
+      records: const <SessionRecord>[],
+    );
   }
 
   ///
-  /// 组装巩固局的单词：今天随机一半 + 明天随机一半。
+  /// 从词库底部随手开一局（随身听 / 听音辨义）。
   ///
-  /// 「明天的词」= 按同一套**两层规则**、**排除今天这批**之后排在最前面的那些。
-  /// 这里不用「跳过前 N 个」的写法：今天的词刚被推进过复习时间，已经掉到排序
-  /// 最后面去了，跳过前 N 个反而会跳错位置；词库总量不足两倍目标时更会直接
-  /// 把今天的词又抓回来。排除法在任何词库规模下都正确。
+  /// 和 [openModule] 的区别：单词是用户当场挑的（勾选优先，否则当前可见），
+  /// 不走今天的词库，所以：
+  /// - 类型固定是**巩固**，答题不推进复习时间——这批词未必是今天该复习的；
+  /// - 不参与「今日主线过没过关」的判定。
   ///
+  /// 今天这个模块已经有一局进行中、而且用的就是这批词时直接续上；
+  /// 换了一批词就把旧局判为中断，重开一局。
+  Future<ReviewEntry?> openAdHoc(
+    ReviewModule module, {
+    required List<int> wordIds,
+    required String date,
+  }) async {
+    // 一个词都没有就没什么可练的。
+    if (wordIds.isEmpty) return null;
+
+    final latest = await sessionStore.getLatestSession(module, date);
+    if (latest != null && latest.isActive) {
+      final words = await _wordsForSession(latest);
+      // 单词全都还在、而且就是用户这次挑的这批，那就接着上次练。
+      if (words != null &&
+          words.isNotEmpty &&
+          _sameWordSet(words.map((word) => word.id!).toSet(), wordIds.toSet())) {
+        final records = await sessionStore.getSessionRecords(latest.id);
+        return ReviewEntry(
+          session: latest,
+          words: <int, Word>{for (final word in words) word.id!: word},
+          records: records,
+        );
+      }
+      // 换了一批词，旧局已经代表不了用户现在想练的东西。
+      await sessionStore.finishSession(
+        sessionId: latest.id,
+        status: SessionStatus.aborted,
+      );
+    }
+
+    final words = await _wordsInOrder(wordIds);
+    if (words == null || words.isEmpty) return null;
+    final items = _buildItems(module, wordIds, words);
+    if (items.isEmpty) return null;
+
+    final sessionId = await sessionStore.createSession(
+      module: module,
+      // 随手练固定按巩固算：不推进复习时间，也不占用今天的主线名额。
+      kind: SessionKind.reinforce,
+      wordSetId: null,
+      items: items,
+      date: date,
+    );
+    final session = await sessionStore.getLatestSession(module, date);
+    if (session == null || session.id != sessionId) {
+      throw StateError('新建的${module.label}会话无法读回');
+    }
+    return ReviewEntry(
+      session: session,
+      words: <int, Word>{for (final word in words) word.id!: word},
+      records: const <SessionRecord>[],
+    );
+  }
+
+  ///
+  /// 尝试续上一局进行中的会话；续不上返回 null。
+  Future<ReviewEntry?> _resume(Session latest, WordSet wordSet) async {
+    // 数据列表里引用的单词必须全都还在，缺一个就没法完整还原。
+    final words = await _wordsForSession(latest);
+    if (words == null || words.isEmpty) return null;
+
+    // 主线局还要额外确认单词和今天的词库仍然一致：设置改过、词库补过词之后，
+    // 旧的主线进度已经代表不了「今天的任务」，必须换新局。
+    if (latest.kind == SessionKind.daily) {
+      final sessionWordIds = words.map((word) => word.id!).toSet();
+      if (!_sameWordSet(sessionWordIds, wordSet.todayWordIds.toSet())) return null;
+    }
+
+    final records = await sessionStore.getSessionRecords(latest.id);
+    return ReviewEntry(
+      session: latest,
+      words: <int, Word>{for (final word in words) word.id!: word},
+      records: records,
+    );
+  }
+
+  ///
+  /// 按会话的数据列表把涉及的单词捞回来；缺任何一个就返回 null。
+  ///
+  /// 缺词的会话没法完整还原，与其让用户进去看到少了几题，
+  /// 不如直接判定这一局失效、重开一局干净的。
+  Future<List<Word>?> _wordsForSession(Session session) async {
+    // 看义选词的数据列表存的是含义主键，要反查所属单词。
+    if (session.module == ReviewModule.meaningWordChoice) {
+      final meaningIds = session.idItems;
+      final words = await wordStore.getByMeaningIds(meaningIds);
+      // 一个词都捞不回来说明这些含义全被删了。
+      return words.isEmpty ? null : words;
+    }
+    final wordIds = session.module == ReviewModule.meaningMatch
+        ? session.pairItems.map((pair) => pair.wordId).toList()
+        : session.idItems;
+    return _wordsInOrder(wordIds);
+  }
+
+  ///
+  /// 按给定主键顺序组装单词；只要有一个词已不存在就返回 null。
+  Future<List<Word>?> _wordsInOrder(List<int> ids) async {
+    if (ids.isEmpty) return const <Word>[];
+    // 一次查回来再按内存索引重排，避免逐个查库。
+    final fetched = await wordStore.getByIds(ids.toSet().toList());
+    final byId = <int, Word>{for (final word in fetched) word.id!: word};
+    final ordered = <Word>[];
+    for (final id in ids) {
+      final word = byId[id];
+      if (word == null) return null;
+      ordered.add(word);
+    }
+    return List<Word>.unmodifiable(ordered);
+  }
+
+  ///
+  /// 组装巩固局的单词：今天随机一半 + 明天那一半。
+  ///
+  /// 明天的词在建库时就按同一套两层规则算好并存进了词库表，这里直接取用。
   /// 明天的词不够一半时就少拿几个，不用今天的词补足——这一局的题量允许缩水。
-  List<int> _buildReinforceWordIds({
-    required List<int> todayIds,
-    required List<Word> allWords,
-    required int target,
-  }) {
-    // 一半向上取整：与第一层配额 `ceil(limit × 0.4)` 统一，
-    // 文档里的「取整」在本项目一律按向上取整实现。
-    // 目标 100 时今天随机 50、明天候选 50；奇数各自向上取整，
-    // 两边都宁可多一个，不会少题。
-    final halfTarget = (target * 0.5).ceil();
-
-    // 明天的候选：同一套两层规则，排除今天这批。
-    // 先滤掉没落库的临时词：它们会白占配额，最后又因为没有主键被丢掉，
-    // 导致明天这一半凭空少几个。
-    final selectable = <Word>[
-      for (final word in allWords)
-        if (word.id != null) word,
-    ];
-    final tomorrowIds = <int>[
-      for (final word in ReviewWordSelector.selectTwoLayer(
-        selectable,
-        limit: halfTarget,
-        exclude: todayIds.toSet(),
-      ))
-        if (word.id != null) word.id!,
-    ];
-
-    // 今天固定随机抽一半；明天不够也不拿今天的来补，这一局就短一点。
-    // 「明天有多少拿多少，没有就算了」是确认过的规则：巩固局本来就是加练，
-    // 用今天的词填满反而会让同一批词在一局里被反复问到。
-    final todayPicked = _pickRandom(todayIds, halfTarget);
-
+  List<int> _buildReinforceWordIds(WordSet wordSet) {
+    // 一半向上取整，两边都宁可多一个，不会少题。
+    final halfTarget = (wordSet.todayWordIds.length * 0.5).ceil();
+    final todayPicked = _pickRandom(wordSet.todayWordIds, halfTarget);
     // 两批混在一起再整体打乱，避免前半局全是今天、后半局全是明天。
-    final merged = <int>[...todayPicked, ...tomorrowIds]..shuffle(_random);
+    final merged = <int>[...todayPicked, ...wordSet.tomorrowWordIds]
+      ..shuffle(_random);
     return List<int>.unmodifiable(merged);
+  }
+
+  ///
+  /// 按模块生成这一局的数据列表。
+  ///
+  /// - 随身听 / 听音辨义 / 拼写巩固：`[单词id, ...]`，就是会话的单词顺序；
+  /// - 词义连连：`[[单词id, 含义id], ...]`，每个词随机挑一条释义；
+  /// - 看义选词：`[含义id, ...]`，按释义文本去重后每种取一个代表，再整体打乱。
+  List<Object?> _buildItems(
+    ReviewModule module,
+    List<int> wordIds,
+    List<Word> words,
+  ) {
+    switch (module) {
+      case ReviewModule.listening:
+      case ReviewModule.listeningMeaning:
+      case ReviewModule.spellingReinforcement:
+        return List<Object?>.unmodifiable(wordIds);
+
+      case ReviewModule.meaningMatch:
+        // 每个词随机挑一条释义，配成 [单词id, 含义id]。
+        // 没有释义的词出不了题，直接跳过。
+        final pairs = <List<int>>[
+          for (final word in words)
+            if (word.allMeanings.isNotEmpty)
+              _randomPairFor(word),
+        ];
+        // 棋盘固定 5 张一组，末组不足 5 个时从前面随机补齐——
+        // 补位放在这里而不是页面里，`cursor` 才是数据列表真正的外层索引。
+        // 同一组内不重复，避免左右出现同一个单词造成歧义。
+        if (pairs.isNotEmpty && pairs.length % _matchGroupSize != 0) {
+          // 已经落在末组里的那几个，补位时要避开。
+          final tailStart = pairs.length - (pairs.length % _matchGroupSize);
+          final usedWordIds = <int>{
+            for (var i = tailStart; i < pairs.length; i += 1) pairs[i][0],
+          };
+          // 词太少、前面连一个「已满组」都没有时（如每日目标 4 个），
+          // 没有可借用的补位池，直接走下面的重复兜底，绝不越界取下标。
+          if (tailStart > 0) {
+            final pool = List<List<int>>.of(pairs.sublist(0, tailStart))
+              ..shuffle(_random);
+            for (final candidate in pool) {
+              if (pairs.length % _matchGroupSize == 0) break;
+              if (!usedWordIds.add(candidate[0])) continue;
+              pairs.add(candidate);
+            }
+          }
+          // 词太少凑不出不重复的一组时允许重复兜底，保证每组仍是 5 张。
+          // 下标必须从「当前列表」里取：列表在增长，但永远非空。
+          while (pairs.length % _matchGroupSize != 0) {
+            pairs.add(pairs[_random.nextInt(pairs.length)]);
+          }
+        }
+        return List<Object?>.unmodifiable(pairs);
+
+      case ReviewModule.meaningWordChoice:
+        // 按释义文本去重：同一句中文可能同时属于多个单词（eat 的「吃」和
+        // feed 的「吃」），这时它们是同一道题，答案有多个。这里每种文本
+        // 只留一个代表主键，运行时再把同文本的单词全部合并成正确答案。
+        final seen = <String>{};
+        final meaningIds = <int>[];
+        for (final word in words) {
+          for (final meaning in word.allMeanings) {
+            final text = meaning.definition.trim();
+            // 空释义不能成为一道题。
+            if (text.isEmpty || meaning.id == null) continue;
+            if (!seen.add(text)) continue;
+            meaningIds.add(meaning.id!);
+          }
+        }
+        // 全局打乱：同一个多义词的多条释义被拆散到全程，避免连续考同一个词。
+        meaningIds.shuffle(_random);
+        return List<Object?>.unmodifiable(meaningIds);
+    }
+  }
+
+  ///
+  /// 给词义连连挑一对 `[单词id, 含义id]`。
+  ///
+  /// 一个词往往有好几条释义，这里随机挑一条：同一批词多开几局，
+  /// 出现的中文也会换着来，不至于每次都考同一句。
+  List<int> _randomPairFor(Word word) {
+    final meanings = word.allMeanings;
+    return <int>[word.id!, meanings[_random.nextInt(meanings.length)].id!];
   }
 
   ///
@@ -262,34 +517,12 @@ class ReviewFlow {
   }
 
   ///
-  /// 按主键顺序组装单词；只要有一个词已不存在就返回 null。
+  /// 比较两组单词主键是否是同一批（不看顺序）。
   ///
-  /// 缺词的会话没法完整还原，与其让用户进去看到少了几题，
-  /// 不如直接判定这一局失效、重开一局干净的。
-  List<Word>? _wordsFor(List<int> ids, Map<int, Word> wordsById) {
-    final words = <Word>[];
-    for (final id in ids) {
-      final word = wordsById[id];
-      if (word == null) return null;
-      words.add(word);
-    }
-    return List<Word>.unmodifiable(words);
-  }
-
-  ///
-  /// 取出单词列表中的主键；无主键的临时数据会被跳过。
-  List<int> _idsOf(List<Word> words) => <int>[
-    for (final word in words)
-      if (word.id != null) word.id!,
-  ];
-
-  ///
-  /// 逐项比较两个主键列表是否完全一致（含顺序）。
-  bool _sameIds(List<int> first, List<int> second) {
+  /// 巩固局会打乱顺序，主线局也可能因为补词而改变排列，
+  /// 真正要判断的是「还是不是今天这批词」。
+  bool _sameWordSet(Set<int> first, Set<int> second) {
     if (first.length != second.length) return false;
-    for (var index = 0; index < first.length; index += 1) {
-      if (first[index] != second[index]) return false;
-    }
-    return true;
+    return first.containsAll(second);
   }
 }

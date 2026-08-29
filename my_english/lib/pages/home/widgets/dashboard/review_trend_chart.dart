@@ -8,7 +8,7 @@ import '../../../../common/theme.dart';
 // 引入可复用的曲线图组件（纯展示，不绑定业务）。
 import 'trend_chart.dart';
 // 引入听音辨义记录 Store：7 天与 30 天的每日复习量聚合查询都走这里。
-import '../../../../store/review_record.dart';
+import '../../../../store/session.dart';
 
 ///
 /// 趋势图时间范围标签；对应原型 chart-tabs。
@@ -147,13 +147,13 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   /// 「掌握量」口径比旧「复习量」更严：只要 0 错 0 提醒的记录。
   Future<List<TrendDataPoint>> _loadPoints(TrendRange range) async {
     final today = DateTime.now();
-    final store = LocalReviewRecordStore.instance;
+    final store = LocalSessionStore.instance;
 
     switch (range) {
       case TrendRange.week:
         // 7 天：今天往前数 6 天到今天，每天一个节点。
         final since = today.subtract(const Duration(days: _nodeCount - 1));
-        final counts = await store.getDailyMasteredCounts(since: since);
+        final counts = await store.getDailyCounts(correctOnly: true, since: _dateKey(since));
         return [
           for (var i = 0; i < _nodeCount; i++)
             () {
@@ -167,8 +167,8 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 
       case TrendRange.month:
         // 30 天：跨度 30 天，7 个节点按天数均分（含首尾端点）。
-        final counts = await store.getDailyMasteredCounts(
-          since: today.subtract(const Duration(days: 30)),
+        final counts = await store.getDailyCounts(correctOnly: true, 
+          since: _dateKey(today.subtract(const Duration(days: 30))),
         );
         return [
           for (var i = 0; i < _nodeCount; i++)

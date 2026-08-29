@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 // flutter_test 提供组件渲染、点击和断言能力。
 import 'package:flutter_test/flutter_test.dart';
-// 复习模块标识与三态进度模型。
-import 'package:my_english/models/review_session.dart';
+// 复习模块标识与三态进度模型（v2.0 起统一收敛到会话模型文件）。
+import 'package:my_english/models/session.dart';
 // 引入被测试的首页复习模式网格。
 import 'package:my_english/pages/home/widgets/dashboard/review_mode_grid.dart';
 
@@ -62,14 +62,12 @@ void main() {
     final matchingDescription = tester.widget<Text>(find.text('释义配对 · 连续匹配'));
     expect(matchingDescription.maxLines, 1);
     // 三态徽章：听音辨义与拼写巩固已完成，词义连连进行中；
-    // 只剩看义选词还没开放，显示灰色「即将开放」。
+    // 看义选词没给状态，回落到「待完成」（2.0 起四个模块全部开放，不再有「即将开放」）。
     expect(find.text('已完成'), findsNWidgets(2));
     expect(find.text('进行中'), findsOneWidget);
-    expect(find.text('即将开放'), findsOneWidget);
+    expect(find.text('待完成'), findsOneWidget);
     // 百分比彻底下线，任何一张卡片都不该再出现「%」。
     expect(find.textContaining('%'), findsNothing);
-    // 没有会话记录的模块回落到「待完成」——这里三张已开放的卡都有状态，故为 0。
-    expect(find.text('待完成'), findsNothing);
 
     // 四张卡片依次点击，回调必须带回各自的模块标识。
     await tester.tap(find.text('听音辨义'));
@@ -109,9 +107,8 @@ void main() {
       ),
     );
 
-    // 三个已开放模块显示待完成，只剩看义选词是「即将开放」。
-    expect(find.text('待完成'), findsNWidgets(3));
-    expect(find.text('即将开放'), findsOneWidget);
+    // 四个模块都开放：一个都没点开过时全部显示待完成。
+    expect(find.text('待完成'), findsNWidgets(4));
     expect(tester.takeException(), isNull);
   });
 

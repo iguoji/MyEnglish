@@ -12,22 +12,20 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计令牌，核对播放和下一题的蓝色背景。
 import 'package:my_english/common/theme.dart';
 // 引入数据模型。
-import 'package:my_english/models/learning_session.dart';
+import 'package:my_english/models/session.dart';
+import 'package:my_english/models/session_record.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
-// 引入听音辨义页面与音频接口。
+// 引入听音辨义页面、进度出口与音频接口。
 import 'package:my_english/pages/listening_meaning/listening_meaning_page.dart';
+import 'package:my_english/pages/review/services/session_progress.dart';
 // 引入听音辨义布局尺寸，使测试与真实页面共用同一组对齐标准。
 import 'package:my_english/pages/listening_meaning/widgets/listening_meaning_layout.dart';
 import 'package:my_english/services/word_audio.dart';
-// 引入可注入测试通道的候选缓存 Store。
-import 'package:my_english/store/listening_meaning_option_cache.dart';
-// 引入学习会话接口，测试用内存实现观察保存和完成删除。
-// 引入可注入测试通道的记录 Store。
-import 'package:my_english/store/review_record.dart';
 import 'package:my_english/store/settings.dart';
 
-import '../../support/memory_learning_session_store.dart';
+// 测试用内存会话 Store。
+import '../../support/memory_session_store.dart';
 
 ///
 /// 注册听音辨义页面的答题、播放、缓存和恢复交互测试。
@@ -79,6 +77,7 @@ void main() {
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -228,7 +227,7 @@ void main() {
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
-          recordStore: LocalReviewRecordStore(channel: channel),
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -319,8 +318,8 @@ void main() {
                     words: _words.skip(1).toList(),
                     audioPlayer: _ImmediateAudioPlayer(),
                     accent: PronunciationAccent.american,
-                    recordStore: LocalReviewRecordStore(channel: channel),
-                  ),
+                    progress: _freshProgress(),
+                            ),
                 ),
               );
             },
@@ -369,6 +368,7 @@ void main() {
           words: _words.take(1).toList(),
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -420,6 +420,7 @@ void main() {
           words: _words,
           audioPlayer: player,
           accent: PronunciationAccent.american,
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -456,6 +457,7 @@ void main() {
           words: _words.take(1).toList(),
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -484,6 +486,7 @@ void main() {
           words: _words,
           audioPlayer: player,
           accent: PronunciationAccent.american,
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -558,24 +561,25 @@ void main() {
     // 使用较矮手机画布和多条释义，确保 Steps 内容真实超过透明层可视高度。
     await tester.binding.setSurfaceSize(const Size(390, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    const longWord = Word(
+    final longWord = Word(
       id: 30,
       spelling: 'scroll',
-      meanings: <Meaning>[
-        Meaning(index: 6, pos: 'n.', definitions: <String>['释义一']),
-        Meaning(index: 5, pos: 'v.', definitions: <String>['释义二']),
-        Meaning(index: 4, pos: 'adj.', definitions: <String>['释义三']),
-        Meaning(index: 3, pos: 'adv.', definitions: <String>['释义四']),
-        Meaning(index: 2, pos: 'prep.', definitions: <String>['释义五']),
-        Meaning(index: 1, pos: 'conj.', definitions: <String>['释义六']),
+      meanings: const <Meaning>[
+        Meaning(id: 301, pos: 'n.', definition: '释义一'),
+        Meaning(id: 302, pos: 'v.', definition: '释义二'),
+        Meaning(id: 303, pos: 'adj.', definition: '释义三'),
+        Meaning(id: 304, pos: 'adv.', definition: '释义四'),
+        Meaning(id: 305, pos: 'prep.', definition: '释义五'),
+        Meaning(id: 306, pos: 'conj.', definition: '释义六'),
       ],
     );
     await tester.pumpWidget(
       MaterialApp(
         home: ListeningMeaningPage(
-          words: const <Word>[longWord],
+          words: <Word>[longWord],
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
+          progress: _freshProgress(),
         ),
       ),
     );
@@ -603,230 +607,39 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('cached word and definition distractors can be refreshed', (
+  testWidgets('candidate options are unique and never duplicate the answer', (
     tester,
   ) async {
-    // 独立通道用内存 Map 模拟 SQLite，每个 JSON key 对应一道小题。
-    const channel = MethodChannel('test/listening_meaning_option_cache_page');
-    final savedCalls = <MethodCall>[];
-    final cachedOptions = <String, Map<String, Object?>>{};
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      final arguments = Map<Object?, Object?>.from(call.arguments as Map);
-      final cacheKey = arguments['cacheKey']! as String;
-      if (call.method == 'getListeningMeaningOptionCache') {
-        // 首次读取按题型生成固定值，之后返回最近一次保存的内容，模拟真实 SQLite。
-        return cachedOptions.putIfAbsent(
-          cacheKey,
-          () => <String, Object?>{
-            'distractors': cacheKey.contains('"definition"')
-                ? <String>['释义甲', '释义乙', '释义丙']
-                : <String>['abality', 'abiliti', 'abiloty'],
-            // 正确答案固定显示在第三行，重建页面后也不能改变。
-            'correctIndex': 2,
-          },
-        );
-      }
-      if (call.method == 'saveListeningMeaningOptionCache') {
-        savedCalls.add(call);
-        // 覆盖内存中的同一行，下次重新进入页面会读到刷新后的三项。
-        cachedOptions[cacheKey] = <String, Object?>{
-          'distractors': List<String>.from(arguments['distractors']! as List),
-          'correctIndex': arguments['correctIndex']! as int,
-        };
-        return null;
-      }
-      throw StateError('unexpected method: ${call.method}');
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-
     await tester.pumpWidget(
       MaterialApp(
         home: ListeningMeaningPage(
-          words: _words,
+          words: _words.take(1).toList(),
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
-          optionCacheStore: const ListeningMeaningOptionCacheStore(channel: channel),
+          progress: _freshProgress(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    // 拼写题必须使用 SQLite 命中的三个稳定干扰项。
-    expect(find.text('abality'), findsOneWidget);
-    expect(find.text('abiliti'), findsOneWidget);
-    expect(find.text('abiloty'), findsOneWidget);
-    // 缓存指定正确答案在第三行，先记录完整四项顺序供重新进入后比较。
-    expect(_visibleOptionTexts(tester)[2], 'ability');
-    // 长按其中一个干扰项后显示统一刷新确认框。
-    await tester.longPress(find.text('abality'));
-    await tester.pumpAndSettle();
-    expect(find.text('刷新候选词'), findsOneWidget);
-    expect(find.text('是否将“abality”更换为新的候选词？'), findsOneWidget);
-    // 确认后原文本立即消失，并覆盖保存同一道拼写题的三个干扰项。
-    await tester.tap(find.byKey(const Key('confirm-option-refresh')));
-    await tester.pumpAndSettle();
-    expect(find.text('abality'), findsNothing);
-    expect(savedCalls, hasLength(1));
-    final savedArguments = Map<Object?, Object?>.from(
-      savedCalls.single.arguments as Map,
-    );
-    final savedDistractors = List<String>.from(
-      savedArguments['distractors']! as List,
-    );
-    expect(savedDistractors, hasLength(3));
-    expect(savedDistractors, isNot(contains('abality')));
-    final refreshedOrder = _visibleOptionTexts(tester);
-    expect(refreshedOrder.toSet(), hasLength(4));
-
-    // 重建页面模拟用户下次进入听音辨义；三个刷新后候选必须从缓存完整恢复。
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ListeningMeaningPage(
-          words: _words,
-          audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
-          optionCacheStore: const ListeningMeaningOptionCacheStore(channel: channel),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('abality'), findsNothing);
-    for (final distractor in savedDistractors) {
-      expect(find.text(distractor), findsOneWidget);
-    }
-    // 不只名字恢复，A/B/C/D 四个位置也必须与刷新后完全一致。
-    expect(_visibleOptionTexts(tester), refreshedOrder);
-
-    // 长按正确项也显示同一确认框；确认后正确答案只移动位置，四选一结构不能丢失。
-    await tester.longPress(find.text('ability'));
-    await tester.pumpAndSettle();
-    expect(find.text('刷新候选词'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('confirm-option-refresh')));
-    await tester.pumpAndSettle();
-    _expectFourOptions(tester);
-    expect(find.text('ability'), findsOneWidget);
-    expect(savedCalls, hasLength(2));
-    // 长按正确答案会移动其位置；新位置也必须跟随三个干扰项一起写入缓存。
-    final orderAfterCorrectRefresh = _visibleOptionTexts(tester);
-    final lastSavedArguments = Map<Object?, Object?>.from(
-      savedCalls.last.arguments as Map,
-    );
-    expect(
-      lastSavedArguments['correctIndex'],
-      orderAfterCorrectRefresh.indexOf('ability'),
-    );
-
-    // 再次重建后，连“刷新正确答案导致的位置移动”也必须原样恢复。
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ListeningMeaningPage(
-          words: _words,
-          audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
-          optionCacheStore: const ListeningMeaningOptionCacheStore(channel: channel),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(_visibleOptionTexts(tester), orderAfterCorrectRefresh);
-
-    // 选择正确拼写进入释义题，第二个缓存 key 应命中稳定中文干扰项。
-    await tester.tap(find.text('ability'));
-    await tester.pumpAndSettle();
-    expect(find.text('释义甲'), findsOneWidget);
-    expect(find.text('释义乙'), findsOneWidget);
-    expect(find.text('释义丙'), findsOneWidget);
+    // 新局生成四个互不重复（忽略大小写）的候选，且正确答案必定在场。
+    final options = _visibleOptionTexts(tester);
+    expect(options, hasLength(4));
+    expect(options.map((text) => text.toLowerCase()).toSet(), hasLength(4));
+    expect(options, contains('ability'));
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets(
-    'fresh start and retry preserve the first complete option order',
-    (tester) async {
-      // 内存 Map 从空缓存开始，第一次保存后模拟 App 重启仍可读取的 SQLite 行。
-      const channel = MethodChannel('test/listeningMeaning_option_stable_order');
-      final cachedOptions = <String, Map<String, Object?>>{};
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        final arguments = Map<Object?, Object?>.from(call.arguments as Map);
-        final cacheKey = arguments['cacheKey']! as String;
-        if (call.method == 'getListeningMeaningOptionCache') {
-          return cachedOptions[cacheKey];
-        }
-        if (call.method == 'saveListeningMeaningOptionCache') {
-          cachedOptions[cacheKey] = <String, Object?>{
-            'distractors': List<String>.from(arguments['distractors']! as List),
-            'correctIndex': arguments['correctIndex']! as int,
-          };
-          return null;
-        }
-        throw StateError('unexpected method: ${call.method}');
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      // 无释义单词答对后会直接显示“再试一次”，方便覆盖重试入口。
-      const words = <Word>[Word(id: 91, spelling: 'ability')];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ListeningMeaningPage(
-            words: words,
-            audioPlayer: _ImmediateAudioPlayer(),
-            accent: PronunciationAccent.american,
-            optionCacheStore: const ListeningMeaningOptionCacheStore(channel: channel),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      // 第一次生成的四个名字和位置必须完整写入缓存，且自身没有重复。
-      final firstOrder = _visibleOptionTexts(tester);
-      expect(firstOrder.toSet(), hasLength(4));
-      expect(cachedOptions, hasLength(1));
-
-      // 答对后点击“再试一次”，最终恢复到第一次显示的完整顺序。
-      await tester.tap(find.text('ability'));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('retry-listening-meaning-word')));
-      await tester.pumpAndSettle();
-      expect(_visibleOptionTexts(tester), firstOrder);
-
-      // 完全销毁并新建页面模拟重新进入，而不是依赖未完成会话快照。
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ListeningMeaningPage(
-            words: words,
-            audioPlayer: _ImmediateAudioPlayer(),
-            accent: PronunciationAccent.american,
-            optionCacheStore: const ListeningMeaningOptionCacheStore(channel: channel),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(_visibleOptionTexts(tester), firstOrder);
-
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
-
-  testWidgets('duplicate options in a damaged session are regenerated', (
+  testWidgets('continue mode resumes into the definition stage after spelling', (
     tester,
   ) async {
-    // 模拟历史快照出现两个仅大小写不同的重复干扰项。
-    const session = LearningSession(
-      type: LearningSessionType.listeningMeaning,
-      wordIds: <int>[1],
-      state: <String, Object?>{
-        'wordIndex': 0,
-        'stage': 'word',
-        'isCurrentWordComplete': false,
-        'options': <Object?>[
-          <String, Object?>{'text': 'ability', 'isCorrect': true},
-          <String, Object?>{'text': 'abliity', 'isCorrect': false},
-          <String, Object?>{'text': 'ABLIITY', 'isCorrect': false},
-          <String, Object?>{'text': 'abiliti', 'isCorrect': false},
-        ],
-      },
+    // ability 的拼写那一步已经答对（含义为空的答对记录）。
+    final progress = _freshProgress(
+      cursor: 0,
+      records: const <SessionRecord>[
+        SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'ability', isCorrect: true),
+      ],
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -834,69 +647,16 @@ void main() {
           words: _words.take(1).toList(),
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
-          initialSession: session,
+          progress: progress,
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    // 坏快照不能直接显示；页面重新生成四个大小写意义上也不重复的候选。
-    final repairedOptions = _visibleOptionTexts(tester);
-    expect(repairedOptions, hasLength(4));
-    expect(
-      repairedOptions.map((text) => text.toLowerCase()).toSet(),
-      hasLength(4),
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('continue mode restores the exact saved option order', (
-    tester,
-  ) async {
-    // 继续模式携带一份合法四选一快照，顺序特意与默认生成顺序不同。
-    const expectedOrder = <String>['abiliti', 'ability', 'abality', 'abliity'];
-    const session = LearningSession(
-      type: LearningSessionType.listeningMeaning,
-      wordIds: <int>[1],
-      state: <String, Object?>{
-        'wordIndex': 0,
-        'stage': 'word',
-        'isCurrentWordComplete': false,
-        'options': <Object?>[
-          <String, Object?>{'text': 'abiliti', 'isCorrect': false},
-          <String, Object?>{'text': 'ability', 'isCorrect': true},
-          <String, Object?>{'text': 'abality', 'isCorrect': false},
-          <String, Object?>{'text': 'abliity', 'isCorrect': false},
-        ],
-      },
-    );
-    // 合法会话已经拥有精确顺序，不应再读取长期缓存覆盖它。
-    const channel = MethodChannel('test/listeningMeaning_resume_exact_order');
-    var optionCacheCalls = 0;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      optionCacheCalls += 1;
-      return null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    final sessionStore = MemoryLearningSessionStore(<LearningSession>[session]);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ListeningMeaningPage(
-          words: _words.take(1).toList(),
-          audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
-          initialSession: session,
-          sessionStore: sessionStore,
-          optionCacheStore: const ListeningMeaningOptionCacheStore(channel: channel),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(_visibleOptionTexts(tester), expectedOrder);
-    expect(optionCacheCalls, 0);
+    // 直接进入释义阶段：第一条释义「能力」出现，不再要求重选拼写。
+    expect(find.text('能力'), findsWidgets);
+    // 释义阶段的候选项是中文，正确答案拼写不出现在四选一里。
+    expect(_visibleOptionTexts(tester), isNot(contains('ability')));
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -922,6 +682,7 @@ void main() {
             words: _words,
             audioPlayer: _ImmediateAudioPlayer(),
             accent: PronunciationAccent.american,
+            progress: _freshProgress(),
           ),
         ),
       ),
@@ -1085,59 +846,39 @@ void main() {
   });
 
   testWidgets(
-    'listeningMeaning restores completed word and clears session at finish',
+    'listeningMeaning restores the second word and skips settled ones',
     (tester) async {
-      // 历史停在最后一个单词的“本词完成、等待提交”状态；此时记录尚未写入。
-      const session = LearningSession(
-        type: LearningSessionType.listeningMeaning,
-        wordIds: <int>[1, 2],
-        state: <String, Object?>{
-          'wordIndex': 1,
-          'stage': 'word',
-          'meaningIndex': 0,
-          'definitionIndex': 0,
-          'hintLevel': 0,
-          'errors': 2,
-          'currentWrong': 1,
-          'currentHints': 0,
-          'isCurrentWordComplete': true,
-          'wrongOptions': <String>[],
-          'options': <Object?>[],
-        },
+      final store = MemorySessionStore();
+      // 词 1（ability）已完整答对：拼写 + 两条释义都写过记录。
+      final progress = _freshProgress(
+        store: store,
+        cursor: 1,
+        records: const <SessionRecord>[
+          SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'ability', isCorrect: true),
+          SessionRecord(id: 2, wordId: 1, meaningId: 101, input: '能力', isCorrect: true),
+          SessionRecord(id: 3, wordId: 1, meaningId: 102, input: '才能', isCorrect: true),
+        ],
       );
-      // 内存 Store 让测试能直接确认最后一题提交后会话被删除。
-      final sessionStore = MemoryLearningSessionStore(<LearningSession>[
-        session,
-      ]);
       await tester.pumpWidget(
         MaterialApp(
           home: ListeningMeaningPage(
             words: _words,
             audioPlayer: _ImmediateAudioPlayer(),
             accent: PronunciationAccent.american,
-            initialSession: session,
-            sessionStore: sessionStore,
+            progress: progress,
           ),
         ),
       );
       await tester.pump();
 
-      // 页面首帧直接恢复到第二题完成态，不重新要求选择拼写。
+      // 首帧直接停在第二个词（abandon，无释义 → 只有拼写阶段）。
       expect(find.text('2 / 2'), findsOneWidget);
-      expect(find.text('当前单词已完成'), findsOneWidget);
-      expect(find.text('完成'), findsOneWidget);
-      expect(find.byKey(const Key('listening-meaning-option-0')), findsNothing);
-
-      // 点击完成才写记录并进入整轮完成页，同时删除未完成会话。
-      await tester.tap(find.byKey(const Key('next-listening-meaning-word')));
-      await tester.pumpAndSettle();
-      expect(find.text('听音辨义完成'), findsOneWidget);
-      expect(
-        sessionStore.sessions.where(
-          (item) => item.type == LearningSessionType.listeningMeaning,
-        ),
-        isEmpty,
-      );
+      // 已答对的 ability 不会重复出题：候选里不再出现它的拼写。
+      expect(_visibleOptionTexts(tester), isNot(contains('ability')));
+      // 恢复阶段不会重复结算已答对的词。
+      expect(store.settles, isEmpty);
+      // 页面没有任何异常。
+      expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
     },
@@ -1206,16 +947,43 @@ void _expectTiles(
 ///
 /// 听音辨义页面测试共用的固定单词列表。
 final _words = <Word>[
-  const Word(
+  Word(
     id: 1,
     spelling: 'ability',
     difficulty: 3,
-    meanings: <Meaning>[
-      Meaning(index: 1, pos: 'n.', definitions: <String>['能力', '才能']),
+    meanings: const <Meaning>[
+      Meaning(id: 101, pos: 'n.', definition: '能力'),
+      Meaning(id: 102, pos: 'n.', definition: '才能'),
     ],
   ),
-  const Word(id: 2, spelling: 'abandon'),
+  Word(id: 2, spelling: 'abandon'),
 ];
+
+///
+/// 构造一局「进行中」的听音辨义会话与进度出口。
+///
+/// [cursor] 是上次保存的单词下标；[records] 用于续玩恢复现场。
+///
+SessionProgress _freshProgress({
+  MemorySessionStore? store,
+  int cursor = 0,
+  List<SessionRecord> records = const <SessionRecord>[],
+}) => SessionProgress(
+  store: store ?? MemorySessionStore(),
+  session: Session(
+    id: 1,
+    module: ReviewModule.listeningMeaning,
+    kind: SessionKind.daily,
+    status: SessionStatus.active,
+    wordSetId: 1,
+    items: <int>[for (final word in _words) word.id!],
+    cursor: cursor,
+    elapsed: 0,
+    date: '2026-08-25',
+    createdAt: DateTime.now(),
+  ),
+  records: records,
+);
 
 ///
 /// 每次播放和停止都会立即完成的测试播放器。

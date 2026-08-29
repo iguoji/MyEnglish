@@ -3,26 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // 被测页面与依赖模型。
+import 'package:my_english/models/session.dart';
+import 'package:my_english/models/session_record.dart';
 import 'package:my_english/models/word.dart';
 import 'package:my_english/models/meaning.dart';
-import 'package:my_english/models/review_session.dart';
 import 'package:my_english/store/settings.dart';
 import 'package:my_english/pages/meaning_match/meaning_match_page.dart';
+import 'package:my_english/pages/review/services/session_progress.dart';
 
 // 测试用内存 Store，避免触碰 MethodChannel。
-import '../../support/memory_review_stores.dart';
-import '../../support/recording_review_record_store.dart';
+import '../../support/memory_session_store.dart';
 
 ///
 /// 构造一个仅含单条释义的单词，便于测试中确定“某单词对应哪条含义”。
 ///
-/// [id] 单词主键；[spelling] 英文；[definition] 唯一中文释义。
+/// [id] 单词主键；[meaningId] 该释义主键；[spelling] 英文；[definition] 唯一中文释义。
 ///
-Word _word(int id, String spelling, String definition) => Word(
+Word _word(int id, int meaningId, String spelling, String definition) => Word(
   id: id,
   spelling: spelling,
   meanings: [
-    Meaning(index: 0, pos: 'n.', definitions: [definition]),
+    Meaning(id: meaningId, pos: 'n.', definition: definition),
   ],
 );
 
@@ -30,47 +31,57 @@ Word _word(int id, String spelling, String definition) => Word(
 /// 5 个单词，拼写与释义都互不相同，保证一组内左右一一对应且不会歧义。
 ///
 List<Word> _fiveWords() => [
-  _word(1, 'apple', '苹果'),
-  _word(2, 'banana', '香蕉'),
-  _word(3, 'cat', '猫'),
-  _word(4, 'dog', '狗'),
-  _word(5, 'egg', '蛋'),
+  _word(1, 101, 'apple', '苹果'),
+  _word(2, 102, 'banana', '香蕉'),
+  _word(3, 103, 'cat', '猫'),
+  _word(4, 104, 'dog', '狗'),
+  _word(5, 105, 'egg', '蛋'),
 ];
+
+///
+/// 按词表构造一局「进行中」的词义连连会话。
+///
+/// 数据列表元素是 [单词id, 含义id] 数对；词表只有一组（5 对）时就是单组棋盘。
+///
+Session _session(List<Word> words, {int cursor = 0, int elapsed = 0}) => Session(
+  id: 1,
+  module: ReviewModule.meaningMatch,
+  kind: SessionKind.daily,
+  status: SessionStatus.active,
+  wordSetId: 1,
+  items: <List<int>>[
+    for (final word in words)
+      <int>[word.id!, word.allMeanings.single.id!],
+  ],
+  cursor: cursor,
+  elapsed: elapsed,
+  date: '2026-08-29',
+  createdAt: DateTime.now(),
+);
 
 ///
 /// 把页面装进 MaterialApp 并首次泵一帧。
 ///
+/// [records] 传入历史点击记录用于续玩恢复；[elapsed] 是已用秒数。
+///
 Future<void> _pumpPage(
   WidgetTester tester, {
   required List<Word> words,
-  Map<String, Object?> state = const <String, Object?>{},
-  int wrongTotal = 0,
-  ReviewSessionKind kind = ReviewSessionKind.daily,
+  List<SessionRecord> records = const <SessionRecord>[],
+  int elapsed = 0,
   SettingsStore? settings,
-  MemoryReviewSessionStore? sessionStore,
 }) async {
-  // 页面必须拿到一局会话才能开工；这里现造一局「进行中」的主线。
-  final session = ReviewSession(
-    id: 1,
-    module: ReviewModule.meaningMatch,
-    kind: kind,
-    status: ReviewSessionStatus.active,
-    wordSetId: 1,
-    wordIds: words.map((word) => word.id!).toList(),
-    state: state,
-    wrongTotal: wrongTotal,
-    sessionDate: '2026-08-23',
-    createdAt: DateTime.now(),
+  final progress = SessionProgress(
+    store: MemorySessionStore(),
+    session: _session(words, elapsed: elapsed),
+    records: records,
   );
   await tester.pumpWidget(
     MaterialApp(
       home: MeaningMatchPage(
         words: words,
         title: '词义连连',
-        reviewSession: session,
-        reviewSessionStore: sessionStore ?? MemoryReviewSessionStore(),
-        // 记录写入走内存实现，测试完全不触碰 MethodChannel。
-        recordStore: RecordingReviewRecordStore(),
+        progress: progress,
         settings: settings,
       ),
     ),
@@ -243,26 +254,19 @@ void main() {
     expect(find.text('1 / 5'), findsOneWidget);
   });
 
-  testWidgets('会话续玩：恢复已匹配 1 对与剩余 90 秒', (WidgetTester tester) async {
+  testWidgets('会话续玩：回放记录恢复已匹配 1 对与剩余 90 秒', (WidgetTester tester) async {
+    // 用户此前连对了 apple ↔ 苹果，用时 60 秒后退出。
     await _pumpPage(
       tester,
       words: _fiveWords(),
-      state: <String, Object?>{
-        'groupIndex': 0,
-        'matchedLeft': [0],
-        'matchedRight': [1],
-        'remainingMs': 90000,
-        'matchedPairs': 1,
-        'totalPairs': 5,
-        'completed': false,
-        'timedOut': false,
-        'bestStreak': 1,
-        'errors': 0,
-      },
+      elapsed: 60,
+      records: const <SessionRecord>[
+        SessionRecord(id: 1, wordId: 1, meaningId: 101, input: '苹果', isCorrect: true),
+      ],
     );
     // 续玩恢复计数 1/5。
     expect(find.text('1 / 5'), findsOneWidget);
-    // 续玩恢复剩余 90 秒 -> 01:30。
+    // 续玩恢复剩余 90 秒（150 − 60）-> 01:30。
     expect(find.text('01:30'), findsOneWidget);
   });
 }

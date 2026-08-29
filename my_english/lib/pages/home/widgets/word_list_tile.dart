@@ -260,7 +260,7 @@ class WordListTile extends StatelessWidget {
                                 children: [
                                   // 只有难度大于 0 才显示红色徽章：空值或已降到最低难度 0
                                   // （如 "big"）不显示，避免出现毫无意义的 "0" 标记。
-                                  if (item.difficulty case final difficulty?
+                                  if (item.difficulty case final difficulty
                                       when difficulty > 0) ...[
                                     _DifficultyBadge(difficulty: difficulty),
                                     // 徽章与日期之间留白。
@@ -316,7 +316,7 @@ class WordListTile extends StatelessWidget {
             // 收起时创建零高度盒子，展开时创建释义列表。
             child: isExpanded && hasMeanings
                 ? _MeaningList(
-                    meanings: item.meanings,
+                    groups: item.meaningGroups,
                     definitionSeparator: definitionSeparator,
                   )
                 : const SizedBox.shrink(),
@@ -585,15 +585,15 @@ class _SpeakerWavePainter extends CustomPainter {
 ///
 class _MeaningList extends StatelessWidget {
   ///
-  /// 接收当前 Word 已经按 index 降序排列的 Meaning。
+  /// 接收模型已经整理好的词性分组。
   const _MeaningList({
-    required this.meanings,
+    required this.groups,
     required this.definitionSeparator,
   });
 
   ///
-  /// 当前单词的 Meaning 集合。
-  final List<Meaning> meanings;
+  /// 当前单词按词性分好的释义分组。
+  final List<MeaningGroup> groups;
 
   ///
   /// 当前设置中选择的中文释义全角分隔符。
@@ -614,17 +614,17 @@ class _MeaningList extends StatelessWidget {
         // Padding 与设计稿一致：上下 10、左右 20。
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          // Column 保证一个 Meaning 对象对应一个纵向行。
+          // Column 保证一个词性分组对应一个纵向行。
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            // 按模型顺序逐条生成行。
+            // 按模型顺序逐组生成行。
             children: [
-              for (var index = 0; index < meanings.length; index += 1) ...[
+              for (var index = 0; index < groups.length; index += 1) ...[
                 // 行与行之间 6 像素间距。
                 if (index > 0) const SizedBox(height: 6),
-                // 单条 Meaning 行。
+                // 单个词性分组一行。
                 _MeaningRow(
-                  meaning: meanings[index],
+                  group: groups[index],
                   definitionSeparator: definitionSeparator,
                 ),
               ],
@@ -637,16 +637,16 @@ class _MeaningList extends StatelessWidget {
 }
 
 ///
-/// 单条 Meaning：36 宽右对齐斜体词性 + 释义。
+/// 单个词性分组：36 宽右对齐词性 + 该词性下的全部释义。
 ///
 class _MeaningRow extends StatelessWidget {
   ///
   /// 创建一条对齐行。
-  const _MeaningRow({required this.meaning, required this.definitionSeparator});
+  const _MeaningRow({required this.group, required this.definitionSeparator});
 
   ///
-  /// 当前 Meaning 数据。
-  final Meaning meaning;
+  /// 当前词性分组数据。
+  final MeaningGroup group;
 
   ///
   /// 同一词性下多条释义之间使用的符号。
@@ -667,8 +667,8 @@ class _MeaningRow extends StatelessWidget {
         SizedBox(
           width: 36,
           child: Text(
-            // 词性大写显示，空词性显示 '*'。
-            meaning.displayPos,
+            // 词性小写显示，空词性显示 '*'。
+            group.pos,
             textAlign: TextAlign.right,
             style: TextStyle(
               color: tokens.textSecondary,
@@ -685,8 +685,8 @@ class _MeaningRow extends StatelessWidget {
         // Expanded 让释义使用剩余宽度并自然换行。
         Expanded(
           child: Text(
-            // 一个 Meaning 的 definitions 使用首页设置中的全角标点连接。
-            meaning.definitions.join(definitionSeparator),
+            // 同词性下的多条释义使用首页设置中的全角标点连接。
+            group.joinedDefinitions(definitionSeparator),
             style: TextStyle(
               color: tokens.text,
               fontSize: 13.5,

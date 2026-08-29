@@ -12,7 +12,7 @@ import 'checkin_heatmap_card.dart';
 // 复习模式 2x2 网格。
 import 'review_mode_grid.dart';
 // 复习模块标识与三态进度模型。
-import '../../../../models/review_session.dart';
+import '../../../../models/session.dart';
 
 ///
 /// 首页上层仪表盘：问候 → 统计 → 趋势曲线 → 打卡卡片 → 复习模式入口。

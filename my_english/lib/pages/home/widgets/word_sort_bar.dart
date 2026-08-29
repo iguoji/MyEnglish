@@ -297,7 +297,7 @@ class _ActionText extends StatelessWidget {
 }
 
 ///
-/// 选择模式下的第二行工具：已选计数、全选、反选、移动、复制。
+/// 选择模式下的第二行工具：已选计数、全选、反选。
 ///
 class WordSelectionBar extends StatelessWidget {
   ///
@@ -306,8 +306,6 @@ class WordSelectionBar extends StatelessWidget {
     required this.selectedCount,
     required this.onSelectAll,
     required this.onInvertSelection,
-    required this.onMove,
-    required this.onCopy,
     super.key,
   });
 
@@ -324,23 +322,12 @@ class WordSelectionBar extends StatelessWidget {
   final VoidCallback onInvertSelection;
 
   ///
-  /// 移动所选到指定分组；没有选中时首页会忽略。
-  final VoidCallback onMove;
-
-  ///
-  /// 复制所选到指定分组；没有选中时首页会忽略。
-  final VoidCallback onCopy;
-
-  ///
   /// 输出与设计稿一致的选择工具行。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // 有选中时移动/复制用主色，否则用弱化色表示不可用。
-    final actionColor = selectedCount > 0 ? AppTokens.accent : tokens.check;
-
-    // Row 排列计数与四个动作。
+    // Row 排列计数与两个动作。
     return Row(
       children: [
         // 左侧计数与选择动作允许横向滚动，窄屏大字体时不溢出。
@@ -375,23 +362,6 @@ class WordSelectionBar extends StatelessWidget {
               ],
             ),
           ),
-        ),
-        // 左区与移动/复制之间的间距。
-        const SizedBox(width: 12),
-        // 移动所选单词。
-        _ActionText(
-          key: const Key('move-selected'),
-          label: '移动',
-          color: actionColor,
-          onTap: onMove,
-        ),
-        const SizedBox(width: 18),
-        // 复制所选单词。
-        _ActionText(
-          key: const Key('copy-selected'),
-          label: '复制',
-          color: actionColor,
-          onTap: onCopy,
         ),
       ],
     );

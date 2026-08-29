@@ -39,14 +39,10 @@ class HomeWordSorter {
 
   ///
   /// 按当前分组模式返回列表行显示和日期排序共同使用的时间。
-  DateTime? dateOf(Word word) => switch (mode) {
-    // 更新时间视角读取 updatedAt。
-    GroupMode.updated => word.updatedAt,
-    // 加入时间视角读取 createdAt。
-    GroupMode.added => word.createdAt,
-    // 自定义、难度和复习视角统一读取 reviewedAt。
-    _ => word.reviewedAt,
-  };
+  ///
+  /// 2.0 起日期一律看复习时间：它才是决定「这个词该不该再练」的字段，
+  /// 「更新时间 / 加入时间」两个视角已经下线。
+  DateTime? dateOf(Word word) => word.reviewedAt;
 
   ///
   /// 先按拼写过滤，再使用稳定的多级规则排序并返回新列表。
@@ -145,12 +141,9 @@ class HomeWordSorter {
   }
 
   ///
-  /// 比较难度；null 按业务约定视为 0。
+  /// 比较难度；难度是非空整数，最小 0。
   int _compareDifficulty(Word first, Word second, bool isAscending) {
-    // ?? 是空值合并运算符，null 时取默认值。
-    final comparison = (first.difficulty ?? 0).compareTo(
-      second.difficulty ?? 0,
-    );
+    final comparison = first.difficulty.compareTo(second.difficulty);
     // 应用当前方向。
     return _applyDirection(comparison, isAscending);
   }

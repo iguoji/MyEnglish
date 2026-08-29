@@ -3,82 +3,78 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // 引入数据模型。
+import 'package:my_english/models/session.dart';
+import 'package:my_english/models/session_record.dart';
 import 'package:my_english/models/meaning.dart';
-import 'package:my_english/models/review_session.dart';
 import 'package:my_english/models/word.dart';
 // 被测页面与其布局尺寸表。
 import 'package:my_english/pages/spelling_reinforcement/spelling_reinforcement_page.dart';
 import 'package:my_english/pages/spelling_reinforcement/widgets/spelling_layout.dart';
-// 音节服务：测试注入内存 Store，切法完全可控。
-import 'package:my_english/services/syllable_service.dart';
+import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/services/word_audio.dart';
 import 'package:my_english/store/settings.dart';
 
-import '../../support/memory_review_stores.dart';
-import '../../support/memory_syllable_store.dart';
-import '../../support/recording_review_record_store.dart';
+// 测试用内存会话 Store，避免触碰 MethodChannel。
+import '../../support/memory_session_store.dart';
 
 ///
-/// 造一个带单条中文释义的单词。
-Word _word(int id, String spelling, String definition) => Word(
-  id: id,
-  spelling: spelling,
-  meanings: [
-    Meaning(index: 0, pos: 'n.', definitions: [definition]),
-  ],
-);
+/// 造一个带单条中文释义的单词；[syllables] 直接给出切分方案，测试完全可控。
+///
+Word _word(int id, String spelling, String definition, {List<String> syllables = const <String>[]}) =>
+    Word(
+      id: id,
+      spelling: spelling,
+      meanings: <Meaning>[
+        Meaning(id: id * 100, pos: 'n.', definition: definition),
+      ],
+      syllables: syllables,
+    );
 
 ///
-/// 一局只含 tradition 的会话，切法固定为 tra / di / tion。
+/// 把页面装进 MaterialApp 并完成准备阶段。
 ///
-/// [state] 用于伪造「中途退出后的快照」，验证续玩分支。
-Future<RecordingReviewRecordStore> _pumpPage(
+/// [records] 传入历史点击记录用于续玩恢复；[cursor] 是上次保存的单词下标。
+///
+Future<MemorySessionStore> _pumpPage(
   WidgetTester tester, {
-  Map<String, Object?> state = const <String, Object?>{},
   List<Word>? words,
-  Map<String, List<String>> divisions = const <String, List<String>>{
-    'tradition': <String>['tra', 'di', 'tion'],
-  },
+  int cursor = 0,
+  List<SessionRecord> records = const <SessionRecord>[],
 }) async {
-  final store = InMemorySyllableStore();
-  for (final entry in divisions.entries) {
-    await store.saveDivision(entry.key, entry.value, 'algo');
-  }
-  final wordList = words ?? <Word>[_word(1, 'tradition', '传统')];
-  final session = ReviewSession(
+  final wordList =
+      words ??
+      <Word>[
+        _word(1, 'tradition', '传统', syllables: <String>['tra', 'di', 'tion']),
+      ];
+  final store = MemorySessionStore();
+  final session = Session(
     id: 1,
     module: ReviewModule.spellingReinforcement,
-    kind: ReviewSessionKind.daily,
-    status: ReviewSessionStatus.active,
+    kind: SessionKind.daily,
+    status: SessionStatus.active,
     wordSetId: 1,
-    wordIds: wordList.map((word) => word.id!).toList(),
-    state: state,
-    wrongTotal: 0,
-    sessionDate: '2026-08-25',
+    items: <int>[for (final word in wordList) word.id!],
+    cursor: cursor,
+    elapsed: 0,
+    date: '2026-08-25',
     createdAt: DateTime.now(),
   );
-  final records = RecordingReviewRecordStore();
+  final progress = SessionProgress(store: store, session: session, records: records);
   await tester.pumpWidget(
     MaterialApp(
       home: SpellingReinforcementPage(
         words: wordList,
         title: '拼写巩固',
-        reviewSession: session,
+        progress: progress,
         audioPlayer: _SilentAudioPlayer(),
         accent: PronunciationAccent.american,
-        reviewSessionStore: MemoryReviewSessionStore(
-          // 把这一局塞进内存 Store，页面保存进度时才找得到它。
-          initial: <ReviewSession>[session],
-        ),
-        recordStore: records,
-        syllableService: SyllableService(store),
       ),
     ),
   );
-  // 切分方案是异步取的，多泵几帧让准备阶段结束。
+  // 准备当前词是异步的，多泵几帧让切分方案与候选池就绪。
   await tester.pump();
   await tester.pump();
-  return records;
+  return store;
 }
 
 void main() {
@@ -115,11 +111,9 @@ void main() {
   testWidgets('逐字母模式的字母格保持 40×40 并排列在同一行', (tester) async {
     await _pumpPage(
       tester,
-      words: <Word>[_word(2, 'bowl', '碗')],
-      divisions: const <String, List<String>>{
-        // 拆不开的词：整词一块，页面应落到逐字母模式。
-        'bowl': <String>['bowl'],
-      },
+      words: <Word>[
+        _word(2, 'bowl', '碗', syllables: <String>['bowl']),
+      ],
     );
 
     final rects = <Rect>[
@@ -149,90 +143,55 @@ void main() {
     }
   });
 
-  testWidgets('续玩时恢复当前词已填的格子', (tester) async {
-    await _pumpPage(
+  testWidgets('续玩：已答对的词直接跳过，当前词从开头重新开始', (tester) async {
+    // 用户此前拼完了 tradition，退出时停在第二个词 bowl。
+    final store = await _pumpPage(
       tester,
-      state: <String, Object?>{
-        'wordIndex': 0,
-        // 上次退出前已经填对了 tra、di 两格。
-        'filledChunks': 2,
-        'typedLetters': '',
-        'currentWrong': 0,
-        'currentRevealed': false,
-        'outcomes': <Object?>[],
-        'recordedIndexes': <Object?>[],
-        'elapsedMs': 0,
-        'errors': 0,
-        'completed': false,
-      },
+      words: <Word>[
+        _word(1, 'tradition', '传统', syllables: <String>['tra', 'di', 'tion']),
+        _word(2, 'bowl', '碗', syllables: <String>['bowl']),
+      ],
+      cursor: 1,
+      records: const <SessionRecord>[
+        SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'tradition', isCorrect: true),
+      ],
     );
 
-    expect(find.text('tra'), findsWidgets, reason: '第一格应恢复成 tra');
-    expect(
-      tester.widget<Text>(
-        find.descendant(
-          of: find.byKey(const Key('spelling-slot-0')),
-          matching: find.byType(Text),
-        ),
-      ).data,
-      'tra',
-    );
-    expect(
-      tester.widget<Text>(
-        find.descendant(
-          of: find.byKey(const Key('spelling-slot-1')),
-          matching: find.byType(Text),
-        ),
-      ).data,
-      'di',
-    );
-    // 第三格还没填，保持空白。
-    expect(
-      tester.widget<Text>(
-        find.descendant(
-          of: find.byKey(const Key('spelling-slot-2')),
-          matching: find.byType(Text),
-        ),
-      ).data,
-      '',
-    );
+    // 当前词是 bowl：4 个逐字母占位格。
+    expect(find.byKey(const Key('spelling-slot-3')), findsOneWidget);
+    // 已答对的 tradition 不会重复出题（tra 片段不在候选池里）。
+    expect(find.text('tra'), findsNothing);
+    // 页面没有异常。
+    expect(tester.takeException(), isNull);
+    // tradition 已写入结算（答对记录），bowl 尚未结算。
+    expect(store.settles.map((settle) => settle.wordId), isNot(contains(1)));
   });
 
-  testWidgets('续玩到「格子已填满但还没翻页」的快照时不崩溃且能继续', (tester) async {
-    // 用户在最后一格填完、翻页停顿的 0.5 秒内退出，快照里 filledChunks 已等于片段数。
-    final records = await _pumpPage(
+  testWidgets('续玩：当前词拼了一半不恢复，错误次数继续累计', (tester) async {
+    // 用户上一局在 tradition 上点错过一块（input 记的是那块的文本）。
+    await _pumpPage(
       tester,
-      state: <String, Object?>{
-        'wordIndex': 0,
-        'filledChunks': 3,
-        'typedLetters': '',
-        'currentWrong': 0,
-        'currentRevealed': false,
-        'outcomes': <Object?>[],
-        'recordedIndexes': <Object?>[],
-        'elapsedMs': 0,
-        'errors': 0,
-        'completed': false,
-      },
+      cursor: 0,
+      records: const <SessionRecord>[
+        SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'tra', isCorrect: false),
+      ],
     );
 
-    // 此时点任意一个候选片段都不该抛异常（干扰项还是可点的）。
-    for (var i = 0; i < 9; i += 1) {
-      final chunk = find.byKey(Key('spelling-chunk-$i'));
-      if (chunk.evaluate().isEmpty) continue;
-      await tester.tap(chunk, warnIfMissed: false);
-      // 判错会锁输入 350 毫秒，泵够时间再点下一个，否则后面的点击会被忽略。
-      await tester.pump(
-        const Duration(milliseconds: SpellingLayout.shakeDurationMs + 50),
-      );
-      expect(tester.takeException(), isNull, reason: '第 $i 个候选片段点击后抛异常');
-    }
-
-    // 而且这一局要能自己走完，不能卡在填满的状态里。
-    await tester.pump(
-      const Duration(milliseconds: SpellingLayout.wordAdvanceDelayMs + 200),
+    // 占位格从空白重新开始（v2.0 不恢复「拼了一半」的现场）。
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(const Key('spelling-slot-0')),
+              matching: find.byType(Text),
+            ),
+          )
+          .data,
+      '',
+      reason: '续玩应从当前词的开头重新拼',
     );
-    expect(records.writes, isNotEmpty, reason: '填满的词应当被判定完成并写记录');
+    // 页面仍可正常作答，不抛异常。
+    expect(tester.takeException(), isNull);
   });
 }
 

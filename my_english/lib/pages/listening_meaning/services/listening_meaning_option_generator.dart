@@ -138,15 +138,14 @@ abstract final class ListeningMeaningOptionGenerator {
         .toSet();
     // 集合保证同一释义在多个单词中出现时只作为一个候选项。
     final distractors = <String>{};
-    // 展平 Word -> Meaning -> definitions 三层数据，得到首页词库的全部释义；
+    // 展平 Word -> Meaning 两层数据，得到首页词库的全部释义；
     // 当前单词自身的全部含义直接剔除，避免拿它的其他含义当混淆项。
     final sourceDefinitions = <String>[
       for (final word in sourceWords)
-        for (final meaning in word.meanings)
-          for (final definition in meaning.definitions)
-            if (definition.trim().isNotEmpty &&
-                !normalizedExcluded.contains(definition.trim()))
-              definition.trim(),
+        for (final meaning in word.allMeanings)
+          if (meaning.definition.trim().isNotEmpty &&
+              !normalizedExcluded.contains(meaning.definition.trim()))
+            meaning.definition.trim(),
     ];
     // 同字数优先，其次才比较编辑距离与公共前缀。
     for (final definition in _rankBySimilarity(

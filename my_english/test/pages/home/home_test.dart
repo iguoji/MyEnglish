@@ -14,7 +14,7 @@ import 'package:my_english/common/theme.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
-import 'package:my_english/models/learning_session.dart';
+import 'package:my_english/models/session.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入两个学习页，核对它们收到的单词快照与首页完全一致。
@@ -29,11 +29,9 @@ import 'package:my_english/services/word_audio_cache.dart';
 // 引入口音与设置 Store，验证播放参数和设置面板。
 import 'package:my_english/store/settings.dart';
 // 引入 Store 接口，测试会提供不依赖 Android 的内存实现。
-import 'package:my_english/store/learning_session.dart';
 import 'package:my_english/store/word.dart';
 
-import '../../support/memory_learning_session_store.dart';
-import '../../support/memory_review_stores.dart';
+import '../../support/memory_session_store.dart';
 
 ///
 /// 注册首页 Widget 测试。
@@ -660,18 +658,18 @@ void main() {
   testWidgets('duplicate spelling rows expand independently', (tester) async {
     // 两个 Word 故意使用相同 spelling，但主键和 Meaning 不同。
     final words = <Word>[
-      const Word(
+      Word(
         id: 11,
         spelling: 'same',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['第一条']),
+          Meaning(pos: 'n.', definition: '第一条'),
         ],
       ),
-      const Word(
+      Word(
         id: 12,
         spelling: 'same',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'v.', definitions: <String>['第二条']),
+          Meaning(pos: 'v.', definition: '第二条'),
         ],
       ),
     ];
@@ -716,7 +714,7 @@ void main() {
         reviewedAt: DateTime(2026, 6, 1),
       ),
       // 第三个单词故意没有难度和日期，难度层按 0 参与比较。
-      const Word(id: 23, spelling: 'middle'),
+      Word(id: 23, spelling: 'middle'),
     ];
     // 使用稳定测试数据打开首页。
     await _pumpHome(tester, words: words);
@@ -789,9 +787,9 @@ void main() {
         reviewedAt: DateTime(2026, 5, 1),
       ),
       // 无复习时间，与 bravo 同组后比拼写。
-      const Word(id: 33, spelling: 'echo', difficulty: 5),
+      Word(id: 33, spelling: 'echo', difficulty: 5),
       // 无复习时间，拼写字母序在 echo 之前。
-      const Word(id: 34, spelling: 'bravo', difficulty: 5),
+      Word(id: 34, spelling: 'bravo', difficulty: 5),
     ];
     // 打开首页。
     await _pumpHome(tester, words: sameDifficultyWords);
@@ -904,7 +902,7 @@ void main() {
           difficulty: 3,
         ),
       // 第二个难度值用于确认页面确实生成了多个独立吸顶区块。
-      const Word(id: 100, spelling: 'lower', difficulty: 2),
+      Word(id: 100, spelling: 'lower', difficulty: 2),
     ];
     // 用长列表打开首页。
     await _pumpHome(tester, words: words);
@@ -1428,17 +1426,17 @@ void main() {
     tester,
   ) async {
     // catch 的两个词性分别位于第六、第七项，可覆盖用户实际遇到的隐藏情况。
-    const catchWord = Word(
+    final catchWord = Word(
       id: 100,
       spelling: 'catch',
       meanings: <Meaning>[
-        Meaning(index: 3, pos: 'vt.', definitions: <String>['抓住']),
-        Meaning(index: 2, pos: 'n.', definitions: <String>['捕获']),
-        Meaning(index: 1, pos: 'vi. vt.', definitions: <String>['接住']),
+        Meaning(pos: 'vt.', definition: '抓住'),
+        Meaning(pos: 'n.', definition: '捕获'),
+        Meaning(pos: 'vi. vt.', definition: '接住'),
       ],
     );
     // 只放入 catch，方便稳定找到它对应的左滑编辑按钮。
-    await _pumpHome(tester, words: const <Word>[catchWord]);
+    await _pumpHome(tester, words: <Word>[catchWord]);
     await tester.drag(find.text('catch'), const Offset(-80, 0));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('swipe-edit')));
@@ -1597,25 +1595,22 @@ void main() {
   testWidgets('flat learning actions expose and restore saved sessions', (
     tester,
   ) async {
-    // 两种学习方式都准备一条未完成记录；随身听列表故意使用与首页相反的顺序。
-    final sessionStore = MemoryLearningSessionStore(<LearningSession>[
-      const LearningSession(
-        type: LearningSessionType.listening,
-        wordIds: <int>[2, 1],
-        state: <String, Object?>{
-          'index': 1,
-          'isPlaying': false,
-          'repeat': 2,
-          'interval': 2,
-          'loop': true,
-        },
-      ),
-      const LearningSession(
-        type: LearningSessionType.listeningMeaning,
-        wordIds: <int>[1, 2],
-        state: <String, Object?>{'wordIndex': 0, 'stage': 'word'},
-      ),
-    ]);
+    // 两种学习方式都准备一条进行中的会话；随身听列表故意使用与首页相反的顺序。
+    final sessionStore = MemorySessionStore();
+    await sessionStore.createSession(
+      module: ReviewModule.listening,
+      kind: SessionKind.reinforce,
+      wordSetId: null,
+      items: const <int>[2, 1],
+      date: '2026-08-29',
+    );
+    await sessionStore.createSession(
+      module: ReviewModule.listeningMeaning,
+      kind: SessionKind.reinforce,
+      wordSetId: null,
+      items: const <int>[1, 2],
+      date: '2026-08-29',
+    );
     await _pumpHome(tester, sessionStore: sessionStore);
 
     // 两个平铺入口的右侧都直接显示独立继续按钮。
@@ -1654,7 +1649,7 @@ void main() {
     tester,
   ) async {
     // 故意使用与字母升序不同的原始顺序，避免测试仅因默认数据巧合通过。
-    const words = <Word>[
+    final words = <Word>[
       Word(id: 21, spelling: 'zebra'),
       Word(id: 22, spelling: 'apple'),
       Word(id: 23, spelling: 'middle'),
@@ -1699,7 +1694,7 @@ void main() {
     tester,
   ) async {
     // 原数据与上一用例一致。
-    const words = <Word>[
+    final words = <Word>[
       Word(id: 21, spelling: 'zebra'),
       Word(id: 22, spelling: 'apple'),
       Word(id: 23, spelling: 'middle'),
@@ -1852,9 +1847,7 @@ Future<void> _pumpHome(
   List<Word>? words,
   SettingsStore? settings,
   WordAudioPlayer? audioPlayer,
-  LearningSessionStore? sessionStore,
-  MemoryDailyWordSetStore? wordSetStore,
-  MemoryReviewSessionStore? reviewSessionStore,
+  MemorySessionStore? sessionStore,
   bool expandWordLibrary = true,
 }) async {
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
@@ -1870,10 +1863,7 @@ Future<void> _pumpHome(
         // 默认注入静音播放器，避免点击行时访问不存在的原生通道。
         audioPlayer: audioPlayer ?? _SilentAudioPlayer(),
         // 默认使用空内存会话，避免 Widget 测试依赖 Android MethodChannel。
-        sessionStore: sessionStore ?? MemoryLearningSessionStore(),
-        // 复习词库与会话同样走内存实现，首页三态与开局流程可在测试中完整跑通。
-        wordSetStore: wordSetStore ?? MemoryDailyWordSetStore(),
-        reviewSessionStore: reviewSessionStore ?? MemoryReviewSessionStore(),
+        sessionStore: sessionStore ?? MemorySessionStore(),
       ),
     ),
   );
@@ -1930,10 +1920,10 @@ List<Word> _sampleWords() {
       difficulty: 3,
       createdAt: DateTime(2025, 7, 26),
       meanings: const <Meaning>[
-        // index 较大的名词 Meaning 显示在前。
-        Meaning(index: 2, pos: 'n.', definitions: <String>['能力', '才能']),
-        // 第二个 Meaning 独占下一行。
-        Meaning(index: 1, pos: 'adj.', definitions: <String>['能干的']),
+        // 名词释义显示在前。
+        Meaning(id: 101, pos: 'n.', definition: '能力'),
+        Meaning(id: 102, pos: 'n.', definition: '才能'),
+        Meaning(id: 103, pos: 'adj.', definition: '能干的'),
       ],
     ),
     // 第二条没有难度。
@@ -1983,23 +1973,15 @@ class _MemoryWordStore implements WordStore {
     }
     // 新主键。
     final newId = maxId + 1;
-    // 带主键落入内存；分组直接沿用传入的 groupIds 列表。
+    // 带主键落入内存；只复制 2.0 结构里仍然存在的字段。
     _words.add(
       Word(
         id: newId,
         spelling: word.spelling,
-        meanings: word.meanings,
+        meanings: word.allMeanings,
         difficulty: word.difficulty,
-        phoneticUk: word.phoneticUk,
-        phoneticUs: word.phoneticUs,
-        plural: word.plural,
-        thirdPersonSingular: word.thirdPersonSingular,
-        gerund: word.gerund,
-        pastTense: word.pastTense,
-        pastParticiple: word.pastParticiple,
-        comparative: word.comparative,
-        superlative: word.superlative,
-        groupIds: word.groupIds,
+        confusions: word.confusions,
+        syllables: word.syllables,
         reviewedAt: word.reviewedAt,
         createdAt: word.createdAt ?? DateTime.now(),
         updatedAt: word.updatedAt ?? DateTime.now(),
@@ -2065,13 +2047,33 @@ class _MemoryWordStore implements WordStore {
   /// 组装内存测试所需的最小导出结构。
   @override
   Future<Map<String, Object?>> exportData() async => <String, Object?>{
-    'words': _words.map((word) => word.toExportMap()).toList(),
+    'words': _words.map((word) => word.toMap()).toList(),
     'groups': const <Object?>[],
     'members': const <Object?>[],
   };
 
   ///
   /// 清空全部内存单词。
+  @override
+  Future<List<Word>> getByMeaningIds(List<int> meaningIds) async =>
+      <Word>[];
+
+  @override
+  Future<void> saveWordConfusions(int wordId, List<String> confusions) async {}
+
+  @override
+  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) async {}
+
+  @override
+  Future<void> saveWordSyllables(int wordId, List<String> syllables) async {}
+
+  @override
+  Future<List<int>> pickWords({
+    required int limit,
+    List<int> exclude = const <int>[],
+    PickLayer layer = PickLayer.stale,
+  }) async => const <int>[];
+
   @override
   Future<void> clearAll() async {
     // 清空内部列表。
@@ -2099,6 +2101,34 @@ class _ThrowingWordStore implements WordStore {
   }
 
   ///
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<List<Word>> getByMeaningIds(List<int> meaningIds) async =>
+      throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<void> saveWordConfusions(int wordId, List<String> confusions) async =>
+      throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) async =>
+      throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<void> saveWordSyllables(int wordId, List<String> syllables) async =>
+      throw UnimplementedError();
+
+  /// 其余接口不属于本测试流程。
+  @override
+  Future<List<int>> pickWords({
+    required int limit,
+    List<int> exclude = const <int>[],
+    PickLayer layer = PickLayer.stale,
+  }) async => throw UnimplementedError();
+
   /// 其余接口不属于本测试流程。
   @override
   Future<List<Word>> getByIds(List<int> ids) async =>

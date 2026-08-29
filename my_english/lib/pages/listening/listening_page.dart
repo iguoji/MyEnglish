@@ -12,16 +12,12 @@ import '../../common/theme.dart';
 import '../../common/toast.dart';
 // 引入单词数据模型。
 import '../../models/word.dart';
-// 引入可恢复的学习会话模型。
-import '../../models/learning_session.dart';
-// 引入统一的字段解析辅助函数。
-import '../../models/model_value_parser.dart';
 // 引入可替换的单词发音服务。
 import '../../services/word_audio.dart';
 // 引入口音设置。
 import '../../store/settings.dart';
-// 引入学习会话 Store，把当前播放列表与进度持久化到 SQLite。
-import '../../store/learning_session.dart';
+// 引入会话进度出口，把当前播放到第几个持久化到 SQLite。
+import '../review/services/session_progress.dart';
 // 引入答案卡正文组件。
 import 'widgets/listening_answer_content.dart';
 // 引入搜索框、图标按钮、设置行和播放控制按钮。
@@ -41,10 +37,8 @@ class ListeningPage extends StatefulWidget {
   const ListeningPage({
     required this.words,
     required this.audioPlayer,
-    required this.accent,
-    this.initialSession,
-    this.sessionStore,
-    this.definitionSeparator = '、',
+    required this.settings,
+    this.progress,
     super.key,
   }) : assert(words.length > 0, '随身听至少需要一个单词');
 
@@ -57,20 +51,17 @@ class ListeningPage extends StatefulWidget {
   final WordAudioPlayer audioPlayer;
 
   ///
-  /// 当前设置中的美式或英式口音。
-  final PronunciationAccent accent;
+  /// 全局设置：口音、释义分隔符，以及随身听自己的播放偏好都从这里读。
+  ///
+  /// 2.0 起「重复几遍 / 间隔几秒 / 是否循环 / 是否展开释义」都住在设置表，
+  /// 而不再塞进会话快照——它们是长期习惯，不是某一局的进度。
+  final SettingsStore settings;
 
   ///
-  /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新随身听。
-  final LearningSession? initialSession;
-
+  /// 本轮会话的进度出口；null 表示不持久化（纯预览或测试）。
   ///
-  /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
-  final LearningSessionStore? sessionStore;
-
-  ///
-  /// 同一词性下多条中文释义之间使用的全角分隔符。
-  final String definitionSeparator;
+  /// 随身听是被动听、没有对错，所以它只写「播到第几个」，不写会话记录。
+  final SessionProgress? progress;
 
   ///
   /// 创建随身听页面状态。
@@ -151,19 +142,6 @@ class _ListeningPageState extends State<ListeningPage>
   Completer<void>? _countdownCompleter;
 
   ///
-  /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
-  LearningSessionStore get _sessionStore =>
-      widget.sessionStore ?? LocalLearningSessionStore.instance;
-
-  ///
-  /// 当前页面的会话持久化入口。
-  LearningSessionPersistence get _sessionPersistence =>
-      LearningSessionPersistence(
-        store: _sessionStore,
-        type: LearningSessionType.listening,
-      );
-
-  ///
   /// 当前正在播放的单词。
   Word get _currentWord => widget.words[_index];
 
@@ -196,72 +174,57 @@ class _ListeningPageState extends State<ListeningPage>
   }
 
   ///
-  /// 从构造参数恢复上次状态；每个字段都限制在当前页面的合法范围内。
+  /// 从会话恢复上次播到第几个；每个字段都限制在当前页面的合法范围内。
+  ///
+  /// 2.0 起随身听的**播放偏好**（重复遍数、间隔、循环、展开释义）住在设置表，
+  /// 由 [ListeningPage.settings] 提供；会话里只留「播到第几个」这一个进度。
   void _restoreInitialSession() {
-    // 新开始没有历史状态，保留字段默认值。
-    final session = widget.initialSession;
-    if (session == null || session.type != LearningSessionType.listening) {
-      return;
-    }
-    // state 是持久化的进度快照，字段由随身听页面自己解释。
-    final state = session.state;
-    // 当前下标不能超过恢复后的实际列表长度。
-    _index = readIntOrFallback(
-      state['index'],
-      fallback: 0,
-    ).clamp(0, widget.words.length - 1);
-    // 播放次数与间隔继续遵守设置面板原有边界。
-    _repeat = readIntOrFallback(state['repeat'], fallback: 2).clamp(1, 9);
-    _interval = readIntOrFallback(
-      state['interval'],
-      fallback: 2,
-    ).clamp(1, 10);
-    // 已完成重复次数不能达到 repeat，否则恢复时应直接推进到下一词。
-    _completedRepeats = readIntOrFallback(
-      state['completedRepeats'],
-      fallback: 0,
-    ).clamp(0, _repeat - 1);
-    // 倒计时属于瞬时状态，恢复时从完整间隔重新开始，避免显示过期秒数。
+    // 播放偏好一律来自设置表，这样在哪台设备打开都是同一套习惯。
+    _repeat = widget.settings.listeningRepeat;
+    _interval = widget.settings.listeningInterval;
+    _loop = widget.settings.listeningLoop;
+    _revealAll = widget.settings.listeningRevealAll;
+    // 倒计时属于瞬时状态，进入时从完整间隔重新开始，避免显示过期秒数。
     _remainingSeconds = _interval;
-    // 布尔设置只有类型正确时才采用，坏数据回退到页面默认值。
-    _isPlaying = state['isPlaying'] is bool
-        ? state['isPlaying']! as bool
-        : true;
-    _revealAll = state['revealAll'] is bool
-        ? state['revealAll']! as bool
-        : false;
-    _loop = state['loop'] is bool ? state['loop']! as bool : true;
-    // 已完成会话在完成时已经删除，因此恢复页始终属于未完成状态。
+
+    // 全新一轮没有历史进度，保留字段默认值。
+    final session = widget.progress?.session;
+    if (session == null) return;
+    // 当前下标不能超过实际列表长度。
+    _index = session.cursor.clamp(0, widget.words.length - 1);
+    // 已完成会话不会被恢复，因此恢复页始终属于未完成状态。
     _isFinished = false;
   }
 
   ///
-  /// 把当前页面状态写入本地；没有完整数据库主键的测试数据不创建无效历史。
-  Future<void> _persistSession() => _sessionPersistence.save(
-    // 只传主键，恢复时首页会从最新词库重新组装 Word 模型。
-    wordIds: widget.words.map((word) => word.id),
-    // state 对应当前页面需要恢复的全部可持续字段。
-    state: <String, Object?>{
-      // 保存当前播放列表下标。
-      'index': _index,
-      // 保存当前单词已经完成的播放轮数。
-      'completedRepeats': _completedRepeats,
-      // 保存离开页面前的播放或暂停状态。
-      'isPlaying': _isPlaying,
-      // 保存答案是否处于永久显示状态。
-      'revealAll': _revealAll,
-      // 保存每个单词的目标播放次数。
-      'repeat': _repeat,
-      // 保存两次发音之间的秒数。
-      'interval': _interval,
-      // 保存播放列表是否循环。
-      'loop': _loop,
-    },
-  );
+  /// 把随身听的四个播放偏好写回设置表。
+  ///
+  /// 设置面板里改一个值就整体写一次：这四项都很小，逐个判断哪个变了
+  /// 反而更容易漏；Store 内部本来就会跳过「值没变」的写入。
+  Future<void> _persistListeningPreferences() async {
+    await widget.settings.setListeningRepeat(_repeat);
+    await widget.settings.setListeningInterval(_interval);
+    await widget.settings.setListeningLoop(_loop);
+  }
 
   ///
-  /// 正常播完后删除会话；删除失败只影响首页入口，不影响完成状态。
-  Future<void> _deleteSession() => _sessionPersistence.delete();
+  /// 把「播到第几个」写回会话表；没有会话（预览/测试）时什么也不做。
+  Future<void> _persistSession() async {
+    final progress = widget.progress;
+    if (progress == null) return;
+    // 随身听没有计时需求，已用时间恒为 0。
+    await progress.save(cursor: _index, elapsed: 0);
+  }
+
+  ///
+  /// 整轮播完后给这一局收尾。
+  ///
+  /// 随身听没有对错，只要走完一遍就算「完成」。
+  Future<void> _deleteSession() async {
+    final progress = widget.progress;
+    if (progress == null) return;
+    await progress.finish(perfect: true, cursor: widget.words.length);
+  }
 
   ///
   /// 启动一个新的异步播放循环。
@@ -280,7 +243,7 @@ class _ListeningPageState extends State<ListeningPage>
       // 音频调用可能被用户中断或因网络失败抛出异常。
       try {
         // 播放当前拼写；Future 在原生音频结束后完成。
-        await widget.audioPlayer.play(_currentWord.spelling, widget.accent);
+        await widget.audioPlayer.play(_currentWord.spelling, widget.settings.accent);
         // TTS 是成功播放后的来源提示，同一页面只提示一次。
         if (!_hasShownTtsNotice &&
             await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
@@ -582,9 +545,9 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// 生活化解释：通知栏空间有限，只展示“第一个意思”做提示，完整释义仍在 App 内查看。
   String get _currentSubtitle {
-    // 遍历该单词的全部词性，命中第一条有释义的即可。
-    for (final meaning in _currentWord.meanings) {
-      if (meaning.definitions.isNotEmpty) return meaning.definitions.first;
+    // 遍历该单词的全部释义，命中第一条非空的即可。
+    for (final meaning in _currentWord.allMeanings) {
+      if (meaning.definition.trim().isNotEmpty) return meaning.definition;
     }
     return '';
   }
@@ -609,10 +572,11 @@ class _ListeningPageState extends State<ListeningPage>
           ///
           /// 同时更新播放页状态、恢复缓存和当前设置面板。
           void update(VoidCallback change) {
-            // 更新页面长期保存的播放设置。
+            // 更新页面上正在显示的播放设置。
             setState(change);
-            // 播放次数、间隔和循环开关都属于恢复状态，调整后立即持久化。
-            unawaited(_persistSession());
+            // 播放次数、间隔和循环开关是长期习惯而不是某一局的进度，
+            // 2.0 起统一写进设置表，换台设备打开也是同一套。
+            unawaited(_persistListeningPreferences());
             // 再通知当前弹层路由立即重绘控件值。
             setSheetState(() {});
           }
@@ -1107,7 +1071,7 @@ class _ListeningPageState extends State<ListeningPage>
                     child: ListeningAnswerContent(
                       word: _currentWord,
                       tokens: tokens,
-                      definitionSeparator: widget.definitionSeparator,
+                      definitionSeparator: widget.settings.definitionSeparator.symbol,
                       revealed: showAnswer,
                     ),
                   ),
@@ -1126,6 +1090,8 @@ class _ListeningPageState extends State<ListeningPage>
                   onTap: () {
                     // 切换长期显示答案。
                     setState(() => _revealAll = !_revealAll);
+                    // 「是否展开释义」同样属于长期偏好，写进设置表。
+                    unawaited(widget.settings.setListeningRevealAll(_revealAll));
                     // 下次继续时保持用户当前的答案显示偏好。
                     unawaited(_persistSession());
                   },

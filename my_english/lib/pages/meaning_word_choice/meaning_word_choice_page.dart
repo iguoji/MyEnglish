@@ -10,22 +10,14 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入应用设计令牌。
 import '../../common/theme.dart';
-// 引入统一的字段解析辅助函数。
-import '../../models/model_value_parser.dart';
-// 引入复习会话模型：模块枚举、会话状态。
-import '../../models/review_session.dart';
 // 引入单词模型。
 import '../../models/word.dart';
 // 引入音频播放接口：点击候选词或气泡单词时朗读。
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
 import '../../store/settings.dart';
-// 引入复习记录 Store：一轮完成后写入结果。
-import '../../store/review_record.dart';
-// 引入复习会话 Store。
-import '../../store/review_session.dart';
 // 引入复习模块共用的进度出口：负责把快照落进今天的会话。
-import '../review/services/session_progress_sink.dart';
+import '../review/services/session_progress.dart';
 // 引入含义序列与候选词构建服务。
 import 'services/meaning_word_choice_round_builder.dart';
 // 引入看义选词页面集中管理的布局尺寸。
@@ -95,11 +87,9 @@ class MeaningWordChoicePage extends StatefulWidget {
   const MeaningWordChoicePage({
     required this.words,
     required this.title,
-    required this.reviewSession,
+    required this.progress,
     required this.audioPlayer,
     required this.accent,
-    this.reviewSessionStore,
-    this.recordStore,
     super.key,
   }) : assert(words.length > 0, '看义选词至少需要一个单词');
 
@@ -112,11 +102,11 @@ class MeaningWordChoicePage extends StatefulWidget {
   final String title;
 
   ///
-  /// 本局复习会话，由首页的 ReviewFlow 判定后传入。
+  /// 本局的进度出口，由首页的 ReviewFlow 判定后传入。
   ///
-  /// 它同时决定三件事：进度存到哪一局、复习记录归到哪一局，
+  /// 它同时决定三件事：进度存到哪一局、每次点击记到哪一局，
   /// 以及答题要不要推进单词的复习时间（巩固局不推进）。
-  final ReviewSession reviewSession;
+  final SessionProgress progress;
 
   ///
   /// 与首页、随身听共用的发音服务：点击候选词或单词气泡时朗读。
@@ -125,14 +115,6 @@ class MeaningWordChoicePage extends StatefulWidget {
   ///
   /// 当前发音口音。
   final PronunciationAccent accent;
-
-  ///
-  /// 复习会话存储；正式环境使用 SQLite，测试可注入内存实现。
-  final ReviewSessionStore? reviewSessionStore;
-
-  ///
-  /// 复习记录存储；每完成一轮含义写一批记录。
-  final ReviewRecordStore? recordStore;
 
   @override
   State<MeaningWordChoicePage> createState() => _MeaningWordChoicePageState();
@@ -143,14 +125,11 @@ class MeaningWordChoicePage extends StatefulWidget {
 class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   ///
-  /// 进度出口：看义选词只会从首页复习模块进入，因此固定写复习会话。
-  late final ReviewSessionProgressSink _progress;
+  /// 本局进度的落盘出口。
+  SessionProgress get _progress => widget.progress;
 
   ///
   /// 记录 Store；正式环境用全局 SQLite 实现，测试可注入内存实现。
-  ReviewRecordStore get _recordStore =>
-      widget.recordStore ?? LocalReviewRecordStore.instance;
-
   ///
   /// 按单词主键反查拼写与模型；开局构建一次，恢复与渲染都用它。
   late final Map<int, Word> _wordsById;
@@ -172,13 +151,13 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   Set<int> _disabledIds = <int>{};
 
   /// 全局被点错过的单词主键，结算页「需加强」名单用。
-  Set<int> _disabledWordIds = <int>{};
+  final Set<int> _disabledWordIds = <int>{};
 
   /// 每轮答错次数（下标对齐 [_rounds]），结算页「一次选对」统计用。
   List<int> _roundWrongCounts = <int>[];
 
   /// 已写过复习记录的单词主键，防止续玩后重复写入。
-  Set<int> _recordedWordIds = <int>{};
+  final Set<int> _recordedWordIds = <int>{};
 
   /// 本局累计答错次数；同时是会话的 wrongTotal。
   int _errors = 0;
@@ -242,98 +221,88 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       for (final word in widget.words)
         if (word.id != null) word.id!: word,
     };
-    // 进度出口固定写复习会话。
-    _progress = ReviewSessionProgressSink(
-      store: widget.reviewSessionStore ?? LocalReviewSessionStore.instance,
-      session: widget.reviewSession,
-    );
-    // 先恢复历史进度（可能直接恢复到已结算状态）。
+    // 答题序列直接来自会话的数据列表，现场由点击记录回放得出。
     _restoreProgress();
-    // 全新一局：构建答题序列并开始第一轮。
-    if (_rounds.isEmpty) {
-      _rounds = MeaningWordChoiceRoundBuilder.buildRounds(widget.words);
-      _roundWrongCounts = List<int>.filled(_rounds.length, 0);
+    if (_progress.allRecords.isEmpty) {
+      // 全新一局：从第一轮开始。
       _startRound(0);
     } else {
-      // 恢复进度后重建聊天区气泡，并进入恢复出的当前轮。
+      // 续玩：重建聊天区气泡，并进入恢复出的当前轮。
       _rebuildBubbles();
-      if (!_completed && !_allRoundsDone) _startElapsedTimer();
+      if (!_completed && !_allRoundsDone) {
+        _startRound(_roundIndex, resume: true);
+        _startElapsedTimer();
+      }
     }
-    // 首次进入也要落一次快照：用户立刻退出时首页才能显示「继续」。
+    // 首次进入也要落一次进度：用户立刻退出时首页才能显示「进行中」。
     unawaited(_persist());
   }
 
   /// ===== 会话恢复 =====
 
   ///
-  /// 从会话快照恢复本局进度；坏数据一律按「全新一局」兜底。
+  /// 从会话与点击记录恢复本局进度。
+  ///
+  /// 2.0 起答题序列不再存快照，而是由会话的**数据列表**（一串含义主键）
+  /// 直接还原；「哪些轮已经答完、当前这轮点错过哪些候选」则回放点击记录得出。
+  /// 这样就不存在「快照结构变了旧数据没法恢复」的问题。
   void _restoreProgress() {
-    final state = _progress.initialState;
-    if (state.isEmpty) return;
-    // 快照版本不符说明结构已变，旧数据没有恢复价值。
-    if (readIntOrFallback(state['version'], fallback: 0) != 1) return;
-
-    // 恢复答题序列；解析不出任何一轮时按全新一局处理。
-    final rawRounds = state['rounds'];
-    if (rawRounds is List) {
-      _rounds = <MeaningWordChoiceRound>[
-        for (final item in rawRounds)
-          if (item is Map)
-            MeaningWordChoiceRound.fromJson(Map<Object?, Object?>.from(item)),
-      ];
-    }
+    // 数据列表就是打乱后的答题顺序，开局时已经定好并落库。
+    _rounds = MeaningWordChoiceRoundBuilder.buildRoundsFromMeaningIds(
+      _progress.session.idItems,
+      widget.words,
+    );
     if (_rounds.isEmpty) return;
+    _roundWrongCounts = List<int>.filled(_rounds.length, 0);
 
-    // 已结算过的快照不恢复答题状态，直接进结算页。
-    _completed = state['completed'] == true;
-    // 当前轮下标钳制在合法区间，防止旧快照越界。
-    _roundIndex = readIntOrFallback(
-      state['roundIndex'],
-      fallback: 0,
-    ).clamp(0, _rounds.length);
-    // 累计错误以会话字段为准：错完就退、退完再进，不能刷出一局「全对」。
-    _errors = max(_progress.initialWrongTotal, 0);
-    _elapsedMs = max(0, readIntOrFallback(state['elapsedMs'], fallback: 0));
+    // 已用时间来自会话字段，单位是秒。
+    _elapsedMs = _progress.session.elapsed * 1000;
+    // 累计答错数由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
+    _errors = _progress.wrongCount;
 
-    // 当前轮候选词与答题现场；损坏时由 _startRound 重新生成。
-    final rawCandidates = state['candidates'];
-    final restoredCandidates = <MeaningWordChoiceCandidate>[];
-    if (rawCandidates is List) {
-      for (final item in rawCandidates) {
-        if (item is! Map) continue;
-        final candidate = MeaningWordChoiceCandidate.fromJson(
-          Map<Object?, Object?>.from(item),
-        );
-        if (candidate != null) restoredCandidates.add(candidate);
+    // 回放记录：按「哪条含义答对了哪些词」推进轮次，按「哪条含义点错了谁」置灰候选。
+    //
+    // 一道含义可能匹配多个单词（如 eat 与 feed 都有「吃」），所以答对要记到
+    // 「词」这一层而不是「含义」这一层：只选出其中一个词就退出，重进时这轮
+    // 不能算完成，剩下的词还得继续选。
+    final answeredWordsByMeaning = <int, Set<int>>{};
+    final wrongByMeaning = <int, Set<int>>{};
+    for (final record in _progress.allRecords) {
+      final meaningId = record.meaningId;
+      if (meaningId == null) continue;
+      if (record.isCorrect) {
+        (answeredWordsByMeaning[meaningId] ??= <int>{}).add(record.wordId);
+      } else {
+        (wrongByMeaning[meaningId] ??= <int>{}).add(record.wordId);
+        // 全局点错过的词在候选区一直保持红色标记。
+        _disabledWordIds.add(record.wordId);
       }
     }
-    _candidates = restoredCandidates;
-    _pickedIds = _readIntSet(state['pickedIds']);
-    _disabledIds = _readIntSet(state['disabledIds']);
-    _disabledWordIds = _readIntSet(state['disabledWordIds']);
-    _recordedWordIds = _readIntSet(state['recordedWordIds']);
 
-    // 每轮答错次数；长度与轮数对齐，缺失补 0。
-    final rawWrongCounts = state['roundWrongCounts'];
-    if (rawWrongCounts is List) {
-      _roundWrongCounts = <int>[
-        for (final item in rawWrongCounts)
-          if (item is num) item.toInt(),
-      ];
+    // 找到第一轮「还有匹配词没答对」的，就是当前轮。
+    var index = 0;
+    while (index < _rounds.length) {
+      final round = _rounds[index];
+      final answered = answeredWordsByMeaning[round.meaningId] ?? const <int>{};
+      if (!round.matchIds.every(answered.contains)) break;
+      _recordedWordIds.addAll(round.matchIds);
+      index += 1;
     }
-    while (_roundWrongCounts.length < _rounds.length) {
-      _roundWrongCounts.add(0);
+    _roundIndex = index;
+    // 全部答完 = 这一局已经走完一遍。
+    if (_roundIndex >= _rounds.length) {
+      _completed = true;
+      return;
     }
-  }
-
-  ///
-  /// 从快照值还原整数集合；非法元素一律跳过。
-  Set<int> _readIntSet(Object? raw) {
-    if (raw is! List) return <int>{};
-    return <int>{
-      for (final item in raw)
-        if (item is num) item.toInt(),
+    // 当前轮的现场：已答对的词恢复选中（候选区绿色、气泡照常显示）、
+    // 已点错的候选置灰，答错次数回填。
+    final current = _rounds[_roundIndex];
+    _pickedIds = <int>{
+      ...(answeredWordsByMeaning[current.meaningId] ?? const <int>{}),
     };
+    final wrong = wrongByMeaning[current.meaningId] ?? const <int>{};
+    _disabledIds = <int>{...wrong};
+    _roundWrongCounts[_roundIndex] = wrong.length;
   }
 
   ///
@@ -385,7 +354,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 开始第 [index] 轮：生成候选词、先播放左侧「正在输入」三点动画，
   /// 延迟片刻后再插入含义气泡并落盘。
-  void _startRound(int index) {
+  void _startRound(int index, {bool resume = false}) {
     // 越界表示全部走完，直接结算。
     if (index >= _rounds.length) {
       _completeSession();
@@ -393,16 +362,27 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     }
     setState(() {
       _roundIndex = index;
-      _pickedIds = <int>{};
-      _disabledIds = <int>{};
-      // 候选词由服务生成：匹配词不足时用会话内干扰词补齐。
+      // 续玩时保留回放出来的现场（已选出的、已点错置灰的），不要清空。
+      if (!resume) {
+        _pickedIds = <int>{};
+        _disabledIds = <int>{};
+      }
+      // 候选词由服务生成：匹配词不足时用会话内干扰词补齐，按字母升序排列。
       _candidates = MeaningWordChoiceRoundBuilder.buildCandidates(
         round: _rounds[index],
         words: widget.words,
       );
-      // 含义气泡出现前，左侧先显示「正在输入」三点占位。
-      _typingSide = _TypingSide.left;
+      // 新一局：含义气泡出现前，左侧先显示「正在输入」三点占位。
+      // 续玩：含义气泡已在 _rebuildBubbles 里随历史消息一起重建，
+      // 这里只补候选词现场，绝不能再播一次动画、插一次气泡。
+      _typingSide = resume ? null : _TypingSide.left;
     });
+    if (resume) {
+      // 续玩恢复：聊天现场已经完整，滚动到底并落一次进度即可。
+      _scrollToBottom();
+      unawaited(_persist());
+      return;
+    }
     // 启动三点动画，模拟对方正在输入。
     _typingController.repeat();
     _scrollToBottom();
@@ -452,8 +432,12 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
         _pickedIds.add(wordId);
         _typingSide = _TypingSide.right;
       });
-      // 该含义的全部匹配词都选出后立即写记录，不等动画结束——
-      // 万一用户在这 400ms 里退出，记录也不会丢。
+      // 先记这一次「选对了」，现场恢复靠它判断这一轮答到哪了。
+      unawaited(
+        _recordPick(wordId: wordId, spelling: spelling, isCorrect: true),
+      );
+      // 该含义的全部匹配词都选出后立即结算，不等动画结束——
+      // 万一用户在这 400ms 里退出，结算也不会丢。
       if (_currentRoundDone) {
         unawaited(_recordRound(_roundIndex));
       }
@@ -485,7 +469,36 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
         _errors += 1;
         _roundWrongCounts[_roundIndex] += 1;
       });
+      // 记一条「点错了」：重进时靠它把这个候选继续置灰，
+      // 结算也靠它判定这一轮该不该加难度。
+      unawaited(_recordPick(wordId: wordId, spelling: spelling, isCorrect: false));
       unawaited(_persist());
+    }
+  }
+
+  ///
+  /// 记一次候选点击，不论对错。
+  ///
+  /// [wordId] 是被点的那个候选单词；含义主键取当前这一轮的代表含义，
+  /// 重进时按它把记录对回具体某一道题。
+  Future<void> _recordPick({
+    required int wordId,
+    required String spelling,
+    required bool isCorrect,
+  }) async {
+    // 越界说明这一局已经走完，不该再产生记录。
+    if (_roundIndex >= _rounds.length) return;
+    try {
+      await _progress.record(
+        wordId: wordId,
+        meaningId: _rounds[_roundIndex].meaningId,
+        // 记下用户实际点的那个词，回看时能看出把哪两个词搞混了。
+        input: spelling,
+        isCorrect: isCorrect,
+      );
+    } catch (error) {
+      // 写记录失败不该打断答题，最多这一次点击没留痕。
+      debugPrint('写入看义选词点击记录失败：$error');
     }
   }
 
@@ -502,35 +515,24 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 一轮含义完成：为该轮每个匹配单词写一条复习记录。
+  /// 一轮含义答完：给该轮每个匹配单词结算。
   ///
-  /// 答错次数以「这一轮」计：一轮里点错 3 次，该轮匹配的每个词都记错 3 次，
-  /// 原生据此统一调整连对次数与难度。已写过记录的词由集合挡住，续玩不重复写。
+  /// 「对 / 错」在点击的当下就已经逐次记进了会话记录，这里只负责结算：
+  /// 结算会看「本局这个词有没有点错过」，据此更新难度与复习时间。
+  /// 已结算过的词由集合挡住，续玩不重复算。
   Future<void> _recordRound(int index) async {
     final round = _rounds[index];
-    final wrongCount = _roundWrongCounts[index];
     for (final wordId in round.matchIds) {
-      // 恢复进度后重复走到同一轮不该再写，用集合挡住。
+      // 恢复进度后重复走到同一轮不该再算，用集合挡住。
       if (!_recordedWordIds.add(wordId)) continue;
       try {
-        await _recordStore.add(
-          wordId: wordId,
-          module: ReviewModule.meaningWordChoice,
-          // 记录挂到本局会话上，结算与回溯都能对上号。
-          sessionId: widget.reviewSession.id,
-          // 答错次数为 0 时原生判定为「一气呵成」，连对次数才会往上走。
-          wrongCount: wrongCount,
-          hintCount: 0,
-          // 巩固局不推进复习时间，否则明天那批词今天就被消耗掉了。
-          updateReviewedAt: widget.reviewSession.updatesReviewedAt,
-        );
+        await _progress.settle(wordId);
       } catch (error) {
-        // 记录写入失败不该打断正在进行的一局；集合里放回去，之后还有机会补写。
+        // 结算失败不该打断正在进行的一局；集合里放回去，之后还有机会补算。
         _recordedWordIds.remove(wordId);
-        debugPrint('写入看义选词复习记录失败：$error');
+        debugPrint('看义选词结算单词失败：$error');
       }
     }
-    // 记录集合变化后需要落盘，防止续玩时重复补写。
     unawaited(_persist());
   }
 
@@ -543,8 +545,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     unawaited(
       _progress.finish(
         perfect: true,
-        state: _buildStateSnapshot(),
-        wrongTotal: _errors,
+        cursor: _rounds.length,
+        elapsed: _elapsedSeconds,
       ),
     );
   }
@@ -552,52 +554,21 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// ===== 持久化 =====
 
   ///
-  /// 把当前进度写入 SQLite；页面交互先完成，持久化失败不阻断游戏。
-  Future<void> _persist() => _progress.save(
+  /// 把当前进度写入 SQLite；页面交互先完成，持久化失败不阻断答题。
+  ///
+  /// 2.0 起只写两个数：答到第几轮、已经花了多少秒。剩下的现场（题序、
+  /// 候选词、点错过谁）要么由数据列表固定、要么由点击记录反查，
+  /// 不再需要维护一份会随结构变动而失效的快照。
+  Future<void> _persist() async {
     // 已结算的局不能再被 dispose 时的延迟保存写回「进行中」。
-    enabled: !_completed,
-    // 累计答错数决定这一局的成败统计，必须和进度一起落盘。
-    wrongTotal: _errors,
-    state: _buildStateSnapshot(),
-  );
+    if (_completed) return;
+    await _progress.save(cursor: _roundIndex, elapsed: _elapsedSeconds);
+  }
 
   ///
-  /// 组装一份可持久化的本局进度快照。
-  ///
-  /// 核心是打乱后的含义序列 [_rounds]：它一旦生成就固定，续玩时直接
-  /// 恢复，绝不重新打乱，否则顺序全变、已答进度无从判断。
-  Map<String, Object?> _buildStateSnapshot() => <String, Object?>{
-    // 快照结构版本，防止旧版本数据被误解。
-    'version': 1,
-    // 打乱后的全部含义序列（答题顺序）。
-    'rounds': <Map<String, Object?>>[
-      for (final round in _rounds) round.toJson(),
-    ],
-    // 当前轮下标。
-    'roundIndex': _roundIndex,
-    // 当前轮候选词（含 isMatch），续玩时还原候选区。
-    'candidates': <Map<String, Object?>>[
-      for (final candidate in _candidates) candidate.toJson(),
-    ],
-    // 当前轮已选出 / 已禁用 / 全局点错过的单词主键。
-    'pickedIds': _pickedIds.toList(growable: false),
-    'disabledIds': _disabledIds.toList(growable: false),
-    'disabledWordIds': _disabledWordIds.toList(growable: false),
-    // 每轮答错次数，结算页「一次选对」统计用。
-    'roundWrongCounts': _roundWrongCounts,
-    // 已写过复习记录的单词，防止续玩后重复写入。
-    'recordedWordIds': _recordedWordIds.toList(growable: false),
-    // 本局累计用时与累计答错次数。
-    'elapsedMs': _elapsedMs,
-    'errors': _errors,
-    // 是否已把全部含义走完一遍。
-    'completed': _completed,
-    // 首页进度条用：已完成的轮数 / 总含义数。
-    'reviewedWordCount': _completed || _allRoundsDone
-        ? _rounds.length
-        : _roundIndex,
-    'totalWordCount': _rounds.length,
-  };
+  /// 本局已用秒数。
+  int get _elapsedSeconds => (_elapsedMs ~/ 1000).clamp(0, 1 << 30);
+
 
   /// ===== 生命周期 =====
 

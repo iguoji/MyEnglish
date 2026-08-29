@@ -2,89 +2,71 @@
 //  业务服务层：在"纯算法"之上叠加 App 需要的逻辑
 // ============================================================================
 //  核心算法（liang_algorithm.dart）只负责"算"，本层负责"用"：
-//    · getDivision      —— 优先用表里存的（含用户手动），否则当场算最细切法并落库；
-//    · nextAlternative  —— 换一种合规切法（确定、有限、不随机），写回表；
-//    · setUserDivision  —— 用户手动划分，最高优先级，必须落盘。
+//    · split            —— 算出最细切法；
+//    · nextAlternative  —— 换一种合规切法（确定、有限、不随机）。
 //
-//  这一层可以包含"业务规则"（刷新顺序、手动优先），但核心算法保持纯净。
-//  两者通过 SyllableStore 接口解耦：测试用内存、App 用手机数据库。
+//  2.0 起本服务是**纯计算**的，自己不碰数据库：音节拆分现在住在单词行的
+//  `syllables` 字段里，由页面在需要时调用 WordStore.saveWordSyllables 落库。
+//  这样音节不再有自己的表，服务也不必再为「存哪、什么时候存」负责。
 // ============================================================================
 
-import '../store/syllable.dart';
 import 'liang_algorithm.dart';
 
 /// 音节切分服务（对外主入口）。
 ///
 /// 用法：
-///   final svc = SyllableService(InMemorySyllableStore());
-///   final parts = await svc.getDivision('tradition'); // ["tradi", "tion"]
+///   final service = SyllableService();
+///   final parts = service.split('tradition'); // ["tradi", "tion"]
 class SyllableService {
-  final SyllableStore _store;
   // 纯算法核心；允许从外部传入，方便测试时注入同一个实例。
   final LiangHyphenator _hyphenator;
 
-  SyllableService(this._store, [LiangHyphenator? hyphenator])
-      : _hyphenator = hyphenator ?? LiangHyphenator();
+  SyllableService([LiangHyphenator? hyphenator])
+    : _hyphenator = hyphenator ?? LiangHyphenator();
 
-  /// 取出一个单词的"默认音节划分"。
+  /// 算出一个单词的「最细音节划分」。
   ///
-  /// 优先级（从高到低）：
-  ///   1) 表里已存的划分（可能是用户手动 source=user，最高优先）；
-  ///   2) 当场用算法算"最细切法"，并落库（source=algo）。
-  Future<List<String>> getDivision(String word) async {
-    final display = word.trim(); // 保留原始大小写，用于最终切分展示
-    final w = display.toLowerCase(); // 小写只用于查规则表与做存储主键
-    if (w.isEmpty) return [word];
-    final row = await _store.getDivision(w);
-    if (row != null) return row.parts;
-    final parts = _hyphenator.split(display); // 最细切法（保留原始大小写）
-    await _store.saveDivision(w, parts, 'algo');
-    return parts;
+  /// 空词原样返回，保证调用方拿到的永远是非空列表。
+  List<String> split(String word) {
+    // 保留原始大小写用于展示；规则表查的是小写。
+    final display = word.trim();
+    if (display.isEmpty) return <String>[word];
+    return _hyphenator.split(display);
   }
 
-  /// 刷新：换一种"合规但不随机"的切法，并写回存储。
+  /// 刷新：从 [current] 换到下一种"合规但不随机"的切法。
   ///
   /// 规则（确定且有限）：算法先给出全部合法断点；从最细切法开始，
   /// 每次合并"最弱的一个断点"变粗，直到整词；到头后再回到最细，循环。
-  /// 注意：若存在用户手动划分，则刷新不覆盖它（手动最高优先级）。
   ///
   /// [splitOnly] 为 true 时把"整词"这一档从循环里剔除，只在真正拆得开的切法
   /// 之间轮换。拼写巩固的片段模式必须这样用：整词那一档只会生成一个候选按钮，
   /// 点一下就过关，等于把题目送掉。若该词一种能拆开的切法都没有（如 bowl），
-  /// 则原样返回当前划分，调用方据此让它留在逐字母模式。
-  Future<List<String>> nextAlternative(
+  /// 则原样返回 [current]，调用方据此让它留在逐字母模式。
+  List<String> nextAlternative(
     String word, {
+    required List<String> current,
     bool splitOnly = false,
-  }) async {
+  }) {
     final display = word.trim();
-    final w = display.toLowerCase();
-    if (w.isEmpty) return [word];
-    final row = await _store.getDivision(w);
-    if (row != null && row.source == 'user') return row.parts; // 手动不参与刷新
+    if (display.isEmpty) return <String>[word];
     final alts = _splitOnlyFiltered(_alternatives(display), splitOnly);
-    // 一种能拆开的切法都没有：保持现状，不写库也不换档。
-    if (alts.isEmpty) return row?.parts ?? [display];
-    // 找到当前存的是第几个备选；找不到就当成最细(0)，跳到下一个。
-    int idx = -1;
-    if (row != null) {
-      final joined = row.parts.join('|'); // 用普通字符做整体比较
-      for (int i = 0; i < alts.length; i++) {
+    // 一种能拆开的切法都没有：保持现状，让调用方留在逐字母模式。
+    if (alts.isEmpty) return current.isEmpty ? <String>[display] : current;
+    // 找到当前是第几个备选；找不到就当成最细(0)，跳到下一个。
+    var index = -1;
+    if (current.isNotEmpty) {
+      // 用普通字符做整体比较，避免逐段比对时的下标越界。
+      final joined = current.join('|');
+      for (var i = 0; i < alts.length; i += 1) {
         if (alts[i].join('|') == joined) {
-          idx = i;
+          index = i;
           break;
         }
       }
     }
-    final next = (idx + 1) % alts.length; // 循环：最后一档之后回到最细
-    final parts = alts[next];
-    await _store.saveDivision(w, parts, 'refresh');
-    return parts;
-  }
-
-  /// 用户手动划分：最高优先级，必须落盘。
-  Future<void> setUserDivision(String word, List<String> parts) async {
-    final w = word.toLowerCase().trim();
-    await _store.saveDivision(w, parts, 'user');
+    // 循环：最后一档之后回到最细。
+    return alts[(index + 1) % alts.length];
   }
 
   // ----- 以下为内部实现 -----
@@ -112,15 +94,17 @@ class SyllableService {
     final breaks = _hyphenator.breakPositions(word);
     // 移除顺序：先并最弱的（strength 小），同级按位置升序，确定不随机。
     final removalOrder = List<HyphenBreak>.from(breaks)
-      ..sort((a, b) => a.strength != b.strength
-          ? a.strength.compareTo(b.strength)
-          : a.position.compareTo(b.position));
-    final List<List<String>> alts = [];
-    // alt[0] = 全部断点（最细）
-    final allPos = breaks.map((b) => b.position).toList()..sort();
-    alts.add(_splitAt(word, allPos));
-    // 逐步去掉最弱断点，得到越来越粗的切法
-    for (int k = 1; k <= removalOrder.length; k++) {
+      ..sort(
+        (a, b) => a.strength != b.strength
+            ? a.strength.compareTo(b.strength)
+            : a.position.compareTo(b.position),
+      );
+    final alts = <List<String>>[];
+    // alts[0] = 全部断点（最细）
+    final allPositions = breaks.map((b) => b.position).toList()..sort();
+    alts.add(_splitAt(word, allPositions));
+    // 逐步去掉最弱断点，得到越来越粗的切法。
+    for (var k = 1; k <= removalOrder.length; k += 1) {
       final kept = removalOrder.skip(k).map((b) => b.position).toList()..sort();
       alts.add(_splitAt(word, kept));
     }
@@ -129,14 +113,14 @@ class SyllableService {
 
   /// 按给定断点位置把单词切开（位置必须升序）。
   List<String> _splitAt(String word, List<int> positions) {
-    if (positions.isEmpty) return [word];
+    if (positions.isEmpty) return <String>[word];
     final parts = <String>[];
-    int prev = 0;
-    for (final p in positions) {
-      parts.add(word.substring(prev, p));
-      prev = p;
+    var previous = 0;
+    for (final position in positions) {
+      parts.add(word.substring(previous, position));
+      previous = position;
     }
-    parts.add(word.substring(prev));
+    parts.add(word.substring(previous));
     return parts;
   }
 }

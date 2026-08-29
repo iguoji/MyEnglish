@@ -90,7 +90,6 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
   /// 创建题目内容组件；页面状态只传数据，不把答题业务塞进展示组件。
   const ListeningMeaningQuestionContent({
     required this.spelling,
-    required this.revealedLetterCount,
     required this.revealWholeWord,
     required this.onSpeakerTap,
     required this.isPlaying,
@@ -105,10 +104,6 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
   ///
   /// 当前题目的完整拼写；未答对前只用它计算占位瓷砖数量。
   final String spelling;
-
-  ///
-  /// 用户点击提示后，应该从左侧公开多少个英文字母。
-  final int revealedLetterCount;
 
   ///
   /// true 表示拼写阶段已经完成，此时所有字母瓷砖都填入真实字母。
@@ -157,7 +152,6 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
         // 第一个模块：重新设计的单词卡，把听音与字母瓷砖收进同一张卡。
         _WordCard(
           spelling: spelling,
-          revealedLetterCount: revealedLetterCount,
           revealWholeWord: revealWholeWord,
           isPlaying: isPlaying,
           onSpeakerTap: onSpeakerTap,
@@ -202,7 +196,6 @@ class _WordCard extends StatelessWidget {
   /// 接收完整拼写、提示公开数量、播放状态与主题色。
   const _WordCard({
     required this.spelling,
-    required this.revealedLetterCount,
     required this.revealWholeWord,
     required this.isPlaying,
     required this.onSpeakerTap,
@@ -212,10 +205,6 @@ class _WordCard extends StatelessWidget {
   ///
   /// 当前单词完整拼写。
   final String spelling;
-
-  ///
-  /// 从左到右已经公开的字母数量。
-  final int revealedLetterCount;
 
   ///
   /// 是否公开全部字母。
@@ -360,7 +349,8 @@ class _WordCard extends StatelessWidget {
       ];
     }
     // 拼写已答对时公开全部字母，否则仅公开提示数量以内的左侧字母。
-    final isRevealed = revealWholeWord || letterIndex < revealedLetterCount;
+    // 提示功能已下线，只有答对后整词揭示这一种情况。
+    final isRevealed = revealWholeWord;
     // 每个英文字母固定使用一个圆角瓷砖，真实文字出现时不改变任何几何尺寸。
     return <Widget>[
       Container(

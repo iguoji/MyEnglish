@@ -14,7 +14,7 @@ void main() {
     // ability 有足够的同长度换位、元音和辅音替换结果。
     final distractors = ListeningMeaningOptionGenerator.buildWordDistractors(
       correct: 'ability',
-      sourceWords: const <Word>[
+      sourceWords: <Word>[
         Word(spelling: 'ability'),
         Word(spelling: 'abandon'),
       ],
@@ -44,7 +44,7 @@ void main() {
     // 非英文正确值无法生成合法字母变体，因此会检验词库回退分支。
     final distractors = ListeningMeaningOptionGenerator.buildWordDistractors(
       correct: '123',
-      sourceWords: const <Word>[
+      sourceWords: <Word>[
         Word(spelling: 'cat'),
         Word(spelling: 'bat'),
         Word(spelling: 'mat'),
@@ -58,29 +58,29 @@ void main() {
 
   test('definition distractors prefer same-length similar source meanings', () {
     // 词库中同时放入同字数和不同字数的释义。
-    const sourceWords = <Word>[
+    final sourceWords = <Word>[
       Word(
         spelling: 'ability',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['能力', '才能']),
+          Meaning(pos: 'n.', definition: '能力'), Meaning(pos: 'n.', definition: '才能'),
         ],
       ),
       Word(
         spelling: 'energy',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['能量']),
+          Meaning(pos: 'n.', definition: '能量'),
         ],
       ),
       Word(
         spelling: 'strength',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['实力']),
+          Meaning(pos: 'n.', definition: '实力'),
         ],
       ),
       Word(
         spelling: 'capable',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'adj.', definitions: <String>['可以完成任务的']),
+          Meaning(pos: 'adj.', definition: '可以完成任务的'),
         ],
       ),
     ];
@@ -98,11 +98,11 @@ void main() {
     // 只有正确释义的极小词库无法直接提供三个其他释义。
     final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
       correct: '能力',
-      sourceWords: const <Word>[
+      sourceWords: <Word>[
         Word(
           spelling: 'ability',
           meanings: <Meaning>[
-            Meaning(index: 1, pos: 'n.', definitions: <String>['能力']),
+            Meaning(pos: 'n.', definition: '能力'),
           ],
         ),
       ],
@@ -118,23 +118,23 @@ void main() {
 
   test('definition distractors skip the current word own meanings', () {
     // correct 是 ability 的「能力」，同词还有「才能」这个含义，两者不能互做干扰项。
-    const sourceWords = <Word>[
+    final sourceWords = <Word>[
       Word(
         spelling: 'ability',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['能力', '才能']),
+          Meaning(pos: 'n.', definition: '能力'), Meaning(pos: 'n.', definition: '才能'),
         ],
       ),
       Word(
         spelling: 'energy',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['能量']),
+          Meaning(pos: 'n.', definition: '能量'),
         ],
       ),
       Word(
         spelling: 'strength',
         meanings: <Meaning>[
-          Meaning(index: 1, pos: 'n.', definitions: <String>['实力']),
+          Meaning(pos: 'n.', definition: '实力'),
         ],
       ),
     ];
@@ -157,13 +157,13 @@ void main() {
     // 先取得初始英文四选一中的三个干扰项。
     final initialWords = ListeningMeaningOptionGenerator.buildWordDistractors(
       correct: 'ability',
-      sourceWords: const <Word>[Word(spelling: 'ability')],
+      sourceWords: <Word>[Word(spelling: 'ability')],
     );
     // 刷新必须从更大的候选池里寻找未显示项。
     final replacementWord =
         ListeningMeaningOptionGenerator.findReplacementWordDistractor(
           correct: 'ability',
-          sourceWords: const <Word>[Word(spelling: 'ability')],
+          sourceWords: <Word>[Word(spelling: 'ability')],
           excluded: <String>['ability', ...initialWords],
         );
     expect(replacementWord, isNotNull);
@@ -174,11 +174,11 @@ void main() {
     final initialDefinitions =
         ListeningMeaningOptionGenerator.buildDefinitionDistractors(
           correct: '能力',
-          sourceWords: const <Word>[
+          sourceWords: <Word>[
             Word(
               spelling: 'ability',
               meanings: <Meaning>[
-                Meaning(index: 1, pos: 'n.', definitions: <String>['能力']),
+                Meaning(pos: 'n.', definition: '能力'),
               ],
             ),
           ],
@@ -186,11 +186,11 @@ void main() {
     final replacementDefinition =
         ListeningMeaningOptionGenerator.findReplacementDefinitionDistractor(
           correct: '能力',
-          sourceWords: const <Word>[
+          sourceWords: <Word>[
             Word(
               spelling: 'ability',
               meanings: <Meaning>[
-                Meaning(index: 1, pos: 'n.', definitions: <String>['能力']),
+                Meaning(pos: 'n.', definition: '能力'),
               ],
             ),
           ],

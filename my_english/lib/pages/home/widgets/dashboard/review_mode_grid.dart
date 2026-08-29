@@ -6,7 +6,7 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
 // 复习模块标识与三态进度模型。
-import '../../../../models/review_session.dart';
+import '../../../../models/session.dart';
 
 ///
 /// 复习模式快速入口：2×2 卡片网格。
@@ -175,15 +175,12 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 玩法尚未开放时不显示任何进度，避免「待完成」让用户以为漏做了任务。
-    final isAvailable = module.isAvailable;
     final phase = state.barPhase;
     // 底色：今日主线已完成走绿底（巩固的地基），否则灰底。
     final baseGreen = phase == ReviewBarPhase.dailyDone ||
         phase == ReviewBarPhase.reinforceActive ||
         phase == ReviewBarPhase.reinforceDone;
-    final baseColor =
-        !isAvailable || !baseGreen ? tokens.sub : const Color(0xFF2FB344);
+    final baseColor = baseGreen ? const Color(0xFF2FB344) : tokens.sub;
     // 前景叠加层：主线进行中用绿色，巩固用蓝色，按本局已完成单词数比例填充。
     final Color? fillColor;
     final double fillRatio;
@@ -194,14 +191,14 @@ class _ModeCard extends StatelessWidget {
         fillRatio = 0;
       case ReviewBarPhase.dailyActive:
         fillColor = const Color(0xFF2FB344);
-        fillRatio = state.totalWordCount > 0
-            ? (state.reviewedWordCount / state.totalWordCount)
+        fillRatio = state.totalCount > 0
+            ? (state.doneCount / state.totalCount)
                 .clamp(0.0, 1.0)
             : 0.0;
       case ReviewBarPhase.reinforceActive:
         fillColor = AppTokens.accent;
-        fillRatio = state.totalWordCount > 0
-            ? (state.reviewedWordCount / state.totalWordCount)
+        fillRatio = state.totalCount > 0
+            ? (state.doneCount / state.totalCount)
                 .clamp(0.0, 1.0)
             : 0.0;
       case ReviewBarPhase.reinforceDone:
@@ -209,17 +206,13 @@ class _ModeCard extends StatelessWidget {
         fillRatio = 1.0;
     }
     // 三种状态三种颜色：待完成用 Tabler 红制造压力，进行中用主色，完成用成功绿。
-    final badgeColor = !isAvailable
-        ? tokens.textSecondary
-        : switch (state.progress) {
-            ReviewModuleProgress.completed => const Color(0xFF2FB344),
-            ReviewModuleProgress.active => AppTokens.accent,
-            ReviewModuleProgress.pending => Theme.of(context).colorScheme.error,
-          };
+    final badgeColor = switch (state.progress) {
+      ReviewModuleProgress.completed => const Color(0xFF2FB344),
+      ReviewModuleProgress.active => AppTokens.accent,
+      ReviewModuleProgress.pending => Theme.of(context).colorScheme.error,
+    };
     // 主线过关之后再进模块就是加练，徽章补一个小尾巴让用户知道自己在做什么。
-    final badgeText = !isAvailable
-        ? '即将开放'
-        : state.isReinforcing
+    final badgeText = state.isReinforcing
         ? '${state.progress.label} · 巩固中'
         : state.progress.label;
     return Material(

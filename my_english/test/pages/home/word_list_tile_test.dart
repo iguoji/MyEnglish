@@ -24,8 +24,8 @@ void main() {
     createdAt: DateTime(2026, 1, 5),
     meanings: const <Meaning>[
       // 故意传入旧数据中的大写词性，验证共享展示入口会统一转成小写。
-      Meaning(index: 2, pos: 'N.', definitions: <String>['能力', '才能']),
-      Meaning(index: 1, pos: 'ADJ.', definitions: <String>['能干的']),
+      Meaning(pos: 'N.', definition: '能力'), Meaning(pos: 'N.', definition: '才能'),
+      Meaning(pos: 'ADJ.', definition: '能干的'),
     ],
   );
 

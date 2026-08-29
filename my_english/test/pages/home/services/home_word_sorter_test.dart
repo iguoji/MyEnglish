@@ -17,11 +17,11 @@ void main() {
   // 相同业务字段的记录必须保持输入顺序，避免页面刷新后行位置随机跳动。
   test('keeps original order when every business field is equal', () {
     // 两个对象故意使用相同字段且不提供 id。
-    const first = Word(spelling: 'same', difficulty: 2);
-    const second = Word(spelling: 'same', difficulty: 2);
+    final first = Word(spelling: 'same', difficulty: 2);
+    final second = Word(spelling: 'same', difficulty: 2);
     // 默认规则最终会落到原始下标兜底。
     const sorter = HomeWordSorter(
-      mode: GroupMode.custom,
+      mode: GroupMode.difficulty,
       field: WordSortField.original,
       directions: <WordSortField, bool>{WordSortField.original: true},
       query: '',
@@ -37,12 +37,12 @@ void main() {
   test('filters case-insensitively without mutating source', () {
     // 源顺序故意与字母升序相反。
     final source = <Word>[
-      const Word(id: 2, spelling: 'Bravo'),
-      const Word(id: 1, spelling: 'alpha'),
+      Word(id: 2, spelling: 'Bravo'),
+      Word(id: 1, spelling: 'alpha'),
     ];
     // 查询词使用大写转小写后的页面口径。
     const sorter = HomeWordSorter(
-      mode: GroupMode.custom,
+      mode: GroupMode.difficulty,
       field: WordSortField.original,
       directions: <WordSortField, bool>{WordSortField.original: true},
       query: 'a',
@@ -57,9 +57,9 @@ void main() {
     expect(source.map((word) => word.spelling), <String>['Bravo', 'alpha']);
   });
 
-  // 日期字段必须跟随分组视角，不能继续使用旧版 effectiveDate 回退链。
-  test('selects the date field from the active group mode', () {
-    // 三种时间故意不同，方便精确确认每个模式的选择。
+  // 2.0 起日期一律读复习时间，「更新时间 / 加入时间」视角已经下线。
+  test('dateOf always reads the reviewed time', () {
+    // 三种时间故意不同，确认只有复习时间被读取。
     final word = Word(
       spelling: 'dated',
       reviewedAt: DateTime(2026, 1, 1),
@@ -67,45 +67,38 @@ void main() {
       createdAt: DateTime(2026, 3, 3),
     );
 
-    ///
-    /// 创建指定分组视角的排序服务，其余参数保持固定。
-    HomeWordSorter sorter(GroupMode mode) => HomeWordSorter(
-      mode: mode,
+    const sorter = HomeWordSorter(
+      mode: GroupMode.reviewed,
       field: WordSortField.date,
-      directions: const <WordSortField, bool>{WordSortField.date: false},
+      directions: <WordSortField, bool>{WordSortField.date: false},
       query: '',
     );
 
-    // 默认/复习视角读取 reviewedAt。
-    expect(sorter(GroupMode.custom).dateOf(word), DateTime(2026, 1, 1));
-    // 更新时间视角只读取 updatedAt。
-    expect(sorter(GroupMode.updated).dateOf(word), DateTime(2026, 2, 2));
-    // 加入时间视角只读取 createdAt。
-    expect(sorter(GroupMode.added).dateOf(word), DateTime(2026, 3, 3));
+    // 无论哪个分组视角，日期都只看复习时间。
+    expect(sorter.dateOf(word), DateTime(2026, 1, 1));
   });
 
   // 含义入口先按释义数量升序：数量少的单词排在前。
   test('sorts by meaning count ascending', () {
     // 单释义单词，含义数 = 1。
-    const few = Word(
+    final few = Word(
       id: 1,
       spelling: 'apple',
-      meanings: <Meaning>[
-        Meaning(index: 0, pos: 'n.', definitions: <String>['苹果']),
-      ],
+      meanings: const <Meaning>[Meaning(pos: 'n.', definition: '苹果')],
     );
-    // 两词性共三条释义，含义数 = 3。
-    const many = Word(
+    // 两个词性共三条释义，含义数 = 3。
+    final many = Word(
       id: 2,
       spelling: 'set',
-      meanings: <Meaning>[
-        Meaning(index: 1, pos: 'n.', definitions: <String>['集合', '一套']),
-        Meaning(index: 0, pos: 'v.', definitions: <String>['放置']),
+      meanings: const <Meaning>[
+        Meaning(pos: 'n.', definition: '集合'),
+        Meaning(pos: 'n.', definition: '一套'),
+        Meaning(pos: 'v.', definition: '放置'),
       ],
     );
 
     const sorter = HomeWordSorter(
-      mode: GroupMode.custom,
+      mode: GroupMode.difficulty,
       field: WordSortField.meaning,
       directions: <WordSortField, bool>{WordSortField.meaning: true},
       query: '',
@@ -121,22 +114,20 @@ void main() {
   // 释义条数相同时继续比较全部释义正文的字符总数，短释义排在前面。
   test('uses meaning character count after meaning count', () {
     // 两个单词都只有一条释义，单靠 meaningCount 无法区分先后。
-    const shortMeaning = Word(
+    final shortMeaning = Word(
       id: 1,
       spelling: 'brief',
-      meanings: <Meaning>[
-        Meaning(index: 0, pos: 'n.', definitions: <String>['力']),
-      ],
+      meanings: const <Meaning>[Meaning(pos: 'n.', definition: '力')],
     );
-    const longMeaning = Word(
+    final longMeaning = Word(
       id: 2,
       spelling: 'verbose',
-      meanings: <Meaning>[
-        Meaning(index: 0, pos: 'n.', definitions: <String>['完成某件事情的能力']),
+      meanings: const <Meaning>[
+        Meaning(pos: 'n.', definition: '完成某件事情的能力'),
       ],
     );
     const sorter = HomeWordSorter(
-      mode: GroupMode.custom,
+      mode: GroupMode.difficulty,
       field: WordSortField.meaning,
       directions: <WordSortField, bool>{WordSortField.meaning: true},
       query: '',
@@ -154,25 +145,24 @@ void main() {
   // 难度相等时，含义复杂度作为次级规则生效（先数量、再字符数）。
   test('uses meaning count as tiebreaker after difficulty', () {
     // 两者难度相同，但释义条数不同。
-    const lowFew = Word(
+    final lowFew = Word(
       id: 1,
       spelling: 'alpha',
       difficulty: 5,
-      meanings: <Meaning>[
-        Meaning(index: 0, pos: 'n.', definitions: <String>['甲']),
-      ],
+      meanings: const <Meaning>[Meaning(pos: 'n.', definition: '甲')],
     );
-    const lowMany = Word(
+    final lowMany = Word(
       id: 2,
       spelling: 'bravo',
       difficulty: 5,
-      meanings: <Meaning>[
-        Meaning(index: 0, pos: 'n.', definitions: <String>['乙', '丙']),
+      meanings: const <Meaning>[
+        Meaning(pos: 'n.', definition: '乙'),
+        Meaning(pos: 'n.', definition: '丙'),
       ],
     );
 
     const sorter = HomeWordSorter(
-      mode: GroupMode.custom,
+      mode: GroupMode.difficulty,
       field: WordSortField.difficulty,
       directions: <WordSortField, bool>{WordSortField.difficulty: false},
       query: '',

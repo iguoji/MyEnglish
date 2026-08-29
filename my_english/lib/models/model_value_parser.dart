@@ -78,3 +78,22 @@ DateTime? readOptionalDate(Object? value, String fieldName) {
 int readIntOrFallback(Object? value, {required int fallback}) {
   return value is num ? value.toInt() : fallback;
 }
+
+///
+/// 把 JSON / MethodChannel 的动态值收窄为字符串数组。
+///
+/// 缺失字段按空数组处理；数组里出现 null 会带上字段名抛出格式异常，
+/// 避免把一个空值静默转成 "null" 这样的假释义。
+List<String> readStringList(Object? value, String fieldName) {
+  // 缺失字段视为空数组，调用方无需额外判空。
+  if (value == null) return const <String>[];
+  // 容器必须是数组结构，普通字符串或对象不能参与后续遍历。
+  if (value is! List) throw FormatException('$fieldName 必须是数组');
+  return List<String>.unmodifiable(
+    value.map((item) {
+      if (item == null) throw FormatException('$fieldName 不能包含 null');
+      // 原始字符串直接保留，其他 JSON 标量使用明确文本表示。
+      return item.toString();
+    }),
+  );
+}

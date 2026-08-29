@@ -1,4 +1,4 @@
-// convert.dart 提供 jsonDecode，用于解析原生返回的 JSON 字符串。
+// convert.dart 提供 jsonDecode/jsonEncode，用于解析导入文件与编码数据列表。
 import 'dart:convert';
 
 // services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SQLite。
@@ -8,70 +8,107 @@ import 'package:flutter/services.dart';
 import '../models/word.dart';
 
 ///
-/// 单词 Store 接口：定义单词数据的读写契约，具体实现可以是本地或测试替身。
+/// 选词层级：两层规则只有「难度」和「复习时间」谁排前面不同。
 ///
-/// 现在数据只来自本地持久化（Android 原生 SQLite），接口方法也围绕
-/// 「读取 / 增删改 / 整库导入 / 整库清空」这一组持久化操作设计。
+enum PickLayer {
+  ///
+  /// 第一层：难度降序打头，专挑最难的词。占每日目标的 40%。
+  hard(1),
+
+  ///
+  /// 第二层：复习时间升序打头，专挑最久没碰的词。占剩下的 60%。
+  ///
+  /// 补词、巩固局选明日词等不需要难度分流的场景也用这一层。
+  stale(2);
+
+  ///
+  /// 绑定原生约定的整数值。
+  const PickLayer(this.code);
+
+  ///
+  /// 传给原生的整数值。
+  final int code;
+}
+
+///
+/// 单词 Store 接口：定义单词数据的读写契约，具体实现可以是本地或测试替身。
 ///
 abstract interface class WordStore {
   ///
-  /// 一次读取全部未删除单词。
+  /// 一次读取全部未删除单词（含它们的全部释义）。
   Future<List<Word>> getAll();
 
   ///
-  /// 按 id 读取指定单词（含 Meaning 与分组），用于复习后只回刷相关单词。
+  /// 按 id 读取指定单词，用于复习后只回刷相关单词。
   Future<List<Word>> getByIds(List<int> ids);
 
   ///
-  /// 创建一个 Word，并返回主键。
+  /// 按含义主键反查它们所属的单词。
+  ///
+  /// 看义选词的数据列表存的是含义主键，恢复会话时靠它把候选单词捞回来。
+  Future<List<Word>> getByMeaningIds(List<int> meaningIds);
+
+  ///
+  /// 创建一个单词，并返回主键。
   Future<int> create(Word word);
 
   ///
-  /// 更新已有 Word。
+  /// 更新已有单词；释义整体替换。
   Future<void> update(Word word);
 
   ///
-  /// 删除指定 Word（软删除）。
+  /// 软删除指定单词。
   Future<void> delete(int id);
 
   ///
-  /// 批量导入：先清空本地全部单词，再写入给定列表，保证导入即整库替换。
-  ///
-  /// 适用于导入原始 words.json（无分组信息，导入后单词回到未分组）。
-  Future<void> importWords(List<Word> words);
+  /// 回写一个单词的混淆词。
+  Future<void> saveWordConfusions(int wordId, List<String> confusions);
 
   ///
-  /// 导入完整备份：words，以及文件可选的 groups/members/设置/会话/复习记录等。
+  /// 回写一条释义的混淆含义。
+  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions);
+
   ///
-  /// 只有文件携带分组数据时才替换分组；未知数据库字段会被忽略。
+  /// 回写一个单词的音节拆分。
+  Future<void> saveWordSyllables(int wordId, List<String> syllables);
+
+  ///
+  /// 按复习规则挑单词，返回主键列表。
+  ///
+  /// [limit] 是要挑几个；[exclude] 是本轮已经选过、不能再选的主键。
+  Future<List<int>> pickWords({
+    required int limit,
+    List<int> exclude,
+    PickLayer layer,
+  });
+
+  ///
+  /// 导入完整备份：先清空，再整库替换。
   Future<void> importData(Map<String, Object?> data);
 
   ///
-  /// 从 SQLite 真实业务字段生成可写入 JSON 的完整数据（含设置由原生并入）。
+  /// 导出完整备份；时间字段同时给出可读时间与精确毫秒。
   Future<Map<String, Object?>> exportData();
 
   ///
-  /// 清空本地全部业务数据（单词、释义、分组/成员、每日词库、复习会话与记录、
-  /// 学习会话、听音候选项缓存、音节划分缓存）；设置与音频缓存由调用方另行清空。
+  /// 清空全部业务数据；设置与离线语音由调用方另行清空。
   Future<void> clearAll();
 }
 
 ///
-/// 本地单词 Store：全部 CRUD 都通过 MethodChannel 交给 Android 原生 SQLite 持久化。
+/// 本地单词 Store：全部读写都通过 MethodChannel 交给 Android 原生 SQLite。
 ///
-/// App 只依赖本地持久化数据，首次启动即为空库，单词由用户导入或手动添加；
-/// 单词的 JSON 仅在用户主动执行「导入 / 导出」时出现，不参与默认加载。
+/// App 只依赖本地数据，首次启动即为空库，单词由用户导入或手动添加。
 ///
 class LocalWordStore implements WordStore {
   ///
   /// 允许测试注入原生通道；正式 App 使用默认值。
-  LocalWordStore({MethodChannel? channel})
-    // 没有注入通道时使用 Android MainActivity 注册的固定名称。
+  const LocalWordStore({MethodChannel? channel})
     : _channel = channel ?? _defaultChannel;
 
   ///
   /// App 默认复用同一个实例。
-  static final LocalWordStore instance = LocalWordStore();
+  static const LocalWordStore instance = LocalWordStore();
 
   ///
   /// 通道名必须与 Android MainActivity 完全一致。
@@ -80,103 +117,105 @@ class LocalWordStore implements WordStore {
   );
 
   ///
-  /// SQLite 模式调用的原生通道。
+  /// 读写数据用的原生通道。
   final MethodChannel _channel;
 
-  ///
-  /// 读取全部数据，永远来自原生 SQLite。
   @override
   Future<List<Word>> getAll() async {
-    // 直接走原生查询，不再有「JSON 内存」分支。
-    return _loadSqliteWords();
+    final rows = await _channel.invokeListMethod<Object?>('getAllWords');
+    // null 不等于空列表，必须明确报告协议错误。
+    if (rows == null) throw StateError('原生 SQLite 没有返回单词列表');
+    return parseWordMaps(rows, sourceLabel: 'SQLite');
   }
 
-  ///
-  /// 只回刷本次复习涉及的单词，避免重新加载整库。
   @override
   Future<List<Word>> getByIds(List<int> ids) async {
     // 空列表直接返回，避免原生拼出无意义的 IN ()。
     if (ids.isEmpty) return const <Word>[];
-    // 把 id 列表交给原生做 IN 查询，复用与 getAll 相同的解析。
-    final rawWords = await _channel.invokeListMethod<Object?>(
-      'getWordsByIds',
-      ids,
-    );
-    // 原生没有返回任何单词。
-    if (rawWords == null) return const <Word>[];
-    // 复用与 getAll 一致的逐条解析，转成强类型 Word。
-    return _parseWordMaps(rawWords, sourceLabel: 'SQLite');
+    final rows = await _channel.invokeListMethod<Object?>('getWordsByIds', ids);
+    if (rows == null) return const <Word>[];
+    return parseWordMaps(rows, sourceLabel: 'SQLite');
   }
 
-  ///
-  /// 新增 Word；主体、释义和分组关系交给同一个原生事务，返回自增主键。
+  @override
+  Future<List<Word>> getByMeaningIds(List<int> meaningIds) async {
+    if (meaningIds.isEmpty) return const <Word>[];
+    final rows = await _channel.invokeListMethod<Object?>(
+      'getWordsByMeaningIds',
+      meaningIds,
+    );
+    if (rows == null) return const <Word>[];
+    return parseWordMaps(rows, sourceLabel: 'SQLite');
+  }
+
   @override
   Future<int> create(Word word) async {
-    // 把模型字段转成原生通道可传输的 Map。
     final id = await _channel.invokeMethod<int>('createWord', word.toMap());
     // 原生必须返回自增主键，null 代表接口约定被破坏。
     if (id == null) throw StateError('SQLite 创建单词后没有返回主键');
-    // 返回持久化主键。
     return id;
   }
 
-  ///
-  /// 更新 Word；主体、释义和分组关系由原生在同一个事务内整体替换。
   @override
   Future<void> update(Word word) async {
     // 更新必须能定位已有记录。
-    final id = word.id;
-    // 缺少 id 时直接阻止操作。
-    if (id == null) {
-      throw ArgumentError.value(id, 'word.id', '更新单词必须提供 id');
+    if (word.id == null) {
+      throw ArgumentError.value(null, 'word.id', '更新单词必须提供 id');
     }
-    // 一个调用同时更新单词主体、释义和分组关系，任何一步失败都会整体回滚。
+    // 一个调用同时更新单词主体和释义，任何一步失败都会整体回滚。
     await _channel.invokeMethod<void>('updateWord', word.toMap());
   }
 
-  ///
-  /// 删除 Word；通过 deleted_at 软删除。
   @override
-  Future<void> delete(int id) async {
-    // 调用原生软删除，参数只带主键。
-    await _channel.invokeMethod<void>('deleteWord', <String, Object?>{
-      'id': id,
+  Future<void> delete(int id) => _channel.invokeMethod<void>(
+    'deleteWord',
+    <String, Object?>{'id': id},
+  );
+
+  @override
+  Future<void> saveWordConfusions(int wordId, List<String> confusions) =>
+      _channel.invokeMethod<void>('saveWordConfusions', <String, Object?>{
+        'wordId': wordId,
+        'confusions': confusions,
+      });
+
+  @override
+  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) =>
+      _channel.invokeMethod<void>('saveMeaningConfusions', <String, Object?>{
+        'meaningId': meaningId,
+        'confusions': confusions,
+      });
+
+  @override
+  Future<void> saveWordSyllables(int wordId, List<String> syllables) =>
+      _channel.invokeMethod<void>('saveWordSyllables', <String, Object?>{
+        'wordId': wordId,
+        'syllables': syllables,
+      });
+
+  @override
+  Future<List<int>> pickWords({
+    required int limit,
+    List<int> exclude = const <int>[],
+    PickLayer layer = PickLayer.stale,
+  }) async {
+    // 目标非正数时没有可选单词，不必打扰原生。
+    if (limit <= 0) return const <int>[];
+    final ids = await _channel.invokeListMethod<int>('pickWords', <String, Object?>{
+      'limit': limit,
+      'exclude': exclude,
+      'layer': layer.code,
     });
+    return ids == null ? const <int>[] : List<int>.unmodifiable(ids);
   }
 
-  ///
-  /// 批量导入：清空旧数据后整库替换写入。
   @override
-  Future<void> importWords(List<Word> words) async {
-    // 把每条 Word 转成原生可接收的 Map 列表。
-    final payload = words.map((word) => word.toMap()).toList();
-    // 原生在事务内先清空再批量插入。
-    await _channel.invokeMethod<void>('importWords', payload);
-  }
+  Future<void> importData(Map<String, Object?> data) =>
+      _channel.invokeMethod<void>('importData', data);
 
-  ///
-  /// 清空本地全部单词、释义、分组、记录、听音辨义候选缓存与学习会话。
-  @override
-  Future<void> clearAll() async {
-    // 原生统一删除全部业务表记录，候选缓存也在同一清理入口中删除。
-    await _channel.invokeMethod<void>('clearAllWords');
-  }
-
-  ///
-  /// 导入 words，以及文件中可选的 groups/members。
-  @override
-  Future<void> importData(Map<String, Object?> data) async {
-    // 原生按真实表结构转换字段，并在文件带分组时映射新旧外键。
-    await _channel.invokeMethod<void>('importData', data);
-  }
-
-  ///
-  /// 读取原生层按 SQLite 实际表结构生成的导出对象。
   @override
   Future<Map<String, Object?>> exportData() async {
-    final payload = await _channel.invokeMapMethod<Object?, Object?>(
-      'exportData',
-    );
+    final payload = await _channel.invokeMapMethod<Object?, Object?>('exportData');
     if (payload == null) throw StateError('SQLite 没有返回导出数据');
     return <String, Object?>{
       for (final entry in payload.entries)
@@ -184,68 +223,55 @@ class LocalWordStore implements WordStore {
     };
   }
 
-  ///
-  /// 从 Android SQLite 一次读取全部 Word/Meaning。
-  Future<List<Word>> _loadSqliteWords() async {
-    // Android 返回普通 List<Map>；原生 null 属于接口错误。
-    final rawWords = await _channel.invokeListMethod<Object?>('getAllWords');
-    // null 不等于空列表，必须明确报告。
-    if (rawWords == null) throw StateError('原生 SQLite 没有返回单词列表');
-    // 转成模型；spelling 可重复，所以每条数据库记录都会被保留。
-    return _parseWordMaps(rawWords, sourceLabel: 'SQLite');
-  }
+  @override
+  Future<void> clearAll() => _channel.invokeMethod<void>('clearAll');
 }
 
 ///
-/// 解析导入用的 JSON 文本，返回强类型 Word 列表。
+/// 解析导入用的 JSON 文本，返回可直接交给原生的备份对象。
 ///
-/// 兼容两种形态，方便「导入 words.json 原始词表」与「导入本 App 导出的备份」：
-/// 1) 顶层是数组：直接当作单词列表；
-/// 2) 顶层是对象且含 `words` 字段：取其中的数组（导出备份的结构）。
-/// 每条记录里不存在的字段由 [Word.fromMap] 自然忽略，多余字段也不影响解析。
-List<Word> parseWordsFromJsonText(String jsonText) {
-  // jsonDecode 遇到语法错误时会抛 FormatException，首页会显示其 offset。
+/// 只认 2.0 结构：顶层必须是对象且带 `words` 数组。旧版备份请先用
+/// `tools/migrate_v2.py` 转换成新格式——旧结构里的分组、音标、词形
+/// 在新库里已经没有位置，硬塞只会得到一份半对半错的数据。
+Map<String, Object?> parseBackupJson(String jsonText) {
+  // jsonDecode 遇到语法错误时会抛 FormatException，首页会显示其位置。
   final decoded = jsonDecode(jsonText);
-  // 顶层数组：原始 words.json 形态。
-  if (decoded is List) {
-    return _parseWordMaps(decoded, sourceLabel: '导入文件');
+  if (decoded is! Map) {
+    throw const FormatException('导入文件顶层必须是对象');
   }
-  // 顶层对象且含 words 数组：本 App 导出备份形态。
-  if (decoded is Map && decoded['words'] is List) {
-    return _parseWordMaps(decoded['words'] as List, sourceLabel: '导入文件');
+  if (decoded['words'] is! List) {
+    throw const FormatException(
+      '导入文件缺少 words 数组。若这是 1.x 的旧备份，'
+      '请先用 tools/migrate_v2.py 转换成新格式。',
+    );
   }
-  // 既不是数组也不是含 words 的对象，明确报错。
-  throw const FormatException('导入文件顶层必须是单词数组或包含 words 数组的对象');
+  return <String, Object?>{
+    for (final entry in decoded.entries)
+      if (entry.key is String) entry.key! as String: entry.value,
+  };
 }
 
 ///
 /// 把动态 Map 数组逐条转换成强类型 Word，保持原始数量和顺序。
-List<Word> _parseWordMaps(
+List<Word> parseWordMaps(
   List<dynamic> rawWords, {
   required String sourceLabel,
 }) {
-  // 保存逐条转换结果。
-  final parsedWords = <Word>[];
+  final parsed = <Word>[];
   // 带下标循环可以在错误信息中指出具体第几条记录。
   for (var index = 0; index < rawWords.length; index += 1) {
-    // 读取当前原始对象。
     final rawWord = rawWords[index];
     // 每个元素必须是 JSON object 或 MethodChannel Map。
     if (rawWord is! Map) {
       throw FormatException('$sourceLabel 第 ${index + 1} 个单词必须是对象');
     }
     try {
-      // Map.from 将动态键值收窄成 Word.fromMap 的输入类型。
-      final wordMap = Map<Object?, Object?>.from(rawWord);
-      // 转换并追加。
-      parsedWords.add(Word.fromMap(wordMap));
+      parsed.add(Word.fromMap(Map<Object?, Object?>.from(rawWord)));
     } on FormatException catch (error) {
       // 将内部字段错误包装上文件位置。
-      throw FormatException(
-        '$sourceLabel 第 ${index + 1} 个单词格式错误：${error.message}',
-      );
+      throw FormatException('$sourceLabel 第 ${index + 1} 个单词格式错误：${error.message}');
     }
   }
   // 冻结列表，防止页面直接改变 Store 内部顺序或数量。
-  return List<Word>.unmodifiable(parsedWords);
+  return List<Word>.unmodifiable(parsed);
 }

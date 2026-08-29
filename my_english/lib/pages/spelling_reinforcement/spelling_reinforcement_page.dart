@@ -13,26 +13,18 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 import '../../common/theme.dart';
 // 引入全局 Toast 工具，播放失败时提示用户。
 import '../../common/toast.dart';
-// 引入统一的字段解析辅助函数。
-import '../../models/model_value_parser.dart';
-// 引入复习会话模型：模块标识、主线/巩固类型与状态。
-import '../../models/review_session.dart';
 // 引入单词数据模型，首页会把当天固定词单传进来。
 import '../../models/word.dart';
 // 引入音节切分服务：默认切法、换一种切法、用户手动切法都走它。
 import '../../services/syllable_service.dart';
 // 引入音频播放接口，与首页、随身听共用同一个实现。
 import '../../services/word_audio.dart';
-// 引入复习记录 Store，每拼完一个词写一条记录。
-import '../../store/review_record.dart';
-// 引入复习会话 Store，进度冻结/续玩与结算都走它。
-import '../../store/review_session.dart';
 // 引入口音设置枚举。
 import '../../store/settings.dart';
-// 引入音节划分存储，正式环境走 Android SQLite。
-import '../../store/syllable.dart';
+// 引入单词 Store，用来把现算出来的音节拆分回写到单词行。
+import '../../store/word.dart';
 // 引入统一的进度出口，屏蔽「长期会话」与「复习会话」的差别。
-import '../review/services/session_progress_sink.dart';
+import '../review/services/session_progress.dart';
 // 引入本页面专用的候选片段生成器。
 import 'services/spelling_chunk_generator.dart';
 // 引入集中管理的页面布局尺寸。
@@ -69,7 +61,6 @@ const double _kSoftBackgroundAlpha = 0.13;
 /// 26 个键挨着试，一定能过关，「拼写失误」这个统计也就失去意义。设了上限之后
 /// 答错有了真实代价，同时也给「怎么都想不起来」的用户留了出口——
 /// 揭示答案的那一刻，正是记忆真正被加强的时候。
-const int _kMaxWrongPerWord = 2;
 
 ///
 /// 拼写巩固的两种作答方式。
@@ -95,7 +86,6 @@ class SpellingWordOutcome {
   const SpellingWordOutcome({
     required this.spelling,
     required this.wrongCount,
-    required this.revealed,
   });
 
   ///
@@ -107,29 +97,9 @@ class SpellingWordOutcome {
   final int wrongCount;
 
   ///
-  /// 是否因为错满上限而被自动揭示答案。
-  final bool revealed;
+  /// 是否一次就拼对（全程没错）。
+  bool get isPerfect => wrongCount == 0;
 
-  ///
-  /// 是否一次就拼对（全程没错、也没被揭示）。
-  bool get isPerfect => wrongCount == 0 && !revealed;
-
-  ///
-  /// 从持久化快照恢复一条结果；坏数据按「错 1 次、未揭示」兜底。
-  factory SpellingWordOutcome.fromMap(Map<Object?, Object?> map) =>
-      SpellingWordOutcome(
-        spelling: map['spelling'] is String ? map['spelling']! as String : '',
-        wrongCount: max(0, readIntOrFallback(map['wrongCount'], fallback: 1)),
-        revealed: map['revealed'] == true,
-      );
-
-  ///
-  /// 序列化成可写进会话快照的 Map。
-  Map<String, Object?> toMap() => <String, Object?>{
-    'spelling': spelling,
-    'wrongCount': wrongCount,
-    'revealed': revealed,
-  };
 }
 
 ///
@@ -143,7 +113,7 @@ class SpellingWordOutcome {
 ///   键盘逐字母拼。
 ///
 /// 底部两个工具：换一种拆分方式（刷新）、自己动手拆分（剪刀）。一个词错满
-/// [_kMaxWrongPerWord] 次会自动揭示答案并计入「需加强」，避免用户卡死，
+/// 答错只会抖动提示，不会揭示答案——想不起来就一直试，
 /// 也让答错有真实代价。
 ///
 /// 界面复刻 `ui/拼写巩固.html` 原型，只有「左上返回图标 + 中间数字进度 + 进度条」
@@ -155,12 +125,11 @@ class SpellingReinforcementPage extends StatefulWidget {
   const SpellingReinforcementPage({
     required this.words,
     required this.title,
-    required this.reviewSession,
+    required this.progress,
     required this.audioPlayer,
     required this.accent,
-    this.reviewSessionStore,
-    this.recordStore,
     this.syllableService,
+    this.wordStore,
     super.key,
   }) : assert(words.length > 0, '拼写巩固至少需要一个单词');
 
@@ -173,11 +142,11 @@ class SpellingReinforcementPage extends StatefulWidget {
   final String title;
 
   ///
-  /// 本局复习会话，由首页的 ReviewFlow 判定后传入。
+  /// 本局的进度出口，由首页的 ReviewFlow 判定后传入。
   ///
-  /// 它同时决定三件事：进度存到哪一局、复习记录归到哪一局，
+  /// 它同时决定三件事：进度存到哪一局、每次点击记到哪一局，
   /// 以及答题要不要推进单词的复习时间（巩固局不推进）。
-  final ReviewSession reviewSession;
+  final SessionProgress progress;
 
   ///
   /// 与首页、随身听共用的发音服务。
@@ -188,16 +157,14 @@ class SpellingReinforcementPage extends StatefulWidget {
   final PronunciationAccent accent;
 
   ///
-  /// 复习会话存储；正式环境使用 SQLite，测试可注入内存实现。
-  final ReviewSessionStore? reviewSessionStore;
-
-  ///
-  /// 复习记录存储；每拼完一个词写一条。
-  final ReviewRecordStore? recordStore;
-
-  ///
   /// 音节切分服务；正式环境走 Android SQLite，测试可注入内存实现。
   final SyllableService? syllableService;
+
+  ///
+  /// 单词 Store：现算出来的音节拆分要回写到单词行。
+  ///
+  /// 正式环境使用 SQLite 单例，Widget 测试可传入内存替身。
+  final WordStore? wordStore;
 
   ///
   /// 创建拼写巩固页面状态。
@@ -255,12 +222,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   final Set<int> _manualCuts = <int>{};
 
   ///
-  /// 当前单词已经答错的次数；错满 [_kMaxWrongPerWord] 就揭示答案。
+  /// 当前单词已经答错的次数；只用于结算页统计，不再触发任何自动揭示。
   int _currentWrong = 0;
-
-  ///
-  /// 当前单词是否已经被自动揭示答案。
-  bool _currentRevealed = false;
 
   ///
   /// 本局每个已完成单词的结果，供结算页统计与「需加强」列表使用。
@@ -361,21 +324,11 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
 
   ///
   /// 本局进度的落盘出口，在 initState 里创建一次。
-  late final SessionProgressSink _progress;
+  SessionProgress get _progress => widget.progress;
 
   ///
   /// 音节切分服务；正式环境走 Android SQLite，测试可注入内存实现。
   late final SyllableService _syllables;
-
-  ///
-  /// 正式页面复用 SQLite 单例，Widget 测试可传入内存 Store。
-  ReviewSessionStore get _sessionStore =>
-      widget.reviewSessionStore ?? LocalReviewSessionStore.instance;
-
-  ///
-  /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
-  ReviewRecordStore get _recordStore =>
-      widget.recordStore ?? LocalReviewRecordStore.instance;
 
   ///
   /// 当前正在拼写的单词。
@@ -388,13 +341,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 是否展示结算页。
   bool get _showSummary => _completed;
-
-  ///
-  /// 本局答题是否需要推进单词的复习时间。
-  ///
-  /// 只有「无限巩固练习」不推进——那批词里混着明天要背的，
-  /// 推进了明天就选不到它们了。
-  bool get _updatesReviewedAt => widget.reviewSession.updatesReviewedAt;
 
   ///
   /// 一次就拼对的单词数量（全程没错、也没被揭示）。
@@ -447,14 +393,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       duration: const Duration(milliseconds: SpellingLayout.popDurationMs),
       value: 1,
     );
-    // 进度出口：拼写巩固只会从首页复习模块进入，因此固定写复习会话。
-    _progress = ReviewSessionProgressSink(
-      store: _sessionStore,
-      session: widget.reviewSession,
-    );
-    // 音节服务：正式环境走 Android SQLite，测试可注入内存实现。
-    _syllables =
-        widget.syllableService ?? SyllableService(LocalSyllableStore());
+    // 音节服务是纯计算的；算出来的拆分由本页回写到单词行。
+    _syllables = widget.syllableService ?? SyllableService();
     // 先恢复历史进度（可能直接恢复到已结算状态），再准备当前单词。
     _restoreProgress();
     if (!_showSummary) {
@@ -468,50 +408,43 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   }
 
   ///
-  /// 从会话快照恢复本局进度；坏数据一律按「全新一局」兜底。
+  /// 从会话与点击记录恢复本局进度。
+  ///
+  /// 2.0 起不再存页面快照：做到第几个来自会话的「当前进度」，用时来自
+  /// 「所用时间」，每个词答对没有、错了几次全部回放点击记录得出。
+  ///
+  /// 唯一恢复不了的是「当前这个词已经拼了一半」——重进会从这个词的开头
+  /// 重来。这是刻意的取舍：为了半个单词而维护一份快照并不划算。
   void _restoreProgress() {
-    final state = _progress.initialState;
-    if (state.isEmpty) return;
-    // 已经结算过的快照不恢复答题状态，直接进结算页。
-    _completed = state['completed'] == true;
-    _wordIndex = readIntOrFallback(
-      state['wordIndex'],
-      fallback: 0,
-    ).clamp(0, _total - 1);
-    // 累计错误以会话字段为准：错完就退、退完再进，不能刷出一局「全对」。
-    _errors = max(_progress.initialWrongTotal, 0);
-    _elapsedMs = max(0, readIntOrFallback(state['elapsedMs'], fallback: 0));
-    _currentWrong = max(
-      0,
-      readIntOrFallback(state['currentWrong'], fallback: 0),
-    );
-    _currentRevealed = state['currentRevealed'] == true;
-    // 已完成单词的结果列表，决定进度条、结算统计与「需加强」名单。
-    final rawOutcomes = state['outcomes'];
-    if (rawOutcomes is List) {
-      for (final item in rawOutcomes) {
-        if (item is! Map) continue;
-        _outcomes.add(
-          SpellingWordOutcome.fromMap(Map<Object?, Object?>.from(item)),
-        );
+    final session = _progress.session;
+    // 当前单词下标；夹在合法区间内，防止词库变动后越界。
+    _wordIndex = session.cursor.clamp(0, _total - 1);
+    _elapsedMs = session.elapsed * 1000;
+    // 累计错误由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
+    _errors = _progress.wrongCount;
+
+    // 回放已完成单词的结果：一个词只要在记录里出现过「答对」，就算走完了。
+    for (var index = 0; index < _wordIndex && index < widget.words.length; index += 1) {
+      final word = widget.words[index];
+      final wordId = word.id;
+      if (wordId == null) continue;
+      final wordProgress = _progress.progressOf(wordId);
+      _outcomes.add(
+        SpellingWordOutcome(
+          spelling: word.spelling,
+          // 这个词在本局错过几次，直接数记录。
+          wrongCount: _progress.allRecords
+              .where((record) => record.wordId == wordId && !record.isCorrect)
+              .length,
+        ),
+      );
+      // 已经结算过的词不再重复结算。
+      if (wordProgress.answeredMeaningIds.isNotEmpty || wordProgress.spellingDone) {
+        _recordedIndexes.add(index);
       }
     }
-    // 已写过记录的单词下标，避免续玩后同一个词写出两条记录。
-    final rawRecorded = state['recordedIndexes'];
-    if (rawRecorded is List) {
-      for (final item in rawRecorded) {
-        if (item is num) _recordedIndexes.add(item.toInt());
-      }
-    }
-    // 当前单词的半成品进度：片段模式记「填了几格」，逐字母模式记「拼了哪些字符」。
-    _filledChunks = max(
-      0,
-      readIntOrFallback(state['filledChunks'], fallback: 0),
-    );
-    final rawTyped = state['typedLetters'];
-    if (rawTyped is String) {
-      _typedLetters.addAll(rawTyped.split(''));
-    }
+    // 全部走完就直接进结算页。
+    _completed = _outcomes.length >= _total;
   }
 
   ///
@@ -529,12 +462,12 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     if (!_canManualSplit) {
       parts = <String>[spelling];
     } else {
-      try {
-        parts = await _syllables.getDivision(spelling);
-      } catch (error) {
-        // 音节库读写失败不该让这一局玩不下去，退化成逐字母模式即可。
-        debugPrint('读取音节划分失败，退化为逐字母拼写：$error');
-        parts = <String>[spelling];
+      // 音节拆分住在单词行上：存过就直接用，没存过当场算一份并回写。
+      if (_currentWord.syllables.isNotEmpty) {
+        parts = _currentWord.syllables;
+      } else {
+        parts = _syllables.split(spelling);
+        unawaited(_saveSyllables(parts));
       }
     }
     if (!mounted) return;
@@ -782,7 +715,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   }
 
   ///
-  /// 处理一次答错：累计错误、抖动反馈，错满上限则揭示答案。
+  /// 处理一次答错：累计错误、抖动反馈、留一条记录。
   ///
   /// [chunkIndex] 片段模式下点错的按钮下标；[keyLabel] 逐字母模式下点错的字母；
   /// [slotIndex] 当前正在填的那一格，用来让占位格一起变红抖动。
@@ -798,6 +731,15 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _shakeController.forward(from: 0);
     // 轻微震动：眼睛在看占位格时，手上也能感到「这下错了」。
     unawaited(HapticFeedback.selectionClick());
+    // 记一条「点错了」：结算难度时靠它判定这一轮答错，
+    // 首页的复习数字与热力图也靠这些记录汇总。
+    unawaited(
+      _recordAttempt(
+        // 记下用户实际点的那个音节块或字母，回看时能看出错在哪。
+        input: keyLabel ?? (chunkIndex != null ? _pool[chunkIndex].text : ''),
+        isCorrect: false,
+      ),
+    );
     unawaited(_persist());
     _unlockTimer?.cancel();
     _unlockTimer = Timer(
@@ -810,42 +752,18 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
           _wrongSlotIndex = -1;
           _inputLocked = false;
         });
-        // 抖完再判断要不要揭示答案，让用户先看清刚才那一下错了。
-        if (_currentWrong >= _kMaxWrongPerWord) _revealAnswer();
       },
     );
   }
 
   ///
-  /// 错满上限后自动揭示答案：把所有格子填上正确内容，停一会儿再进下一个词。
-  ///
-  /// 这不是惩罚，而是这个玩法真正的教学时刻：想不起来的那个词，看到完整拼写
-  /// 的这一秒才是记忆被加强的时候。同时它也是「卡住了怎么办」的唯一出口。
-  void _revealAnswer() {
-    if (_showSummary || _currentRevealed) return;
-    setState(() {
-      _currentRevealed = true;
-      _inputLocked = true;
-      if (_mode == SpellingMode.chunk) {
-        _filledChunks = _parts.length;
-      } else {
-        _typedLetters
-          ..clear()
-          ..addAll(_currentWord.spelling.trim().split(''));
-      }
-    });
-    _popController.forward(from: 0);
-    unawaited(_persist());
-    _advanceTimer?.cancel();
-    _advanceTimer = Timer(
-      const Duration(milliseconds: SpellingLayout.revealDelayMs),
-      _goToNextWord,
-    );
-  }
-
-  ///
-  /// 当前单词拼对：锁住输入、停顿一下再进下一个词。
+  /// 当前单词拼对：记一条、锁住输入、停顿一下再进下一个词。
   void _onWordSolved() {
+    // 拼对也留痕：没有这一条，本局这个词在数据库里就等于「没练过」，
+    // 首页的今日复习数与打卡热力图都统计不到它。
+    unawaited(
+      _recordAttempt(input: _currentWord.spelling, isCorrect: true),
+    );
     setState(() => _inputLocked = true);
     _advanceTimer?.cancel();
     _advanceTimer = Timer(
@@ -862,16 +780,14 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     final outcome = SpellingWordOutcome(
       spelling: _currentWord.spelling,
       wrongCount: _currentWrong,
-      revealed: _currentRevealed,
     );
-    // 这个词尘埃落定，立刻写一条复习记录。
+    // 这个词尘埃落定，给它结算难度。
     unawaited(_recordCurrentWord(outcome));
 
     final isLast = _wordIndex + 1 >= _total;
     setState(() {
       _outcomes.add(outcome);
       _currentWrong = 0;
-      _currentRevealed = false;
       _inputLocked = false;
       if (isLast) {
         _completed = true;
@@ -899,31 +815,58 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 时机：这个词已经拼对或被揭示答案，用户对它的掌握程度已经尘埃落定。
   /// 把累计答错次数交给原生，由它在一个事务里更新连对次数、难度和复习时间。
   ///
-  /// 被揭示答案的词按「用过提示」记录：它确实没有独立拼对，
-  /// 但也确实练到了，不该像没练一样完全不留痕迹。
-  Future<void> _recordCurrentWord(SpellingWordOutcome outcome) async {
-    // 恢复进度后重复走到同一个词不该再写一条，用集合挡住。
-    if (!_recordedIndexes.add(_wordIndex)) return;
+  ///
+  /// 记一次输入尝试，不论对错。
+  ///
+  /// 拼写巩固没有「一条释义一小题」的概念，所以记录不带含义主键，
+  /// 只挂在单词上。
+  Future<void> _recordAttempt({
+    required String input,
+    required bool isCorrect,
+  }) async {
     final wordId = _currentWord.id;
-    // 没有主键的临时数据跳过写入。
+    // 没有主键无法落库；它通常只会出现在尚未保存的测试数据中。
     if (wordId == null) return;
     try {
-      await _recordStore.add(
-        wordId: wordId,
-        module: ReviewModule.spellingReinforcement,
-        // 记录挂到本局会话上，结算与回溯都能对上号。
-        sessionId: widget.reviewSession.id,
-        // 答错次数为 0 时原生判定为「一气呵成」，连对次数才会往上走。
-        wrongCount: outcome.wrongCount,
-        // 揭示答案等价于用了一次提示，只留档不影响正误判定。
-        hintCount: outcome.revealed ? 1 : 0,
-        // 巩固局不推进复习时间，否则明天那批词今天就被消耗掉了。
-        updateReviewedAt: _updatesReviewedAt,
-      );
+      await _progress.record(wordId: wordId, input: input, isCorrect: isCorrect);
     } catch (error) {
-      // 记录写入失败不该打断正在进行的一局；集合里放回去，后面还有机会补写。
+      // 写记录失败不该打断答题，最多这一次点击没留痕。
+      debugPrint('写入拼写巩固点击记录失败：$error');
+    }
+  }
+
+  ///
+  /// 这个词尘埃落定后结算它：更新难度，必要时推进复习时间。
+  ///
+  /// 「对 / 错」在每次点击的当下就已经逐次写进了会话记录，这里只负责结算。
+  /// 结算会看「本局这个词有没有点错过」，一次都没错才算这一轮答对。
+  Future<void> _recordCurrentWord(SpellingWordOutcome outcome) async {
+    // 恢复进度后重复走到同一个词不该再算一次，用集合挡住。
+    if (!_recordedIndexes.add(_wordIndex)) return;
+    final wordId = _currentWord.id;
+    // 没有主键的临时数据跳过。
+    if (wordId == null) return;
+    try {
+      await _progress.settle(wordId);
+    } catch (error) {
+      // 结算失败不该打断正在进行的一局；集合里放回去，后面还有机会补算。
       _recordedIndexes.remove(_wordIndex);
-      debugPrint('写入拼写巩固复习记录失败：$error');
+      debugPrint('拼写巩固结算单词失败：$error');
+    }
+  }
+
+  ///
+  /// 把当场算出来的音节拆分回写到单词行。
+  ///
+  /// 写失败只记日志：拆分是可再生的派生数据，下次进来重算一遍就有了。
+  Future<void> _saveSyllables(List<String> parts) async {
+    final wordId = _currentWord.id;
+    if (wordId == null) return;
+    try {
+      await (widget.wordStore ?? LocalWordStore.instance)
+          .saveWordSyllables(wordId, parts);
+    } catch (error) {
+      debugPrint('保存音节拆分失败：$error');
     }
   }
 
@@ -949,8 +892,9 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     final before = _parts.join('|');
     List<String> next;
     try {
-      next = await _syllables.nextAlternative(
+      next = _syllables.nextAlternative(
         _currentWord.spelling.trim(),
+        current: _parts,
         splitOnly: true,
       );
     } catch (error) {
@@ -1036,7 +980,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     // 切不出两块以上就没有意义，维持原状。
     if (parts.length < 2) return;
     try {
-      await _syllables.setUserDivision(spelling, parts);
+      await _saveSyllables(parts);
     } catch (error) {
       // 落库失败不影响本局按新切法作答，只是下次进来不会记住。
       debugPrint('保存手动音节划分失败：$error');
@@ -1051,60 +995,29 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
 
   ///
   /// 把当前进度写入 SQLite；页面交互先完成，持久化失败不阻断游戏。
-  Future<void> _persist() => _progress.save(
+  ///
+  /// 2.0 起只写两个数：做到第几个词、已经花了多少秒。剩下的现场
+  /// （每个词答没答对、错了几次）全部由这一局的点击记录反查得出。
+  Future<void> _persist() async {
     // 已结算的局不能再被 dispose 时的延迟保存写回「进行中」。
-    enabled: !_showSummary,
-    // 累计答错数决定这一局的成败统计，必须和进度一起落盘。
-    wrongTotal: _errors,
-    state: _buildStateSnapshot(),
-  );
+    if (_showSummary) return;
+    await _progress.save(cursor: _wordIndex, elapsed: _elapsedSeconds);
+  }
 
   ///
-  /// 组装一份可持久化的本局进度快照。
-  ///
-  /// 保存进度和结算都要用到同一份字段，抽出来避免两处写法漂移。
-  /// 切分方案本身不入快照：它存在音节表里，恢复时按单词重新读一次即可，
-  /// 候选池的顺序也由「种子 + 单词下标 + 切法」确定性重建。
-  Map<String, Object?> _buildStateSnapshot() => <String, Object?>{
-    // 当前单词下标。
-    'wordIndex': _wordIndex,
-    // 片段模式已经填对的格数。
-    'filledChunks': _filledChunks,
-    // 逐字母模式已经拼出的字符（含自动补上的空格与连字符）。
-    'typedLetters': _typedLetters.join(),
-    // 当前单词已经答错几次，续玩后错误上限要接着数。
-    'currentWrong': _currentWrong,
-    // 当前单词是否已经被揭示答案。
-    'currentRevealed': _currentRevealed,
-    // 已完成单词的结果列表，结算统计与「需加强」名单都靠它。
-    'outcomes': <Map<String, Object?>>[
-      for (final outcome in _outcomes) outcome.toMap(),
-    ],
-    // 已写过复习记录的单词下标，防止续玩后重复写入。
-    'recordedIndexes': _recordedIndexes.toList(growable: false),
-    // 本局累计用时，结算页展示用。
-    'elapsedMs': _elapsedMs,
-    // 本局累计答错次数，结算页展示用。
-    'errors': _errors,
-    // 是否已经把全部单词走完一遍。
-    'completed': _completed,
-    // 本局总词量，调试与回溯用。
-    'total': _total,
-    // 首页进度条用：已完成的单词数 / 本局总单词数。
-    'reviewedWordCount': _outcomes.length,
-    'totalWordCount': _total,
-  };
+  /// 本局已用秒数。
+  int get _elapsedSeconds => (_elapsedMs ~/ 1000).clamp(0, 1 << 30);
 
   ///
   /// 给这一局结算。
   ///
   /// 判定规则和另两个模块一致：只要把这一局的单词全部走完一遍（[_completed]
-  /// 为 true）就算「完成」，中途答错或被揭示答案只影响结算页展示和单词个体难度，
+  /// 为 true）就算「完成」，中途答错只影响结算页展示和单词个体难度，
   /// 不再影响整局成败。中途退出没走完才算「失败」。
   Future<void> _finishSession() => _progress.finish(
     perfect: _completed,
-    state: _buildStateSnapshot(),
-    wrongTotal: _errors,
+    cursor: _outcomes.length,
+    elapsed: _elapsedSeconds,
   );
 
   ///
@@ -1382,12 +1295,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 宽度的词性列（n. / vt. …）严格对齐，右侧展示该词性下的全部中文释义，
   /// 让用户在拼写答案时能一眼比对其中的任一含义。
   Widget _buildMeanings(AppTokens tokens) {
-    // 过滤出至少含有一条有效释义的词性组，无数据的组不占用版面。
-    final meanings = _currentWord.meanings
-        .where((meaning) {
-          return meaning.definitions.any((d) => d.trim().isNotEmpty);
-        })
-        .toList(growable: false);
+    // 词性分组由模型统一整理好，页面直接照着画。
+    final meanings = _currentWord.meaningGroups;
     // 完全没有释义时给一句话，避免整段含义区空白。
     if (meanings.isEmpty) {
       return Center(
@@ -1414,14 +1323,14 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 const SizedBox(height: SpellingLayout.meaningRowGap),
               // 词性在固定宽度列，释义撑满剩余宽度，纵向都从顶部开始对齐。
               Row(
-                key: Key('spelling-meaning-${meanings[index].index}'),
+                key: Key('spelling-meaning-${meanings[index].meanings.first.id}'),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
                     width: SpellingLayout.posColumnWidth,
                     child: Text(
-                      meanings[index].displayPos,
-                      key: Key('spelling-pos-${meanings[index].index}'),
+                      meanings[index].pos,
+                      key: Key('spelling-pos-${meanings[index].meanings.first.id}'),
                       style: TextStyle(
                         color: tokens.textSecondary,
                         fontSize: SpellingLayout.meaningPosTextSize,
@@ -1432,11 +1341,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                   const SizedBox(width: SpellingLayout.posMeaningGap),
                   Expanded(
                     child: Text(
-                      meanings[index].definitions
-                          .map((definition) => definition.trim())
-                          .where((definition) => definition.isNotEmpty)
-                          .join('，'),
-                      key: Key('spelling-definition-${meanings[index].index}'),
+                      meanings[index].joinedDefinitions('，'),
+                      key: Key(
+                        'spelling-definition-${meanings[index].meanings.first.id}',
+                      ),
                       style: TextStyle(
                         color: tokens.text,
                         fontSize: SpellingLayout.meaningTextSize,
@@ -1980,9 +1888,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 ),
                 decoration: BoxDecoration(
                   color: Color.alphaBlend(
-                    (outcome.revealed ? AppTokens.danger : _kOrange).withValues(
-                      alpha: _kSoftBackgroundAlpha,
-                    ),
+                    // 错满 2 次以上标红，其余标橙；「被揭示答案」这一档
+                    // 随提示功能一起下线了。
+                    (outcome.wrongCount >= 2 ? AppTokens.danger : _kOrange)
+                        .withValues(alpha: _kSoftBackgroundAlpha),
                     tokens.card,
                   ),
                   borderRadius: BorderRadius.circular(
@@ -1992,7 +1901,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 child: Text(
                   outcome.spelling,
                   style: TextStyle(
-                    color: outcome.revealed ? AppTokens.danger : _kOrange,
+                    color: outcome.wrongCount >= 2 ? AppTokens.danger : _kOrange,
                     fontSize: SpellingLayout.weakChipTextSize,
                     fontWeight: FontWeight.w600,
                   ),

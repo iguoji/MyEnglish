@@ -69,7 +69,11 @@ import android.os.Build
  * 下载成功后先写临时文件，再原子替换正式缓存，避免网络中断留下一个看似存在但无法播放
  * 的残缺 mp3；TTS 只选择设备标记为不需要网络的英语声音。
  */
-class WordAudioPlayer(context: Context, channel: MethodChannel) {
+class WordAudioPlayer(
+    context: Context,
+    channel: MethodChannel,
+    private val database: WordsDatabase,
+) {
     // 保存 applicationContext，生命周期独立于单个 Activity 页面。
     private val appContext = context.applicationContext
 
@@ -118,18 +122,14 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     // 当前尚未返回 Dart 的 play 结果。
     private var pendingResult: MethodChannel.Result? = null
 
-    // 网络音频失败记录单独存放，不和用户设置、词库清空流程混在一起。
-    private val networkPreferences = appContext.getSharedPreferences(
-        "word_audio_network",
-        Context.MODE_PRIVATE,
-    )
-
-    // 内存中的失败截止时间；进程重启后从上面的私有存储恢复。
+    // 内存中的失败截止时间；进程重启后从 settings 表恢复。
+    //
+    // 生活化解释：网络发音接口挂掉时，没必要每读一个词都去撞一次墙。
+    // 这里记一个「几点之前别再试了」的时间点，期间直接用系统 TTS 发声。
+    // 它是全项目唯一一处「非用户设置」也放进设置表的值——因为规矩是
+    // 除了离线语音文件，任何需要跨进程留存的东西都只能进这一张表。
     @Volatile
-    private var networkAudioUnavailableUntilMillis = networkPreferences.getLong(
-        NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY,
-        0L,
-    )
+    private var networkAudioUnavailableUntilMillis = readNetworkFailureDeadline()
 
     // 系统 TTS 实例；真正发声的引擎可能是 Google、厂商或用户安装的其他引擎。
     private var textToSpeech: TextToSpeech? = null
@@ -472,11 +472,9 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     private fun recordNetworkAudioFailure(error: Throwable) {
         // 使用墙上时钟便于跨进程重启后恢复同一条 5 分钟记录。
         val unavailableUntil = System.currentTimeMillis() + NETWORK_FAILURE_TTL_MILLIS
+        // 内存值立即生效，磁盘写入失败也不影响本次判断。
         networkAudioUnavailableUntilMillis = unavailableUntil
-        // apply 异步落盘，不阻塞当前播放线程；内存值立即生效。
-        networkPreferences.edit()
-            .putLong(NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY, unavailableUntil)
-            .apply()
+        writeNetworkFailureDeadline(unavailableUntil)
         Log.i(
             LOG_TAG,
             "网络音频失败，${NETWORK_FAILURE_TTL_MILLIS / 60_000} 分钟内使用系统 TTS：" +
@@ -487,7 +485,30 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
     /** 清除已经恢复的网络音频失败记录。 */
     private fun clearNetworkAudioFailure() {
         networkAudioUnavailableUntilMillis = 0L
-        networkPreferences.edit().remove(NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY).apply()
+        writeNetworkFailureDeadline(0L)
+    }
+
+    /**
+     * 从设置表读回上次记录的失败截止时间；没有记录或读失败时按 0 处理。
+     *
+     * 这一步在构造函数里跑，读失败绝不能让整个音频服务起不来——
+     * 最坏结果只是多撞一次网络墙，不影响发声。
+     */
+    private fun readNetworkFailureDeadline(): Long = try {
+        val entry = database.getSettings()[NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY] as? Map<*, *>
+        (entry?.get("value") as? String)?.toLongOrNull() ?: 0L
+    } catch (error: Throwable) {
+        Log.w(LOG_TAG, "读取网络音频熔断时间失败，按未熔断处理：${error.message}")
+        0L
+    }
+
+    /** 把失败截止时间写回设置表；写失败只记日志，不影响播放。 */
+    private fun writeNetworkFailureDeadline(millis: Long) {
+        try {
+            database.setSetting(NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY, millis.toString(), "int")
+        } catch (error: Throwable) {
+            Log.w(LOG_TAG, "保存网络音频熔断时间失败：${error.message}")
+        }
     }
 
     /** 网络状态枚举：只有 UNAVAILABLE 才表示可以确信当前没有网络。 */
@@ -1482,7 +1503,7 @@ class WordAudioPlayer(context: Context, channel: MethodChannel) {
         // 网络音频失败记录有效 5 分钟，避免每个单词重复请求两个网络音源。
         const val NETWORK_FAILURE_TTL_MILLIS = 5 * 60 * 1_000L
 
-        // SharedPreferences 中保存网络音频失败截止时间的键名。
+        // settings 表中保存网络音频失败截止时间的键名。
         const val NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY = "networkAudioUnavailableUntilMillis"
 
         // 便于从 adb logcat 中筛选本功能的网络兜底日志。

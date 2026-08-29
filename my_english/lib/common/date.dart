@@ -41,3 +41,21 @@ String formatWordDate(DateTime date, DateTime now) {
   // `${表达式}` 用于插入属性或计算结果；非今年时把四位年份放在最前面。
   return '${localDate.year}.$month.$day';
 }
+
+///
+/// 把日期格式化成数据库使用的 `yyyy-MM-dd` 键。
+///
+/// 全项目的「今天」都由这一个函数算出来再传给原生，不让 Kotlin 自己取
+/// `now()`——两边对「今天从几点开始」的理解永远一致，测试也能注入固定日期。
+String dateKey(DateTime date) {
+  // 转为设备本地时间，确保跨时区时的「今天」以用户所在地为准。
+  final local = date.toLocal();
+  // 不足两位时左侧补 0，保证字符串排序等价于日期排序。
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+  return '${local.year.toString().padLeft(4, '0')}-'
+      '${twoDigits(local.month)}-${twoDigits(local.day)}';
+}
+
+///
+/// 今天的 `yyyy-MM-dd`。
+String todayKey() => dateKey(DateTime.now());

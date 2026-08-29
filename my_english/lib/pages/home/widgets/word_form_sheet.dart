@@ -5,13 +5,9 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
-// 分组模型与 Store 提供表单里的分组选择。
-import '../../../models/group.dart';
 // Meaning 与 Word 是表单产出的数据模型。
 import '../../../models/meaning.dart';
 import '../../../models/word.dart';
-// 分组 Store 提供当前分组列表。
-import '../../../store/group.dart';
 
 ///
 /// 词性选项列表。
@@ -51,7 +47,6 @@ class WordFormResult {
   const WordFormResult({
     required this.spelling,
     required this.meanings,
-    required this.groupId,
     required this.continueAdding,
   });
 
@@ -64,10 +59,6 @@ class WordFormResult {
   final List<Meaning> meanings;
 
   ///
-  /// 目标分组；null 表示"未分组"。
-  final int? groupId;
-
-  ///
   /// true 表示"提交并继续添加"，面板保持打开。
   final bool continueAdding;
 }
@@ -76,7 +67,6 @@ class WordFormResult {
 /// 弹出全屏添加/编辑单词表单；onSubmit 由首页执行真正的 Store 操作。
 Future<void> showWordFormSheet(
   BuildContext context, {
-  required GroupStore groups,
   required Future<void> Function(WordFormResult result) onSubmit,
   Word? editing,
 }) {
@@ -90,7 +80,7 @@ Future<void> showWordFormSheet(
     enableDrag: true,
     backgroundColor: Colors.transparent,
     builder: (sheetContext) =>
-        _WordFormSheet(groups: groups, onSubmit: onSubmit, editing: editing),
+        _WordFormSheet(onSubmit: onSubmit, editing: editing),
   );
 }
 
@@ -99,16 +89,8 @@ Future<void> showWordFormSheet(
 ///
 class _WordFormSheet extends StatefulWidget {
   ///
-  /// 接收分组 Store、提交回调与可选的被编辑单词。
-  const _WordFormSheet({
-    required this.groups,
-    required this.onSubmit,
-    required this.editing,
-  });
-
-  ///
-  /// 分组来源。
-  final GroupStore groups;
+  /// 接收提交回调与可选的被编辑单词。
+  const _WordFormSheet({required this.onSubmit, required this.editing});
 
   ///
   /// 提交回调。
@@ -158,9 +140,6 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   /// 拼写输入控制器；编辑模式带入原拼写。
   late final TextEditingController _spelling;
 
-  ///
-  /// 当前选择的分组；null 表示"未分组"。
-  int? _groupId;
 
   ///
   /// 全部"词性+释义"编辑块。
@@ -181,16 +160,17 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     final editing = widget.editing;
     // 拼写回填。
     _spelling = TextEditingController(text: editing?.spelling ?? '');
-    // 分组回填；方案 A 下单词可能跨多组，但表单只展示首个分组（编辑时取其第一个）。
-    // 新增默认"未分组"（_groupId 为 null）。
-    _groupId = editing?.groupIds.firstOrNull;
-    // Meaning 回填：把模型转换为可编辑草稿。
+    // 释义回填：数据库里一行只有一条释义，编辑界面仍按「一个词性 + 若干释义」
+    // 分块来写，所以先把同一词性的连续几条合并回一块。
     _meanings = editing != null && editing.meanings.isNotEmpty
-        ? editing.meanings
+        ? editing.meaningGroups
               .map(
-                (meaning) => _MeaningDraft(
-                  pos: meaning.pos,
-                  defs: List<String>.of(meaning.definitions),
+                (group) => _MeaningDraft(
+                  // '*' 是「未选词性」的显示占位，回填到输入框时要还原成空。
+                  pos: group.pos == '*' ? '' : group.pos,
+                  defs: group.meanings
+                      .map((meaning) => meaning.definition)
+                      .toList(),
                 ),
               )
               .toList()
@@ -248,21 +228,22 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       if (meaning.pos.trim().isEmpty && defs.isEmpty) continue;
       drafts.add(_MeaningDraft(pos: meaning.pos.trim(), defs: defs));
     }
-    // 模型按 index 从大到小显示；第一块给最大 index 保证顺序不变。
+    // 一块草稿炸成若干条释义：数据库里一行就是一条中文释义。
+    // 传出顺序即显示顺序，排序值由原生按顺序自动发放。
     final meanings = <Meaning>[
-      for (var index = 0; index < drafts.length; index += 1)
-        Meaning(
-          index: drafts.length - index,
-          pos: drafts[index].pos,
-          definitions: drafts[index].defs,
-        ),
+      for (final draft in drafts)
+        // 一个展示词性可能对应多条数据库记录：`vi. vt.` 要拆回 vi. 和 vt. 两条。
+        for (final variant in splitPos(draft.pos))
+          for (final definition in draft.defs)
+            Meaning(
+              pos: variant.pos,
+              subPos: variant.subPos,
+              definition: definition,
+            ),
     ];
-    // 汇总提交结果；表单只选一个分组，这里把单值转成单元素列表（null 表示未分组）。
-    // 方案 A 的 groupMember 多对多允许跨组，但表单提交语义是"整体归属到某一组"。
     return WordFormResult(
       spelling: spelling,
       meanings: meanings,
-      groupId: _groupId,
       continueAdding: continueAdding,
     );
   }
@@ -436,7 +417,9 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   }
 
   ///
-  /// 构建分组与单词输入的首张白色卡片。
+  /// 构建单词输入的首张白色卡片。
+  ///
+  /// 分组功能在 2.0 下线，这里从「分组 + 单词」两列变成单词独占一行。
   Widget _buildPrimaryCard(AppTokens tokens) {
     return Container(
       key: const Key('word-form-primary-card'),
@@ -447,117 +430,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
         border: Border.all(color: tokens.rowBorder),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 分组较窄，占两份宽度。
-          Expanded(flex: 2, child: _buildGroupField(tokens)),
-          const SizedBox(width: 12),
-          // 单词输入较宽，占三份宽度。
-          Expanded(flex: 3, child: _buildSpellingField(tokens)),
-        ],
-      ),
-    );
-  }
-
-  ///
-  /// 构建带 Label 的分组下拉字段。
-  Widget _buildGroupField(AppTokens tokens) {
-    return Column(
-      key: const Key('form-group-field'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FormLabel(text: '分组', color: tokens.textSecondary),
-        const SizedBox(height: 7),
-        PopupMenuButton<int>(
-          key: const Key('form-group-button'),
-          position: PopupMenuPosition.under,
-          offset: const Offset(0, 4),
-          tooltip: '选择分组',
-          // 选中后更新表单分组；0 代表“未分组”。
-          onSelected: (value) => setState(() {
-            _groupId = value == GroupStore.ungroupedId ? null : value;
-          }),
-          itemBuilder: (context) {
-            // 当前生效的分组 id（未分组用 0 表示）。
-            final current = _groupId ?? GroupStore.ungroupedId;
-            return [
-              for (final option in [
-                const WordGroup(
-                  id: GroupStore.ungroupedId,
-                  name: GroupStore.ungroupedName,
-                ),
-                ...widget.groups.groups,
-              ])
-                PopupMenuItem<int>(
-                  value: option.id,
-                  height: 40,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          option.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: option.id == current
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: option.id == current
-                                ? AppTokens.accent
-                                : tokens.text,
-                          ),
-                        ),
-                      ),
-                      if (option.id == current)
-                        const Icon(
-                          TablerIcons.check,
-                          size: 14,
-                          color: AppTokens.accent,
-                        ),
-                    ],
-                  ),
-                ),
-            ];
-          },
-          // 下拉字段使用卡片同色背景，不再使用原来的灰色填充。
-          child: Container(
-            key: const Key('form-group-input'),
-            height: 44,
-            // 左侧不再二次缩进，使分组值与上方 Label 共用同一条对齐线。
-            padding: const EdgeInsets.only(right: 11),
-            decoration: BoxDecoration(
-              color: tokens.card,
-              // 分组控件只保留下边线，与右侧单词输入框使用相同结构。
-              border: Border(bottom: BorderSide(color: tokens.inputBorder)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.groups.byId(_groupId)?.name ??
-                        GroupStore.ungroupedName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: tokens.textMedium,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  TablerIcons.chevronDown,
-                  size: 14,
-                  color: tokens.textSecondary,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+      child: _buildSpellingField(tokens),
     );
   }
 

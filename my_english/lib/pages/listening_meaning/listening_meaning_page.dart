@@ -1,7 +1,5 @@
 // dart:async 提供 unawaited，播放音频时不阻塞按钮响应。
 import 'dart:async';
-// dart:convert 提供 jsonEncode，用结构化数组生成不会碰撞的候选缓存 key。
-import 'dart:convert';
 // dart:math 用于打乱答案顺序和生成干扰项。
 import 'dart:math';
 // material.dart 提供全屏页面、进度条、卡片与按钮。
@@ -19,25 +17,15 @@ import '../../common/toast.dart';
 import '../../models/meaning.dart';
 // 引入单词模型。
 import '../../models/word.dart';
-// 引入可恢复的学习会话模型。
-import '../../models/learning_session.dart';
-// 引入统一的字段解析辅助函数。
-import '../../models/model_value_parser.dart';
 // 引入音频播放接口。
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
 import '../../store/settings.dart';
+// 引入单词 Store：混淆词第一次生成后要回写到单词行 / 含义行。
+import '../../store/word.dart';
 // 引入独立候选项生成服务，页面只负责当前答题状态。
 import 'services/listening_meaning_option_generator.dart';
-// 引入听音辨义记录 Store：点击下一题时写入结果并驱动难度变化。
-import '../../models/review_session.dart';
-import '../../store/review_record.dart';
-import '../../store/review_session.dart';
-import '../review/services/session_progress_sink.dart';
-// 引入听音辨义候选项缓存 Store，让每道题长期复用相同干扰项。
-import '../../store/listening_meaning_option_cache.dart';
-// 引入学习会话 Store，持续保存本轮单词顺序与答题进度。
-import '../../store/learning_session.dart';
+import '../review/services/session_progress.dart';
 // 引入听音辨义页面集中管理的布局尺寸。
 import 'widgets/listening_meaning_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
@@ -82,12 +70,8 @@ class ListeningMeaningPage extends StatefulWidget {
     required this.words,
     required this.audioPlayer,
     required this.accent,
-    this.recordStore,
-    this.optionCacheStore,
-    this.initialSession,
-    this.sessionStore,
-    this.reviewSession,
-    this.reviewSessionStore,
+    required this.progress,
+    this.wordStore,
     this.definitionSeparator = '、',
     super.key,
   }) : assert(words.length > 0, '听音辨义页至少需要一个学习单词');
@@ -105,31 +89,17 @@ class ListeningMeaningPage extends StatefulWidget {
   final PronunciationAccent accent;
 
   ///
-  /// 复习记录存储；正式环境使用全局实例，测试可注入独立通道。
-  final ReviewRecordStore? recordStore;
-
+  /// 本局的进度出口。
   ///
-  /// 复习模块本局的会话；从词库底部进入的普通练习为 null。
-  ///
-  /// 它同时决定三件事：进度存到哪张表、复习记录归到哪一局、
+  /// 它同时决定三件事：进度存到哪一局、每次点击记到哪一局，
   /// 以及答题要不要推进单词的复习时间（巩固局不推进）。
-  final ReviewSession? reviewSession;
+  final SessionProgress progress;
 
   ///
-  /// 复习会话存储；只有 [reviewSession] 非空时才会用到。
-  final ReviewSessionStore? reviewSessionStore;
-
+  /// 单词 Store：第一次生成的混淆词要回写到单词行 / 含义行。
   ///
-  /// 候选项缓存存储；正式环境使用 SQLite，测试可注入独立通道。
-  final ListeningMeaningOptionCacheStore? optionCacheStore;
-
-  ///
-  /// 从首页“继续”入口传入的历史会话；null 表示开始一轮新听音辨义。
-  final LearningSession? initialSession;
-
-  ///
-  /// 学习会话存储；正式环境使用 SQLite，测试可注入内存实现。
-  final LearningSessionStore? sessionStore;
+  /// 正式环境使用 SQLite 单例，Widget 测试可传入内存替身。
+  final WordStore? wordStore;
 
   ///
   /// 已答出的同词性中文释义之间使用的全角分隔符。
@@ -163,24 +133,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   int _meaningIndex = 0;
 
   ///
-  /// 当前中文释义在词性组内部的下标。
-  int _definitionIndex = 0;
-
-  ///
-  /// 拼写阶段已经通过提示公开的开头字母数量。
-  int _hintLevel = 0;
-
-  ///
   /// 整轮累计答错次数，供完成状态页展示。
   int _errors = 0;
 
   ///
   /// 当前单词累计选错候选项的次数，每个新词都会重置。
   int _currentWrong = 0;
-
-  ///
-  /// 当前单词累计使用提示的次数，每个新词都会重置。
-  int _currentHints = 0;
 
   ///
   /// 本轮已经完成的单词主键，退出时交给首页定向刷新。
@@ -231,67 +189,28 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 当前候选是否直接来自恢复快照，避免首帧重新打乱顺序。
-  bool _restoredExactOptions = false;
+  final bool _restoredExactOptions = false;
 
   ///
   /// 当前正在听音辨义的单词。
   Word get _currentWord => widget.words[_wordIndex];
 
   ///
-  /// 正式页面复用单例，测试传入独立 Store 后不会触碰真实原生通道。
-  ReviewRecordStore get _recordStore =>
-      widget.recordStore ?? LocalReviewRecordStore.instance;
+  /// 本局进度的落盘出口。
+  SessionProgress get _progress => widget.progress;
 
   ///
-  /// 正式页面复用 SQLite 单例，测试可传入自定义 MethodChannel。
-  ListeningMeaningOptionCacheStore get _optionCacheStore =>
-      widget.optionCacheStore ?? ListeningMeaningOptionCacheStore.instance;
-
-  ///
-  /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
-  LearningSessionStore get _sessionStore =>
-      widget.sessionStore ?? LocalLearningSessionStore.instance;
-
-  ///
-  /// 正式页面使用 SQLite 单例，Widget 测试可传入内存 Store。
-  ReviewSessionStore get _reviewSessionStore =>
-      widget.reviewSessionStore ?? LocalReviewSessionStore.instance;
-
-  ///
-  /// 本轮进度的落盘出口，在 initState 里按入口类型创建一次。
-  ///
-  /// 从首页复习模块进来就写复习会话（有成败），从词库底部进来就写长期会话
-  /// （做完即删）。页面其余代码只调用它的 save / finish，不关心区别。
-  late final SessionProgressSink _progress;
-
-  ///
-  /// 本轮记录归属的复习模块。
-  ///
-  /// 从词库底部进入的普通练习同样按「听音辨义」归类：它确实是在练这个玩法，
-  /// 记录该计入今日统计。首页四张卡片的三态来自会话表而不是记录表，
-  /// 所以普通练习不会让今天的模块任务凭空变成「已完成」。
-  ReviewModule get _recordModule => ReviewModule.listeningMeaning;
-
-  ///
-  /// 本轮答题是否需要推进单词的复习时间。
-  ///
-  /// 只有「无限巩固练习」不推进——那批词里混着明天要背的，推进了明天就选不到。
-  /// 普通练习和每日主线都正常推进。
-  bool get _updatesReviewedAt =>
-      widget.reviewSession?.updatesReviewedAt ?? true;
+  /// 单词 Store：混淆词回写走它。
+  WordStore get _wordStore => widget.wordStore ?? LocalWordStore.instance;
 
   ///
   /// 获取当前单词中包含有效释义的词性组。
-  List<Meaning> get _availableMeanings => _currentWord.meanings
-      .where((meaning) => meaning.definitions.isNotEmpty)
-      .toList(growable: false);
-
   ///
-  /// 当前拼写中的真实英文字母数量；空格和连字符不会生成占位槽。
-  int get _currentWordLetterCount => _currentWord.spelling.runes
-      .map((codePoint) => String.fromCharCode(codePoint))
-      .where((character) => RegExp(r'^[A-Za-z]$').hasMatch(character))
-      .length;
+  /// 当前单词的全部释义（摊平后的一维列表）。
+  ///
+  /// 听音辨义按「一条释义一小题」推进，所以这里要的是摊平结果而不是分组。
+  /// 模型已经去过重、合并过动词，这里不再做任何整理。
+  List<Meaning> get _availableMeanings => _currentWord.allMeanings;
 
   ///
   /// 初始化听音辨义页面并恢复可用的历史状态。
@@ -300,19 +219,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     super.initState();
     // 监听 App 前后台变化，后台停止音频并让下次播放重新提示 TTS。
     WidgetsBinding.instance.addObserver(this);
-    // 按入口类型选定进度出口：复习模块写复习会话，词库底部写长期会话。
-    final reviewSession = widget.reviewSession;
-    _progress = reviewSession == null
-        ? LearningSessionProgressSink(
-            store: _sessionStore,
-            type: LearningSessionType.listeningMeaning,
-            wordIds: widget.words.map((word) => word.id),
-            session: widget.initialSession,
-          )
-        : ReviewSessionProgressSink(
-            store: _reviewSessionStore,
-            session: reviewSession,
-          );
     // 继续模式先恢复小题下标、错误和候选顺序；新开始则保留默认字段。
     _restoreInitialSession();
     // 完成待提交态没有候选；普通状态若快照无合法候选则同步生成标准四选一。
@@ -327,7 +233,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 精确恢复的候选已经包含顺序；新题才从长期干扰项缓存恢复或创建。
       if (!_isCurrentWordComplete && !_restoredExactOptions) {
-        unawaited(_restoreOrCreateCurrentOptionCache());
+        unawaited(_restoreOrCreateCurrentConfusions());
       }
       // 完成待提交态不自动重播，普通小题进入后保持原有自动发音体验。
       if (!_isCurrentWordComplete) unawaited(_playAudio());
@@ -335,175 +241,88 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   }
 
   ///
-  /// 从历史会话恢复当前听音辨义状态；所有动态字段都经过边界校验。
+  /// 从会话与点击记录恢复当前听音辨义状态。
+  ///
+  /// 2.0 起不再存页面快照——每一次点击都写了一条记录，把这一局这个单词的
+  /// 记录翻一遍，就能精确还原：
+  /// - 有一条「含义为空且答对」的记录 → 拼写那一步已经过了；
+  /// - 答对过的含义主键集合 → 该跳到第几条释义；
+  /// - 答错记录里的「实际输入」 → 哪几个候选该保持红色禁用。
+  ///
+  /// 候选**顺序**也不必存：混淆词本身已经落在单词行 / 含义行上，
+  /// 顺序由它决定，每次进来都一样。
   void _restoreInitialSession() {
-    // 出口给出的快照为空就是一次全新的听音辨义。
-    final state = _progress.initialState;
-    if (state.isEmpty) return;
+    final session = _progress.session;
     // 先恢复单词下标，后续释义边界都依赖当前单词。
-    _wordIndex = readIntOrFallback(
-      state['wordIndex'],
-      fallback: 0,
-    ).clamp(0, widget.words.length - 1);
-    // 只有明确的 definition 才进入释义阶段，其余坏值安全回到拼写阶段。
-    _stage = state['stage'] == ListeningMeaningStage.definition.name
-        ? ListeningMeaningStage.definition
-        : ListeningMeaningStage.word;
-    // 当前单词没有可答释义时不能恢复到 definition，否则 getter 会越界。
-    if (_availableMeanings.isEmpty) _stage = ListeningMeaningStage.word;
-    if (_stage == ListeningMeaningStage.definition) {
-      _meaningIndex = readIntOrFallback(
-        state['meaningIndex'],
-        fallback: 0,
-      ).clamp(0, _availableMeanings.length - 1);
-      _definitionIndex = readIntOrFallback(
-        state['definitionIndex'],
-        fallback: 0,
-      ).clamp(0, _availableMeanings[_meaningIndex].definitions.length - 1);
+    _wordIndex = session.cursor.clamp(0, widget.words.length - 1);
+    // 累计错误由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
+    _errors = _progress.wrongCount;
+
+    final wordId = _currentWord.id;
+    if (wordId == null) return;
+    final wordProgress = _progress.progressOf(wordId);
+
+    // 拼写那一步过了才进入释义阶段；当前单词没有可答释义时留在拼写阶段。
+    if (wordProgress.spellingDone && _availableMeanings.isNotEmpty) {
+      _stage = ListeningMeaningStage.definition;
+      // 跳到第一条还没答对的释义。
+      final nextIndex = _availableMeanings.indexWhere(
+        (meaning) => !wordProgress.answeredMeaningIds.contains(meaning.id),
+      );
+      if (nextIndex < 0) {
+        // 全部释义都答对了 = 这个词已经完成，等用户点「下一题」。
+        _isCurrentWordComplete = true;
+        _feedback = '本词完成！';
+        _feedbackColor = const Color(0xFF2FB344);
+        return;
+      }
+      _meaningIndex = nextIndex;
+    } else {
+      _stage = ListeningMeaningStage.word;
     }
-    // 计数都不能为负数；提示级别额外受当前单词字母数约束。
-    _hintLevel = readIntOrFallback(
-      state['hintLevel'],
-      fallback: 0,
-    ).clamp(0, _currentWordLetterCount);
-    _errors = max(0, readIntOrFallback(state['errors'], fallback: 0));
-    _currentWrong = max(
-      0,
-      readIntOrFallback(state['currentWrong'], fallback: 0),
-    );
-    _currentHints = max(
-      0,
-      readIntOrFallback(state['currentHints'], fallback: 0),
-    );
-    _isCurrentWordComplete = state['isCurrentWordComplete'] is bool
-        ? state['isCurrentWordComplete']! as bool
-        : false;
-    // 错误项文本恢复后仍保持红色禁用，避免退出页面就能重新点同一个错项。
-    final rawWrongOptions = state['wrongOptions'];
-    if (rawWrongOptions is List) {
-      _wrongOptions.addAll(rawWrongOptions.whereType<String>());
-    }
-    // 优先恢复快照中的提示文字，让释义首字提示和“正确”反馈也保持离开前状态。
-    final savedFeedback = state['feedback'];
-    final savedFeedbackTone = state['feedbackTone'];
-    if (savedFeedback is String) {
-      _feedback = savedFeedback;
-      _feedbackColor = switch (savedFeedbackTone) {
-        'danger' => AppTokens.danger,
-        'success' => const Color(0xFF2FB344),
-        _ => null,
-      };
-    } else if (_isCurrentWordComplete) {
-      // 兼容尚未保存 feedback 字段的早期快照。
-      _feedback = '本词完成！';
-      _feedbackColor = const Color(0xFF2FB344);
-    } else if (_wrongOptions.isNotEmpty) {
+
+    // 当前这一小题已经点错过哪些候选，恢复后继续保持红色禁用。
+    final wrong = _stage == ListeningMeaningStage.word
+        ? wordProgress.spellingWrongInputs
+        : wordProgress.wrongInputsByMeaning[_availableMeanings[_meaningIndex].id] ??
+              const <String>{};
+    _wrongOptions.addAll(wrong);
+    _currentWrong = wrong.length;
+    if (_wrongOptions.isNotEmpty) {
       _feedback = '答错 · 难度将 +1';
       _feedbackColor = AppTokens.danger;
-    }
-    // 候选快照必须恰好四项、只有一个正确项且文本仍匹配当前正确答案。
-    final rawOptions = state['options'];
-    if (!_isCurrentWordComplete && rawOptions is List) {
-      final restored = <ListeningMeaningOption>[];
-      for (final rawOption in rawOptions) {
-        if (rawOption is! Map ||
-            rawOption['text'] is! String ||
-            rawOption['isCorrect'] is! bool) {
-          restored.clear();
-          break;
-        }
-        restored.add(
-          ListeningMeaningOption(
-            text: rawOption['text']! as String,
-            isCorrect: rawOption['isCorrect']! as bool,
-          ),
-        );
-      }
-      final correctOptions = restored
-          .where((option) => option.isCorrect)
-          .toList();
-      // 四个显示文本按去空格和忽略英文大小写判重，历史坏快照不能绕过去重规则。
-      final normalizedOptionTexts = restored
-          .map((option) => option.text.trim().toLowerCase())
-          .where((text) => text.isNotEmpty)
-          .toSet();
-      if (restored.length == 4 &&
-          normalizedOptionTexts.length == 4 &&
-          correctOptions.length == 1 &&
-          correctOptions.single.text == _currentCorrectAnswer) {
-        _options = List<ListeningMeaningOption>.unmodifiable(restored);
-        _restoredExactOptions = true;
-      }
     }
   }
 
   ///
-  /// 把当前答题状态写入 SQLite；页面交互先完成，持久化失败不阻断答题。
-  Future<void> _persistSession() => _progress.save(
+  /// 把当前进度写入 SQLite；页面交互先完成，持久化失败不阻断答题。
+  ///
+  /// 只写两个数：做到第几个词、已经花了多少秒。一个词内部走到哪一步
+  /// （选拼写还是选第几条释义、点错过谁）全部由点击记录反查得出。
+  Future<void> _persistSession() async {
     // 完成页已经结算过这一局，禁止 dispose 再把状态写回「进行中」。
-    enabled: !_isDone,
-    // 本轮累计错误数决定整局的成败，必须和进度一起落盘。
-    wrongTotal: _errors,
-    // state 是当前页面进度里需要持久化的那部分字段集合。
-    state: <String, Object?>{
-      // 保存当前单词在固定学习列表中的下标。
-      'wordIndex': _wordIndex,
-      // 首页进度条用：已完成提交的单词数 / 本局总单词数。
-      'reviewedWordCount': _wordIndex + (_isCurrentWordComplete ? 1 : 0),
-      'totalWordCount': widget.words.length,
-      // 保存拼写或释义阶段。
-      'stage': _stage.name,
-      // 保存当前词性组下标。
-      'meaningIndex': _meaningIndex,
-      // 保存当前词性组中的释义下标。
-      'definitionIndex': _definitionIndex,
-      // 保存已经公开的拼写提示字母数。
-      'hintLevel': _hintLevel,
-      // 保存本轮累计错误数，供完成页统计。
-      'errors': _errors,
-      // 保存当前单词的错误次数，提交记录时使用。
-      'currentWrong': _currentWrong,
-      // 保存当前单词的提示次数，提交记录时使用。
-      'currentHints': _currentHints,
-      // 保存当前单词是否已完成并等待点击下一题。
-      'isCurrentWordComplete': _isCurrentWordComplete,
-      // 保存用户当前看到的提示或结果反馈。
-      'feedback': _feedback,
-      // 颜色不能直接编码 JSON，因此保存可恢复的语义名称。
-      'feedbackTone': _feedbackColor == AppTokens.danger
-          ? 'danger'
-          : (_feedbackColor == const Color(0xFF2FB344) ? 'success' : 'neutral'),
-      // 保存已经选错的文本，恢复后继续保持红色禁用。
-      'wrongOptions': _wrongOptions.toList(growable: false),
-      // 保存四个候选的文本、正误和固定顺序。
-      'options': <Map<String, Object?>>[
-        for (final option in _options)
-          // 每个候选转成 JSON 可编码的普通 Map。
-          <String, Object?>{'text': option.text, 'isCorrect': option.isCorrect},
-      ],
-    },
-  );
+    if (_isDone) return;
+    // 听音辨义没有计时需求，已用时间恒为 0。
+    await _progress.save(cursor: _wordIndex, elapsed: 0);
+  }
 
   ///
-  /// 整轮跑完后给这一局结算。
+  /// 给这一局结算。
   ///
   /// 判定规则：只要把这一局的单词全部操作完一遍（走到这个方法时必然如此，
   /// 因为它只在最后一个单词提交成功后被调用），就算「完成」；中途累计的
-  /// 答错次数只影响单词个体的难度与结算页展示，不再影响整局成败。
-  /// 「失败」只保留给超时或中途未走完全部单词的场景（本模块暂无超时机制）。
-  /// 词库底部的普通练习没有成败之分，出口内部会直接把长期快照删掉，
-  /// 首页随即隐藏对应的「继续」入口。
+  /// 答错次数只影响单词个体的难度与结算页展示，不影响整局成败。
   Future<void> _finishSession() => _progress.finish(
     // 走到这里说明全部单词都已操作完一遍，不论过程中是否答错，都算过关。
     perfect: true,
-    wrongTotal: _errors,
+    cursor: widget.words.length,
   );
 
   ///
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
   String get _currentCorrectAnswer => _stage == ListeningMeaningStage.word
       ? _currentWord.spelling
-      : _availableMeanings[_meaningIndex].definitions[_definitionIndex];
+      : _availableMeanings[_meaningIndex].definition;
 
   ///
   /// 当前单词自身的全部中文释义集合。
@@ -512,37 +331,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 同一道释义题的正确答案之一，永远不能互相充当混淆项。这里把它们收集起来，
   /// 传给释义干扰项生成器，让候选彻底避开当前单词。
   Set<String> get _currentWordProviderExcludedDefinitions => {
-    for (final meaning in _currentWord.meanings)
-      for (final definition in meaning.definitions)
-        if (definition.trim().isNotEmpty) definition.trim(),
+    for (final meaning in _currentWord.allMeanings)
+      if (meaning.definition.trim().isNotEmpty) meaning.definition.trim(),
   };
-
-  ///
-  /// 当前小题的稳定缓存 key；内容字段参与 key，数据被编辑后会自然切换到新缓存。
-  String get _currentOptionCacheKey {
-    // 拼写题由版本、类型、单词主键和当前拼写共同确定。
-    if (_stage == ListeningMeaningStage.word) {
-      return jsonEncode(<Object?>[
-        'v2',
-        'word',
-        _currentWord.id,
-        _currentWord.spelling,
-      ]);
-    }
-    // 释义题还要区分 Meaning 与其中的第几条定义，避免同词多义互相覆盖。
-    final meaning = _availableMeanings[_meaningIndex];
-    return jsonEncode(<Object?>[
-      'v2',
-      'definition',
-      _currentWord.id,
-      _currentWord.spelling,
-      meaning.id,
-      meaning.index,
-      meaning.pos,
-      _definitionIndex,
-      _currentCorrectAnswer,
-    ]);
-  }
 
   ///
   /// 按当前阶段生成指定数量的干扰项。
@@ -563,29 +354,35 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   }
 
   ///
-  /// 用指定干扰项和正确答案位置组装完整四选一。
-  List<ListeningMeaningOption> _buildOptions({
-    List<String>? distractors,
-    int? correctIndex,
-  }) {
-    // 未传缓存时同步生成，确保页面首帧已经有完整四选一。
-    final resolvedDistractors = distractors ?? _generateCurrentDistractors();
-    // 候选生成器固定返回三个唯一干扰项，并优先使用同长度与相似度规则。
-    // 先保持三个干扰项的缓存顺序，稍后再把正确答案插入其固定位置。
+  /// 当前小题已经落库的混淆词；没生成过时是空列表。
+  ///
+  /// 2.0 起混淆词不再有自己的缓存表，而是直接住在单词行 / 含义行的
+  /// `confusions` 字段里，四个模块共用同一份。
+  List<String> get _currentStoredConfusions =>
+      _stage == ListeningMeaningStage.word
+      ? _currentWord.confusions
+      : _availableMeanings[_meaningIndex].confusions;
+
+  ///
+  /// 用指定干扰项组装完整四选一。
+  ///
+  /// 正确答案插在哪一格由**主键**决定（`id % 4`），不是随机数：
+  /// 同一道题每次进来位置都一样，续玩时也就不必额外存一份顺序。
+  List<ListeningMeaningOption> _buildOptions({List<String>? distractors}) {
+    // 未传混淆词时同步生成，确保页面首帧已经有完整四选一。
+    final resolved = distractors ?? _generateCurrentDistractors();
     final options = <ListeningMeaningOption>[
-      for (final distractor in resolvedDistractors.take(3))
+      for (final distractor in resolved.take(3))
         ListeningMeaningOption(text: distractor, isCorrect: false),
     ];
-    // 没有历史位置表示首次生成，用随机位置避免所有正确答案总在同一行。
-    final resolvedCorrectIndex =
-        correctIndex ?? _random.nextInt(options.length + 1);
-    // 缓存读取前已经校验范围；这里仍用 clamp 防止未来其他调用传入坏下标。
-    final safeCorrectIndex = resolvedCorrectIndex
-        .clamp(0, options.length)
-        .toInt();
-    // 正确答案文本永远取当前模型，只把位置作为缓存的一部分长期复用。
+    // 用主键取模得到一个稳定位置；没有主键的临时数据放第一格。
+    final anchor = _stage == ListeningMeaningStage.word
+        ? _currentWord.id
+        : _availableMeanings[_meaningIndex].id;
+    final correctIndex = anchor == null ? 0 : anchor % (options.length + 1);
     options.insert(
-      safeCorrectIndex,
+      correctIndex,
+      // 正确答案文本永远取当前模型，只有位置是稳定推导出来的。
       ListeningMeaningOption(text: _currentCorrectAnswer, isCorrect: true),
     );
     // 再次冻结列表，状态层只在进入下一小题时整体替换它。
@@ -593,97 +390,54 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   }
 
   ///
-  /// 从当前四个可见候选提取可持久化的三个干扰项和正确答案位置。
-  ListeningMeaningOptionCacheEntry _cacheEntryFromOptions(
-    List<ListeningMeaningOption> options,
-  ) {
-    // 标准列表只有一个正确项；若未来调用给出坏数据，indexWhere 的 -1 会被 Store 拒绝。
-    final correctIndex = options.indexWhere((option) => option.isCorrect);
-    // 移除正确答案后，三个干扰项仍保持它们在页面上的相对顺序。
-    final distractors = options
-        .where((option) => !option.isCorrect)
-        .map((option) => option.text)
-        .toList(growable: false);
-    return ListeningMeaningOptionCacheEntry(
-      distractors: List<String>.unmodifiable(distractors),
-      correctIndex: correctIndex,
-    );
-  }
-
-  ///
-  /// 判断 SQLite 返回的缓存是否仍能安全组成标准四选一。
-  bool _isValidCachedOptions(
-    ListeningMeaningOptionCacheEntry cache,
-    String correct,
-  ) {
-    // 取出三个干扰项，下面统一执行数量和文本检查。
-    final distractors = cache.distractors;
-    // 必须精确三项，否则继续使用页面已经同步生成的标准结果。
-    if (distractors.length != 3) return false;
-    // null 只允许表示旧版本缓存；已有位置必须严格处于四个按钮范围内。
-    final correctIndex = cache.correctIndex;
-    if (correctIndex != null && (correctIndex < 0 || correctIndex >= 4)) {
-      return false;
-    }
+  /// 判断已落库的混淆词是否仍能安全组成标准四选一。
+  bool _isValidConfusions(List<String> confusions, String correct) {
+    // 必须精确三项，否则重新生成一份。
+    if (confusions.length != 3) return false;
     // 英文忽略大小写，中文转换后不受影响；同时排除正确答案与重复项。
     final normalizedCorrect = correct.trim().toLowerCase();
-    final normalized = distractors
-        .map((value) => value.trim().toLowerCase())
-        .toSet();
+    final normalized = confusions.map((v) => v.trim().toLowerCase()).toSet();
     return normalized.length == 3 && !normalized.contains(normalizedCorrect);
   }
 
   ///
-  /// 命中缓存就替换同步结果；首次遇到该题则把当前生成结果保存到 SQLite。
-  Future<void> _restoreOrCreateCurrentOptionCache() async {
+  /// 混淆词已经存过就直接用，第一次遇到这道题则当场生成并回写。
+  ///
+  /// 生活化解释：每个单词、每条释义身上都挂着一小串「容易跟它搞混的东西」。
+  /// 第一个用到它的模块负责把它算出来存好，之后所有模块直接复用。
+  Future<void> _restoreOrCreateCurrentConfusions() async {
     // 每次进入新小题先领取一个代次号，用来识别晚到的旧请求。
     final generation = ++_optionLoadGeneration;
-    // 在 await 前抓取当前题身份与数据，后续切题不会改变这些局部变量。
-    final cacheKey = _currentOptionCacheKey;
+    // 在 await 前抓取当前题身份，后续切题不会改变这些局部变量。
     final correct = _currentCorrectAnswer;
+    final isWordStage = _stage == ListeningMeaningStage.word;
     final wordId = _currentWord.id;
-    // 首帧同步生成的数据已经包含完整顺序，缓存缺失或旧缓存升级时可以直接保存。
-    final generatedCache = _cacheEntryFromOptions(_options);
+    final meaningId = isWordStage ? null : _availableMeanings[_meaningIndex].id;
+    final stored = _currentStoredConfusions;
+
+    // 已经存过合法的一份：直接用它重建候选。
+    if (_isValidConfusions(stored, correct)) {
+      if (!mounted || generation != _optionLoadGeneration) return;
+      setState(() => _options = _buildOptions(distractors: stored));
+      return;
+    }
+    // 没存过或已损坏：把首帧同步生成的那一份回写。
+    final generated = _options
+        .where((option) => !option.isCorrect)
+        .map((option) => option.text)
+        .toList(growable: false);
+    if (generated.length != 3) return;
     try {
-      // 从原生 SQLite 查询这道题以前使用过的候选名字和正确答案位置。
-      final cachedOptions = await _optionCacheStore.getOptions(cacheKey);
-      // 命中合法缓存时，只允许仍处于同一小题的请求更新页面。
-      if (cachedOptions != null &&
-          _isValidCachedOptions(cachedOptions, correct)) {
-        if (!mounted || generation != _optionLoadGeneration) return;
-        // 版本 8 之前只保存三个名字；沿用当前首帧位置并在本次读取后补存。
-        final resolvedCorrectIndex =
-            cachedOptions.correctIndex ?? generatedCache.correctIndex!;
-        setState(() {
-          // 正确答案继续取最新模型，其余名字和四个按钮位置全部按缓存恢复。
-          _options = _buildOptions(
-            distractors: cachedOptions.distractors,
-            correctIndex: resolvedCorrectIndex,
-          );
-        });
-        // 候选顺序属于可恢复状态，缓存替换后同步保存当前页面快照。
-        unawaited(_persistSession());
-        // 旧缓存缺少正确答案位置时原地升级；三个已有干扰项不会改变。
-        if (cachedOptions.correctIndex == null) {
-          await _optionCacheStore.saveOptions(
-            cacheKey: cacheKey,
-            wordId: wordId,
-            distractors: cachedOptions.distractors,
-            correctIndex: resolvedCorrectIndex,
-          );
+      if (isWordStage) {
+        if (wordId != null) {
+          await _wordStore.saveWordConfusions(wordId, generated);
         }
-        return;
+      } else if (meaningId != null) {
+        await _wordStore.saveMeaningConfusions(meaningId, generated);
       }
-      // 没有缓存或缓存损坏时，保存首帧已经显示的名字和完整位置。
-      await _optionCacheStore.saveOptions(
-        cacheKey: cacheKey,
-        wordId: wordId,
-        distractors: generatedCache.distractors,
-        correctIndex: generatedCache.correctIndex!,
-      );
     } catch (error) {
-      // 缓存是体验增强，不应因原生通道异常阻断答题；保留同步生成结果即可。
-      debugPrint('读取或保存听音辨义候选缓存失败：$error');
+      // 混淆词是体验增强，不应因原生通道异常阻断答题；页面上已经有一份了。
+      debugPrint('保存听音辨义混淆词失败：$error');
     }
   }
 
@@ -772,38 +526,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
   }
 
-  ///
-  /// 点击提示：拼写阶段逐字公开，释义阶段公开首字。
-  void _showHint() {
-    // 整轮或当前单词已经完成时，不再改变提示状态。
-    if (_isDone || _isCurrentWordComplete) return;
-    if (_stage == ListeningMeaningStage.word) {
-      setState(() {
-        _hintLevel = min(
-          // 至少公开一个字母；多字母单词最多保留最后一个槽位不公开。
-          max(1, _currentWordLetterCount - 1),
-          _hintLevel + 1,
-        );
-        // 每点一次提示都计入当前单词的提示次数。
-        _currentHints++;
-        _feedback = '已显示开头字母';
-        _feedbackColor = null;
-      });
-      // 提示级别和点击次数会影响当前题展示与最终记录，必须立即保存。
-      unawaited(_persistSession());
-      return;
-    }
-    final definition =
-        _availableMeanings[_meaningIndex].definitions[_definitionIndex];
-    setState(() {
-      // 释义阶段的提示同样计入次数。
-      _currentHints++;
-      _feedback = definition.isEmpty ? '当前释义为空' : '提示：以「${definition[0]}」开头';
-      _feedbackColor = null;
-    });
-    // 释义提示次数同样进入当前会话快照。
-    unawaited(_persistSession());
-  }
 
   ///
   /// 选择答案：错项变红并禁用；正确时推进到下一小题。
@@ -831,6 +553,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _feedback = '答错 · 难度将 +1';
         _feedbackColor = AppTokens.danger;
       });
+      // 记一条「点错了」：现场恢复靠它把候选置灰，结算也靠它判定这一轮答错。
+      unawaited(_recordAnswer(input: option.text, isCorrect: false));
       // 保存错项文本与错误计数，重新进入后不能通过退出页面清除错误。
       unawaited(_persistSession());
       return;
@@ -838,6 +562,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
     // 轻触震动确认选对，不拖延答题节奏。
     HapticFeedback.lightImpact();
+    // 答对同样留痕：重进时靠它判断「拼写那步过了没有、答到第几条释义」。
+    // 必须在下面切换阶段之前记，否则会记到下一小题头上。
+    unawaited(_recordAnswer(input: option.text, isCorrect: true));
 
     if (_stage == ListeningMeaningStage.word) {
       if (_availableMeanings.isEmpty) {
@@ -848,7 +575,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       setState(() {
         _stage = ListeningMeaningStage.definition;
         _meaningIndex = 0;
-        _definitionIndex = 0;
         _wrongOptions.clear();
         _feedback = '正确！';
         _feedbackColor = const Color(0xFF2FB344);
@@ -857,16 +583,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       // 拼写答对并进入释义阶段后立即保存新的小题下标和候选顺序。
       unawaited(_persistSession());
       // 当前小题已经切到第一条释义，异步恢复或创建它自己的稳定候选缓存。
-      unawaited(_restoreOrCreateCurrentOptionCache());
+      unawaited(_restoreOrCreateCurrentConfusions());
       return;
     }
 
-    var nextMeaning = _meaningIndex;
-    var nextDefinition = _definitionIndex + 1;
-    if (nextDefinition >= _availableMeanings[nextMeaning].definitions.length) {
-      nextDefinition = 0;
-      nextMeaning++;
-    }
+    // 一行含义就是一条释义，所以「下一条」等于「下一个 Meaning」。
+    final nextMeaning = _meaningIndex + 1;
     if (nextMeaning >= _availableMeanings.length) {
       // 最后一条释义答对后隐藏选项和工具按钮，显示下一题。
       _completeCurrentWord();
@@ -874,7 +596,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     }
     setState(() {
       _meaningIndex = nextMeaning;
-      _definitionIndex = nextDefinition;
       _wrongOptions.clear();
       _feedback = '正确！';
       _feedbackColor = const Color(0xFF2FB344);
@@ -883,7 +604,41 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 每推进一条释义都更新恢复点。
     unawaited(_persistSession());
     // 下一条释义拥有独立缓存，不能沿用上一条释义的三个干扰项。
-    unawaited(_restoreOrCreateCurrentOptionCache());
+    unawaited(_restoreOrCreateCurrentConfusions());
+  }
+
+  ///
+  /// 记一次点击，不论对错。
+  ///
+  /// 这是整个会话恢复的地基：每一次点击都留一条，重进时把这一局这个单词的
+  /// 记录翻一遍就能精确还原「拼写过了没有、答到第几条释义、点错过哪些候选」。
+  /// 结算难度时也靠它判断这一轮有没有错过。
+  ///
+  /// 拼写阶段的记录不带含义主键（它针对整个单词），释义阶段则带上当前这一条。
+  Future<void> _recordAnswer({
+    required String input,
+    required bool isCorrect,
+  }) async {
+    final wordId = _currentWord.id;
+    // 没有主键无法落库；它通常只会出现在尚未保存的测试数据中。
+    if (wordId == null) return;
+    // 先把「这一条记的是哪道小题」抓成局部变量再进异步。
+    // 调用方紧接着就会推进阶段和下标，抓晚了会记到下一小题头上。
+    final meaningId = _stage == ListeningMeaningStage.word
+        // 拼写题针对整个单词，不属于某一条释义。
+        ? null
+        : _availableMeanings[_meaningIndex].id;
+    try {
+      await _progress.record(
+        wordId: wordId,
+        meaningId: meaningId,
+        input: input,
+        isCorrect: isCorrect,
+      );
+    } catch (error) {
+      // 写记录失败不该打断答题，最多这一次点击没留痕。
+      debugPrint('写入听音辨义点击记录失败：$error');
+    }
   }
 
   ///
@@ -925,9 +680,11 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       return;
     }
 
-    // 保存当前题身份，页面更新后异步覆盖同一条 SQLite 缓存。
-    final cacheKey = _currentOptionCacheKey;
-    final wordId = _currentWord.id;
+    // 保存当前题身份，页面更新后异步把新的混淆词回写到单词行 / 含义行。
+    final isWordStage = _stage == ListeningMeaningStage.word;
+    final anchorId = isWordStage
+        ? _currentWord.id
+        : _availableMeanings[_meaningIndex].id;
     // 复制只读列表，下面只修改这份临时数组。
     final updatedOptions = List<ListeningMeaningOption>.from(_options);
     // 记录所有被移除的旧干扰项，避免它们继续保持“已答错”的红色状态。
@@ -968,8 +725,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // UI 已立即替换；SQLite 写入在后台完成，不让本地 I/O 拖慢手感。
     unawaited(
       _persistRefreshedOptions(
-        cacheKey: cacheKey,
-        wordId: wordId,
+        isWordStage: isWordStage,
+        anchorId: anchorId,
         options: updatedOptions,
       ),
     );
@@ -1072,24 +829,31 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 把长按刷新后的候选名字和完整顺序覆盖进当前小题缓存。
+   ///
+  /// 把长按刷新后的混淆词回写到单词行 / 含义行。
+  ///
+  /// 用户对某个混淆词不满意，长按换一个——换完的这一批就是新的长期结果，
+  /// 之后所有模块都会用到它，所以必须落库而不是只改内存。
   Future<void> _persistRefreshedOptions({
-    required String cacheKey,
-    required int? wordId,
+    required bool isWordStage,
+    required int? anchorId,
     required List<ListeningMeaningOption> options,
   }) async {
+    if (anchorId == null) return;
+    // 正确答案不写进混淆词，只保存三个干扰项。
+    final confusions = options
+        .where((option) => !option.isCorrect)
+        .map((option) => option.text)
+        .toList(growable: false);
     try {
-      // 正确答案文本不写缓存，只保存三个干扰项和正确答案当前所在位置。
-      final cache = _cacheEntryFromOptions(options);
-      await _optionCacheStore.saveOptions(
-        cacheKey: cacheKey,
-        wordId: wordId,
-        distractors: cache.distractors,
-        correctIndex: cache.correctIndex!,
-      );
+      if (isWordStage) {
+        await _wordStore.saveWordConfusions(anchorId, confusions);
+      } else {
+        await _wordStore.saveMeaningConfusions(anchorId, confusions);
+      }
     } catch (error) {
-      // 页面替换已经完成；记录错误并提示缓存失败，下次进入仍可继续正常答题。
-      debugPrint('保存刷新后的听音辨义候选缓存失败：$error');
-      if (mounted) Toast.show(context, '候选词已刷新，但缓存保存失败');
+      // 页面替换已经完成；记录错误即可，下次进入仍可继续正常答题。
+      debugPrint('保存刷新后的混淆词失败：$error');
     }
   }
 
@@ -1133,6 +897,15 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// - 一次没错（[_currentWrong] == 0）→ 视为本次听音辨义正确；
   /// - 中途选错过 → 视为本次听音辨义错误，原生据此把连对次数归零、难度 +1。
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
+   ///
+  /// 给当前单词结算：更新难度，必要时推进复习时间。
+  ///
+  /// 这一步只在用户点击「下一题」后发生；停留在完成态或点击「再试一次」都不会
+  /// 结算。若单词没有主键（极端情况）则直接跳过，并允许页面继续推进。
+  ///
+  /// 关于正误的口径：听音辨义只能以「全部选对」结束，所以不能用「是否完成」
+  /// 判断对错。真正有意义的判定是**本局这个词有没有点错过候选**——
+  /// 每一次点击都写了记录，结算时由数据库直接数出来，页面不必自己记账。
   Future<bool> _recordCompletion() async {
     // 取出当前单词主键。
     final wordId = _currentWord.id;
@@ -1140,25 +913,14 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     if (wordId == null) return true;
     try {
       // 等待原生事务真正结束后才允许切题，确保首页回刷时能读取到最新数据。
-      // 连对次数、难度与复习时间都由原生在同一个事务里一并更新。
-      await _recordStore.add(
-        wordId: wordId,
-        module: _recordModule,
-        // 复习模块的记录挂到本局会话上；词库底部的普通练习不属于任何一局。
-        sessionId: widget.reviewSession?.id,
-        // 本次选错次数为 0 时原生判定为"一气呵成"，见上方口径说明。
-        wrongCount: _currentWrong,
-        hintCount: _currentHints,
-        // 巩固局不推进复习时间，否则明天那批词今天就被消耗掉了。
-        updateReviewedAt: _updatesReviewedAt,
-      );
+      await _progress.settle(wordId);
       // 只有事务成功后才把 id 带回首页，避免首页回刷一条并未更新的数据。
       _reviewedWordIds.add(wordId);
       // true 告诉按钮流程可以安全进入下一题。
       return true;
     } catch (error) {
       // 保留日志便于开发时定位原生数据库异常。
-      debugPrint('记录听音辨义结果失败：$error');
+      debugPrint('结算听音辨义单词失败：$error');
       // 页面仍存在时给用户明确反馈，并停留在本题以便再次点击重试。
       if (mounted) Toast.show(context, '保存听音辨义结果失败，请重试');
       // false 阻止切题，避免用户误以为本次结果已经保存。
@@ -1222,15 +984,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       _stage = ListeningMeaningStage.word;
       // 词性下标回到第一项。
       _meaningIndex = 0;
-      // 释义下标回到第一项。
-      _definitionIndex = 0;
-      // 新单词还未使用提示。
-      _hintLevel = 0;
       // 清除上一题的错误禁用项。
       _wrongOptions.clear();
-      // 新单词的错误/提示计数归零，重新开始统计。
+      // 新单词的错误计数归零，重新开始统计。
       _currentWrong = 0;
-      _currentHints = 0;
       // 新单词尚未完成。
       _isCurrentWordComplete = false;
       // 上一题事务已结束，新题允许正常交互。
@@ -1245,7 +1002,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 新单词从拼写阶段开始，保存推进后的下标与全新题面。
     unawaited(_persistSession());
     // 新单词的拼写题使用自己的持久化候选缓存。
-    unawaited(_restoreOrCreateCurrentOptionCache());
+    unawaited(_restoreOrCreateCurrentConfusions());
     // 与首次进入页面一致，新题自动发音一次。
     // interrupt: true 是本次 bug 的修复点：上一题答对后的"奖励发音"可能仍在播放，
     // 必须允许新单词直接把它打断，否则新题的发音会被旧音频挡住而完全听不到。
@@ -1270,15 +1027,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       _stage = ListeningMeaningStage.word;
       // 词性下标回到第一项。
       _meaningIndex = 0;
-      // 释义下标回到第一项。
-      _definitionIndex = 0;
-      // 收起此前公开的开头字母。
-      _hintLevel = 0;
       // 清除被标红禁用的错误候选项。
       _wrongOptions.clear();
-      // 本题错误/提示计数归零，重做后按新一次成绩落库。
+      // 本题错误计数归零，重做后按新一次成绩结算。
       _currentWrong = 0;
-      _currentHints = 0;
       // 退出完成态，底部重新显示四选一与提示/播放按钮。
       _isCurrentWordComplete = false;
       // 清除"本词完成！"反馈。
@@ -1291,7 +1043,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 重做会清空本词旧状态，立即覆盖会话，避免下次恢复到已完成态。
     unawaited(_persistSession());
     // 重做回到当前单词拼写题，重新读取它此前缓存的三个干扰项。
-    unawaited(_restoreOrCreateCurrentOptionCache());
+    unawaited(_restoreOrCreateCurrentConfusions());
     // 与进入新题一致自动发音；同样要打断可能仍在播放的奖励音频。
     unawaited(_playAudio(interrupt: true));
   }
@@ -1318,42 +1070,50 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                   : ListeningMeaningStepStatus.pending),
       ),
     ];
-    // 每个词性释义都对应一个独立步骤，进入新词时一次性全部列出。
-    for (
-      var meaningIndex = 0;
-      meaningIndex < _availableMeanings.length;
-      meaningIndex += 1
-    ) {
-      final meaning = _availableMeanings[meaningIndex];
-      // 整词完成，或当前下标已跳过该词性，说明这条释义已经全部答对。
-      final isMeaningDone =
-          _isCurrentWordComplete || meaningIndex < _meaningIndex;
-      // 释义阶段且正停留在当前词性时，该步骤处于进行中。
-      final isMeaningActive =
+    // **一个词性一个步骤**，不是一条释义一个步骤。
+    //
+    // protect 在词库里是「* 保护；防护；扶持」——一个词性下三条释义，
+    // 步骤条就该只有一格「释义」，格子里逐条填满，而不是并排三格都叫「释义」。
+    // 答题仍然按单条释义推进（_meaningIndex 走的是摊平后的下标），
+    // 这里只负责把它换算回「第几个词性分组、组内答到第几条」。
+    var flatIndex = 0;
+    for (final group in _currentWord.meaningGroups) {
+      // 这一组在摊平列表里的区间是 [flatIndex, groupEnd)。
+      final groupStart = flatIndex;
+      final groupEnd = groupStart + group.meanings.length;
+      flatIndex = groupEnd;
+
+      // 整词完成，或答题下标已经走过这一组，说明这组全部答对了。
+      final isGroupDone = _isCurrentWordComplete || _meaningIndex >= groupEnd;
+      // 释义阶段且当前下标落在这一组区间内，这组正在进行中。
+      final isGroupActive =
           !_isCurrentWordComplete &&
           _stage == ListeningMeaningStage.definition &&
-          meaningIndex == _meaningIndex;
-      // 已答出的释义：完成步骤显示全部，进行中步骤只显示已答对的部分。
-      List<String>? definitions;
-      if (isMeaningDone) {
-        definitions = List<String>.unmodifiable(meaning.definitions);
-      } else if (isMeaningActive) {
-        definitions = List<String>.unmodifiable(
-          meaning.definitions.take(_definitionIndex),
-        );
-      }
-      // 没有词性的旧数据用“释义”兜底，避免步骤出现空标题。
-      final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.displayPos;
+          _meaningIndex >= groupStart &&
+          _meaningIndex < groupEnd;
+
+      // 已答出的释义：整组答完显示全部，进行中只显示已经答对的那几条。
+      final answeredCount = isGroupDone
+          ? group.meanings.length
+          : (isGroupActive ? _meaningIndex - groupStart : 0);
+      final definitions = answeredCount > 0
+          ? List<String>.unmodifiable(<String>[
+              for (final meaning in group.meanings.take(answeredCount))
+                meaning.definition,
+            ])
+          : null;
+
       steps.add(
         ListeningMeaningStep(
           kind: ListeningMeaningStepKind.meaning,
           title: '释义',
-          status: isMeaningDone
+          status: isGroupDone
               ? ListeningMeaningStepStatus.done
-              : (isMeaningActive
+              : (isGroupActive
                     ? ListeningMeaningStepStatus.active
                     : ListeningMeaningStepStatus.pending),
-          pos: pos,
+          // 未选词性显示成「释义」而不是星号，步骤标题里星号太突兀。
+          pos: group.pos == '*' ? '释义' : group.pos,
           definitions: definitions,
         ),
       );
@@ -1369,9 +1129,18 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     if (_isCurrentWordComplete) return '当前单词已完成';
     // 拼写阶段引导用户通过发音选出单词。
     if (_stage == ListeningMeaningStage.word) return '听音，选出正确的单词';
-    final meaning = _availableMeanings[_meaningIndex];
-    final pos = meaning.pos.trim().isEmpty ? '释义' : meaning.displayPos;
-    return '$pos · 选择释义 ${_definitionIndex + 1}/${meaning.definitions.length}';
+    // 找到当前这条释义属于哪个词性分组，进度按「组内第几条 / 组内共几条」显示。
+    var flatIndex = 0;
+    for (final group in _currentWord.meaningGroups) {
+      final groupEnd = flatIndex + group.meanings.length;
+      if (_meaningIndex < groupEnd) {
+        final pos = group.pos == '*' ? '释义' : group.pos;
+        return '$pos · 选择释义 ${_meaningIndex - flatIndex + 1}/${group.meanings.length}';
+      }
+      flatIndex = groupEnd;
+    }
+    // 理论上走不到这里；真走到了说明下标越界，给一句不会误导的兜底。
+    return '选择释义';
   }
 
   ///
@@ -1555,7 +1324,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                     // 独立组件按“单词卡、提示横幅、全量步骤”从上到下输出。
                     child: ListeningMeaningQuestionContent(
                       spelling: _currentWord.spelling,
-                      revealedLetterCount: _hintLevel,
                       revealWholeWord:
                           _stage == ListeningMeaningStage.definition ||
                           _isCurrentWordComplete,
@@ -1795,19 +1563,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                 mainAxisAlignment: MainAxisAlignment.end,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 提示按钮放在播放按钮正上方。
-                  _OutlineAction(
-                    key: const Key('listening-meaning-hint'),
-                    icon: TablerIcons.bulb,
-                    label: '提示',
-                    foreground: tokens.textMedium,
-                    border: tokens.inputBorder,
-                    height: ListeningMeaningLayout.actionHeight,
-                    horizontalPadding: 8,
-                    onTap: _showHint,
-                  ),
-                  // 两个右侧按钮使用与候选词相同的纵向间距。
-                  const SizedBox(height: ListeningMeaningLayout.optionGap),
                   // 播放按钮作为右栏最后一项，底边直接对齐第四个候选词。
                   _OutlineAction(
                     key: const Key('listening-meaning-play'),

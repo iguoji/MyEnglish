@@ -2,89 +2,72 @@ import 'meaning.dart';
 import 'model_value_parser.dart';
 
 ///
-/// 单词及其释义、分组和复习信息。
+/// 一个单词，以及它的全部中文释义。
+///
+/// 音标、词形（复数/时态等）和分组在 2.0 结构里已经去掉——它们从来没被界面
+/// 用到过，留着只会让每张表和每次解析都背一份没人读的字段。
+///
 class Word {
   ///
-  /// 创建 Word；id 和时间在写入数据库前可以为空。
-  const Word({
+  /// 创建一个单词；id 与时间在写入数据库前可以为空。
+  ///
+  /// 传进来的是数据库那样的**一维释义列表**，构造时立刻整理成按词性分组的
+  /// [meanings]：归组、组内去重、`vi.`∩`vt.` 合并、光杆 `v.` 去冗余。
+  /// 所以外部拿到的 Word 永远是整理好的，谁都不用再自己分一遍组。
+  Word({
     this.id,
     required this.spelling,
-    this.meanings = const <Meaning>[],
-    this.difficulty,
-    this.phoneticUk,
-    this.phoneticUs,
-    this.plural = const <String>[],
-    this.thirdPersonSingular = const <String>[],
-    this.gerund = const <String>[],
-    this.pastTense = const <String>[],
-    this.pastParticiple = const <String>[],
-    this.comparative = const <String>[],
-    this.superlative = const <String>[],
-    this.groupIds = const <int>[],
+    List<Meaning> meanings = const <Meaning>[],
+    this.difficulty = 0,
+    this.confusions = const <String>[],
+    this.syllables = const <String>[],
     this.reviewedAt,
     this.createdAt,
     this.updatedAt,
-    this.deletedAt,
-  });
+  }) : meanings = buildMeaningGroups(meanings);
 
   ///
   /// SQLite 自增主键。
   final int? id;
 
   ///
-  /// 英文拼写；允许多个 Word 使用相同 spelling，记录身份由 id 决定。
+  /// 英文拼写；允许多个单词使用相同拼写，记录身份由 id 决定。
   final String spelling;
 
   ///
-  /// 当前单词的全部 Meaning。
-  final List<Meaning> meanings;
+  /// 按展示词性分组的全部释义，键是 `n.` / `vt.` / `vi. vt.` / `*` 这样的词性。
+  ///
+  /// 举个例子，`hello` 拿到手是这样：
+  /// ```
+  /// {
+  ///   '*'  : [未整理的含义],
+  ///   'n.' : [你好, 你好1],
+  ///   'v.' : [你好3, 你好4],
+  ///   'vt.': [你好5, 你好6],
+  ///   'vi. vt.': [既及物又不及物的那些],
+  /// }
+  /// ```
+  /// 词性的先后是「在数据库里首次出现的顺序」，组内顺序是排序值从大到小。
+  /// 整理规则见 [buildMeaningGroups]。
+  final Map<String, List<Meaning>> meanings;
 
   ///
-  /// 可空难度，最小值为 0 且没有最大值。
-  final int? difficulty;
+  /// 难度，最小 0 且没有上限；答错 +1，连对满 5 的倍数 -1。
+  final int difficulty;
 
   ///
-  /// README phonetic_uk；空值表示词库尚未提供英式音标。
-  final String? phoneticUk;
+  /// 外形、发音、字数相近的混淆单词。
+  ///
+  /// 按「用到才生成」的策略：某个模块第一次遇到这个词时算一批存进来，
+  /// 之后所有模块直接复用；用户长按某个混淆词可以重算并覆盖。
+  final List<String> confusions;
 
   ///
-  /// README phonetic_us；空值表示词库尚未提供美式音标。
-  final String? phoneticUs;
+  /// 按音节拆分后的数组，如 `[tra, di, tion]`；拼写巩固用它出题。
+  final List<String> syllables;
 
   ///
-  /// 复数形式列表。
-  final List<String> plural;
-
-  ///
-  /// 第三人称单数形式列表。
-  final List<String> thirdPersonSingular;
-
-  ///
-  /// 现在分词形式列表。
-  final List<String> gerund;
-
-  ///
-  /// 过去式列表。
-  final List<String> pastTense;
-
-  ///
-  /// 过去分词列表。
-  final List<String> pastParticiple;
-
-  ///
-  /// 比较级形式列表。
-  final List<String> comparative;
-
-  ///
-  /// 最高级形式列表。
-  final List<String> superlative;
-
-  ///
-  /// 所属分组主键；空列表表示未分组，复制操作可使单词属于多个分组。
-  final List<int> groupIds;
-
-  ///
-  /// 最近复习时间。
+  /// 最近复习时间；`null` 代表从来没复习过，选词时排在最前面。
   final DateTime? reviewedAt;
 
   ///
@@ -96,56 +79,54 @@ class Word {
   final DateTime? updatedAt;
 
   ///
-  /// 软删除时间。
-  final DateTime? deletedAt;
+  /// 取某个词性下的全部释义；没有这个词性时返回空列表。
+  ///
+  /// `pos` 用展示形式（`vt.` / `vi. vt.` / `*`），不是数据库里的主/子词性。
+  List<Meaning> getPosMeanings(String pos) =>
+      meanings[pos] ?? const <Meaning>[];
 
   ///
-  /// 首页更新时间分组使用的日期。
-  DateTime? get effectiveDate => updatedAt ?? createdAt;
+  /// 摊平成一维的全部释义，顺序 = 词性分组顺序 + 组内顺序。
+  ///
+  /// 出题、统计、找混淆项这类「不关心词性、只要全部含义」的地方用它。
+  List<Meaning> get allMeanings => <Meaning>[
+    for (final group in meanings.values) ...group,
+  ];
 
   ///
-  /// 未指定分组模式时使用的列表日期。
+  /// 按词性分好的展示分组，界面照着一组画一行。
+  List<MeaningGroup> get meaningGroups => <MeaningGroup>[
+    for (final entry in meanings.entries)
+      MeaningGroup(pos: entry.key, meanings: entry.value),
+  ];
+
+  ///
+  /// 词库列表按日期分段时使用的时间。
   ///
   /// 依次回退到最近复习、创建和更新时间；三者均为空时返回 null。
   DateTime? get displayDate => reviewedAt ?? createdAt ?? updatedAt;
 
   ///
-  /// 排序用的“含义数”：一个单词下所有 meaning 的 definitions 长度之和。
+  /// 排序用的「含义数」：这个单词一共有几条中文释义。
   ///
-  /// 生活化解释：一个单词可能有一个词性、也可能有多个词性；每个词性下又有
-  /// 若干条中文释义。这里把“全部词性下的全部释义条数”加起来，得到一个数字，
-  /// 用来判断“这个单词的含义多不多”。含义少的单词排在前，多的排在后。
-  ///
-  /// 举例（与你确认的排序规则一致）：
-  /// - 1 个 meaning、1 条 definition → 含义数 = 1（升序里最靠前）。
-  /// - 1 个 meaning、2 条 definition → 含义数 = 2。
-  /// - 2 个 meaning、各 1 条 definition → 含义数 = 2（与上例相等）。
-  int get meaningCount =>
-      meanings.fold(0, (sum, meaning) => sum + meaning.definitions.length);
+  /// 生活化解释：含义少的单词更好记，所以复习时先安排它们。
+  /// 新结构里一行就是一条释义，所以直接就是列表长度。
+  int get meaningCount => allMeanings.length;
 
   ///
-  /// 排序用的“释义总字符数”：全部中文释义去掉首尾空白后的字符数量之和。
+  /// 排序用的「释义总字符数」：全部中文释义去掉首尾空白后的字符数量之和。
   ///
   /// [meaningCount] 只能区分释义有几条；当两个单词都只有一条释义时，
-  /// 本字段继续区分“能力”和“进行某项工作的能力”这类复杂度差异。
-  /// Dart 的 runes 按完整 Unicode 字符计数，中文不会被拆成错误的字节数。
-  int get meaningCharacterCount => meanings.fold(
-    0,
-    (sum, meaning) =>
-        sum +
-        meaning.definitions.fold(
-          0,
-          (definitionSum, definition) =>
-              definitionSum + definition.trim().runes.length,
-        ),
-  );
+  /// 本字段继续区分「能力」和「进行某项工作的能力」这类复杂度差异。
+  int get meaningCharacterCount =>
+      allMeanings.fold(0, (sum, meaning) => sum + meaning.characterCount);
 
   ///
   /// 按统一业务规则比较两个单词的含义复杂度。
   ///
-  /// 所有需要让“含义”参与单词排序的地方都必须调用本方法：第一层先比较
-  /// 全部释义条数，只有条数相同时才比较全部释义正文的字符总数。这里不处理
-  /// 升降序，调用方只需在最终结果上应用自己的方向，便不会让两层方向分裂。
+  /// 所有让「含义」参与单词排序的地方都必须调用本方法：第一层先比较释义条数，
+  /// 只有条数相同时才比较释义正文的字符总数。这里不处理升降序，
+  /// 调用方只需在最终结果上应用自己的方向，便不会让两层方向分裂。
   int compareMeaningComplexityTo(Word other) {
     // 第一层固定比较释义数量，这是所有含义排序不可跳过的首要条件。
     final byCount = meaningCount.compareTo(other.meaningCount);
@@ -155,280 +136,143 @@ class Word {
   }
 
   ///
-  /// 把 JSON 或 MethodChannel 返回的 Map 转换成 Word。
+  /// 把原生 MethodChannel 返回的一行数据转换成 Word。
   factory Word.fromMap(Map<Object?, Object?> map) {
     // 先读取必填拼写，逻辑类似 Laravel FormRequest 的 required 校验。
     final spelling = map['spelling']?.toString();
-    // null、空字符串和纯空格都不能构成可学习的单词。
+    // null、空字符串和纯空格都不能构成一个可学习的单词。
     if (spelling == null || spelling.trim().isEmpty) {
       throw const FormatException('Word.spelling 不能为空');
     }
 
     // 单词 id 作为嵌套释义缺少 word_id 时的外键回退值。
     final id = readOptionalInt(map['id'], 'Word.id');
-    // meanings 对应一对多关联，缺失时允许使用空列表。
     final rawMeanings = map['meanings'];
-    // 存在 meanings 字段时必须是数组，避免后续 foreach 处理错误结构。
+    // 存在 meanings 字段时必须是数组，避免后续遍历处理错误结构。
     if (rawMeanings != null && rawMeanings is! List) {
       throw const FormatException('Word.meanings 必须是数组');
     }
 
-    // 创建可变数组，按顺序接收已经完成类型转换的 Meaning 模型。
     final parsedMeanings = <Meaning>[];
-    // 缺失 meanings 字段时回退到空数组，避免后续遍历空指针异常。
     final meaningItems = rawMeanings as List? ?? const <Object?>[];
-    // 使用带下标的循环，让异常可以指出导入文件中的具体释义位置。
+    // 带下标循环，让异常能指出具体是第几条释义出了问题。
     for (var index = 0; index < meaningItems.length; index += 1) {
-      // 读取当前动态元素，尚未假设它一定是 Map。
       final rawMeaning = meaningItems[index];
-      // 每条释义必须是键值对象，普通文本不能构造 Meaning。
       if (rawMeaning is! Map) {
         throw FormatException('Word.meanings 第 ${index + 1} 项必须是对象');
       }
-      // 为嵌套模型补充上下文，同时保留它自己的详细格式异常。
       try {
-        // Map.from 将动态 Map 收窄成 Meaning.fromMap 接受的键值类型。
-        final meaningMap = Map<Object?, Object?>.from(rawMeaning);
-        // 嵌套数据缺失 word_id 时使用当前单词 id 作为外键。
-        parsedMeanings.add(Meaning.fromMap(meaningMap, fallbackWordId: id));
+        parsedMeanings.add(
+          Meaning.fromMap(
+            Map<Object?, Object?>.from(rawMeaning),
+            fallbackWordId: id,
+          ),
+        );
       } on FormatException catch (error) {
         // 在原始异常前补充数组位置，方便定位具体坏数据。
-        throw FormatException(
-          'Word.meanings 第 ${index + 1} 项错误：${error.message}',
-        );
+        throw FormatException('Word.meanings 第 ${index + 1} 项错误：${error.message}');
       }
     }
+    // 排序值越大越靠前；原生已经按这个顺序返回，这里再兜底一次，
+    // 保证从任何来源（含测试构造）拿到的模型都是同一个顺序。
+    parsedMeanings.sort((first, second) {
+      final bySort = second.sort.compareTo(first.sort);
+      if (bySort != 0) return bySort;
+      return (first.id ?? 0).compareTo(second.id ?? 0);
+    });
 
-    // 释义索引越大，展示顺序越靠前。
-    parsedMeanings.sort((first, second) => second.index.compareTo(first.index));
-
-    // 统一调用公共解析器组装完整模型，字段错误不会被静默吞掉。
     return Word(
-      // 主键可以为空，新建单词会由 SQLite 自动生成。
       id: id,
       // 拼写保留数据源原始大小写，展示层再决定格式。
       spelling: spelling,
       // 冻结释义数组，防止页面直接改坏模型内部数据。
       meanings: List<Meaning>.unmodifiable(parsedMeanings),
-      // 难度为空表示尚未设置，数字则完整保留。
       difficulty: readOptionalInt(map['difficulty'], 'Word.difficulty') ?? 0,
-      // 音标是可空文本，空字符串也保持为文本交给展示层。
-      phoneticUk: map['phonetic_uk']?.toString(),
-      phoneticUs: map['phonetic_us']?.toString(),
-      // 词形字段在 JSON 和 MethodChannel 中都必须是字符串数组。
-      plural: _readStringList(map['plural'], 'Word.plural'),
-      thirdPersonSingular: _readStringList(
-        map['third_person_singular'],
-        'Word.third_person_singular',
-      ),
-      gerund: _readStringList(map['gerund'], 'Word.gerund'),
-      pastTense: _readStringList(map['past_tense'], 'Word.past_tense'),
-      pastParticiple: _readStringList(
-        map['past_participle'],
-        'Word.past_participle',
-      ),
-      comparative: _readStringList(map['comparative'], 'Word.comparative'),
-      superlative: _readStringList(map['superlative'], 'Word.superlative'),
-      // 空分组数组表示未分组，多项表示复制到多个分组。
-      groupIds: readIntList(map['group_ids'], 'Word.group_ids'),
-      // 时间字段兼容原生毫秒时间戳和导入文件的日期文本。
+      confusions: readStringList(map['confusions'], 'Word.confusions'),
+      syllables: readStringList(map['syllables'], 'Word.syllables'),
+      // 复习时间可空：null 代表这个词还没复习过。
       reviewedAt: readOptionalDate(map['reviewed_at'], 'Word.reviewed_at'),
       createdAt: readOptionalDate(map['created_at'], 'Word.created_at'),
       updatedAt: readOptionalDate(map['updated_at'], 'Word.updated_at'),
-      deletedAt: readOptionalDate(map['deleted_at'], 'Word.deleted_at'),
     );
   }
 
   ///
-  /// 转成 MethodChannel 可传输 Map，供 SQLite 模式 CRUD 使用。
-  Map<String, Object?> toMap() {
-    // 返回 Map 类似 Laravel 模型的 toArray()，MethodChannel 可直接传输。
-    return <String, Object?>{
-      // id 为空时交给 SQLite 自增生成。
-      'id': id,
-      // 保存单词原始拼写。
-      'spelling': spelling,
-      // 一对多释义逐条转换成原生可识别的 Map。
-      'meanings': meanings.map((meaning) => meaning.toMap()).toList(),
-      // 分组关系列表与单词主体在原生事务中一起保存。
-      'group_ids': groupIds,
-      // 空难度按统一数字规则交给数据库 0。
-      'difficulty': difficulty ?? 0,
-      // README 中的音标与全部词形字段使用原名交给 SQLite。
-      'phonetic_uk': phoneticUk,
-      'phonetic_us': phoneticUs,
-      'plural': List<String>.from(plural),
-      'third_person_singular': List<String>.from(thirdPersonSingular),
-      'gerund': List<String>.from(gerund),
-      'past_tense': List<String>.from(pastTense),
-      'past_participle': List<String>.from(pastParticiple),
-      'comparative': List<String>.from(comparative),
-      'superlative': List<String>.from(superlative),
-      // DateTime 统一转换成 SQLite 使用的毫秒时间戳。
-      'reviewed_at': reviewedAt?.millisecondsSinceEpoch,
-      'created_at': createdAt?.millisecondsSinceEpoch,
-      'updated_at': updatedAt?.millisecondsSinceEpoch,
-      'deleted_at': deletedAt?.millisecondsSinceEpoch,
-    };
-  }
+  /// 转成 MethodChannel 可传输的 Map，供新增和编辑使用。
+  ///
+  /// 释义在这里**摊平回一维**：数据库就是一行一条，
+  /// 分组只是模型层给界面看的样子。
+  Map<String, Object?> toMap() => <String, Object?>{
+    // id 为空时交给 SQLite 自增生成。
+    'id': id,
+    'spelling': spelling,
+    // 释义按当前顺序传出，排序值由原生自动发放。
+    'meanings': allMeanings.map((meaning) => meaning.toMap()).toList(),
+    'difficulty': difficulty,
+    'confusions': List<String>.from(confusions),
+    'syllables': List<String>.from(syllables),
+    // DateTime 统一转换成 SQLite 使用的毫秒时间戳。
+    'reviewed_at': reviewedAt?.millisecondsSinceEpoch,
+    'created_at': createdAt?.millisecondsSinceEpoch,
+  };
 
   ///
-  /// 转成导出文件使用的数据。
-  ///
-  /// 日期统一使用 yyyy-MM-dd；分组关系使用导入流程识别的 groups 字段。
-  Map<String, Object?> toExportMap() {
-    // 导出结构只使用 JSON 支持的字符串、数字、数组和对象。
-    final map = <String, Object?>{
-      // 主键用于备份时识别原记录。
-      'id': id,
-      // 拼写作为单词核心业务字段直接写出。
-      'spelling': spelling,
-      // 释义使用精简的导出结构，不携带数据库外键。
-      'meanings': meanings.map((meaning) => meaning.toExportMap()).toList(),
-      // 难度为空时 JSON 会保留 null，导入后语义不变。
-      'difficulty': difficulty ?? 0,
-      'phonetic_uk': phoneticUk,
-      'phonetic_us': phoneticUs,
-      'plural': List<String>.from(plural),
-      'third_person_singular': List<String>.from(thirdPersonSingular),
-      'gerund': List<String>.from(gerund),
-      'past_tense': List<String>.from(pastTense),
-      'past_participle': List<String>.from(pastParticiple),
-      'comparative': List<String>.from(comparative),
-      'superlative': List<String>.from(superlative),
-      // 导入流程通过 groups 字段重建多对多关系。
-      'groups': groupIds,
-      // 日期格式固定为 yyyy-MM-dd，方便人工阅读和编辑。
-      'created_at': _exportDate(createdAt),
-      'updated_at': _exportDate(updatedAt),
-    };
-    // 最近复习时间是可选字段，只有真实存在时才写入备份。
-    if (reviewedAt != null) map['reviewed_at'] = _exportDate(reviewedAt);
-    // 返回完整导出对象，交由上层统一执行 jsonEncode。
-    return map;
-  }
+  /// 返回替换了混淆单词的副本；模型不可变，改动一律通过复制表达。
+  Word withConfusions(List<String> next) => copyWith(confusions: next);
 
   ///
-  /// 返回移动到指定分组后的新 Word；null 表示移回"未分组"。
-  ///
-  /// 移动会替换全部分组关系；只有复制操作保留多个分组。
-  Word withGroup(int? newGroupId) {
-    // 模型保持不可变，移动操作通过创建副本表达状态变化。
-    return Word(
-      id: id,
-      spelling: spelling,
-      meanings: meanings,
-      difficulty: difficulty,
-      phoneticUk: phoneticUk,
-      phoneticUs: phoneticUs,
-      plural: plural,
-      thirdPersonSingular: thirdPersonSingular,
-      gerund: gerund,
-      pastTense: pastTense,
-      pastParticiple: pastParticiple,
-      comparative: comparative,
-      superlative: superlative,
-      // 移动是单归属语义，目标为空时清空全部分组。
-      groupIds: newGroupId == null ? const <int>[] : <int>[newGroupId],
-      reviewedAt: reviewedAt,
-      createdAt: createdAt,
-      // 分组关系变化属于一次业务更新，需要刷新 updatedAt。
-      updatedAt: DateTime.now(),
-      deletedAt: deletedAt,
-    );
-  }
+  /// 返回替换了音节拆分的副本。
+  Word withSyllables(List<String> next) => copyWith(syllables: next);
 
   ///
-  /// 返回加入指定分组后的新 Word（复制语义）。
-  ///
-  /// 保留当前分组并追加 [groupId]。
-  Word withAddedGroup(int groupId) {
-    // 用扩展运算符展开旧分组列表，再追加目标分组。
-    return Word(
-      id: id,
-      spelling: spelling,
-      meanings: meanings,
-      difficulty: difficulty,
-      phoneticUk: phoneticUk,
-      phoneticUs: phoneticUs,
-      plural: plural,
-      thirdPersonSingular: thirdPersonSingular,
-      gerund: gerund,
-      pastTense: pastTense,
-      pastParticiple: pastParticiple,
-      comparative: comparative,
-      superlative: superlative,
-      groupIds: <int>[...groupIds, groupId],
-      reviewedAt: reviewedAt,
-      createdAt: createdAt,
-      updatedAt: DateTime.now(),
-      deletedAt: deletedAt,
-    );
-  }
+  /// 返回按表单结果编辑后的副本，供「修改单词」提交时使用。
+  Word edited({required String spelling, required List<Meaning> meanings}) =>
+      copyWith(spelling: spelling, meanings: meanings, updatedAt: DateTime.now());
 
   ///
-  /// 返回按表单结果编辑后的新 Word，供"修改单词"提交时使用。
-  Word edited({
-    required String spelling,
-    required List<Meaning> meanings,
-    required int? groupId,
-  }) {
-    // 表单只能展示一个主分组；用户没有改变这个值时必须保留其余多对多分组。
-    final originalPrimaryGroupId = groupIds.isEmpty ? null : groupIds.first;
-    final nextGroupIds = groupId == originalPrimaryGroupId
-        ? groupIds
-        : groupId == null
-        ? const <int>[]
-        : <int>[groupId];
-    // 编辑会刷新 updatedAt；创建时间与主键保持不变。
-    return Word(
-      id: id,
-      spelling: spelling,
-      meanings: meanings,
-      difficulty: difficulty,
-      phoneticUk: phoneticUk,
-      phoneticUs: phoneticUs,
-      plural: plural,
-      thirdPersonSingular: thirdPersonSingular,
-      gerund: gerund,
-      pastTense: pastTense,
-      pastParticiple: pastParticiple,
-      comparative: comparative,
-      superlative: superlative,
-      groupIds: nextGroupIds,
-      reviewedAt: reviewedAt,
-      createdAt: createdAt,
-      updatedAt: DateTime.now(),
-      deletedAt: deletedAt,
-    );
-  }
-}
+  /// 转成纯数据结构（嵌套 Map / List），给导出和排查问题用。
+  ///
+  /// 与 [toMap] 的区别：这里保留**按词性分组**的样子，一眼能看清
+  /// 这个词有哪几种词性、每种下面有哪些含义；[toMap] 则是摊平的数据库形态。
+  Map<String, Object?> toArray() => <String, Object?>{
+    'id': id,
+    'spelling': spelling,
+    'difficulty': difficulty,
+    'confusions': List<String>.from(confusions),
+    'syllables': List<String>.from(syllables),
+    'reviewed_at': reviewedAt?.millisecondsSinceEpoch,
+    'meanings': <String, Object?>{
+      for (final entry in meanings.entries)
+        entry.key: <Map<String, Object?>>[
+          for (final meaning in entry.value)
+            <String, Object?>{
+              'id': meaning.id,
+              'mean': meaning.definition,
+              'confusions': List<String>.from(meaning.confusions),
+            },
+        ],
+    },
+  };
 
-///
-/// 把 JSON/MethodChannel 的动态值收窄为字符串数组。
-List<String> _readStringList(Object? value, String fieldName) {
-  // 老 words.json 没有词形字段时按空数组处理。
-  if (value == null) return const <String>[];
-  if (value is! List) throw FormatException('$fieldName 必须是数组');
-  return List<String>.unmodifiable(
-    value.map((item) {
-      if (item == null) throw FormatException('$fieldName 不能包含 null');
-      return item.toString();
-    }),
+  ///
+  /// 复制并替换部分字段；没传的字段保持原值。
+  Word copyWith({
+    String? spelling,
+    List<Meaning>? meanings,
+    int? difficulty,
+    List<String>? confusions,
+    List<String>? syllables,
+    DateTime? reviewedAt,
+    DateTime? updatedAt,
+  }) => Word(
+    id: id,
+    spelling: spelling ?? this.spelling,
+    meanings: meanings ?? allMeanings,
+    difficulty: difficulty ?? this.difficulty,
+    confusions: confusions ?? this.confusions,
+    syllables: syllables ?? this.syllables,
+    reviewedAt: reviewedAt ?? this.reviewedAt,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
-}
-
-///
-/// 把日期格式化为导出文件使用的 yyyy-MM-dd HH:mm:ss 文本。
-///
-/// 不引入 intl 依赖，用 ISO 字符串前 10 位即可得到稳定的年月日，
-/// 与 [Word.fromMap] 支持的 yyyy-MM-dd 解析格式完全对称。
-String _exportDate(DateTime? value) {
-  // 用户约定空日期导出为 ""，不显示 1970 年。
-  if (value == null || value.millisecondsSinceEpoch == 0) return '';
-  final local = value.toLocal();
-  String twoDigits(int number) => number.toString().padLeft(2, '0');
-  return '${local.year.toString().padLeft(4, '0')}-'
-      '${twoDigits(local.month)}-${twoDigits(local.day)} '
-      '${twoDigits(local.hour)}:${twoDigits(local.minute)}:${twoDigits(local.second)}';
 }

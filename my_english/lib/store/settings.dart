@@ -1,6 +1,6 @@
 // material.dart 提供 ChangeNotifier 和 ThemeMode，管理全局设置通知与主题模式。
 import 'package:flutter/material.dart';
-// services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SharedPreferences。
+// services.dart 提供 MethodChannel，让 Dart 读写原生 settings 表。
 import 'package:flutter/services.dart';
 
 ///
@@ -17,11 +17,11 @@ enum PronunciationAccent {
 }
 
 ///
-/// 为口音枚举补充原生存储值和界面文字。
+/// 为口音枚举补充存储值和界面文字。
 ///
 extension PronunciationAccentDetails on PronunciationAccent {
   ///
-  /// Android SharedPreferences 中保存的稳定字符串。
+  /// settings 表中保存的稳定字符串。
   String get storageValue => switch (this) {
     PronunciationAccent.american => 'american',
     PronunciationAccent.british => 'british',
@@ -40,7 +40,7 @@ extension PronunciationAccentDetails on PronunciationAccent {
 ///
 enum DefinitionSeparator {
   ///
-  /// 中文顿号，也是首次安装和旧版本升级后的默认值。
+  /// 中文顿号。
   ideographicComma,
 
   ///
@@ -48,7 +48,7 @@ enum DefinitionSeparator {
   fullWidthComma,
 
   ///
-  /// 中文全角分号。
+  /// 中文全角分号，也是首次安装时的默认值。
   fullWidthSemicolon,
 }
 
@@ -57,7 +57,7 @@ enum DefinitionSeparator {
 ///
 extension DefinitionSeparatorDetails on DefinitionSeparator {
   ///
-  /// Android SharedPreferences 保存英文稳定值，避免标点编码差异影响迁移。
+  /// 保存英文稳定值，避免标点编码差异影响迁移。
   String get storageValue => switch (this) {
     DefinitionSeparator.ideographicComma => 'ideographic_comma',
     DefinitionSeparator.fullWidthComma => 'full_width_comma',
@@ -74,7 +74,7 @@ extension DefinitionSeparatorDetails on DefinitionSeparator {
 }
 
 ///
-/// 用户选择的主题；当前只允许需求中明确给出的 Light 与 Dark。
+/// 用户选择的主题；当前只开放 Light 与 Dark。
 ///
 enum AppThemePreference {
   ///
@@ -91,7 +91,7 @@ enum AppThemePreference {
 ///
 extension AppThemePreferenceDetails on AppThemePreference {
   ///
-  /// Android SharedPreferences 中使用的稳定字符串。
+  /// settings 表中使用的稳定字符串。
   String get storageValue => switch (this) {
     AppThemePreference.light => 'light',
     AppThemePreference.dark => 'dark',
@@ -113,19 +113,18 @@ extension AppThemePreferenceDetails on AppThemePreference {
 }
 
 ///
-/// 全局设置 Store：内存状态 + 原生 SharedPreferences 持久化。
+/// 全局设置 Store：内存状态 + settings 表持久化。
+///
+/// settings 表就是一个可持久化的 Redis：一行一个 key，value 永远是文本，
+/// 由 type 列声明它真正是什么类型。所以这里读写时要显式给出类型，
+/// 让原生能在写入时就把「int 的 key 塞进了一段文本」这类错误拦下来。
 ///
 class SettingsStore extends ChangeNotifier {
   ///
-  /// 私有构造器确保生产环境必须先通过 load 读取原生持久化值。
-  SettingsStore._({
-    required this._channel,
-    required this._accent,
-    required this._theme,
-    required this._definitionSeparator,
-    required this._dailyGoal,
-    required this._meaningMatchDuration,
-  });
+  /// 私有构造器确保生产环境必须先通过 [load] 读取持久化值。
+  ///
+  /// 参数用位置形式：命名参数不能以下划线开头，而这两个字段必须是私有的。
+  SettingsStore._(this._channel, this._values);
 
   ///
   /// 原生通道名必须与 MainActivity 注册值保持一致。
@@ -138,49 +137,49 @@ class SettingsStore extends ChangeNotifier {
   final MethodChannel? _channel;
 
   ///
-  /// 当前口音设置；下划线字段只允许通过 setAccent 修改。
-  PronunciationAccent _accent;
+  /// 当前全部设置值；只允许通过下面的 setter 修改。
+  _Values _values;
+
+  // ---- settings 表里的键名；改这里等于改数据库，务必谨慎 ----------------
+
+  /// 发音口音。
+  static const String keyAccent = 'accent';
+
+  /// 界面主题。
+  static const String keyTheme = 'theme';
+
+  /// 中文释义分隔符。
+  static const String keyDefinitionSeparator = 'definitionSeparator';
+
+  /// 每日复习目标数量。
+  static const String keyDailyGoal = 'dailyGoal';
+
+  /// 词义连连每局倒计时秒数。
+  static const String keyMeaningMatchDuration = 'meaningMatchDuration';
+
+  /// 随身听：每个单词重复播放几遍。
+  static const String keyListeningRepeat = 'listeningRepeat';
+
+  /// 随身听：两遍之间间隔几秒。
+  static const String keyListeningInterval = 'listeningInterval';
+
+  /// 随身听：整轮放完后是否从头循环。
+  static const String keyListeningLoop = 'listeningLoop';
+
+  /// 随身听：是否默认展开全部释义。
+  static const String keyListeningRevealAll = 'listeningRevealAll';
 
   ///
-  /// 当前主题设置；下划线字段只允许通过 setTheme 修改。
-  AppThemePreference _theme;
-
-  ///
-  /// 当前中文释义分隔符；下划线字段只允许通过 setDefinitionSeparator 修改。
-  DefinitionSeparator _definitionSeparator;
-
-  ///
-  /// App 启动时调用：先读取 SharedPreferences，再创建可供页面监听的 Store。
+  /// App 启动时调用：先读取 settings 表，再创建可供页面监听的 Store。
   static Future<SettingsStore> load({
     MethodChannel channel = _defaultChannel,
   }) async {
     try {
-      // invokeMapMethod 类似请求原生 Controller 返回一个设置关联数组。
-      final values = await channel.invokeMapMethod<String, Object?>(
-        'getSettings',
-      );
-      // 未保存或未知口音一律回退美式，确保旧版本数据不会导致启动失败。
-      final accent = _accentFromStorage(values?['accent']);
-      // 未保存或未知主题一律回退 Light。
-      final theme = _themeFromStorage(values?['theme']);
-      // 旧版本没有该字段时默认使用顿号。
-      final definitionSeparator = _definitionSeparatorFromStorage(
-        values?['definitionSeparator'],
-      );
-      // 每日目标由原生以整数返回；旧版本缺失或损坏时回退为 50。
-      final dailyGoal = _dailyGoalFromStorage(values?['dailyGoal']);
-      // 词义连连倒计时秒数；旧版本缺失或损坏时回退 150。
-      final meaningMatchDuration = _meaningMatchDurationFromStorage(
-        values?['meaningMatchDuration'],
-      );
-      // 把已读取值和生产通道一起保存。
+      // 原生返回 { key: {value, type} }；一次读全部，启动只查一次库。
+      final rows = await channel.invokeMapMethod<String, Object?>('getSettings');
       return SettingsStore._(
-        channel: channel,
-        accent: accent,
-        theme: theme,
-        definitionSeparator: definitionSeparator,
-        dailyGoal: dailyGoal,
-        meaningMatchDuration: meaningMatchDuration,
+        channel,
+        _Values.fromRows(rows ?? const <String, Object?>{}),
       );
     } on MissingPluginException catch (error, stackTrace) {
       // Hot Restart 只更新 Dart；旧 APK 没有重新编译 Kotlin 时会暂时找不到新通道。
@@ -188,28 +187,13 @@ class SettingsStore extends ChangeNotifier {
       // 输出堆栈，便于确认是否需要停止 App 后完整重新构建。
       debugPrintStack(stackTrace: stackTrace);
       // channel=null 让本次旧原生壳中的后续修改只更新内存，不再重复抛异常。
-      return SettingsStore._(
-        channel: null,
-        accent: PronunciationAccent.american,
-        theme: AppThemePreference.light,
-        definitionSeparator: DefinitionSeparator.ideographicComma,
-        dailyGoal: 50,
-        meaningMatchDuration: 150,
-      );
+      return SettingsStore._(null, const _Values());
     } on PlatformException catch (error, stackTrace) {
       // 设置读取失败不应让 App 白屏；控制台保留原因并使用明确默认值启动。
       debugPrint('本地设置读取失败，将使用默认值：$error');
-      // 堆栈帮助真机调试 MethodChannel 注册或原生存储问题。
       debugPrintStack(stackTrace: stackTrace);
       // 仍保留 channel，让用户后续修改设置时可以再次尝试持久化。
-      return SettingsStore._(
-        channel: channel,
-        accent: PronunciationAccent.american,
-        theme: AppThemePreference.light,
-        definitionSeparator: DefinitionSeparator.ideographicComma,
-        dailyGoal: 50,
-        meaningMatchDuration: 150,
-      );
+      return SettingsStore._(channel, const _Values());
     }
   }
 
@@ -218,62 +202,103 @@ class SettingsStore extends ChangeNotifier {
   factory SettingsStore.inMemory({
     PronunciationAccent accent = PronunciationAccent.american,
     AppThemePreference theme = AppThemePreference.light,
-    DefinitionSeparator definitionSeparator =
-        DefinitionSeparator.ideographicComma,
+    DefinitionSeparator definitionSeparator = DefinitionSeparator.fullWidthSemicolon,
     int dailyGoal = 50,
     int meaningMatchDuration = 150,
+    int listeningRepeat = 2,
+    int listeningInterval = 2,
+    bool listeningLoop = true,
+    bool listeningRevealAll = false,
   }) {
     // channel=null 时 setter 只更新内存并通知页面。
     return SettingsStore._(
-      channel: null,
-      accent: accent,
-      theme: theme,
-      definitionSeparator: definitionSeparator,
-      dailyGoal: dailyGoal < 0 ? 0 : dailyGoal,
-      meaningMatchDuration: meaningMatchDuration < 0 ? 0 : meaningMatchDuration,
+      null,
+      _Values(
+        accent: accent,
+        theme: theme,
+        definitionSeparator: definitionSeparator,
+        dailyGoal: dailyGoal < 0 ? 0 : dailyGoal,
+        meaningMatchDuration: meaningMatchDuration < 0 ? 0 : meaningMatchDuration,
+        listeningRepeat: listeningRepeat.clamp(1, 9),
+        listeningInterval: listeningInterval < 0 ? 0 : listeningInterval,
+        listeningLoop: listeningLoop,
+        listeningRevealAll: listeningRevealAll,
+      ),
     );
   }
 
-  ///
-  /// 页面只读访问当前口音。
-  PronunciationAccent get accent => _accent;
+  // ---- 只读访问 ---------------------------------------------------------
+
+  /// 当前发音口音。
+  PronunciationAccent get accent => _values.accent;
+
+  /// 当前主题偏好。
+  AppThemePreference get theme => _values.theme;
+
+  /// MaterialApp 直接读取的主题模式。
+  ThemeMode get themeMode => _values.theme.themeMode;
+
+  /// 当前中文释义分隔符。
+  DefinitionSeparator get definitionSeparator => _values.definitionSeparator;
+
+  /// 每日复习目标。
+  int get dailyGoal => _values.dailyGoal;
+
+  /// 词义连连每局倒计时秒数。
+  int get meaningMatchDuration => _values.meaningMatchDuration;
+
+  /// 随身听每个单词重复播放几遍。
+  int get listeningRepeat => _values.listeningRepeat;
+
+  /// 随身听两遍之间间隔几秒。
+  int get listeningInterval => _values.listeningInterval;
+
+  /// 随身听整轮放完后是否从头循环。
+  bool get listeningLoop => _values.listeningLoop;
+
+  /// 随身听是否默认展开全部释义。
+  bool get listeningRevealAll => _values.listeningRevealAll;
+
+  // ---- 修改 -------------------------------------------------------------
 
   ///
-  /// 页面只读访问当前主题偏好。
-  AppThemePreference get theme => _theme;
+  /// 修改并持久化发音口音。
+  Future<void> setAccent(PronunciationAccent value) async {
+    // 重复选择当前值时不做磁盘写入，也不触发无意义重建。
+    if (_values.accent == value) return;
+    await _write(keyAccent, value.storageValue, 'string');
+    _values = _values.copyWith(accent: value);
+    notifyListeners();
+  }
 
   ///
-  /// 页面只读访问当前中文释义分隔符。
-  DefinitionSeparator get definitionSeparator => _definitionSeparator;
+  /// 修改并持久化主题；通知后 MaterialApp 会立即切换 light/dark。
+  Future<void> setTheme(AppThemePreference value) async {
+    if (_values.theme == value) return;
+    await _write(keyTheme, value.storageValue, 'string');
+    _values = _values.copyWith(theme: value);
+    notifyListeners();
+  }
 
   ///
-  /// 每日复习目标；启动时从 Android SharedPreferences 恢复。
-  int _dailyGoal;
-
-  ///
-  /// 页面只读访问每日复习目标。
-  int get dailyGoal => _dailyGoal;
-
-  ///
-  /// 词义连连每局倒计时秒数；启动时从 Android SharedPreferences 恢复。
-  int _meaningMatchDuration;
-
-  ///
-  /// 页面只读访问词义连连每局倒计时秒数。
-  int get meaningMatchDuration => _meaningMatchDuration;
+  /// 修改并持久化中文释义分隔符；成功后全部释义文本立即刷新。
+  Future<void> setDefinitionSeparator(DefinitionSeparator value) async {
+    if (_values.definitionSeparator == value) return;
+    await _write(keyDefinitionSeparator, value.storageValue, 'string');
+    _values = _values.copyWith(definitionSeparator: value);
+    notifyListeners();
+  }
 
   ///
   /// 修改并持久化每日复习目标；负数一律钳制为 0。
+  ///
+  /// 注意：改这个数字会让今天已经开着的每一局都对不上新词库，
+  /// 调用方需要接着中断全部进行中的会话（见 SessionStore.abortActiveSessions）。
   Future<void> setDailyGoal(int value) async {
-    // 目标不允许是负数。
     final normalized = value < 0 ? 0 : value;
-    // 值没有变化时不触发重建。
-    if (_dailyGoal == normalized) return;
-    // 先等待原生确认写入成功，避免页面显示与磁盘内容不一致。
-    await _channel?.invokeMethod<void>('setDailyGoal', normalized);
-    // 保存成功后更新内存值。
-    _dailyGoal = normalized;
-    // 通知设置面板与首页副标题刷新。
+    if (_values.dailyGoal == normalized) return;
+    await _write(keyDailyGoal, normalized.toString(), 'int');
+    _values = _values.copyWith(dailyGoal: normalized);
     notifyListeners();
   }
 
@@ -283,103 +308,72 @@ class SettingsStore extends ChangeNotifier {
   /// 该值与游戏内点击倒计时 `+30s` 共用：点击加时既延长当前局剩余时间，
   /// 也把全局默认值同步抬高，下一次进入词义连连会从更高的值开始。
   Future<void> setMeaningMatchDuration(int value) async {
-    // 倒计时不允许是负数。
     final normalized = value < 0 ? 0 : value;
-    // 值没有变化时不触发重建。
-    if (_meaningMatchDuration == normalized) return;
-    // 先等待原生确认写入成功，避免页面显示与磁盘内容不一致。
-    await _channel?.invokeMethod<void>('setMeaningMatchDuration', normalized);
-    // 保存成功后更新内存值。
-    _meaningMatchDuration = normalized;
-    // 通知设置面板与游戏内倒计时刷新。
+    if (_values.meaningMatchDuration == normalized) return;
+    await _write(keyMeaningMatchDuration, normalized.toString(), 'int');
+    _values = _values.copyWith(meaningMatchDuration: normalized);
     notifyListeners();
   }
 
   ///
-  /// MaterialApp 直接读取的主题模式。
-  ThemeMode get themeMode => _theme.themeMode;
-
-  ///
-  /// 修改并持久化口音；原生保存成功后才通知界面，避免显示与磁盘不一致。
-  Future<void> setAccent(PronunciationAccent value) async {
-    // 重复选择当前值时不做磁盘写入，也不触发无意义重建。
-    if (_accent == value) return;
-    // 生产模式把枚举转换成稳定字符串保存。
-    await _channel?.invokeMethod<void>('setAccent', value.storageValue);
-    // 保存成功后更新 Store 内存。
-    _accent = value;
-    // 通知设置面板和其他未来页面刷新。
+  /// 修改并持久化随身听重复遍数；允许 1～9 遍。
+  Future<void> setListeningRepeat(int value) async {
+    final normalized = value.clamp(1, 9);
+    if (_values.listeningRepeat == normalized) return;
+    await _write(keyListeningRepeat, normalized.toString(), 'int');
+    _values = _values.copyWith(listeningRepeat: normalized);
     notifyListeners();
   }
 
   ///
-  /// 修改并持久化主题；通知后 MaterialApp 会立即切换 light/dark。
-  Future<void> setTheme(AppThemePreference value) async {
-    // 当前值相同时无需再次写入。
-    if (_theme == value) return;
-    // 先交给 Android SharedPreferences 持久化。
-    await _channel?.invokeMethod<void>('setTheme', value.storageValue);
-    // 保存成功后替换内存值。
-    _theme = value;
-    // MaterialApp 正在监听 Store，因此会自动使用新的 ThemeMode。
+  /// 修改并持久化随身听播放间隔秒数；负数一律钳制为 0。
+  Future<void> setListeningInterval(int value) async {
+    final normalized = value < 0 ? 0 : value;
+    if (_values.listeningInterval == normalized) return;
+    await _write(keyListeningInterval, normalized.toString(), 'int');
+    _values = _values.copyWith(listeningInterval: normalized);
     notifyListeners();
   }
 
   ///
-  /// 修改并持久化中文释义分隔符；成功后所有正在监听的释义区域立即刷新。
-  Future<void> setDefinitionSeparator(DefinitionSeparator value) async {
-    // 重复选择当前符号时不写磁盘。
-    if (_definitionSeparator == value) return;
-    // 把枚举转换为原生端约定的稳定字符串。
-    await _channel?.invokeMethod<void>(
-      'setDefinitionSeparator',
-      value.storageValue,
-    );
-    // 原生确认成功后再更新内存，保证页面显示与磁盘值一致。
-    _definitionSeparator = value;
-    // 通知首页、设置面板和后续学习页面读取新符号。
+  /// 修改并持久化随身听是否循环。
+  Future<void> setListeningLoop(bool value) async {
+    if (_values.listeningLoop == value) return;
+    await _write(keyListeningLoop, value ? 'true' : 'false', 'bool');
+    _values = _values.copyWith(listeningLoop: value);
+    notifyListeners();
+  }
+
+  ///
+  /// 修改并持久化随身听是否默认展开全部释义。
+  Future<void> setListeningRevealAll(bool value) async {
+    if (_values.listeningRevealAll == value) return;
+    await _write(keyListeningRevealAll, value ? 'true' : 'false', 'bool');
+    _values = _values.copyWith(listeningRevealAll: value);
     notifyListeners();
   }
 
   ///
   /// 清空全部设置，恢复到首次安装的默认值。
-  ///
-  /// 对应首页「清空数据」入口：先请原生删除 SharedPreferences 中所有键值，
-  /// 再把内存模型重置回美式 / Light / 顿号 / 50，并通知界面刷新（主题随之切回 Light）。
   Future<void> clearAll() async {
-    // 原生清空偏好文件；channel 为 null 时（纯测试）只重置内存。
-    await _channel?.invokeMethod<void>('clearAllSettings');
-    // 重置内存默认值。
-    _accent = PronunciationAccent.american;
-    _theme = AppThemePreference.light;
-    _definitionSeparator = DefinitionSeparator.ideographicComma;
-    _dailyGoal = 50;
-    _meaningMatchDuration = 150;
-    // 通知设置面板、首页副标题与 MaterialApp 同步刷新。
+    // 原生软删除 settings 表全部行；channel 为 null 时（纯测试）只重置内存。
+    await _channel?.invokeMethod<void>('clearSettings');
+    _values = const _Values();
+    // 通知设置面板、首页副标题与 MaterialApp 同步刷新（主题会切回 Light）。
     notifyListeners();
   }
 
   ///
-  /// 从原生重新读取全部设置并覆盖内存值。
+  /// 从数据库重新读取全部设置并覆盖内存值。
   ///
-  /// 供「导入完整备份」后调用：备份里携带设置时，界面（主题、口音、每日目标）
-  /// 需要跟随导入后的磁盘内容同步，而不是继续显示导入前的旧值。
+  /// 供「导入完整备份」后调用：备份里携带设置时，界面需要跟随导入后的
+  /// 内容同步，而不是继续显示导入前的旧值。
   Future<void> reload() async {
     // 内存模式（测试或旧原生壳）没有通道可读，保持现状即可。
     if (_channel == null) return;
     try {
-      final values = await _channel.invokeMapMethod<String, Object?>(
-        'getSettings',
-      );
-      _accent = _accentFromStorage(values?['accent']);
-      _theme = _themeFromStorage(values?['theme']);
-      _definitionSeparator = _definitionSeparatorFromStorage(
-        values?['definitionSeparator'],
-      );
-      _dailyGoal = _dailyGoalFromStorage(values?['dailyGoal']);
-      _meaningMatchDuration = _meaningMatchDurationFromStorage(
-        values?['meaningMatchDuration'],
-      );
+      final rows = await _channel.invokeMapMethod<String, Object?>('getSettings');
+      _values = _Values.fromRows(rows ?? const <String, Object?>{});
       notifyListeners();
     } on PlatformException catch (error) {
       // 单次重载失败不阻断导入，界面继续使用旧值。
@@ -390,49 +384,118 @@ class SettingsStore extends ChangeNotifier {
   }
 
   ///
-  /// 把原生字符串转换成强类型口音。
-  static PronunciationAccent _accentFromStorage(Object? value) {
-    // 只有明确保存 british 才使用英式，其余值都采用默认美式。
-    return value == PronunciationAccent.british.storageValue
-        ? PronunciationAccent.british
-        : PronunciationAccent.american;
-  }
+  /// 写入一个设置项；先等原生确认落盘，再更新内存值。
+  ///
+  /// 这个顺序保证界面显示的永远是磁盘上真实存在的值。
+  Future<void> _write(String key, String value, String type) =>
+      _channel?.invokeMethod<void>('setSetting', <String, Object?>{
+        'key': key,
+        'value': value,
+        'type': type,
+      }) ??
+      Future<void>.value();
+}
+
+///
+/// 全部设置值的不可变快照。
+///
+/// 单独抽一个类，是为了让「读一批 → 整体替换」比逐个字段赋值更不容易漏。
+class _Values {
+  ///
+  /// 创建一份设置快照；每个字段的默认值就是首次安装时的值。
+  const _Values({
+    this.accent = PronunciationAccent.american,
+    this.theme = AppThemePreference.light,
+    this.definitionSeparator = DefinitionSeparator.fullWidthSemicolon,
+    this.dailyGoal = 50,
+    this.meaningMatchDuration = 150,
+    this.listeningRepeat = 2,
+    this.listeningInterval = 2,
+    this.listeningLoop = true,
+    this.listeningRevealAll = false,
+  });
+
+  final PronunciationAccent accent;
+  final AppThemePreference theme;
+  final DefinitionSeparator definitionSeparator;
+  final int dailyGoal;
+  final int meaningMatchDuration;
+  final int listeningRepeat;
+  final int listeningInterval;
+  final bool listeningLoop;
+  final bool listeningRevealAll;
 
   ///
-  /// 把原生字符串转换成强类型主题。
-  static AppThemePreference _themeFromStorage(Object? value) {
-    // 只有明确保存 dark 才启用深色，其余值都采用默认 Light。
-    return value == AppThemePreference.dark.storageValue
-        ? AppThemePreference.dark
-        : AppThemePreference.light;
-  }
-
+  /// 从原生返回的 `{ key: {value, type} }` 组装快照。
   ///
-  /// 把原生字符串转换成强类型中文释义分隔符。
-  static DefinitionSeparator _definitionSeparatorFromStorage(Object? value) {
-    // switch 明确列出两个非默认值；未知值与缺失值都安全回退顿号。
-    return switch (value) {
-      'full_width_comma' => DefinitionSeparator.fullWidthComma,
-      'full_width_semicolon' => DefinitionSeparator.fullWidthSemicolon,
-      _ => DefinitionSeparator.ideographicComma,
+  /// 任何一项缺失或格式不对都安全回退到默认值——设置读坏了最多是界面样式
+  /// 变回默认，绝不能让 App 起不来。
+  factory _Values.fromRows(Map<String, Object?> rows) {
+    String? text(String key) {
+      final row = rows[key];
+      if (row is! Map) return null;
+      return row['value']?.toString();
+    }
+
+    int number(String key, int fallback) {
+      final parsed = int.tryParse(text(key) ?? '');
+      // 负数和非数字都视为损坏数据，回退到产品默认值。
+      return parsed != null && parsed >= 0 ? parsed : fallback;
+    }
+
+    bool flag(String key, bool fallback) => switch (text(key)) {
+      'true' => true,
+      'false' => false,
+      // 未保存或值损坏时使用默认值。
+      _ => fallback,
     };
+
+    return _Values(
+      // 只有明确保存 british 才使用英式，其余值都采用默认美式。
+      accent: text(SettingsStore.keyAccent) == 'british'
+          ? PronunciationAccent.british
+          : PronunciationAccent.american,
+      // 只有明确保存 dark 才启用深色，其余值都采用默认 Light。
+      theme: text(SettingsStore.keyTheme) == 'dark'
+          ? AppThemePreference.dark
+          : AppThemePreference.light,
+      definitionSeparator: switch (text(SettingsStore.keyDefinitionSeparator)) {
+        'ideographic_comma' => DefinitionSeparator.ideographicComma,
+        'full_width_comma' => DefinitionSeparator.fullWidthComma,
+        // 未知值与缺失值都安全回退分号（首次安装的默认值）。
+        _ => DefinitionSeparator.fullWidthSemicolon,
+      },
+      dailyGoal: number(SettingsStore.keyDailyGoal, 50),
+      meaningMatchDuration: number(SettingsStore.keyMeaningMatchDuration, 150),
+      // 重复遍数是 1～9，0 遍等于不播放，没有意义。
+      listeningRepeat: number(SettingsStore.keyListeningRepeat, 2).clamp(1, 9),
+      listeningInterval: number(SettingsStore.keyListeningInterval, 2),
+      listeningLoop: flag(SettingsStore.keyListeningLoop, true),
+      listeningRevealAll: flag(SettingsStore.keyListeningRevealAll, false),
+    );
   }
 
   ///
-  /// 把原生动态值转换成合法的每日目标。
-  static int _dailyGoalFromStorage(Object? value) {
-    // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
-    final parsed = value is num ? value.toInt() : null;
-    // 旧版本没有该字段时使用产品默认值 50。
-    return parsed != null && parsed >= 0 ? parsed : 50;
-  }
-
-  ///
-  /// 把原生动态值转换成合法的词义连连倒计时秒数。
-  static int _meaningMatchDurationFromStorage(Object? value) {
-    // MethodChannel 的 Android Int/Long 都会映射为 num；负数和非数字均视为损坏数据。
-    final parsed = value is num ? value.toInt() : null;
-    // 旧版本没有该字段时使用产品默认值 150。
-    return parsed != null && parsed >= 0 ? parsed : 150;
-  }
+  /// 复制并替换部分字段；没传的字段保持原值。
+  _Values copyWith({
+    PronunciationAccent? accent,
+    AppThemePreference? theme,
+    DefinitionSeparator? definitionSeparator,
+    int? dailyGoal,
+    int? meaningMatchDuration,
+    int? listeningRepeat,
+    int? listeningInterval,
+    bool? listeningLoop,
+    bool? listeningRevealAll,
+  }) => _Values(
+    accent: accent ?? this.accent,
+    theme: theme ?? this.theme,
+    definitionSeparator: definitionSeparator ?? this.definitionSeparator,
+    dailyGoal: dailyGoal ?? this.dailyGoal,
+    meaningMatchDuration: meaningMatchDuration ?? this.meaningMatchDuration,
+    listeningRepeat: listeningRepeat ?? this.listeningRepeat,
+    listeningInterval: listeningInterval ?? this.listeningInterval,
+    listeningLoop: listeningLoop ?? this.listeningLoop,
+    listeningRevealAll: listeningRevealAll ?? this.listeningRevealAll,
+  );
 }
