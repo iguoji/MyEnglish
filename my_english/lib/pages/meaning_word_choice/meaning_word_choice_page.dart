@@ -1036,8 +1036,10 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       key: Key('meaning-word-choice-option-${candidate.wordId}'),
       width: width,
       height: MeaningWordChoiceLayout.candidateHeight,
-      padding: const EdgeInsets.symmetric(
-        horizontal: MeaningWordChoiceLayout.candidateInset,
+      // 四边内边距统一：28 徽章 + 上下 8×2 = 44 正好占满按钮，
+      // ABCD 距左/上/下完全等距，视觉对称。
+      padding: const EdgeInsets.all(
+        MeaningWordChoiceLayout.candidateContentInset,
       ),
       decoration: BoxDecoration(
         color: background,

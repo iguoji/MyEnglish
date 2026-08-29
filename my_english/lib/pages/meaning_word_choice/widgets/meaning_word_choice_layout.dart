@@ -88,8 +88,11 @@ abstract final class MeaningWordChoiceLayout {
   static const double candidateTop = 12;
 
   ///
-  /// 候选按钮内部左右留白。
-  static const double candidateInset = 12;
+  /// 候选按钮内容的统一内边距。
+  ///
+  /// 生活化解释：ABCD 徽章距按钮左边、上边、下边的距离必须完全相等
+  /// （28 徽章 + 上下 8×2 = 44 按钮高），视觉才对称不歪。
+  static const double candidateContentInset = 8;
 
   ///
   /// 单个候选按钮的固定高度。
