@@ -32,8 +32,16 @@ import 'services/meaning_word_choice_round_builder.dart';
 import 'widgets/meaning_word_choice_layout.dart';
 
 ///
+/// 候选词「答对」后的禁用绿，与词义连连的匹配成功色完全一致。
+const Color _kSuccess = Color(0xFF2FB344);
+
+///
 /// 聊天气泡的类型：左侧系统出的含义，右侧用户选中的单词。
 enum _ChatBubbleKind { meaning, word }
+
+///
+/// 「正在输入」三点动画出现的侧别：左侧是含义出现前，右侧是单词出现前。
+enum _TypingSide { left, right }
 
 ///
 /// 一条聊天气泡的只读数据。
@@ -190,8 +198,10 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// 计时器：每秒把用时累加 1 秒。
   Timer? _elapsedTimer;
 
-  /// 是否正在显示「正在输入」三点动画（含义气泡出现前）。
-  bool _typingVisible = false;
+  /// 是否正在显示「正在输入」三点动画，以及它出现在哪一侧。
+  ///
+  /// null 表示没有动画；left = 含义气泡出现前；right = 单词气泡出现前。
+  _TypingSide? _typingSide;
 
   /// 三点动画控制器：循环驱动三个圆点依次跳动。
   late final AnimationController _typingController;
@@ -373,7 +383,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// ===== 轮次推进 =====
 
   ///
-  /// 开始第 [index] 轮：生成候选词、先播放「正在输入」三点动画，
+  /// 开始第 [index] 轮：生成候选词、先播放左侧「正在输入」三点动画，
   /// 延迟片刻后再插入含义气泡并落盘。
   void _startRound(int index) {
     // 越界表示全部走完，直接结算。
@@ -390,10 +400,10 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
         round: _rounds[index],
         words: widget.words,
       );
-      // 含义气泡出现前，先显示「正在输入」三点占位。
-      _typingVisible = true;
+      // 含义气泡出现前，左侧先显示「正在输入」三点占位。
+      _typingSide = _TypingSide.left;
     });
-    // 启动三点跳动动画，模拟对方正在输入。
+    // 启动三点动画，模拟对方正在输入。
     _typingController.repeat();
     _scrollToBottom();
     // 假输入结束后再插入含义气泡（聊天气泡式出题）。
@@ -401,7 +411,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     _typingTimer = Timer(MeaningWordChoiceLayout.typingDelay, () {
       if (!mounted) return;
       setState(() {
-        _typingVisible = false;
+        _typingSide = null;
         _bubbles.add(_meaningBubbleFor(_rounds[index]));
       });
       _typingController.stop();
@@ -418,7 +428,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     if (_disabledIds.contains(wordId) || _pickedIds.contains(wordId)) return;
     if (_completed) return;
     // 含义气泡还没出现（正在输入动画中）时不允许抢答。
-    if (_typingVisible) return;
+    if (_typingSide != null) return;
 
     // 在候选列表里找到这个词，判断是否正确答案。
     MeaningWordChoiceCandidate? candidate;
@@ -436,20 +446,37 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     if (spelling.isNotEmpty) unawaited(_playWordAudio(spelling));
 
     if (candidate.isMatch) {
-      // 答对：右侧弹出单词气泡，该词从候选区移除。
+      // 答对：先把单词标记为已选出（候选区变绿禁用），
+      // 右侧先出现「正在输入」三点动画，延迟后再弹出单词气泡。
       setState(() {
         _pickedIds.add(wordId);
-        if (spelling.isNotEmpty) {
-          _bubbles.add(_ChatBubble.word(spelling, wordId: wordId));
-        }
+        _typingSide = _TypingSide.right;
       });
-      unawaited(_persist());
-      _scrollToBottom();
-      // 该含义的全部匹配词都选出后，进入下一轮（或结算）。
+      // 该含义的全部匹配词都选出后立即写记录，不等动画结束——
+      // 万一用户在这 400ms 里退出，记录也不会丢。
       if (_currentRoundDone) {
         unawaited(_recordRound(_roundIndex));
-        _startRound(_roundIndex + 1);
       }
+      _typingController.repeat();
+      _scrollToBottom();
+      _typingTimer?.cancel();
+      _typingTimer = Timer(MeaningWordChoiceLayout.typingDelay, () {
+        if (!mounted) return;
+        setState(() {
+          _typingSide = null;
+          if (spelling.isNotEmpty) {
+            _bubbles.add(_ChatBubble.word(spelling, wordId: wordId));
+          }
+        });
+        _typingController.stop();
+        _typingController.value = 0;
+        unawaited(_persist());
+        _scrollToBottom();
+        // 该含义的全部匹配词都选出后，进入下一轮（或结算）。
+        if (_currentRoundDone) {
+          _startRound(_roundIndex + 1);
+        }
+      });
     } else {
       // 答错：该候选词禁用置灰，错误数累计。
       setState(() {
@@ -733,36 +760,35 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
 
   ///
   /// 构建聊天气泡区（reverse 列表：最新气泡固定在底部，旧气泡向上推）。
+  ///
+  /// 底部不预留空白：候选区悬浮盖在气泡上方属于刻意设计，内容被遮挡
+  /// 一部分反而更像真实的聊天窗口，用户随时可以上滑查看。
   Widget _buildChat(AppTokens tokens) {
-    // 底部预留空白，让最后一个气泡不被悬浮候选区遮住。
-    final bottomReserved = _candidates.isEmpty
-        ? MeaningWordChoiceLayout.chatInset
-        : MeaningWordChoiceLayout.chatBottomReserved;
     return ListView.builder(
       key: const Key('meaning-word-choice-chat'),
       controller: _scrollController,
       // reverse 让最新消息贴底，天然满足「新气泡出现后自动可见」。
       reverse: true,
-      padding: EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         MeaningWordChoiceLayout.chatInset,
         MeaningWordChoiceLayout.bodyTop,
         MeaningWordChoiceLayout.chatInset,
-        bottomReserved,
+        MeaningWordChoiceLayout.chatInset,
       ),
       // 「正在输入」三点占位也算一项，追加在最新位置。
-      itemCount: _bubbles.length + (_typingVisible ? 1 : 0),
+      itemCount: _bubbles.length + (_typingSide != null ? 1 : 0),
       itemBuilder: (context, index) {
         // 视觉最底部（index 0）是三点动画；其余按倒序取气泡。
-        if (_typingVisible && index == 0) {
+        if (_typingSide != null && index == 0) {
           return Padding(
             padding: const EdgeInsets.only(
               bottom: MeaningWordChoiceLayout.bubbleGap,
             ),
-            child: _buildTypingBubble(tokens),
+            child: _buildTypingBubble(tokens, _typingSide!),
           );
         }
         final bubbleIndex =
-            _bubbles.length - 1 - (index - (_typingVisible ? 1 : 0));
+            _bubbles.length - 1 - (index - (_typingSide != null ? 1 : 0));
         final bubble = _bubbles[bubbleIndex];
         return Padding(
           padding: const EdgeInsets.only(
@@ -775,29 +801,42 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 构建「正在输入」三点占位气泡：左侧浅底圆角气泡内三个点依次弹跳。
-  Widget _buildTypingBubble(AppTokens tokens) {
+  /// 构建「正在输入」三点占位气泡：按 [side] 靠左或靠右，三个点从左到右
+  /// 依次点亮，模拟打字机逐字输入。
+  Widget _buildTypingBubble(AppTokens tokens, _TypingSide side) {
+    final isLeft = side == _TypingSide.left;
+    // 与含义/单词气泡一致的圆角与尾巴方向。
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(MeaningWordChoiceLayout.bubbleRadius),
+      topRight: const Radius.circular(MeaningWordChoiceLayout.bubbleRadius),
+      bottomLeft: Radius.circular(
+        isLeft
+            ? MeaningWordChoiceLayout.bubbleTailRadius
+            : MeaningWordChoiceLayout.bubbleRadius,
+      ),
+      bottomRight: Radius.circular(
+        isLeft
+            ? MeaningWordChoiceLayout.bubbleRadius
+            : MeaningWordChoiceLayout.bubbleTailRadius,
+      ),
+    );
+
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
         width: MeaningWordChoiceLayout.typingBubbleWidth,
+        // 最低高度与普通气泡一致，三点内容不至于让气泡显得又窄又扁。
+        constraints: const BoxConstraints(
+          minHeight: MeaningWordChoiceLayout.bubbleMinHeight,
+        ),
         padding: const EdgeInsets.symmetric(
           horizontal: MeaningWordChoiceLayout.bubblePaddingHorizontal,
           vertical: MeaningWordChoiceLayout.bubblePaddingVertical,
         ),
         decoration: BoxDecoration(
-          color: tokens.card,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(MeaningWordChoiceLayout.bubbleRadius),
-            topRight: const Radius.circular(MeaningWordChoiceLayout.bubbleRadius),
-            bottomLeft: const Radius.circular(
-              MeaningWordChoiceLayout.bubbleTailRadius,
-            ),
-            bottomRight: const Radius.circular(
-              MeaningWordChoiceLayout.bubbleRadius,
-            ),
-          ),
-          border: Border.all(color: tokens.rowBorder),
+          color: isLeft ? tokens.card : AppTokens.accent,
+          borderRadius: radius,
+          border: isLeft ? Border.all(color: tokens.rowBorder) : null,
         ),
         child: AnimatedBuilder(
           animation: _typingController,
@@ -809,7 +848,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                 for (var i = 0; i < 3; i += 1) ...[
                   if (i > 0)
                     const SizedBox(width: MeaningWordChoiceLayout.typingDotGap),
-                  _buildTypingDot(t, i, tokens),
+                  _buildTypingDot(t, i, isLeft, tokens),
                 ],
               ],
             );
@@ -820,19 +859,23 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 构建三点动画里的一个圆点；相位依次错开 1/3 周期，形成弹跳节奏。
-  Widget _buildTypingDot(double t, int index, AppTokens tokens) {
-    // 相位循环 0→1，三个点分别从 0、1/3、2/3 起步。
-    final phase = (t - index / 3) % 1.0;
-    // sin 曲线在相位 0.25 时达到峰值，负号让圆点向上跳 3 像素。
-    final dy = -3.0 * sin(phase * 2 * pi);
-    return Transform.translate(
-      offset: Offset(0, dy),
+  /// 构建三点动画里的一个圆点；三个点按顺序从左到右依次点亮。
+  ///
+  /// 每个点在自己的时间片内从透明渐变到实色：点 0 先亮，点 1 跟上，
+  /// 点 2 殿后，形成「正在输入」的推进感，而不是一起跳动。
+  Widget _buildTypingDot(double t, int index, bool isLeft, AppTokens tokens) {
+    // 每个点占用 1/3 周期：点 i 在 t ∈ [i/3, (i+1)/3] 区间内完成淡入。
+    final progress = ((t - index / 3) * 3).clamp(0.0, 1.0);
+    // 完成后保持常亮，等下一轮循环从头再来。
+    final opacity = progress == 1.0 ? 0.25 + 0.75 * progress : progress;
+    return Opacity(
+      // 右侧（单词侧）的气泡是品牌蓝底，圆点用白色才看得清。
+      opacity: opacity,
       child: Container(
         width: MeaningWordChoiceLayout.typingDotSize,
         height: MeaningWordChoiceLayout.typingDotSize,
         decoration: BoxDecoration(
-          color: tokens.textSecondary,
+          color: isLeft ? tokens.textSecondary : Colors.white,
           shape: BoxShape.circle,
         ),
       ),
@@ -860,7 +903,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     );
 
     final bubbleWidget = Container(
+      // 最低高度保证短内容（含三点动画）也有稳定的气泡轮廓。
       constraints: BoxConstraints(
+        minHeight: MeaningWordChoiceLayout.bubbleMinHeight,
         maxWidth: MediaQuery.sizeOf(context).width *
             MeaningWordChoiceLayout.bubbleMaxWidthFactor,
       ),
@@ -931,13 +976,11 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// 构建悬浮候选区：类似 CSS `position: absolute; right: 20px; bottom: 20px`，
   /// 脱离文档流盖在聊天气泡上方。
   ///
-  /// 已正确选出的词从列表移除（不再显示）；点错的词置灰禁用（仍占位）。
+  /// 状态用颜色表达：点错的词置灰加删除线；答对的词留在原位、变成
+  /// 词义连连同款的绿色禁用态，一眼看到「这题对上了」。
   Widget _buildFloatingCandidates(AppTokens tokens) {
-    // 可见候选 = 全部候选 − 已选出的词。
-    final visible = <MeaningWordChoiceCandidate>[
-      for (final candidate in _candidates)
-        if (!_pickedIds.contains(candidate.wordId)) candidate,
-    ];
+    // 候选词全部保留（答对的不再移除，只变色）。
+    final visible = _candidates;
     if (visible.isEmpty) return const SizedBox.shrink();
 
     // 数量超过 4 个时改两列网格，否则竖排单列。
@@ -960,8 +1003,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
           spacing: MeaningWordChoiceLayout.candidateGap,
           runSpacing: MeaningWordChoiceLayout.candidateGap,
           children: <Widget>[
-            for (final candidate in visible)
-              _buildCandidateButton(tokens, candidate, buttonWidth),
+            for (var index = 0; index < visible.length; index += 1)
+              _buildCandidateButton(tokens, visible[index], index, buttonWidth),
           ],
         ),
       ),
@@ -969,51 +1012,101 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 构建一个候选词按钮；宽度由 [width] 决定（单列或网格共用）。
+  /// 构建一个候选词按钮：左侧 A/B/C/D 序号方块 + 单词文本；
+  /// 宽度由 [width] 决定（单列或网格共用）。
   Widget _buildCandidateButton(
     AppTokens tokens,
     MeaningWordChoiceCandidate candidate,
+    int index,
     double width,
   ) {
+    final picked = _pickedIds.contains(candidate.wordId);
     final disabled = _disabledIds.contains(candidate.wordId);
     final spelling = _wordsById[candidate.wordId]?.spelling ?? '';
+    // 答对用绿色、点错用灰色，未处理保持卡片底色。
+    final stateColor = picked
+        ? _kSuccess
+        : disabled
+            ? tokens.textSecondary
+            : null;
+    final background = picked
+        ? _kSuccess.withValues(alpha: 0.10)
+        : disabled
+            ? tokens.sub
+            : tokens.card;
+
     // 按钮宽高固定，点击画布稳定，布局不随文字长短抖动。
     final button = Container(
       key: Key('meaning-word-choice-option-${candidate.wordId}'),
       width: width,
       height: MeaningWordChoiceLayout.candidateHeight,
-      alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(
         horizontal: MeaningWordChoiceLayout.candidateInset,
       ),
       decoration: BoxDecoration(
-        color: disabled ? tokens.sub : tokens.card,
+        color: background,
         borderRadius: BorderRadius.circular(
           MeaningWordChoiceLayout.candidateRadius,
         ),
         border: Border.all(
-          color: disabled ? tokens.inputBorder : tokens.rowBorder,
+          color: stateColor ?? tokens.rowBorder,
         ),
       ),
-      child: Text(
-        spelling,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: disabled ? tokens.textSecondary : tokens.text,
-          fontSize: MeaningWordChoiceLayout.candidateTextSize,
-          fontWeight: FontWeight.w600,
-          // 点错的词加删除线，一眼看出已排除。
-          decoration: disabled ? TextDecoration.lineThrough : null,
-        ),
+      child: Row(
+        children: [
+          // 序号方块：A/B/C/D，听音辨义候选词同款。
+          Container(
+            width: MeaningWordChoiceLayout.optionBadgeSize,
+            height: MeaningWordChoiceLayout.optionBadgeSize,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: picked
+                  ? _kSuccess.withValues(alpha: 0.14)
+                  : disabled
+                      ? tokens.card
+                      : tokens.sub,
+              border: Border.all(
+                color: stateColor ?? tokens.rowBorder,
+              ),
+              borderRadius: BorderRadius.circular(
+                MeaningWordChoiceLayout.optionBadgeRadius,
+              ),
+            ),
+            child: Text(
+              String.fromCharCode('A'.codeUnitAt(0) + index),
+              style: TextStyle(
+                color: stateColor ?? tokens.textSecondary,
+                fontSize: MeaningWordChoiceLayout.optionBadgeTextSize,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: MeaningWordChoiceLayout.optionBadgeGap),
+          Expanded(
+            child: Text(
+              spelling,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: stateColor ?? tokens.text,
+                fontSize: MeaningWordChoiceLayout.candidateTextSize,
+                fontWeight: FontWeight.w600,
+                // 点错的词加删除线，一眼看出已排除。
+                decoration: disabled ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        ],
       ),
     );
 
-    // 禁用的词不可再点；其余用 InkWell 提供按压反馈。
+    // 已禁用（答对或点错）的词不可再点；其余用 InkWell 提供按压反馈。
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: disabled ? null : () => _onCandidateTap(candidate.wordId),
+        onTap: picked || disabled
+            ? null
+            : () => _onCandidateTap(candidate.wordId),
         borderRadius: BorderRadius.circular(
           MeaningWordChoiceLayout.candidateRadius,
         ),

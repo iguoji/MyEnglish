@@ -77,6 +77,10 @@ abstract final class MeaningWordChoiceLayout {
   /// 气泡内词性标签的文字字号（比正文略小、颜色更轻）。
   static const double bubblePosTextSize = 11.5;
 
+  ///
+  /// 气泡最低高度；三点动画气泡内容很小时也不至于显得又窄又扁。
+  static const double bubbleMinHeight = 36;
+
   /// ===== 右下角候选区（悬浮定位） =====
 
   ///
@@ -95,10 +99,20 @@ abstract final class MeaningWordChoiceLayout {
   static const double candidateFloatEdge = 20;
 
   ///
-  /// 气泡区底部预留的空白，避免最后一个气泡被悬浮候选区遮住。
+  /// 候选词左侧 A/B/C/D 序号方块的固定边长。
+  static const double optionBadgeSize = 28;
+
   ///
-  /// 估算值 = 候选区悬浮高度（4 行按钮 + 间距）+ 底部边距，多留一点更稳。
-  static const double chatBottomReserved = 240;
+  /// 序号方块的圆角。
+  static const double optionBadgeRadius = 5;
+
+  ///
+  /// 序号方块内字母的字号。
+  static const double optionBadgeTextSize = 12;
+
+  ///
+  /// 序号方块与候选单词之间的水平间距。
+  static const double optionBadgeGap = 10;
 
   ///
   /// 单个候选按钮的固定高度。
@@ -135,8 +149,8 @@ abstract final class MeaningWordChoiceLayout {
   static const double typingBubbleWidth = 58;
 
   ///
-  /// 假「正在输入」的持续时间，结束后含义气泡才真正出现。
-  static const Duration typingDelay = Duration(milliseconds: 650);
+  /// 假「正在输入」的持续时间，结束后含义/单词气泡才真正出现。
+  static const Duration typingDelay = Duration(milliseconds: 400);
 
   /// ===== 结算页 =====
 
