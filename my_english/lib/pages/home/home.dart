@@ -913,6 +913,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       MaterialPageRoute<dynamic>(
         builder: (_) => ListeningMeaningPage(
           words: words,
+          corpusWords: _allWords, // 全库语料：为释义混淆词提供共享字候选池。
           audioPlayer: _audioPlayer,
           accent: _settings.accent,
           definitionSeparator: _settings.definitionSeparator.symbol,

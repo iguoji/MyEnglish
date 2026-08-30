@@ -63,14 +63,14 @@ void main() {
           meanings: <Meaning>[for (final d in defs) Meaning(pos: 'n.', definition: d)],
         );
     final sourceWords = <Word>[
-      w('ability', <String>['能力', '才能']), // 当前正确词，两个含义都不得当混淆项
+      w('ability', <String>['能力', '才能']), // 当前正确词，两个含义不得当候选
       w('energy', <String>['能量']),
       w('strength', <String>['实力']),
       w('capable', <String>['可以完成任务的']),
     ];
 
-    // 多次抽样，验证每一次都只包含其他单词的释义、不含自身含义、数量正确。
-    // 页面会传入当前正确词自身的全部含义（能力 / 才能）作排除，这里照做。
+    // 多次抽样，验证每一次都只包含其他单词的释义、含自身含义、数量正确。
+    // 页面会传入当前正确词自身的全部含义作排除，这里照做。
     final pooled = <String>{'能量', '实力', '可以完成任务的'};
     for (var i = 0; i < 20; i++) {
       final distractors =
@@ -138,9 +138,8 @@ void main() {
       Word(spelling: 'd', meanings: <Meaning>[Meaning(pos: 'n.', definition: '状态')]),
     ];
     for (var i = 0; i < 20; i++) {
-      final correct = '实力';
       final distrac = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
-        correct: correct,
+        correct: '实力',
         sourceWords: sourceWords,
       );
       expect(distrac, isNot(contains('实力')));
@@ -185,4 +184,52 @@ void main() {
     expect(distractors.toSet(), hasLength(3));
   });
 
+  test('definition distractors share a character with the correct meaning', () {
+    // 全库语料给出几组共享汉字的释义：新增共享汉字算法应优先挑共享字（同语义场）的词。
+    Word w(String s, List<String> defs) => Word(
+          spelling: s,
+          meanings: <Meaning>[for (final d in defs) Meaning(pos: 'n.', definition: d)],
+        );
+    // 星期六 / 星期四 / 星期日 / 星期一 都共享「期」，算法应优先进这一组。
+    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+      correct: '星期六',
+      sourceWords: <Word>[
+        w('saturday', <String>['星期六']),
+        w('thursday', <String>['星期四']),
+        w('sunday', <String>['星期日']),
+        w('monday', <String>['星期一']),
+      ],
+    );
+    expect(distractors, hasLength(3));
+    // 三条干扰项都应与其他「星期X」共享「期」这一最紧要的语义字。
+    expect(distractors.every((d) => d.contains('期')), isTrue,
+        reason: '共享汉字算法应优先给共享「期」的同类词：$distractors');
+    expect(distractors, isNot(contains('星期六')));
+  });
+
+  test('definition distractors never leak same-word meanings or subset pairs', () {
+    // 一个词多个含义：招呼 / 问候，以及与之互含的「打招呼」。
+    Word hello = Word(
+      spelling: 'hello',
+      meanings: <Meaning>[
+        Meaning(pos: 'v.', definition: '招呼'),
+        Meaning(pos: 'v.', definition: '问候'),
+      ],
+    );
+    Word wave = Word(
+      spelling: 'wave',
+      meanings: <Meaning>[Meaning(pos: 'v.', definition: '打招呼')],
+    );
+    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+      correct: '招呼',
+      sourceWords: <Word>[hello, wave],
+      excludeDefinitions: const <String>{'招呼', '问候'},
+    );
+    // 正确项自身与同其它含义都不得作为干扰项。
+    expect(distractors, isNot(contains('招呼')));
+    expect(distractors, isNot(contains('问候')));
+    // 「打招呼」与「招呼」互为子串，防歧义规则要挡住。
+    expect(distractors, isNot(contains('打招呼')),
+        reason: '打招呼与招呼互为子串，绝不能当干扰项');
+  });
 }

@@ -106,16 +106,29 @@ abstract final class ListeningMeaningOptionGenerator {
   }
 
   ///
-  /// 从首页词库的全部释义中随机抽取最多 [count] 个不重复干扰项。
+  /// 按《含义混淆词.md》的「共享汉字」算法生成中文释义干扰项。
   ///
-  /// 策略刻意保持最简单：不做“长得像 / 相似度排序 / 兜底派生”，纯随机。
+  /// 核心思想（不用 AI）：中文是表意文字，共享汉字通常意味着共享语义场。所以
+  /// 不再像旧版那样对候选纯随机洗牌，而是分优先级去词库里找「和正确答案共享
+  /// 某个汉字 / 相同前缀 / 相同后缀」的释义，语义上更接近、也更像“该混淆”。
   ///
-  /// [excludeDefinitions] 是本条正确答案所在单词自身的全部释义集合：同一个单词
-  /// 往往有多个含义（例如 ability 的“能力 / 才能”），它们绝不能互相充当干扰项，
-  /// 传入后会在收拢候选池时直接剔除。
+  /// 候选来源 [sourceWords]：页面会传入**整个词库**（而不是本轮学习列表），这样才能
+  /// 有几千条中文释义做候选池，共享汉字才找得到对应的同类词。
   ///
-  /// 词库极小（例如用户只录入了 1 个单词）时，候选池可能为空，此时返回空列表，
-  /// 绝不强行凑够 [count] 个——没有混淆项就不硬造。
+  /// 递进式优先级（只要某个层级凑够 [count] 就停下）：
+  /// 1. 相同前缀 / 后缀（长度 ≥ 2 且字数相同，最精准）；
+  /// 2. 共享任意单字（字数差 ≤ 1，泛关联）；
+  /// 3. 同字数纯随机（拿到找得到共享字的魑魅、饕餮这类词）；
+  /// 4. 整个语料纯随机（极小概率的绝对兜底）。
+  ///
+  /// 严格的互斥：绝不使用当前词的其他含义（[excludeDefinitions]），也排除与正确答案
+  /// 互为子串 / 包含的歧义词。
+  ///
+  /// [excludeDefinitions] 是本条正确答案所在单词自身的全部释义集合：同一个单词往往有
+  /// 多个含义（例如能力 / 才能），它们绝不能互相充当干扰项。
+  ///
+  /// 词库极小（例如用户只录入了 1 个单词）时候选池可能为空，此时返回空列表，绝不强行
+  /// 凑够 [count] 个——没有混淆项就不硬造。
   static List<String> buildDefinitionDistractors({
     required String correct,
     required List<Word> sourceWords,
@@ -123,26 +136,77 @@ abstract final class ListeningMeaningOptionGenerator {
     Set<String> excludeDefinitions = const <String>{},
   }) {
     if (count <= 0) return const <String>[];
-    // 中文释义统一清理首尾空格；排除集同样归一化后再比较。
+    // 中文释义统一清理首尾空格。
     final normalizedCorrect = correct.trim();
     final normalizedExcluded = excludeDefinitions
         .map((definition) => definition.trim())
         .where((definition) => definition.isNotEmpty)
         .toSet();
-    // 用集合收拢全部候选释义：剔除当前单词自身的含义与正确答案本身，
-    // 去重后随机抽取。只来自词库、绝不包含当前词含义、不强凑。
-    final pool = <String>{
+    // 把传入词库的全部释义拉平成“常驻候选池”，供后续各优先级筛选。
+    final corpus = <String>{
       for (final word in sourceWords)
         for (final meaning in word.allMeanings)
-          if (meaning.definition.trim().isNotEmpty &&
-              !normalizedExcluded.contains(meaning.definition.trim()) &&
-              meaning.definition.trim().toLowerCase() !=
-                  normalizedCorrect.toLowerCase())
-            meaning.definition.trim(),
+          if (meaning.definition.trim().isNotEmpty) meaning.definition.trim(),
     };
-    final candidates = pool.toList(growable: false);
-    candidates.shuffle(Random());
-    return List<String>.unmodifiable(candidates.take(count));
+
+    final targetLen = normalizedCorrect.length;
+    final blacklist = <String>{...normalizedExcluded, normalizedCorrect};
+
+    // 互斥判断：命中当前词的其他含义，或与正确答案互为子串，都不可作候选。
+    bool isInvalid(String candidate) {
+      if (blacklist.contains(candidate)) return true;
+      if (candidate.contains(normalizedCorrect) ||
+          normalizedCorrect.contains(candidate)) {
+        return true;
+      }
+      return false;
+    }
+
+    // 用集合收拢候选，天然去重。
+    final pool = <String>{};
+
+    // ----- 优先级 1：相同前缀 / 后缀（最精准的同类词）-----
+    if (targetLen >= 2) {
+      final prefix = normalizedCorrect.substring(0, targetLen - 1);
+      final suffix = normalizedCorrect.substring(1);
+      for (final w in corpus) {
+        if (w.length != targetLen || isInvalid(w)) continue;
+        if (w.startsWith(prefix) || w.endsWith(suffix)) pool.add(w);
+      }
+    }
+
+    // ----- 优先级 2：字级共享（泛关联）-----
+    if (pool.length < count) {
+      for (final w in corpus) {
+        if (isInvalid(w)) continue;
+        if ((w.length - targetLen).abs() > 1) continue;
+        final chars = normalizedCorrect.split('');
+        for (final ch in chars) {
+          if (w.contains(ch)) {
+            pool.add(w);
+            break;
+          }
+        }
+      }
+    }
+
+    // ----- 优先级 3：同字数纯随机（兜底，魑魅饕餮这类共享字极少的词）-----
+    if (pool.length < count) {
+      for (final w in corpus) {
+        if (w.length == targetLen && !isInvalid(w)) pool.add(w);
+      }
+    }
+
+    // ----- 优先级 4：绝对兜底，整个语料随便拿 -----
+    if (pool.length < count) {
+      for (final w in corpus) {
+        if (!isInvalid(w)) pool.add(w);
+      }
+    }
+
+    // 池内随机打乱，取前 count 个；不足 count 时有多少给多少（不强凑）。
+    final list = pool.toList(growable: false)..shuffle(Random());
+    return List<String>.unmodifiable(list.take(count));
   }
 
   ///

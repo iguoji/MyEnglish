@@ -73,6 +73,7 @@ class ListeningMeaningPage extends StatefulWidget {
     required this.audioPlayer,
     required this.accent,
     required this.progress,
+    this.corpusWords,
     this.wordStore,
     this.definitionSeparator = '、',
     super.key,
@@ -81,6 +82,14 @@ class ListeningMeaningPage extends StatefulWidget {
   ///
   /// 本轮参与听音辨义的单词。
   final List<Word> words;
+
+  ///
+  /// 全库词库，仅用于生成中文释义混淆词的候选池；缺省回退到 [words]。
+  ///
+  /// 结合《含义混淆词.md》的共享汉字算法，混淆词要从**整个词库**几千条中文
+  /// 释义里找共享字，而不是只从本轮学习列表里抽，否则找不到同类项。首页持有
+  /// 全库字词，打开听音辨义时顺手传进来即可。
+  final List<Word>? corpusWords;
 
   ///
   /// 与首页、随身听共用的发音服务。
@@ -204,6 +213,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 当前正在听音辨义的单词。
   Word get _currentWord => widget.words[_wordIndex];
+
+  ///
+  /// 生成中文释义干扰项的全库语料；页面没传时退回本轮学习列表。
+  ///
+  /// 只用于 [buildDefinitionDistractors] 的候选池，不参与答题进度。
+  List<Word> get _corpusWords => widget.corpusWords ?? widget.words;
 
   ///
   /// 本局进度的落盘出口。
@@ -361,7 +376,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 按当前阶段生成指定数量的干扰项。
   List<String> _generateCurrentDistractors({int count = 3}) {
-    // 拼写题与释义题分别复用原有生成规则，来源仍严格限制在本轮学习列表。
+    // 拼写题与释义题分别复用原有生成规则。拼写题仍从本轮学习列表里找形状相近
+    // 的英文干扰项；释义题改为共享汉字算法，从全库语料里找共享字的同类中文释义。
     return _stage == ListeningMeaningStage.word
         ? ListeningMeaningOptionGenerator.buildWordDistractors(
             correct: _currentCorrectAnswer,
@@ -370,7 +386,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
           )
         : ListeningMeaningOptionGenerator.buildDefinitionDistractors(
             correct: _currentCorrectAnswer,
-            sourceWords: widget.words,
+            sourceWords: _corpusWords,
             count: count,
             excludeDefinitions: _currentWordProviderExcludedDefinitions,
           );
@@ -708,7 +724,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
           )
         : ListeningMeaningOptionGenerator.findReplacementDefinitionDistractor(
             correct: _currentCorrectAnswer,
-            sourceWords: widget.words,
+            sourceWords: _corpusWords,
             excluded: excluded,
             excludeDefinitions: _currentWordProviderExcludedDefinitions,
           );
