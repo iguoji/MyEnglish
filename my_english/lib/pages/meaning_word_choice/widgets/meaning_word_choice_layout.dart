@@ -30,6 +30,14 @@ abstract final class MeaningWordChoiceLayout {
   static const double headerProgressTextSize = 16;
 
   ///
+  /// 右上角计时文字的字号。
+  ///
+  /// 四个练习模块（听音辨义、看义选词、拼写巩固、词义连连）的右上角时间
+  /// 统一使用这一个数值：以词义连连原来 14 像素为基准 +1，得到 15 像素。
+  /// 统一之后，模块之间来回切换时右上角的数字不会再忽大忽小。
+  static const double headerTimerTextSize = 15;
+
+  ///
   /// 顶栏与下方进度条之间的纵向间距，与听音辨义一致。
   static const double progressTop = 10;
 

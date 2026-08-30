@@ -55,9 +55,16 @@ abstract final class MeaningMatchLayout {
   static const double boardVerticalInset = 12;
 
   ///
-  /// 右上角倒计时文本字号。比中间「已配对 / 总数」数字进度（16px）小 2px，
-  /// 且不加粗，弱化为次要信息，避免和主进度抢视觉权重。
-  static const double countdownTextSize = 14;
+  /// 右上角倒计时文本字号，同时是四个练习模块右上角时间的统一基准。
+  ///
+  /// 比中间「已配对 / 总数」数字进度（16px）小 1px，且不加粗，弱化为次要信息，
+  /// 避免和主进度抢视觉权重。听音辨义、看义选词、拼写巩固三处的
+  /// `headerTimerTextSize` 都跟随这个数值。
+  static const double countdownTextSize = 15;
+
+  ///
+  /// 结算页「再挑战一次」按钮的文字字号，保持原来的 14 像素不随倒计时变动。
+  static const double summaryButtonTextSize = 14;
 
   ///
   /// 倒计时进入“危险色 + 呼吸动画”的阈值秒数（原型 `timeLeft <= 10`）。

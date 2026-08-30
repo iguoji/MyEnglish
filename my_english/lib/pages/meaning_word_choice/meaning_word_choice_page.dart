@@ -706,7 +706,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                     key: const Key('meaning-word-choice-elapsed'),
                     style: TextStyle(
                       color: tokens.textMedium,
-                      fontSize: MeaningWordChoiceLayout.headerProgressTextSize - 3,
+                      // 与听音辨义、拼写巩固、词义连连右上角时间保持同一字号。
+                      fontSize: MeaningWordChoiceLayout.headerTimerTextSize,
                       fontWeight: FontWeight.w500,
                       // 等宽数字让秒数变化时整体宽度稳定，右侧不抖动。
                       fontFeatures: const [FontFeature.tabularFigures()],

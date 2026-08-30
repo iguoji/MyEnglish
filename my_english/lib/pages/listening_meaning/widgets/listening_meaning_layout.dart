@@ -17,6 +17,14 @@ abstract final class ListeningMeaningLayout {
   static const double headerButtonSize = 34;
 
   ///
+  /// 右上角计时文字的字号。
+  ///
+  /// 四个练习模块（听音辨义、看义选词、拼写巩固、词义连连）的右上角时间
+  /// 统一使用这一个数值：以词义连连原来 14 像素为基准 +1，得到 15 像素。
+  /// 统一之后，模块之间来回切换时右上角的数字不会再忽大忽小。
+  static const double headerTimerTextSize = 15;
+
+  ///
   /// 顶栏与进度条之间的垂直间距。
   static const double progressTop = 10;
 
@@ -117,8 +125,34 @@ abstract final class ListeningMeaningLayout {
   static const double columnGap = 12;
 
   ///
-  /// 四个候选词每行的固定高度。
-  static const double optionHeight = 48;
+  /// 四个候选词每行的高度。
+  ///
+  /// 这是**最小**高度：短候选词仍是 48 像素，长候选词换行后按内容自然增高，
+  /// 不会因为高度写死而被裁掉半行字。
+  static const double optionMinHeight = 48;
+
+  ///
+  /// 候选词文字的字号，换行时保持不变（不再为了塞进一行而缩小字号）。
+  static const double optionTextSize = 14;
+
+  ///
+  /// 候选词多行时的行高倍数。
+  ///
+  /// 生活化解释：1 表示“行高正好等于字号”，1.18 表示每行留出约 18% 字号的空隙。
+  /// 系统默认是 1.2 上下，这里收紧一点点，两行仍放得进原来 48 像素的卡片，
+  /// 同时下伸笔画（g、y、p 的尾巴）也不会顶到下一行。
+  static const double optionTextLineHeight = 1.18;
+
+  ///
+  /// 候选词最多显示三行，再长才用省略号收尾。
+  static const int optionMaxLines = 3;
+
+  ///
+  /// 候选词文字与卡片右边框之间的留白。
+  ///
+  /// 左边已经为 A/B/C/D 序号方块让出了完整宽度，右边只需保留和卡片内边距
+  /// 一样的呼吸空间，把省下来的宽度全部留给文字，能明显减少换行的次数。
+  static const double optionTextRightInset = 10;
 
   ///
   /// 候选词左侧 A/B/C/D 序号方块的固定边长。

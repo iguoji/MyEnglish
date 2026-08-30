@@ -1413,7 +1413,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
                     backgroundColor: AppTokens.accent,
                     foregroundColor: Colors.white,
                     textStyle: const TextStyle(
-                      fontSize: MeaningMatchLayout.countdownTextSize,
+                      fontSize: MeaningMatchLayout.summaryButtonTextSize,
                       fontWeight: FontWeight.w600,
                     ),
                     shape: RoundedRectangleBorder(

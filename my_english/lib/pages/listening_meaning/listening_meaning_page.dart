@@ -1325,7 +1325,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                     key: const Key('listening-meaning-elapsed'),
                     style: TextStyle(
                       color: tokens.textMedium,
-                      fontSize: 13,
+                      // 与看义选词、拼写巩固、词义连连右上角时间保持同一字号。
+                      fontSize: ListeningMeaningLayout.headerTimerTextSize,
                       fontWeight: FontWeight.w500,
                       // 等宽数字让秒数变化时整体宽度稳定，右侧不抖动。
                       fontFeatures: const [FontFeature.tabularFigures()],
@@ -1536,6 +1537,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
               ),
               spacing: ListeningMeaningLayout.optionGap,
               runSpacing: ListeningMeaningLayout.optionGap,
+              // Wrap 不支持把同一行拉成等高，这里让矮的那张在行内垂直居中：
+              // 某个候选换行变高时，旁边那张不会顶在上方显得歪。
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
                 for (var index = 0; index < _options.length; index += 1)
                   // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
@@ -1901,7 +1905,11 @@ class _OptionCardState extends State<_OptionCard>
             ListeningMeaningLayout.cardRadius,
           ),
           child: Container(
-            height: ListeningMeaningLayout.optionHeight,
+            // 高度只给下限：短候选词是 48 像素，长候选词换行后自动长高，
+            // 卡片撑开而不是把多出来的那行文字裁掉。
+            constraints: const BoxConstraints(
+              minHeight: ListeningMeaningLayout.optionMinHeight,
+            ),
             padding: const EdgeInsets.symmetric(
               horizontal: ListeningMeaningLayout.optionHorizontalInset,
               vertical: 6,
@@ -1944,26 +1952,29 @@ class _OptionCardState extends State<_OptionCard>
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal:
+                  // 左侧让出序号方块的完整宽度，右侧只留和卡片内边距一样的呼吸空间，
+                  // 省下来的宽度全给文字，能明显减少换行的次数。
+                  padding: const EdgeInsets.only(
+                    left:
                         ListeningMeaningLayout.optionBadgeSize +
                         ListeningMeaningLayout.optionHorizontalInset,
+                    right: ListeningMeaningLayout.optionTextRightInset,
                   ),
-                  // FittedBox 自适应：单词过长时整体等比缩小字号塞进可用宽度，
-                  // 不靠换行/省略号把长词截掉，保证每个候选都完整可见。
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      widget.option.text,
-                      key: Key('listening-meaning-option-label-${widget.index}'),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: TextStyle(
-                        color: wrong ? AppTokens.danger : tokens.text,
-                        fontSize: 14,
-                      ),
+                  // 长候选词换行显示，字号始终 14 像素：不再像 FittedBox 那样
+                  // 为了塞进一行把字整体缩小到看不清。
+                  child: Text(
+                    widget.option.text,
+                    key: Key('listening-meaning-option-label-${widget.index}'),
+                    textAlign: TextAlign.center,
+                    // 超过三行的极长文本才用省略号收尾。
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: ListeningMeaningLayout.optionMaxLines,
+                    style: TextStyle(
+                      color: wrong ? AppTokens.danger : tokens.text,
+                      fontSize: ListeningMeaningLayout.optionTextSize,
+                      // 行高收紧到 1.18：两行仍装得进 48 像素的卡片，
+                      // 多行之间也不会因为行距过大把字挤出可视范围。
+                      height: ListeningMeaningLayout.optionTextLineHeight,
                     ),
                   ),
                 ),

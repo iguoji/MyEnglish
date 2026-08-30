@@ -45,6 +45,14 @@ Map<String, Object?> _recordResult() => <String, Object?>{
   'reviewed_at_after': 1,
 };
 
+///
+/// 取同一行两张候选卡更靠下的那条底边。
+///
+/// 长候选换行后卡片会变高，同一行两张卡的高度不一定相等，
+/// 行的实际底边由更高的那张决定。
+double _rowBottom(Rect left, Rect right) =>
+    left.bottom > right.bottom ? left.bottom : right.bottom;
+
 void main() {
   // Widget 测试需要先初始化二进制消息桥，才能为原生记录通道安装测试桩。
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -695,19 +703,27 @@ void main() {
       for (var index = 0; index < 4; index++)
         tester.getRect(find.byKey(Key('listening-meaning-option-$index'))),
     ];
-    // 底部候选改为文档流一行两个：0/1 同顶成第一行，2/3 同顶成第二行。
-    expect(optionRects[0].top, closeTo(optionRects[1].top, 0.01));
-    expect(optionRects[2].top, closeTo(optionRects[3].top, 0.01));
-    // 每行两卡片等宽，高度统一。
+    // 底部候选改为文档流一行两个：0/1 同一行，2/3 同一行；
+    // 行内两张卡垂直居中对齐，因此比较行中心而不是顶边。
+    expect(optionRects[0].center.dy, closeTo(optionRects[1].center.dy, 0.01));
+    expect(optionRects[2].center.dy, closeTo(optionRects[3].center.dy, 0.01));
+    // 每行两卡片等宽；高度至少 optionMinHeight，长候选换行后允许更高。
     for (final optionRect in optionRects) {
-      expect(optionRect.height, ListeningMeaningLayout.optionHeight);
+      expect(
+        optionRect.height,
+        greaterThanOrEqualTo(ListeningMeaningLayout.optionMinHeight),
+      );
     }
     expect(optionRects[0].width, closeTo(optionRects[1].width, 0.01));
     expect(optionRects[2].width, closeTo(optionRects[3].width, 0.01));
-    // 第二行顶部 = 第一行底部 + 行间距。
+    // 第二行顶部 = 第一行最下边 + 行间距。
     expect(
       optionRects[2].top,
-      closeTo(optionRects[0].bottom + ListeningMeaningLayout.optionGap, 0.01),
+      closeTo(
+        _rowBottom(optionRects[0], optionRects[1]) +
+            ListeningMeaningLayout.optionGap,
+        0.01,
+      ),
     );
     // 每行左侧都有固定灰色正方形 badge，文字依次为 A、B、C、D。
     for (var index = 0; index < optionRects.length; index += 1) {
@@ -731,8 +747,26 @@ void main() {
         find.descendant(of: badgeFinder, matching: find.text('ABCD'[index])),
         findsOneWidget,
       );
-      // badge 不参与候选文本的居中计算，文字中心仍与整个按钮中心重合。
-      expect(labelRect.center.dx, closeTo(optionRects[index].center.dx, 0.01));
+      // badge 不参与候选文本的居中计算：文字在「序号方块右侧」到
+      // 「右侧留白」之间居中，因此中心比整个按钮略偏右。
+      final contentLeft =
+          optionRects[index].left +
+          1 +
+          ListeningMeaningLayout.optionHorizontalInset;
+      final contentRight =
+          optionRects[index].right -
+          1 -
+          ListeningMeaningLayout.optionHorizontalInset;
+      final textLeft =
+          contentLeft +
+          ListeningMeaningLayout.optionBadgeSize +
+          ListeningMeaningLayout.optionHorizontalInset;
+      final textRight =
+          contentRight - ListeningMeaningLayout.optionTextRightInset;
+      expect(
+        labelRect.center.dx,
+        closeTo((textLeft + textRight) / 2, 0.01),
+      );
     }
 
     // 播放按钮已下线；候选词一行两个，宽度 =（内容宽 − 行间距）/ 2。
@@ -743,9 +777,9 @@ void main() {
         (contentWidth - ListeningMeaningLayout.optionGap) / 2;
     expect(optionRects[0].width, closeTo(halfWidth, 0.01));
     expect(optionRects[1].left, closeTo(optionRects[0].right + ListeningMeaningLayout.optionGap, 0.01));
-    // 候选区底部必须位于系统安全区和页面额外留白之上。
+    // 候选区底部（取第二行两张卡最下边）必须位于系统安全区和页面额外留白之上。
     expect(
-      optionRects[2].bottom,
+      _rowBottom(optionRects[2], optionRects[3]),
       closeTo(844 - safeBottom - ListeningMeaningLayout.bottomInset, 0.01),
     );
 
