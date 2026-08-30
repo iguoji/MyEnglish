@@ -436,7 +436,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
 
   ///
   /// 剩余秒数（向上取整，与倒计时文本口径一致）。
-  int get _remainingSeconds => (_remainingMs / 1000).ceil();
+  int get _remainingSeconds =>
+      ((_remainingMs / 1000).ceil()).clamp(0, 1 << 30);
 
   ///
   /// 倒计时是否进入“最后冲刺”（剩余不足 10 秒）。
@@ -550,7 +551,9 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     final rightOrders = <List<int>>[];
     // 数据列表在开局时就补齐成了 5 的整数倍，这里直接按 5 切。
     for (var i = 0; i + _groupSize <= pairs.length; i += _groupSize) {
-      groups.add(List<MatchPair>.unmodifiable(pairs.sublist(i, i + _groupSize)));
+      groups.add(
+        List<MatchPair>.unmodifiable(pairs.sublist(i, i + _groupSize)),
+      );
       final order = List<int>.generate(_groupSize, (index) => index)
         ..shuffle(random);
       rightOrders.add(List<int>.unmodifiable(order));
@@ -618,14 +621,25 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     }
   }
 
-
   ///
   /// 启动每秒倒数；归零即触发超时结算。
   void _startTimer() {
-    _timer?.cancel();
+    _stopTimer();
+    // 恢复会话时如果所用时间已经达到总时长，不能创建一个“归零后什么也不做”
+    // 的定时器；要立即按超时收尾，否则页面会一直停在 00:00 的答题状态。
+    if (_showSummary) return;
+    if (_remainingMs <= 0) {
+      _onTimeout();
+      return;
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      // 已在别处停掉计时器则不再继续扣时间。
-      if (_remainingMs <= 0) return;
+      // 页面离开或已经结算后，定时器回调不再修改界面。
+      if (!mounted || _showSummary) return;
+      // 防御恢复数据在运行中变成归零的情况，直接走统一超时流程。
+      if (_remainingMs <= 0) {
+        _onTimeout();
+        return;
+      }
       setState(() => _remainingMs -= 1000);
       // 每一秒都检查是否跨过 10 秒红线，跨过就开始/停止呼吸动画。
       _syncPulse();
@@ -657,7 +671,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   /// 时间耗尽：停止计时、标记超时并保存快照（首页据此显示“本局最高进度”）。
   void _onTimeout() {
     if (_completed) return;
-    _timer?.cancel();
+    _stopTimer();
     setState(() => _timedOut = true);
     // 结算页不需要呼吸动画。
     _syncPulse();
@@ -837,7 +851,6 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     }
   }
 
-
   ///
   /// 锁住棋盘点击，等连错抖动播完再解锁并撤掉红色。
   void _lockInputForShake() {
@@ -887,7 +900,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     } else {
       // 最后一组也连完：全部卡片操作完一遍，整局结束并判定过关。
       // 必须先停表：结算页展示期间定时器若仍在跑，剩余时间会继续往下掉。
-      _timer?.cancel();
+      _stopTimer();
       setState(() => _completed = true);
       _syncPulse();
       unawaited(_finishSession());
@@ -906,7 +919,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   /// 迟早会和 ReviewFlow 对不上。用户感受不到差别——依然是点一下就重开。
   void _restart() {
     // 先停掉计时与连错解锁，避免转场期间回调还在跑。
-    _timer?.cancel();
+    _stopTimer();
     _unlockTimer?.cancel();
     _inputLocked = false;
     // true 就是给首页的信号：这一局结束了，请立刻再开一局。
@@ -952,7 +965,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   ///
   /// 存「已用」而不是「剩余」：点 +30s 加时会把总时长一起抬高，
   /// 只有已用时间在任何加时下都单调递增，续玩时反推剩余永远算得对。
-  int get _elapsedSeconds => ((_totalMs - _remainingMs) ~/ 1000).clamp(0, 1 << 30);
+  int get _elapsedSeconds =>
+      ((_totalMs - _remainingMs) ~/ 1000).clamp(0, 1 << 30);
 
   ///
   /// 给这一局结算。
@@ -979,7 +993,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       _syncPulse();
       return;
     }
-    _timer?.cancel();
+    _stopTimer();
     // 退到后台时停掉呼吸动画，避免无谓的重绘。
     if (_pulseController.isAnimating) _pulseController.stop();
     if (!_showSummary) unawaited(_persist());
@@ -990,8 +1004,18 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   @override
   void deactivate() {
     // 转场一开始就把计时器停掉，把主线程让给返回动画，避免卡顿。
-    _timer?.cancel();
+    _stopTimer();
     super.deactivate();
+  }
+
+  /// 页面被重新挂回树时恢复倒计时，兼容返回手势取消等临时离场场景。
+  @override
+  void activate() {
+    super.activate();
+    if (!_showSummary) {
+      _startTimer();
+      _syncPulse();
+    }
   }
 
   @override
@@ -999,7 +1023,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     // 注销生命周期监听，避免后台回调访问已释放页面。
     WidgetsBinding.instance.removeObserver(this);
     // 停表并保存当前进度；completed/timedOut 也会在此落盘（首页据此显示状态）。
-    _timer?.cancel();
+    _stopTimer();
     // 连错解锁定时器也要取消，避免页面销毁后回调仍在排队。
     _unlockTimer?.cancel();
     _connectController.dispose();
@@ -1007,6 +1031,12 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     _pulseController.dispose();
     unawaited(_persist());
     super.dispose();
+  }
+
+  /// 停止并清空倒计时引用，避免把已取消的计时器误当成仍在运行。
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
   }
 
   ///
@@ -1851,10 +1881,7 @@ class _MatchCardState extends State<_MatchCard>
         color: _kSuccess,
         spreadRadius: 1,
       ),
-      _CardVisualState.idle => BoxShadow(
-        color: tokens.border,
-        spreadRadius: 1,
-      ),
+      _CardVisualState.idle => BoxShadow(color: tokens.border, spreadRadius: 1),
     };
 
     // 锚点圆点：外圈一圈白边 + 再外面一圈光晕，做出“实心小圆点”的质感；
@@ -1968,9 +1995,7 @@ class _MatchCardState extends State<_MatchCard>
           curve: _kSpringEase,
           // 已连上的整张卡淡到 45%，视觉上“退居二线”（补充稿 opacity: 0.45）。
           child: AnimatedOpacity(
-            opacity: widget.isMatched
-                ? MeaningMatchLayout.matchedOpacity
-                : 1.0,
+            opacity: widget.isMatched ? MeaningMatchLayout.matchedOpacity : 1.0,
             duration: const Duration(
               milliseconds: MeaningMatchLayout.cardTransformTransitionMs,
             ),

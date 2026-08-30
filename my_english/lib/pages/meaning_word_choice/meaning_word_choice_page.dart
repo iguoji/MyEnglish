@@ -203,9 +203,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
 
   ///
   /// 顶栏显示的题号：结算时显示总题数，答题时显示当前轮。
-  int get _displayRound => _completed || _allRoundsDone
-      ? _rounds.length
-      : _roundIndex + 1;
+  int get _displayRound =>
+      _completed || _allRoundsDone ? _rounds.length : _roundIndex + 1;
 
   ///
   /// 页面初始化：接进度出口、恢复历史快照或开一局新的。
@@ -229,6 +228,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     if (_progress.allRecords.isEmpty) {
       // 全新一局：从第一轮开始。
       _startRound(0);
+      // 新局也必须从进入页面开始累计用时；此前只有续玩路径启动了计时器。
+      _startElapsedTimer();
     } else {
       // 续玩：重建聊天区气泡，并进入恢复出的当前轮。
       _rebuildBubbles();
@@ -471,7 +472,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       });
       // 记一条「点错了」：重进时靠它把这个候选继续置灰，
       // 结算也靠它判定这一轮该不该加难度。
-      unawaited(_recordPick(wordId: wordId, spelling: spelling, isCorrect: false));
+      unawaited(
+        _recordPick(wordId: wordId, spelling: spelling, isCorrect: false),
+      );
       unawaited(_persist());
     }
   }
@@ -539,7 +542,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 全部含义走完：停表、标记完成并结算这一局。
   void _completeSession() {
-    _elapsedTimer?.cancel();
+    // 整局已经结束，彻底停表，避免结算页期间定时器继续空转。
+    _stopElapsedTimer();
     setState(() => _completed = true);
     // 判定规则与其他模块一致：把全部含义走完一遍即算完成，答错不影响整局成败。
     unawaited(
@@ -579,14 +583,14 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       if (!_completed && !_allRoundsDone) _startElapsedTimer();
       return;
     }
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     if (!_completed) unawaited(_persist());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     _typingTimer?.cancel();
     _typingController.dispose();
     _scrollController.dispose();
@@ -598,7 +602,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 再玩一轮：带「再来一局」信号退回首页，由首页重新走 ReviewFlow。
   void _restart() {
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     Navigator.pop(context, true);
   }
 
@@ -614,11 +618,31 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 开始计时；已运行时保持原样。
   void _startElapsedTimer() {
-    if (_elapsedTimer != null) return;
+    if (_completed || _allRoundsDone || _elapsedTimer != null) return;
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
+      if (!mounted || _completed) return;
       setState(() => _elapsedMs += 1000);
     });
+  }
+
+  /// 停止并清空计时器引用，保证回到前台时可以重新启动。
+  void _stopElapsedTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+  }
+
+  /// 页面开始离场时立即停表，避免转场动画期间继续累加本局用时。
+  @override
+  void deactivate() {
+    _stopElapsedTimer();
+    super.deactivate();
+  }
+
+  /// 页面被重新挂回树时恢复计时，兼容返回手势取消等临时离场场景。
+  @override
+  void activate() {
+    super.activate();
+    if (!_completed && !_allRoundsDone) _startElapsedTimer();
   }
 
   /// ===== 构建 =====
@@ -682,7 +706,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: tokens.text,
-                        fontSize: MeaningWordChoiceLayout.headerProgressTextSize,
+                        fontSize:
+                            MeaningWordChoiceLayout.headerProgressTextSize,
                         fontWeight: FontWeight.w600,
                         // 等宽数字让计数变化时视觉中心不抖动。
                         fontFeatures: const [FontFeature.tabularFigures()],
@@ -890,7 +915,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       // 最低高度保证短内容（含三点动画）也有稳定的气泡轮廓。
       constraints: BoxConstraints(
         minHeight: MeaningWordChoiceLayout.bubbleMinHeight,
-        maxWidth: MediaQuery.sizeOf(context).width *
+        maxWidth:
+            MediaQuery.sizeOf(context).width *
             MeaningWordChoiceLayout.bubbleMaxWidthFactor,
       ),
       padding: const EdgeInsets.symmetric(
@@ -937,8 +963,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
             key: Key('meaning-word-choice-bubble-word-${bubble.wordId}'),
             onTap: () {
               final wordId = bubble.wordId;
-              final spelling =
-                  wordId == null ? null : _wordsById[wordId]?.spelling;
+              final spelling = wordId == null
+                  ? null
+                  : _wordsById[wordId]?.spelling;
               if (spelling != null && spelling.isNotEmpty) {
                 unawaited(_playWordAudio(spelling));
               }
@@ -950,10 +977,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       );
     }
     // 含义靠左、单词靠右，微信对话式排版。
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: bubbleWidget,
-    );
+    return Align(alignment: Alignment.centerLeft, child: bubbleWidget);
   }
 
   ///
@@ -1013,13 +1037,13 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     final stateColor = picked
         ? _kSuccess
         : disabled
-            ? tokens.textSecondary
-            : null;
+        ? tokens.textSecondary
+        : null;
     final background = picked
         ? _kSuccess.withValues(alpha: 0.10)
         : disabled
-            ? tokens.sub
-            : tokens.card;
+        ? tokens.sub
+        : tokens.card;
 
     // 按钮宽高固定，点击画布稳定，布局不随文字长短抖动。
     final button = Container(
@@ -1036,9 +1060,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
         borderRadius: BorderRadius.circular(
           MeaningWordChoiceLayout.candidateRadius,
         ),
-        border: Border.all(
-          color: stateColor ?? tokens.rowBorder,
-        ),
+        border: Border.all(color: stateColor ?? tokens.rowBorder),
       ),
       child: Row(
         children: [
@@ -1051,11 +1073,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
               color: picked
                   ? _kSuccess.withValues(alpha: 0.14)
                   : disabled
-                      ? tokens.card
-                      : tokens.sub,
-              border: Border.all(
-                color: stateColor ?? tokens.rowBorder,
-              ),
+                  ? tokens.card
+                  : tokens.sub,
+              border: Border.all(color: stateColor ?? tokens.rowBorder),
               borderRadius: BorderRadius.circular(
                 MeaningWordChoiceLayout.optionBadgeRadius,
               ),
@@ -1131,7 +1151,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight:
-                constraints.maxHeight - MeaningWordChoiceLayout.summarySectionGap * 2,
+                constraints.maxHeight -
+                MeaningWordChoiceLayout.summarySectionGap * 2,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1198,7 +1219,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                         tokens: tokens,
                       ),
                     ),
-                    const SizedBox(width: MeaningWordChoiceLayout.summaryStatGap),
+                    const SizedBox(
+                      width: MeaningWordChoiceLayout.summaryStatGap,
+                    ),
                     Expanded(
                       child: _SummaryStatCard(
                         key: const Key('meaning-word-choice-stat-errors'),
@@ -1210,7 +1233,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                         tokens: tokens,
                       ),
                     ),
-                    const SizedBox(width: MeaningWordChoiceLayout.summaryStatGap),
+                    const SizedBox(
+                      width: MeaningWordChoiceLayout.summaryStatGap,
+                    ),
                     Expanded(
                       child: _SummaryStatCard(
                         key: const Key('meaning-word-choice-stat-time'),
@@ -1228,7 +1253,9 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
               ),
               // 需加强名单：点错过的单词，照着这份名单再练。
               if (weakSpellings.isNotEmpty) ...[
-                const SizedBox(height: MeaningWordChoiceLayout.summarySectionGap),
+                const SizedBox(
+                  height: MeaningWordChoiceLayout.summarySectionGap,
+                ),
                 Text(
                   '这几个词需要再练',
                   style: TextStyle(
@@ -1245,7 +1272,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                       Container(
                         key: Key('meaning-word-choice-weak-$spelling'),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: MeaningWordChoiceLayout.bubblePaddingHorizontal,
+                          horizontal:
+                              MeaningWordChoiceLayout.bubblePaddingHorizontal,
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
@@ -1345,7 +1373,9 @@ class _SummaryStatCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: tokens.card,
-        borderRadius: BorderRadius.circular(MeaningWordChoiceLayout.candidateRadius),
+        borderRadius: BorderRadius.circular(
+          MeaningWordChoiceLayout.candidateRadius,
+        ),
         border: Border.all(color: tokens.rowBorder),
       ),
       child: Column(
@@ -1375,10 +1405,7 @@ class _SummaryStatCard extends StatelessWidget {
           ),
           Text(
             unit,
-            style: TextStyle(
-              fontSize: 11,
-              color: tokens.textSecondary,
-            ),
+            style: TextStyle(fontSize: 11, color: tokens.textSecondary),
           ),
         ],
       ),

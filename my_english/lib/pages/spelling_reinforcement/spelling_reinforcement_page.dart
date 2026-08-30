@@ -85,10 +85,7 @@ enum SpellingMode {
 class SpellingWordOutcome {
   ///
   /// 创建一条单词结果。
-  const SpellingWordOutcome({
-    required this.spelling,
-    required this.wrongCount,
-  });
+  const SpellingWordOutcome({required this.spelling, required this.wrongCount});
 
   ///
   /// 单词拼写，直接显示在「需加强」标签上。
@@ -101,7 +98,6 @@ class SpellingWordOutcome {
   ///
   /// 是否一次就拼对（全程没错）。
   bool get isPerfect => wrongCount == 0;
-
 }
 
 ///
@@ -426,7 +422,11 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _errors = _progress.wrongCount;
 
     // 回放已完成单词的结果：一个词只要在记录里出现过「答对」，就算走完了。
-    for (var index = 0; index < _wordIndex && index < widget.words.length; index += 1) {
+    for (
+      var index = 0;
+      index < _wordIndex && index < widget.words.length;
+      index += 1
+    ) {
       final word = widget.words[index];
       final wordId = word.id;
       if (wordId == null) continue;
@@ -441,7 +441,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
         ),
       );
       // 已经结算过的词不再重复结算。
-      if (wordProgress.answeredMeaningIds.isNotEmpty || wordProgress.spellingDone) {
+      if (wordProgress.answeredMeaningIds.isNotEmpty ||
+          wordProgress.spellingDone) {
         _recordedIndexes.add(index);
       }
     }
@@ -560,12 +561,18 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 启动每秒累加用时的定时器。
   void _startElapsedTimer() {
-    _elapsedTimer?.cancel();
+    if (_elapsedTimer != null) return;
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       // 已结算就不再计时；用时不影响画面布局，但要让结算页数字跟着走。
-      if (_showSummary) return;
+      if (!mounted || _showSummary) return;
       setState(() => _elapsedMs += 1000);
     });
+  }
+
+  /// 停止并清空计时器引用，保证回到前台时可以重新启动。
+  void _stopElapsedTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
   }
 
   ///
@@ -598,10 +605,15 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     setState(() => _isPlaying = true);
     try {
       // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
-      await widget.audioPlayer.playRandomChannel(_currentWord.spelling, widget.accent);
+      await widget.audioPlayer.playRandomChannel(
+        _currentWord.spelling,
+        widget.accent,
+      );
       // 随机渠道模式下 TTS 可能是被故意选中（而非网络兜底），此时不提示网络不可用。
       final playback = widget.audioPlayer.consumeLastPlayback();
-      if (!_hasShownTtsNotice && playback.usedTts && !playback.isRandomChannel) {
+      if (!_hasShownTtsNotice &&
+          playback.usedTts &&
+          !playback.isRandomChannel) {
         _hasShownTtsNotice = true;
         if (mounted) {
           Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
@@ -763,9 +775,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   void _onWordSolved() {
     // 拼对也留痕：没有这一条，本局这个词在数据库里就等于「没练过」，
     // 首页的今日复习数与打卡热力图都统计不到它。
-    unawaited(
-      _recordAttempt(input: _currentWord.spelling, isCorrect: true),
-    );
+    unawaited(_recordAttempt(input: _currentWord.spelling, isCorrect: true));
     setState(() => _inputLocked = true);
     _advanceTimer?.cancel();
     _advanceTimer = Timer(
@@ -804,7 +814,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       }
     });
     if (isLast) {
-      _elapsedTimer?.cancel();
+      // 整局已经结束，彻底停表，避免结算页期间定时器继续空转。
+      _stopElapsedTimer();
       unawaited(_finishSession());
       return;
     }
@@ -830,7 +841,11 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     // 没有主键无法落库；它通常只会出现在尚未保存的测试数据中。
     if (wordId == null) return;
     try {
-      await _progress.record(wordId: wordId, input: input, isCorrect: isCorrect);
+      await _progress.record(
+        wordId: wordId,
+        input: input,
+        isCorrect: isCorrect,
+      );
     } catch (error) {
       // 写记录失败不该打断答题，最多这一次点击没留痕。
       debugPrint('写入拼写巩固点击记录失败：$error');
@@ -865,8 +880,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     final wordId = _currentWord.id;
     if (wordId == null) return;
     try {
-      await (widget.wordStore ?? LocalWordStore.instance)
-          .saveWordSyllables(wordId, parts);
+      await (widget.wordStore ?? LocalWordStore.instance).saveWordSyllables(
+        wordId,
+        parts,
+      );
     } catch (error) {
       debugPrint('保存音节拆分失败：$error');
     }
@@ -1034,7 +1051,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 迟早会和 ReviewFlow 对不上。用户感受不到差别——依然是点一下就重开。
   void _restart() {
     // 先停掉所有定时器，避免转场期间回调还在跑。
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     _advanceTimer?.cancel();
     _unlockTimer?.cancel();
     _refreshShakeTimer?.cancel();
@@ -1050,7 +1067,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       if (!_showSummary) _startElapsedTimer();
       return;
     }
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     _autoSpeakTimer?.cancel();
     // 退后台时让下一次播放重新提示 TTS，并作废正在进行的播放请求。
     _hasShownTtsNotice = false;
@@ -1065,15 +1082,22 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   @override
   void deactivate() {
     // 转场一开始就把计时器停掉，把主线程让给返回动画，避免卡顿。
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     super.deactivate();
+  }
+
+  /// 页面被重新挂回树时恢复计时，兼容返回手势取消等临时离场场景。
+  @override
+  void activate() {
+    super.activate();
+    if (!_showSummary) _startElapsedTimer();
   }
 
   @override
   void dispose() {
     // 注销生命周期监听，避免后台回调访问已释放页面。
     WidgetsBinding.instance.removeObserver(this);
-    _elapsedTimer?.cancel();
+    _stopElapsedTimer();
     _advanceTimer?.cancel();
     _unlockTimer?.cancel();
     _refreshShakeTimer?.cancel();
@@ -1340,14 +1364,18 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 const SizedBox(height: SpellingLayout.meaningRowGap),
               // 词性在固定宽度列，释义撑满剩余宽度，纵向都从顶部开始对齐。
               Row(
-                key: Key('spelling-meaning-${meanings[index].meanings.first.id}'),
+                key: Key(
+                  'spelling-meaning-${meanings[index].meanings.first.id}',
+                ),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
                     width: SpellingLayout.posColumnWidth,
                     child: Text(
                       meanings[index].pos,
-                      key: Key('spelling-pos-${meanings[index].meanings.first.id}'),
+                      key: Key(
+                        'spelling-pos-${meanings[index].meanings.first.id}',
+                      ),
                       style: TextStyle(
                         color: tokens.textSecondary,
                         fontSize: SpellingLayout.meaningPosTextSize,
@@ -1918,7 +1946,9 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 child: Text(
                   outcome.spelling,
                   style: TextStyle(
-                    color: outcome.wrongCount >= 2 ? AppTokens.danger : _kOrange,
+                    color: outcome.wrongCount >= 2
+                        ? AppTokens.danger
+                        : _kOrange,
                     fontSize: SpellingLayout.weakChipTextSize,
                     fontWeight: FontWeight.w600,
                   ),

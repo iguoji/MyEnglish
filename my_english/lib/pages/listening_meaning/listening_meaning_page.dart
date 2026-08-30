@@ -313,7 +313,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 当前这一小题已经点错过哪些候选，恢复后继续保持红色禁用。
     final wrong = _stage == ListeningMeaningStage.word
         ? wordProgress.spellingWrongInputs
-        : wordProgress.wrongInputsByMeaning[_availableMeanings[_meaningIndex].id] ??
+        : wordProgress.wrongInputsByMeaning[_availableMeanings[_meaningIndex]
+                  .id] ??
               const <String>{};
     _wrongOptions.addAll(wrong);
     _currentWrong = wrong.length;
@@ -413,7 +414,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     final resolved = distractors ?? _generateCurrentDistractors();
     final correctText = _currentCorrectAnswer;
     // 四选一 = 三个干扰项 + 正确答案，放在一起统一排序。
-    final picks = <String>[for (final distractor in resolved.take(3)) distractor, correctText];
+    final picks = <String>[
+      for (final distractor in resolved.take(3)) distractor,
+      correctText,
+    ];
     // 忽略大小写按字母升序；拼写完全相同（理论上被生成器去重排除了）才原样比较。
     picks.sort((first, second) {
       final byLetter = first.toLowerCase().compareTo(second.toLowerCase());
@@ -497,11 +501,16 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     setState(() => _isPlaying = true);
     try {
       // await 会一直等到原生音频播放完毕（或被新播放打断而抛异常）。
-      await widget.audioPlayer.playRandomChannel(_currentWord.spelling, widget.accent);
+      await widget.audioPlayer.playRandomChannel(
+        _currentWord.spelling,
+        widget.accent,
+      );
       // 只有非随机渠道且真正由离线 TTS 兜底朗读时才显示一次来源提示；
       // 随机渠道模式下 TTS 可能是被故意选中，不再提示“网络不可用”。
       final playback = widget.audioPlayer.consumeLastPlayback();
-      if (!_hasShownTtsNotice && playback.usedTts && !playback.isRandomChannel) {
+      if (!_hasShownTtsNotice &&
+          playback.usedTts &&
+          !playback.isRandomChannel) {
         _hasShownTtsNotice = true;
         if (mounted) {
           Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
@@ -512,7 +521,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       // 只重试解码失败，不重试网络失败，避免无网时让用户额外等待两轮超时。
       if (mounted && generation == _playGeneration) {
         try {
-          await widget.audioPlayer.playRandomChannel(_currentWord.spelling, widget.accent);
+          await widget.audioPlayer.playRandomChannel(
+            _currentWord.spelling,
+            widget.accent,
+          );
           // 解码失败重试成功后，同样检查真实播放来源（不含随机渠道）。
           final retryPlayback = widget.audioPlayer.consumeLastPlayback();
           if (!_hasShownTtsNotice &&
@@ -555,12 +567,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // 回前台恢复计时，只在当前局尚未结束时继续。
-      if (!_isDone && !_isCurrentWordComplete) _startElapsedTimer();
+      // 当前单词已完成但整局尚未结束时，计时仍属于本局，回前台也要继续。
+      if (!_isDone) _startElapsedTimer();
       return;
     }
     // 退后台停表，避免把后台停留时间计进本局。
-    _elapsedTimer?.cancel();
-    _elapsedTimer = null;
+    _stopElapsedTimer();
     _hasShownTtsNotice = false;
     ++_playGeneration;
     if (mounted) {
@@ -573,13 +585,18 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 启动（或恢复）每秒一次的计时；只在本局进行中生效。
   void _startElapsedTimer() {
-    if (_elapsedTimer != null) return;
+    if (_isDone || _elapsedTimer != null) return;
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _isDone) return;
       setState(() => _elapsedMs += 1000);
     });
   }
 
+  /// 停止并清空计时器引用，保证回到前台时能够重新创建计时器。
+  void _stopElapsedTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+  }
 
   ///
   /// 选择答案：错项变红并禁用；正确时推进到下一小题。
@@ -883,7 +900,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 把长按刷新后的候选名字和完整顺序覆盖进当前小题缓存。
-   ///
+  ///
   /// 把长按刷新后的混淆词回写到单词行 / 含义行。
   ///
   /// 用户对某个混淆词不满意，长按换一个——换完的这一批就是新的长期结果，
@@ -951,7 +968,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// - 一次没错（[_currentWrong] == 0）→ 视为本次听音辨义正确；
   /// - 中途选错过 → 视为本次听音辨义错误，原生据此把连对次数归零、难度 +1。
   /// 点击提示只作为 hintCount 留档，不影响正误判定（提示不等于答错）。
-   ///
+  ///
   /// 给当前单词结算：更新难度，必要时推进复习时间。
   ///
   /// 这一步只在用户点击「下一题」后发生；停留在完成态或点击「再试一次」都不会
@@ -1024,6 +1041,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _isPlaying = false;
         _feedback = '';
       });
+      // 整局已经结束，彻底停表，避免完成页期间定时器继续空转。
+      _stopElapsedTimer();
       // 最后一题记录已经成功提交，整轮不再属于未完成历史。
       unawaited(_finishSession());
       // 停止可能仍在播放的答对奖励音频。
@@ -1213,7 +1232,16 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     _playGeneration++;
     // 顺手停止可能仍在播放的发音，让位给返回动画。
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
+    // 路由开始离场后立即停表，避免转场期间继续累加本局用时。
+    _stopElapsedTimer();
     super.deactivate();
+  }
+
+  /// 页面被重新挂回树时恢复计时，兼容返回手势取消等临时离场场景。
+  @override
+  void activate() {
+    super.activate();
+    if (!_isDone) _startElapsedTimer();
   }
 
   @override
@@ -1221,8 +1249,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 页面销毁前注销生命周期监听，避免后台回调访问已释放页面。
     WidgetsBinding.instance.removeObserver(this);
     // 停掉右上角计时器，避免释放后回调。
-    _elapsedTimer?.cancel();
-    _elapsedTimer = null;
+    _stopElapsedTimer();
     // 系统返回（手势或返回键）时触发最后一博：立即把当前答题快照写入数据库。
     // _persistSession 内部本身是轻量的（key-value 存储），直接同步 await 不会显著阻塞转场，
     // 但能确保用户手势返回时，首页能在同一帧读到最新会话并立即重建「继续」入口卡片。
@@ -1526,10 +1553,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
           return AnimatedSwitcher(
             // 整组过渡时长，210ms 让切换更利落。
             duration: const Duration(milliseconds: 210),
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: child,
-            ),
+            transitionBuilder: (child, animation) =>
+                FadeTransition(opacity: animation, child: child),
             // 用当前四个候选文本拼接成唯一 Key；文本变化即触发整组过渡。
             child: Wrap(
               key: ValueKey(
@@ -1885,94 +1910,100 @@ class _OptionCardState extends State<_OptionCard>
     return SizedBox(
       width: widget.width,
       child: AnimatedBuilder(
-      animation: _shakeAnimation,
-      builder: (context, child) {
-        // Transform.translate 按 animation 值做水平位移。
-        return Transform.translate(
-          offset: Offset(_shakeAnimation.value, 0),
-          child: child,
-        );
-      },
-      child: Material(
-        key: Key('listening-meaning-option-${widget.index}'),
-        color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
-        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
-        child: InkWell(
-          onTap: wrong ? null : widget.onTap,
-          // 长按不参与答题判定，只打开刷新候选词确认框。
-          onLongPress: widget.onLongPress,
+        animation: _shakeAnimation,
+        builder: (context, child) {
+          // Transform.translate 按 animation 值做水平位移。
+          return Transform.translate(
+            offset: Offset(_shakeAnimation.value, 0),
+            child: child,
+          );
+        },
+        child: Material(
+          key: Key('listening-meaning-option-${widget.index}'),
+          color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
           borderRadius: BorderRadius.circular(
             ListeningMeaningLayout.cardRadius,
           ),
-          child: Container(
-            // 高度只给下限：短候选词是 48 像素，长候选词换行后自动长高，
-            // 卡片撑开而不是把多出来的那行文字裁掉。
-            constraints: const BoxConstraints(
-              minHeight: ListeningMeaningLayout.optionMinHeight,
+          child: InkWell(
+            onTap: wrong ? null : widget.onTap,
+            // 长按不参与答题判定，只打开刷新候选词确认框。
+            onLongPress: widget.onLongPress,
+            borderRadius: BorderRadius.circular(
+              ListeningMeaningLayout.cardRadius,
             ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: ListeningMeaningLayout.optionHorizontalInset,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(
-                ListeningMeaningLayout.cardRadius,
+            child: Container(
+              // 高度只给下限：短候选词是 48 像素，长候选词换行后自动长高，
+              // 卡片撑开而不是把多出来的那行文字裁掉。
+              constraints: const BoxConstraints(
+                minHeight: ListeningMeaningLayout.optionMinHeight,
               ),
-              border: Border.all(
-                color: wrong ? AppTokens.danger : tokens.inputBorder,
+              padding: const EdgeInsets.symmetric(
+                horizontal: ListeningMeaningLayout.optionHorizontalInset,
+                vertical: 6,
               ),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    key: Key('listening-meaning-option-badge-${widget.index}'),
-                    width: ListeningMeaningLayout.optionBadgeSize,
-                    height: ListeningMeaningLayout.optionBadgeSize,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: wrong
-                          ? AppTokens.danger.withValues(alpha: 0.10)
-                          : tokens.sub,
-                      border: Border.all(
-                        color: wrong ? AppTokens.danger : tokens.rowBorder,
-                      ),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      String.fromCharCode('A'.codeUnitAt(0) + widget.index),
-                      style: TextStyle(
-                        color: wrong ? AppTokens.danger : tokens.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(
+                  ListeningMeaningLayout.cardRadius,
                 ),
-                Padding(
-                  // 左侧让出序号方块的完整宽度，右侧只留和卡片内边距一样的呼吸空间，
-                  // 省下来的宽度全给文字，能明显减少换行的次数。
-                  padding: const EdgeInsets.only(
-                    left:
-                        ListeningMeaningLayout.optionBadgeSize +
-                        ListeningMeaningLayout.optionHorizontalInset,
-                    right: ListeningMeaningLayout.optionTextRightInset,
-                  ),
-                  child: _OptionLabel(
-                    text: widget.option.text,
-                    color: wrong ? AppTokens.danger : tokens.text,
-                    labelKey: Key(
-                      'listening-meaning-option-label-${widget.index}',
+                border: Border.all(
+                  color: wrong ? AppTokens.danger : tokens.inputBorder,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      key: Key(
+                        'listening-meaning-option-badge-${widget.index}',
+                      ),
+                      width: ListeningMeaningLayout.optionBadgeSize,
+                      height: ListeningMeaningLayout.optionBadgeSize,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: wrong
+                            ? AppTokens.danger.withValues(alpha: 0.10)
+                            : tokens.sub,
+                        border: Border.all(
+                          color: wrong ? AppTokens.danger : tokens.rowBorder,
+                        ),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        String.fromCharCode('A'.codeUnitAt(0) + widget.index),
+                        style: TextStyle(
+                          color: wrong
+                              ? AppTokens.danger
+                              : tokens.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  Padding(
+                    // 左侧让出序号方块的完整宽度，右侧只留和卡片内边距一样的呼吸空间，
+                    // 省下来的宽度全给文字，能明显减少换行的次数。
+                    padding: const EdgeInsets.only(
+                      left:
+                          ListeningMeaningLayout.optionBadgeSize +
+                          ListeningMeaningLayout.optionHorizontalInset,
+                      right: ListeningMeaningLayout.optionTextRightInset,
+                    ),
+                    child: _OptionLabel(
+                      text: widget.option.text,
+                      color: wrong ? AppTokens.danger : tokens.text,
+                      labelKey: Key(
+                        'listening-meaning-option-label-${widget.index}',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
