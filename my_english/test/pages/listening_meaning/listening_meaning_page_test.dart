@@ -652,6 +652,74 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('短候选词一行放得下，保持基准字号', (tester) async {
+    // 用真实手机比例的窄屏，字号判断依赖真实的可用宽度。
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ListeningMeaningPage(
+          words: _words,
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          progress: _freshProgress(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // ability 只有 7 个字母，卡片一行装得下，字号保持 14 像素。
+    expect(
+      _optionFontSize(tester, 'ability'),
+      ListeningMeaningLayout.optionTextSize,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('需要换行的长候选词把字号降 2 像素', (tester) async {
+    // 用真实手机比例的窄屏，字号判断依赖真实的可用宽度。
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    // 20 个字母的长词：候选卡一行的宽度绝对装不下，必须折行。
+    final longWords = <Word>[
+      Word(
+        id: 1,
+        spelling: 'internationalization',
+        meanings: [
+          const Meaning(id: 101, pos: 'n.', definition: '国际化'),
+        ],
+      ),
+      Word(
+        id: 2,
+        spelling: 'ability',
+        meanings: [
+          const Meaning(id: 102, pos: 'n.', definition: '能力'),
+        ],
+      ),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ListeningMeaningPage(
+          words: longWords,
+          audioPlayer: _ImmediateAudioPlayer(),
+          accent: PronunciationAccent.american,
+          progress: _freshProgress(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // 长词换行后字号从 14 降到 12，两行加一起也不会把卡片撑得太厚。
+    expect(
+      _optionFontSize(tester, 'internationalization'),
+      ListeningMeaningLayout.optionTextSize -
+          ListeningMeaningLayout.optionTextShrinkStep,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('listeningMeaning mirrors listening header and anchors split controls', (
     tester,
   ) async {
@@ -927,6 +995,20 @@ Future<void> _expectSingleOption(WidgetTester tester, String correct) async {
   }
   // 等待候选组入场过渡结束，避免后续点击被动画状态卡住。
   await tester.pumpAndSettle();
+}
+
+///
+/// 读取指定候选文本当前使用的字号。
+///
+/// 短词用基准字号，需要换行的长词会降一档，因此按文本定位后再读样式。
+double _optionFontSize(WidgetTester tester, String text) {
+  for (var index = 0; index < 4; index += 1) {
+    final finder = find.byKey(Key('listening-meaning-option-label-$index'));
+    if (!tester.any(finder)) continue;
+    final widget = tester.widget<Text>(finder);
+    if (widget.data == text) return widget.style!.fontSize!;
+  }
+  throw StateError('候选中没有找到文本：$text');
 }
 
 ///

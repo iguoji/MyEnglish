@@ -363,8 +363,14 @@ class AppTokens {
   static const Color accent = AppTheme.primaryColor;
 
   ///
-  /// 危险色，用于删除与难度徽章。
+  /// 危险色，用于删除与难度徽章（Tabler red `#d63939`）。
   static const Color danger = Color(0xFFD63939);
+
+  ///
+  /// 警告色，用于倒计时进入“还剩三分之二”的中段提示（Tabler orange `#f76707`）。
+  ///
+  /// 比 danger 更温和一档：先提醒“时间不多了”，等真的只剩三分之一再转红。
+  static const Color warning = Color(0xFFF76707);
 
   ///
   /// 浅色令牌，与设计稿浅色 CSS 变量一致。

@@ -1960,21 +1960,11 @@ class _OptionCardState extends State<_OptionCard>
                         ListeningMeaningLayout.optionHorizontalInset,
                     right: ListeningMeaningLayout.optionTextRightInset,
                   ),
-                  // 长候选词换行显示，字号始终 14 像素：不再像 FittedBox 那样
-                  // 为了塞进一行把字整体缩小到看不清。
-                  child: Text(
-                    widget.option.text,
-                    key: Key('listening-meaning-option-label-${widget.index}'),
-                    textAlign: TextAlign.center,
-                    // 超过三行的极长文本才用省略号收尾。
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: ListeningMeaningLayout.optionMaxLines,
-                    style: TextStyle(
-                      color: wrong ? AppTokens.danger : tokens.text,
-                      fontSize: ListeningMeaningLayout.optionTextSize,
-                      // 行高收紧到 1.18：两行仍装得进 48 像素的卡片，
-                      // 多行之间也不会因为行距过大把字挤出可视范围。
-                      height: ListeningMeaningLayout.optionTextLineHeight,
+                  child: _OptionLabel(
+                    text: widget.option.text,
+                    color: wrong ? AppTokens.danger : tokens.text,
+                    labelKey: Key(
+                      'listening-meaning-option-label-${widget.index}',
                     ),
                   ),
                 ),
@@ -1984,6 +1974,89 @@ class _OptionCardState extends State<_OptionCard>
         ),
       ),
       ),
+    );
+  }
+}
+
+///
+/// 候选词文本：一行放得下就用基准字号，需要换行时自动降 2 像素。
+///
+/// 生活化解释：短词按 14 像素正常显示；一旦这个词要折成两行，就把字缩到
+/// 12 像素，两行加在一起的高度更矮，卡片也不会被撑得太厚。字只缩 2 像素，
+/// 仍然看得清——不像以前那样为了塞进一行一路缩到几乎看不清。
+class _OptionLabel extends StatelessWidget {
+  ///
+  /// 创建候选词文本。
+  const _OptionLabel({
+    required this.text,
+    required this.color,
+    required this.labelKey,
+  });
+
+  ///
+  /// 候选词内容。
+  final String text;
+
+  ///
+  /// 文字颜色（答错时是危险红）。
+  final Color color;
+
+  ///
+  /// 传给内部 Text 的 key，供测试与定位使用。
+  final Key labelKey;
+
+  ///
+  /// 按给定字号拼出候选词的文字样式。
+  TextStyle _style(double fontSize) => TextStyle(
+    color: color,
+    fontSize: fontSize,
+    // 行高收紧到 1.18：两行仍装得进 48 像素的卡片，
+    // 多行之间也不会因为行距过大把字挤出可视范围。
+    height: ListeningMeaningLayout.optionTextLineHeight,
+  );
+
+  ///
+  /// 判断这段文字在给定宽度下是否会被折行。
+  ///
+  /// 做法是拿一把“隐形的尺子”（TextPainter）先把文字按一行排一遍：
+  /// 排不下就会被标记为超行，这时才需要降字号。
+  bool _needsWrap(BuildContext context, TextStyle style, double maxWidth) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      // 跟随系统的字体缩放设置，避免开了大字体后判断失准。
+      textScaler: MediaQuery.textScalerOf(context),
+      textDirection: Directionality.of(context),
+      // 与 Text 的默认断行策略保持一致。
+      textWidthBasis: TextWidthBasis.longestLine,
+    )..layout(maxWidth: maxWidth);
+    // 一行之内排得下就是 false。
+    return painter.didExceedMaxLines;
+  }
+
+  ///
+  /// 构建候选词文本。
+  @override
+  Widget build(BuildContext context) {
+    // LayoutBuilder 拿到父级真正给出的可用宽度，再决定用哪个字号。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final baseSize = ListeningMeaningLayout.optionTextSize;
+        final baseStyle = _style(baseSize);
+        // 需要换行就降 2 像素；否则保持基准字号。
+        final fontSize = _needsWrap(context, baseStyle, constraints.maxWidth)
+            ? baseSize - ListeningMeaningLayout.optionTextShrinkStep
+            : baseSize;
+        return Text(
+          text,
+          key: labelKey,
+          textAlign: TextAlign.center,
+          // 超过三行的极长文本才用省略号收尾。
+          overflow: TextOverflow.ellipsis,
+          maxLines: ListeningMeaningLayout.optionMaxLines,
+          style: _style(fontSize),
+        );
+      },
     );
   }
 }

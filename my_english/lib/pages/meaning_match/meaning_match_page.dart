@@ -143,6 +143,25 @@ enum _CardSide {
 }
 
 ///
+/// 倒计时的三个阶段，只影响右上角时间文字的颜色。
+///
+/// 生活化解释：把一局的时间想成一瓶水——喝掉三分之一之前是“正常”，
+/// 剩三分之二时开始提醒你“该抓紧了”，只剩三分之一时就进入“危险”了。
+enum _CountdownStage {
+  ///
+  /// 剩余时间还多于三分之二：用和其他模块一致的默认灰。
+  normal,
+
+  ///
+  /// 剩余时间不足三分之二：转成 Tabler 警告橙。
+  warning,
+
+  ///
+  /// 剩余时间不足三分之一：转成危险红。
+  danger,
+}
+
+///
 /// 一张候选卡当前的视觉状态，决定边框色、底色与文字色。
 ///
 /// 生活化解释：相当于 HTML 原型里 `.pair-btn` 上挂的那几个 class
@@ -420,13 +439,32 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   int get _remainingSeconds => (_remainingMs / 1000).ceil();
 
   ///
-  /// 倒计时是否进入“危险区”（剩余不足 10 秒）。
+  /// 倒计时是否进入“最后冲刺”（剩余不足 10 秒）。
   ///
-  /// 原型在这一刻把倒计时文字与进度条同时改成红色，并让文字开始呼吸。
+  /// 原型在这一刻让文字开始呼吸，同时把顶部进度条改成红色。
+  /// 它只管“最后十秒的紧张感”，文字颜色分档请看 [_countdownStage]。
   bool get _isTimeDanger =>
       !_showSummary &&
       _remainingMs > 0 &&
       _remainingSeconds <= MeaningMatchLayout.countdownDangerSeconds;
+
+  ///
+  /// 倒计时文字当前处在哪个阶段：按剩余时间占总时长的比例分三档。
+  ///
+  /// - 剩余 > 三分之二：[_CountdownStage.normal]，用默认灰；
+  /// - 剩余 ≤ 三分之二：[_CountdownStage.warning]，用警告橙；
+  /// - 剩余 ≤ 三分之一：[_CountdownStage.danger]，用危险红。
+  ///
+  /// 结算页和“还没开始计时”的边界情况一律按 normal 处理，不闪红。
+  _CountdownStage get _countdownStage {
+    // 分母不可用或已经结算时，没有“剩余比例”可言，直接算正常。
+    if (_showSummary || _totalMs <= 0) return _CountdownStage.normal;
+    // 剩余比例 = 剩余毫秒 / 本局总毫秒，范围 0~1。
+    final ratio = _remainingMs / _totalMs;
+    if (ratio <= 1 / 3) return _CountdownStage.danger;
+    if (ratio <= 2 / 3) return _CountdownStage.warning;
+    return _CountdownStage.normal;
+  }
 
   ///
   /// 顶部时间进度条的填充比例（原型 `timeLeft / TOTAL_TIME`）。
@@ -1094,9 +1132,20 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   }
 
   ///
+  /// 按 [_countdownStage] 取倒计时文字的颜色。
+  ///
+  /// 未进入警告阶段时使用 [AppTokens.textMedium]，与听音辨义、看义选词、
+  /// 拼写巩固右上角计时的默认色完全一致，四个模块切来切去不会有色差。
+  Color _countdownColor(AppTokens tokens) => switch (_countdownStage) {
+    _CountdownStage.normal => tokens.textMedium,
+    _CountdownStage.warning => AppTokens.warning,
+    _CountdownStage.danger => AppTokens.danger,
+  };
+
+  ///
   /// 构建右上角可点击的倒计时文本。
   ///
-  /// 平时是次要灰色；剩余不足 10 秒时转为危险红，并循环播放
+  /// 颜色随剩余时间分三档（默认灰 → 警告橙 → 危险红）；最后 10 秒另外循环播放
   /// “放大到 1.06 倍、淡到 0.8 透明度再回来”的呼吸动画（原型 pulse-danger）。
   Widget _buildCountdown(AppTokens tokens) {
     final isDanger = _isTimeDanger;
@@ -1123,7 +1172,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
           child: Text(
             _formatRemaining(),
             style: TextStyle(
-              color: isDanger ? AppTokens.danger : tokens.textSecondary,
+              color: _countdownColor(tokens),
               fontSize: MeaningMatchLayout.countdownTextSize,
               // 不加粗：倒计时是次要信息，弱于中间的主进度数字。
               fontWeight: FontWeight.w400,

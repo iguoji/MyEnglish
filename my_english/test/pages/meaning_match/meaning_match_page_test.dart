@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// 引入设计令牌，核对倒计时三阶段的颜色。
+import 'package:my_english/common/theme.dart';
 // 被测页面与依赖模型。
 import 'package:my_english/models/session.dart';
 import 'package:my_english/models/session_record.dart';
@@ -91,6 +93,21 @@ Future<void> _pumpPage(
 }
 
 ///
+/// 取出右上角倒计时文字当前的颜色。
+///
+/// 倒计时外层的 InkWell 挂着 key，Text 在里面的动画层之下，
+/// 因此按“后代中的 Text”来取。
+Color _countdownColor(WidgetTester tester) => tester
+    .widget<Text>(
+      find.descendant(
+        of: find.byKey(const Key('meaning-match-countdown')),
+        matching: find.byType(Text),
+      ),
+    )
+    .style!
+    .color!;
+
+///
 /// 取出某张候选卡「卡片本体」的装饰（底色 + 描边）。
 ///
 /// 一张卡里有两个 AnimatedContainer：方形的卡片本体，和内侧那颗正圆锚点。
@@ -135,6 +152,22 @@ void main() {
     expect(find.text('03:00'), findsOneWidget);
     // 同时全局设置也 +30（150 -> 180）。
     expect(settings.meaningMatchDuration, 180);
+  });
+
+  testWidgets('倒计时按剩余比例分三档颜色：默认灰 → 警告橙 → 危险红', (
+    WidgetTester tester,
+  ) async {
+    await _pumpPage(tester, words: _fiveWords());
+    // 起步 150 秒，剩余 100%：与其他三个模块右上角计时同一个默认灰。
+    expect(_countdownColor(tester), AppTokens.light.textMedium);
+
+    // 走掉 55 秒 → 还剩 95 秒，占总时长 63%（低于三分之二）：转警告橙。
+    await tester.pump(const Duration(seconds: 55));
+    expect(_countdownColor(tester), AppTokens.warning);
+
+    // 再走 55 秒 → 还剩 40 秒，占总时长 27%（低于三分之一）：转危险红。
+    await tester.pump(const Duration(seconds: 55));
+    expect(_countdownColor(tester), AppTokens.danger);
   });
 
   testWidgets('正确配对：左卡点 apple 再点其释义苹果，计数变为 1/5', (WidgetTester tester) async {

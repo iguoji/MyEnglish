@@ -132,8 +132,15 @@ abstract final class ListeningMeaningLayout {
   static const double optionMinHeight = 48;
 
   ///
-  /// 候选词文字的字号，换行时保持不变（不再为了塞进一行而缩小字号）。
+  /// 候选词文字的基准字号：一行放得下时用它。
   static const double optionTextSize = 14;
+
+  ///
+  /// 候选词需要换行时把字号缩小的像素数。
+  ///
+  /// 只缩 2 像素（14 → 12）：既能让两行更紧凑、卡片不至于太高，
+  /// 又不像整体等比缩小那样缩到看不清。
+  static const double optionTextShrinkStep = 2;
 
   ///
   /// 候选词多行时的行高倍数。
