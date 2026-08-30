@@ -1,4 +1,6 @@
 // 引入全局 Word 模型，候选项需要从首页传入的词库中读取拼写和释义。
+import 'dart:math';
+
 import '../../../models/word.dart';
 
 ///
@@ -48,19 +50,6 @@ abstract final class ListeningMeaningOptionGenerator {
     'word',
     'sound',
     'meaning',
-  ];
-
-  ///
-  /// 当活动词库中不足三条不同释义时，使用常见中文释义补足固定数量。
-  static const List<String> _definitionFallbackBank = <String>[
-    '状态',
-    '方式',
-    '结果',
-    '部分',
-    '内容',
-    '行为',
-    '程度',
-    '事物',
   ];
 
   ///
@@ -117,69 +106,43 @@ abstract final class ListeningMeaningOptionGenerator {
   }
 
   ///
-  /// 从首页词库的全部释义中生成固定数量的不重复干扰项。
+  /// 从首页词库的全部释义中随机抽取最多 [count] 个不重复干扰项。
+  ///
+  /// 策略刻意保持最简单：不做“长得像 / 相似度排序 / 兜底派生”，纯随机。
   ///
   /// [excludeDefinitions] 是本条正确答案所在单词自身的全部释义集合：同一个单词
-  /// 往往有多个含义（例如 ability 的“能力 / 才能”），它们不能互相充当干扰项。
-  /// 传入后这些释义会在排序前被直接剔除，保证候选只来自其他单词。
+  /// 往往有多个含义（例如 ability 的“能力 / 才能”），它们绝不能互相充当干扰项，
+  /// 传入后会在收拢候选池时直接剔除。
+  ///
+  /// 词库极小（例如用户只录入了 1 个单词）时，候选池可能为空，此时返回空列表，
+  /// 绝不强行凑够 [count] 个——没有混淆项就不硬造。
   static List<String> buildDefinitionDistractors({
     required String correct,
     required List<Word> sourceWords,
     int count = 3,
     Set<String> excludeDefinitions = const <String>{},
   }) {
-    // count 为 0 时直接返回空列表。
     if (count <= 0) return const <String>[];
-    // 中文释义也先清理可能的首尾空格；排除集同样统一去除首尾空白再比较。
+    // 中文释义统一清理首尾空格；排除集同样归一化后再比较。
     final normalizedCorrect = correct.trim();
     final normalizedExcluded = excludeDefinitions
         .map((definition) => definition.trim())
         .where((definition) => definition.isNotEmpty)
         .toSet();
-    // 集合保证同一释义在多个单词中出现时只作为一个候选项。
-    final distractors = <String>{};
-    // 展平 Word -> Meaning 两层数据，得到首页词库的全部释义；
-    // 当前单词自身的全部含义直接剔除，避免拿它的其他含义当混淆项。
-    final sourceDefinitions = <String>[
+    // 用集合收拢全部候选释义：剔除当前单词自身的含义与正确答案本身，
+    // 去重后随机抽取。只来自词库、绝不包含当前词含义、不强凑。
+    final pool = <String>{
       for (final word in sourceWords)
         for (final meaning in word.allMeanings)
           if (meaning.definition.trim().isNotEmpty &&
-              !normalizedExcluded.contains(meaning.definition.trim()))
+              !normalizedExcluded.contains(meaning.definition.trim()) &&
+              meaning.definition.trim().toLowerCase() !=
+                  normalizedCorrect.toLowerCase())
             meaning.definition.trim(),
-    ];
-    // 同字数优先，其次才比较编辑距离与公共前缀。
-    for (final definition in _rankBySimilarity(
-      normalizedCorrect,
-      sourceDefinitions,
-    )) {
-      // 排除正确答案本身以及重复释义。
-      _addUniqueTextCandidate(distractors, definition, normalizedCorrect);
-      if (distractors.length >= count) break;
-    }
-
-    // 词库释义数量确实不足时，先用等字数的换位或替换结果补足。
-    if (distractors.length < count) {
-      for (final definition in _syntheticDefinitionVariants(
-        normalizedCorrect,
-      )) {
-        _addUniqueTextCandidate(distractors, definition, normalizedCorrect);
-        if (distractors.length >= count) break;
-      }
-    }
-
-    // 对于只有一条释义的超小词库，再用常见中文释义完成四选一约束。
-    if (distractors.length < count) {
-      for (final definition in _rankBySimilarity(
-        normalizedCorrect,
-        _definitionFallbackBank,
-      )) {
-        _addUniqueTextCandidate(distractors, definition, normalizedCorrect);
-        if (distractors.length >= count) break;
-      }
-    }
-
-    // 返回最多 count 项的只读列表。
-    return List<String>.unmodifiable(distractors.take(count));
+    };
+    final candidates = pool.toList(growable: false);
+    candidates.shuffle(Random());
+    return List<String>.unmodifiable(candidates.take(count));
   }
 
   ///
@@ -330,45 +293,6 @@ abstract final class ListeningMeaningOptionGenerator {
   }
 
   ///
-  /// 为释义生成尽量等字数的最后回退项。
-  static List<String> _syntheticDefinitionVariants(String definition) {
-    // 使用 Unicode 码点而不是简单 codeUnit，表情或扩展字符也不会被拆坏。
-    final characters = definition.runes.toList(growable: false);
-    // 用插入有序集合自动去重。
-    final variants = <String>{};
-    // 两字及以上的释义先尝试交换中间相邻字。
-    if (characters.length > 1) {
-      // 选择靠近中心且一定有右侧字符的位置。
-      final position = (characters.length ~/ 2).clamp(0, characters.length - 2);
-      // 复制码点列表。
-      final swapped = <int>[...characters];
-      // 临时保存左侧字。
-      final first = swapped[position];
-      // 右字放到左侧。
-      swapped[position] = swapped[position + 1];
-      // 左字放到右侧。
-      swapped[position + 1] = first;
-      // 重新构造字符串。
-      variants.add(String.fromCharCodes(swapped));
-    }
-    // 用常见抽象释义字替换一个位置，始终保持原字数。
-    for (final replacement in '意义性度法物态能'.runes) {
-      // 空释义没有可替换位置，交给常见词库保底。
-      if (characters.isEmpty) break;
-      // 复制原码点列表。
-      final changed = <int>[...characters];
-      // 替换中心字符。
-      changed[characters.length ~/ 2] = replacement;
-      // 保存同字数变体。
-      variants.add(String.fromCharCodes(changed));
-    }
-    // 正确答案不能出现在干扰集合中。
-    variants.remove(definition);
-    // 返回按规则生成顺序排列的列表。
-    return variants.toList(growable: false);
-  }
-
-  ///
   /// 按长度、编辑距离、公共前缀和原始顺序稳定排列字符串。
   static List<String> _rankBySimilarity(
     String target,
@@ -458,23 +382,6 @@ abstract final class ListeningMeaningOptionGenerator {
     // 大小写意义上重复的候选也必须排除。
     if (output.any((item) => item.toLowerCase() == value.toLowerCase())) return;
     // 通过全部检查后加入结果。
-    output.add(value);
-  }
-
-  ///
-  /// 把普通文本候选加入集合，排除空值、正确值和重复值。
-  static void _addUniqueTextCandidate(
-    Set<String> output,
-    String candidate,
-    String correct,
-  ) {
-    // 清理首尾空格。
-    final value = candidate.trim();
-    // 空文本不可作为候选项。
-    if (value.isEmpty) return;
-    // 不允许正确文本重复出现。
-    if (value == correct) return;
-    // Set.add 会自动忽略已经存在的相同值。
     output.add(value);
   }
 

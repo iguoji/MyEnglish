@@ -37,8 +37,14 @@ import java.util.Locale
  * 部分索引可用，但**没有 JSON 函数**，所以 JSON 字段一律在这里用 org.json 解析，
  * 绝不能在 SQL 里写 json_extract 之类。
  */
-class WordsDatabase(context: Context) :
-    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class WordsDatabase(
+    context: Context,
+    dbName: String = DATABASE_NAME,
+) : SQLiteOpenHelper(context, dbName, null, DATABASE_VERSION) {
+
+    // 保留 App Context 副本：升级前自动备份要写私有目录，而 SQLiteOpenHelper
+    // 的 context 是 protected，外部查询不到，需要自己存一份。
+    private val appContext: Context = context
 
     companion object {
         // 数据库文件名；换了新名字，旧库文件原样留在磁盘上作为最后一道保险。
@@ -88,15 +94,40 @@ class WordsDatabase(context: Context) :
         createSchema(db)
     }
 
-    /**
-     * 结构升级。
-     *
-     * 这一版是颠覆性重建，不保留任何旧结构：直接删光重建。
-     * 用户的数据通过「导出 JSON → 导入 JSON」迁移，不走数据库内升级。
-     */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        exportBackupBeforeUpgrade(db, oldVersion, newVersion)
         dropSchema(db)
         createSchema(db)
+    }
+
+    /**
+     * 升级（删库）前先自动导出一份完整备份到 app 私有目录。
+     *
+     * 删库是不可逆操作，靠用户记得手动导出太脆弱——哪怕迁移文档写了流程，
+     * 一次疏忽就丢光。这里用旧表结构导出完整 JSON 落盘，作为最后一道保险。
+     * 导出失败不阻断升级：升级才是目标，备份只是兜底。
+     */
+    private fun exportBackupBeforeUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        try {
+            val snapshot = linkedMapOf<String, Any?>(
+                "version" to 2,
+                "settings" to exportRows(db, "settings"),
+                "words" to exportRows(db, "words", jsonArrayColumns = setOf("confusions", "syllables")),
+                "meanings" to exportRows(db, "meanings", jsonArrayColumns = setOf("confusions")),
+                "word_sets" to exportRows(
+                    db, "word_sets",
+                    jsonArrayColumns = setOf("today_word_ids", "tomorrow_word_ids"),
+                ),
+                "sessions" to exportRows(db, "sessions", jsonArrayColumns = setOf("items")),
+                "session_records" to exportRows(db, "session_records"),
+            )
+            val fileName = "my_english-upgrade-v${oldVersion}to${newVersion}.json"
+            val file = java.io.File(appContext.filesDir, fileName)
+            file.parentFile?.mkdirs()
+            file.writeText(org.json.JSONObject(snapshot).toString(2))
+        } catch (error: Throwable) {
+            android.util.Log.w("WordsDatabase", "升级前自动备份失败（不影响升级进行）：$error")
+        }
     }
 
     /** 每次打开连接都确认外键约束已启用。 */
@@ -566,13 +597,14 @@ class WordsDatabase(context: Context) :
      */
     fun saveWordConfusions(wordId: Long, confusions: Any?) {
         val now = System.currentTimeMillis()
+        // 只作用在还活着的单词上；已删除（软删除）的词不接收回写。
         writableDatabase.execSQL(
             "UPDATE words SET confusions = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             arrayOf<Any>(encodeStringArray(confusions), now, wordId),
         )
     }
 
-    /** 回写含义的混淆词；同样刷新 updated_at。 */
+    /** 回写含义的混淆词；同样刷新 updated_at，同样只在活着的含义上写。 */
     fun saveMeaningConfusions(meaningId: Long, confusions: Any?) {
         val now = System.currentTimeMillis()
         writableDatabase.execSQL(
@@ -581,7 +613,7 @@ class WordsDatabase(context: Context) :
         )
     }
 
-    /** 回写单词的音节拆分；同样刷新 updated_at。 */
+    /** 回写单词的音节拆分；同样刷新 updated_at，同样只在活着的单词上写。 */
     fun saveWordSyllables(wordId: Long, syllables: Any?) {
         val now = System.currentTimeMillis()
         writableDatabase.execSQL(
@@ -740,7 +772,12 @@ class WordsDatabase(context: Context) :
             val latest = getLatestSession(module, date) ?: continue
             val dailyCompleted = getCompletedDailySession(module, date) != null
             // 数据列表的长度就是本局总题数。
-            val total = JSONArray(latest["items"] as String).length()
+            // items 是从用户导入备份里带进来的，可能缺失或损坏——首页渲染不能
+            // 因为一条坏会话而整个白屏。解析失败时把 total 记为 0（视为"已读完"），
+            // 而不是抛 JSONException。
+            val total = runCatching {
+                JSONArray(latest["items"] as? String ?: "").length()
+            }.getOrDefault(0).coerceAtLeast(0)
             states.add(
                 linkedMapOf(
                     "module" to module,
@@ -932,6 +969,9 @@ class WordsDatabase(context: Context) :
                 else -> difficultyBefore
             }
 
+            // 只作用在**仍然存活**的单词上：若这个词已被删除（软删除），
+            // 一律不再结算——把难度/复习时间也算到一行用户已删的数据上，
+            // 既污染词库又可能在下次选词或统计时把「死词」重现出来。
             db.update(
                 "words",
                 ContentValues().apply {
@@ -941,7 +981,7 @@ class WordsDatabase(context: Context) :
                     // 字段变了就刷新修改时间，与全表口径一致。
                     put("updated_at", now)
                 },
-                "id = ?",
+                "id = ? AND deleted_at IS NULL",
                 arrayOf(wordId.toString()),
             )
             db.setTransactionSuccessful()
@@ -1188,6 +1228,10 @@ class WordsDatabase(context: Context) :
      *
      * 只认新格式（顶层带 words / meanings 等键的对象）。主键原样保留，
      * 所以会话记录里的外键引用不会错位。
+     *
+     * 这一版做**逐行校验 + 容错**：单条坏数据（越界枚举、悬空外键、重复设置键）
+     * 会被安全跳过或归一到合法值，绝不让一条脏行把整份备份的还原搞挂。
+     * 导入绝不是「一个健壮性靠运气」的流程——用户备份来之不易。
      */
     fun importData(data: Map<*, *>) {
         val db = writableDatabase
@@ -1199,23 +1243,42 @@ class WordsDatabase(context: Context) :
                 db.delete("sqlite_sequence", "name = ?", arrayOf(table))
             }
 
-            importTable(db, data["settings"], "settings",
-                listOf("id", "key", "value", "type"))
-            importTable(db, data["words"], "words",
+            // 先按父→子的顺序导入，并让 importTable 收到「哪些父行真的写进去了」，
+            // 这样孤儿引用（引用了不存在的主词/会话）能被识别出来直接跳过。
+            // 返回每张表实际导入成功的 id 集合，交给下一个子表做外键校验。
+            val wordIds = importTable(db, data["words"], "words",
                 listOf("id", "spelling", "difficulty", "confusions", "syllables"),
                 jsonArrayColumns = setOf("confusions", "syllables"),
-                nullableIntColumns = setOf("reviewed_at"))
-            importTable(db, data["meanings"], "meanings",
+                nullableIntColumns = setOf("reviewed_at"),
+                // 难度只允许 ≥0，越界归一。
+                intRanges = mapOf("difficulty" to (0 until Int.MAX_VALUE)))
+            val meaningIds = importTable(db, data["meanings"], "meanings",
                 listOf("id", "word_id", "pos", "sub_pos", "definition", "confusions", "sort"),
-                jsonArrayColumns = setOf("confusions"))
-            importTable(db, data["word_sets"], "word_sets",
+                jsonArrayColumns = setOf("confusions"),
+                // word_id 必须真正存在，引用死了的词整条跳过。
+                requiredParents = mapOf("word_id" to wordIds))
+            val wordSetIds = importTable(db, data["word_sets"], "word_sets",
                 listOf("id", "word_count", "today_word_ids", "tomorrow_word_ids", "date"),
-                jsonArrayColumns = setOf("today_word_ids", "tomorrow_word_ids"))
-            importTable(db, data["sessions"], "sessions",
+                jsonArrayColumns = setOf("today_word_ids", "tomorrow_word_ids"),
+                intRanges = mapOf("word_count" to (0 until Int.MAX_VALUE)))
+            // 设置表按「同 key 只留最后一条活行」去重，避免唯一索引/软删并存的旧备份爆掉。
+            importSettings(db, data["settings"])
+
+            val sessionIds = importTable(db, data["sessions"], "sessions",
                 listOf("id", "module", "kind", "status", "word_set_id", "items", "cursor", "elapsed", "date"),
-                jsonArrayColumns = setOf("items"))
-            importTable(db, data["session_records"], "session_records",
-                listOf("id", "session_id", "word_id", "meaning_id", "input", "result", "date"))
+                jsonArrayColumns = setOf("items"),
+                // kind / status 是受 CHECK 约束的枚举，写成合法值而不是整体报错。
+                enumColumns = mapOf(
+                    "kind" to setOf(KIND_DAILY.toLong(), KIND_REINFORCE.toLong()),
+                    "status" to setOf(
+                        STATUS_ACTIVE.toLong(), STATUS_COMPLETED.toLong(),
+                        STATUS_ABORTED.toLong(), STATUS_FAILED.toLong(),
+                    ),
+                ),
+                intRanges = mapOf("cursor" to (0 until Int.MAX_VALUE), "elapsed" to (0 until Int.MAX_VALUE)),
+                // word_set_id 可空；引用到不存在的词库（备份里被删了）时把该引用清空而不是整行报错。
+                optionalParents = mapOf("word_set_id" to wordSetIds))
+            importRecord(db, data["session_records"], sessionIds, wordIds, meaningIds)
 
             db.setTransactionSuccessful()
         } finally {
@@ -1223,7 +1286,7 @@ class WordsDatabase(context: Context) :
         }
     }
 
-    /** 把备份里的一张表写回数据库。 */
+    /** 把备份里的一张表写回，返回成功写入的主键集合；一条坏行只备记录单行而不会让整表失败。 */
     private fun importTable(
         db: SQLiteDatabase,
         raw: Any?,
@@ -1231,23 +1294,42 @@ class WordsDatabase(context: Context) :
         columns: List<String>,
         jsonArrayColumns: Set<String> = emptySet(),
         nullableIntColumns: Set<String> = emptySet(),
-    ) {
-        val rows = raw as? List<*> ?: return
+        intRanges: Map<String, IntRange> = emptyMap(),
+        // enumColumns 的那些列值必须属于这个集合，否则该行用「合法默认」顶替。
+        enumColumns: Map<String, Set<Long>> = emptyMap(),
+        // requiredParents 的那些列值必须出现在给定集合里，否则整行跳过（孤儿数据不录入）。
+        requiredParents: Map<String, Set<Long>> = emptyMap(),
+        // optionalParents 可空引用的父集：引用存在就写，引用不存在的父行就置 NULL（不丢行）。
+        optionalParents: Map<String, Set<Long>> = emptyMap(),
+    ): Set<Long> {
+        val importedIds = mutableSetOf<Long>()
+        val rows = raw as? List<*> ?: return importedIds
         val now = System.currentTimeMillis()
         for (item in rows) {
             val row = item as? Map<*, *> ?: continue
+            // 孤儿校验：父表还没写入的引用直接丢这一行，不拖累其它正常行。
+            var orphan = false
+            for ((column, validIds) in requiredParents) {
+                val value = (row[column] as? Number)?.toLong()
+                if (value != null && value !in validIds) { orphan = true; break }
+            }
+            if (orphan) continue
+
             val values = ContentValues()
             for (column in columns) {
+                // 备份里没带这一列，就让 SQLite 用建表时的 DEFAULT 兜底，
+                // 而不是硬塞一个 null（对 NOT NULL DEFAULT 的列会直接撞约束）。
+                if (!row.containsKey(column)) continue
                 val value = row[column]
                 when {
-                    value == null -> values.putNull(column)
                     column in jsonArrayColumns -> values.put(column, encodeJsonValue(value))
-                    value is Number && value.toDouble() == value.toLong().toDouble() ->
-                        values.put(column, value.toLong())
-                    value is Number -> values.put(column, value.toDouble())
-                    value is Boolean -> values.put(column, if (value) 1L else 0L)
-                    else -> values.put(column, value.toString())
+                    else -> putScalarOrNull(values, column, value, intRanges, enumColumns)
                 }
+            }
+            // 可空引用落空：父表里没有对应行时把该外键置 NULL，保留这一行（例：词库被删的会话）。
+            for ((column, validIds) in optionalParents) {
+                val ref = (row[column] as? Number)?.toLong()
+                if (ref != null && ref !in validIds) values.putNull(column)
             }
             // 可空的时间字段（如单词的复习时间）单独处理，0 与缺失都视为「还没发生」。
             for (column in nullableIntColumns) {
@@ -1260,7 +1342,132 @@ class WordsDatabase(context: Context) :
             val deletedAt = resolveImportTime(row, "deleted_at")
             if (deletedAt == null || deletedAt == 0L) values.putNull("deleted_at") else values.put("deleted_at", deletedAt)
 
-            db.insertOrThrow(table, null, values)
+            // 单行仍可能因残余脏数据（如某列非空但值为 null）撞约束。
+            // 只跳过这一行，绝不让一道坏行把整份备份还原搞挂。
+            try {
+                val insertedId = db.insertOrThrow(table, null, values)
+                importedIds.add(insertedId)
+            } catch (error: android.database.SQLException) {
+                android.util.Log.w("WordsDatabase", "导入跳过一行非法数据（$table）：$error")
+            }
+        }
+        return importedIds
+    }
+
+    /** 设置表专用：同 key 只保留最后一条活着的行，避免备份里新旧同 key 并存时触发唯一索引。 */
+    private fun importSettings(db: SQLiteDatabase, raw: Any?) {
+        val rows = raw as? List<*> ?: return
+        val now = System.currentTimeMillis()
+        // 收集每个 key 的「活行」（未标删除）里 key 去重，最后一条有效值胜出。
+        // 与 getSettings 的口径一致：都只用 deleted_at IS NULL 的那行。
+        val seenKeys = linkedSetOf<String>()
+        // 先正向收集所有待导入的 key，遇到同一个 key 的新行时把旧行标记为软删除，
+        // 保证唯一索引（settings_key WHERE deleted_at IS NULL）永不冲突。
+        for (item in rows) {
+            val row = item as? Map<*, *> ?: continue
+            val key = row["key"]?.toString() ?: continue
+            // 重复的活 key：若这一行是新的，先把上一行软删除。
+            if (!seenKeys.add(key)) {
+                db.execSQL(
+                    "UPDATE settings SET deleted_at = ? WHERE key = ? AND deleted_at IS NULL",
+                    arrayOf<Any>(now, key),
+                )
+            }
+            // type 必须在合法枚举内，否则塞进一行自重：SQLite 的 CHECK 会让 insert 崩。
+            val type = row["type"]?.toString()
+            val safeType = if (type in setOf("string", "int", "double", "bool", "json")) type else "string"
+            val created = resolveImportTime(row, "created_at") ?: now
+            val updated = resolveImportTime(row, "updated_at") ?: created
+            val deleted = resolveImportTime(row, "deleted_at")
+            val values = ContentValues().apply {
+                (row["id"] as? Number)?.let { put("id", it.toLong()) }
+                put("key", key)
+                put("value", row["value"]?.toString().orEmpty())
+                put("type", safeType)
+                put("created_at", created)
+                put("updated_at", updated)
+                if (deleted == null || deleted == 0L) putNull("deleted_at") else put("deleted_at", deleted)
+            }
+            db.insert("settings", null, values)
+        }
+    }
+
+    /** 会话记录专用导入：任何外键（会话/词/含义）悬空都直接丢该行，保证引用一致性。 */
+    private fun importRecord(
+        db: SQLiteDatabase,
+        raw: Any?,
+        sessionIds: Set<Long>,
+        wordIds: Set<Long>,
+        meaningIds: Set<Long>,
+    ) {
+        val rows = raw as? List<*> ?: return
+        val now = System.currentTimeMillis()
+        for (item in rows) {
+            val row = item as? Map<*, *> ?: continue
+            val sessionId = (row["session_id"] as? Number)?.toLong() ?: continue
+            val wordId = (row["word_id"] as? Number)?.toLong() ?: continue
+            val meaningId = (row["meaning_id"] as? Number)?.toLong()
+            // 外键必须指向已导入的行，指向失败则跳过该记录。
+            if (sessionId !in sessionIds || wordId !in wordIds) continue
+            if (meaningId != null && meaningId !in meaningIds) continue
+            // 读取真正对应的 result。缺失或不在 {0,1} 的值都按「错误(0)」兜底——
+            // 宁可让一个词被当作答错而多复习一次，也不能把一条脏记录算成「答对」去虚增掌握量。
+            val result = (row["result"] as? Number)?.toInt() ?: 0
+            val values = ContentValues().apply {
+                (row["id"] as? Number)?.let { put("id", it.toLong()) }
+                put("session_id", sessionId)
+                put("word_id", wordId)
+                if (meaningId == null) putNull("meaning_id") else put("meaning_id", meaningId)
+                put("input", row["input"]?.toString().orEmpty())
+                put("result", if (result == 1) 1 else 0)
+                put("date", row["date"]?.toString() ?: "1970-01-01")
+                put("created_at", resolveImportTime(row, "created_at") ?: now)
+                put("updated_at", resolveImportTime(row, "updated_at") ?: now)
+                val deletedAt = resolveImportTime(row, "deleted_at")
+                if (deletedAt == null || deletedAt == 0L) putNull("deleted_at") else put("deleted_at", deletedAt)
+            }
+            db.insert("session_records", null, values)
+        }
+    }
+
+    /** 把列值按「整数值范围/枚举白名单」写进 ContentValues；越界回落到 [intRanges]/[enumColumns] 给的默认。 */
+    private fun putScalarOrNull(
+        values: ContentValues,
+        column: String,
+        value: Any?,
+        intRanges: Map<String, IntRange>,
+        enumColumns: Map<String, Set<Long>>,
+    ) {
+        val numeric = value as? Number
+        when {
+            value == null -> values.putNull(column)
+            value is Boolean -> values.put(column, if (value) 1L else 0L)
+            numeric != null -> {
+                val long = numeric.toLong()
+                // 枚举白名单：值不在集合就回落到集合的第一个合法值，避免撞 CHECK。
+                val enumSet = enumColumns[column]
+                if (enumSet != null) {
+                    // 显式 Long 避免 ContentValues.put 的多个数字重载无法判别。
+                    val coerced: Long = if (long in enumSet) long else enumSet.first()
+                    values.put(column, coerced)
+                    return
+                }
+                val range = intRanges[column]
+                if (range != null) {
+                    val lo: Long = range.first.toLong()
+                    val hi: Long = (range.last - 1).toLong()
+                    val clamped: Long = long.coerceIn(lo, hi)
+                    values.put(column, clamped)
+                    return
+                }
+                // 整数值写 Long，非整数值写 Double，类型与原值一致。
+                if (numeric.toDouble() == long.toDouble()) {
+                    values.put(column, long)
+                } else {
+                    values.put(column, numeric.toDouble())
+                }
+            }
+            else -> values.put(column, value.toString())
         }
     }
 

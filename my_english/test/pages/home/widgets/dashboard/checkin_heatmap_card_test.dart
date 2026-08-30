@@ -29,9 +29,9 @@ void main() {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
     // 模拟 Android 返回“今天不论对错练了 137 个不同单词”。
-    // 热力图口径是「复习总数」，走的是 getDailyTotalCounts。
+    // 热力图口径是「复习总数」，走的是 getDailyCounts（correctOnly=false）。
     messenger.setMockMethodCallHandler(recordChannel, (call) async {
-      if (call.method == 'getDailyTotalCounts') {
+      if (call.method == 'getDailyCounts') {
         return <Map<String, Object?>>[
           <String, Object?>{'date': dateKey, 'count': reviewCount},
         ];

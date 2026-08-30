@@ -31,13 +31,15 @@ void main() {
         .setMockMethodCallHandler(channel, (call) async {
           // 保存每次调用。
           calls.add(call);
-          // 启动读取返回英式和 Dark。
+          // 启动读取返回英式和 Dark；2.0 原生返回 {key: {value, type}} 嵌套结构。
           if (call.method == 'getSettings') {
             return <String, Object?>{
-              'accent': 'british',
-              'theme': 'dark',
-              'definitionSeparator': 'full_width_semicolon',
-              'dailyGoal': 35,
+              'accent': <String, Object?>{'value': 'british'},
+              'theme': <String, Object?>{'value': 'dark'},
+              'definitionSeparator': <String, Object?>{
+                'value': 'full_width_semicolon',
+              },
+              'dailyGoal': <String, Object?>{'value': '35'},
             };
           }
           // setter 使用 null 表示保存成功。
@@ -60,13 +62,39 @@ void main() {
     await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
     await settings.setDailyGoal(40);
     // MethodCall 未实现相等运算符，必须使用 flutter_test 的 isMethodCall 匹配器。
-    expect(calls[1], isMethodCall('setAccent', arguments: 'american'));
-    expect(calls[2], isMethodCall('setTheme', arguments: 'light'));
+    // 2.0 起原生统一走 setSetting 单方法，参数携带键、值与类型。
+    expect(
+      calls[1],
+      isMethodCall(
+        'setSetting',
+        arguments: <String, Object?>{'key': 'accent', 'value': 'american', 'type': 'string'},
+      ),
+    );
+    expect(
+      calls[2],
+      isMethodCall(
+        'setSetting',
+        arguments: <String, Object?>{'key': 'theme', 'value': 'light', 'type': 'string'},
+      ),
+    );
     expect(
       calls[3],
-      isMethodCall('setDefinitionSeparator', arguments: 'full_width_comma'),
+      isMethodCall(
+        'setSetting',
+        arguments: <String, Object?>{
+          'key': 'definitionSeparator',
+          'value': 'full_width_comma',
+          'type': 'string',
+        },
+      ),
     );
-    expect(calls[4], isMethodCall('setDailyGoal', arguments: 40));
+    expect(
+      calls[4],
+      isMethodCall(
+        'setSetting',
+        arguments: <String, Object?>{'key': 'dailyGoal', 'value': '40', 'type': 'int'},
+      ),
+    );
     // Store 内存同步更新。
     expect(settings.accent, PronunciationAccent.american);
     expect(settings.theme, AppThemePreference.light);
@@ -78,15 +106,15 @@ void main() {
 
   // 未知或空存储值必须安全回退产品默认值。
   test('unknown stored values fall back to american and light', () async {
-    // 返回旧版本可能留下的未知字符串。
+    // 返回旧版本可能留下的未知字符串（2.0 的嵌套 {key: {value, type}} 结构）。
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           channel,
           (call) async => <String, Object?>{
-            'accent': 'unknown',
-            'theme': 'system',
-            'definitionSeparator': 'half_width_comma',
-            'dailyGoal': -1,
+            'accent': <String, Object?>{'value': 'unknown'},
+            'theme': <String, Object?>{'value': 'system'},
+            'definitionSeparator': <String, Object?>{'value': 'half_width_comma'},
+            'dailyGoal': <String, Object?>{'value': '-1'},
           },
         );
 
@@ -96,8 +124,8 @@ void main() {
     expect(settings.accent, PronunciationAccent.american);
     // 产品默认主题是 Light，不跟随系统。
     expect(settings.theme, AppThemePreference.light);
-    // 未知或旧版本缺失值默认使用中文顿号。
-    expect(settings.definitionSeparator, DefinitionSeparator.ideographicComma);
+    // 未知或旧版本缺失值回退首次安装的默认分隔符（全角分号）。
+    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthSemicolon);
     // 损坏的负数目标回退产品默认值。
     expect(settings.dailyGoal, 50);
     // 释放资源。

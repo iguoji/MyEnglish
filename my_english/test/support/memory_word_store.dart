@@ -1,9 +1,5 @@
-// 会话、记录、词库模型与两个 Store 接口。
-import 'package:my_english/models/session.dart';
-import 'package:my_english/models/session_record.dart';
+// 单词模型与单词 Store 接口。
 import 'package:my_english/models/word.dart';
-import 'package:my_english/models/word_set.dart';
-import 'package:my_english/store/session.dart';
 import 'package:my_english/store/word.dart';
 
 ///

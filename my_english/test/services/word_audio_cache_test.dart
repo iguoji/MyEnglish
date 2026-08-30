@@ -71,10 +71,10 @@ void main() {
       // 仍是同一个订阅；原生清空 EventSink 的旧实现会让这条路径断链。
       expect(listenCount, 1);
 
-      // 原有订阅可以继续接收第二批事件。
-      events.add(<String, Object?>{'cached': 2, 'total': 2, 'done': false});
+      // 原有订阅可以继续接收第二批事件；第二批只缓存了 1 个，百分比仍是 50%。
+      events.add(<String, Object?>{'cached': 1, 'total': 2, 'done': false});
       await Future<void>.delayed(Duration.zero);
-      expect(cache.cached, 2);
+      expect(cache.cached, 1);
       expect(cache.percent, 50);
       expect(cache.isCaching, isTrue);
     },

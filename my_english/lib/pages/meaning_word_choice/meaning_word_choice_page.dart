@@ -5,11 +5,14 @@ import 'dart:math';
 
 // material.dart 提供全屏页面、进度条、卡片与按钮。
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 // 所有可见图标继续统一使用 Tabler。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入应用设计令牌。
 import '../../common/theme.dart';
+// 引入全局计时格式化，右上角时间超过一小时改用 hh:mm:ss，不足用 mm:ss。
+import '../../common/date.dart';
 // 引入单词模型。
 import '../../models/word.dart';
 // 引入音频播放接口：点击候选词或气泡单词时朗读。
@@ -32,8 +35,8 @@ const Color _kSuccess = Color(0xFF2FB344);
 enum _ChatBubbleKind { meaning, word }
 
 ///
-/// 「正在输入」三点动画出现的侧别：左侧是含义出现前，右侧是单词出现前。
-enum _TypingSide { left, right }
+/// 「正在输入」三点动画出现的侧别：只有左侧，用于含义气泡出现前。
+enum _TypingSide { left }
 
 ///
 /// 一条聊天气泡的只读数据。
@@ -366,19 +369,21 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       if (!resume) {
         _pickedIds = <int>{};
         _disabledIds = <int>{};
+        // 新一轮先不露出候选词：等左侧「正在输入」三点动画播完、
+        // 含义气泡出现后再把四个候选填出来，避免候选在出题动画中途挤进来。
+        _candidates = const <MeaningWordChoiceCandidate>[];
       }
-      // 候选词由服务生成：匹配词不足时用会话内干扰词补齐，按字母升序排列。
-      _candidates = MeaningWordChoiceRoundBuilder.buildCandidates(
-        round: _rounds[index],
-        words: widget.words,
-      );
       // 新一局：含义气泡出现前，左侧先显示「正在输入」三点占位。
       // 续玩：含义气泡已在 _rebuildBubbles 里随历史消息一起重建，
       // 这里只补候选词现场，绝不能再播一次动画、插一次气泡。
       _typingSide = resume ? null : _TypingSide.left;
     });
     if (resume) {
-      // 续玩恢复：聊天现场已经完整，滚动到底并落一次进度即可。
+      // 续玩恢复：候选词现场要在这里按当前轮重建。
+      _candidates = MeaningWordChoiceRoundBuilder.buildCandidates(
+        round: _rounds[index],
+        words: widget.words,
+      );
       _scrollToBottom();
       unawaited(_persist());
       return;
@@ -386,13 +391,19 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     // 启动三点动画，模拟对方正在输入。
     _typingController.repeat();
     _scrollToBottom();
-    // 假输入结束后再插入含义气泡（聊天气泡式出题）。
+    // 假输入结束后再插入含义气泡（聊天气泡式出题），
+    // 并把四个候选词一并填出，与含义气泡同刻露出。
     _typingTimer?.cancel();
     _typingTimer = Timer(MeaningWordChoiceLayout.typingDelay, () {
       if (!mounted) return;
       setState(() {
         _typingSide = null;
         _bubbles.add(_meaningBubbleFor(_rounds[index]));
+        // 候选词由服务生成：匹配词不足时用会话内干扰词补齐，按字母升序排列。
+        _candidates = MeaningWordChoiceRoundBuilder.buildCandidates(
+          round: _rounds[index],
+          words: widget.words,
+        );
       });
       _typingController.stop();
       _typingController.value = 0;
@@ -426,41 +437,30 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     if (spelling.isNotEmpty) unawaited(_playWordAudio(spelling));
 
     if (candidate.isMatch) {
-      // 答对：先把单词标记为已选出（候选区变绿禁用），
-      // 右侧先出现「正在输入」三点动画，延迟后再弹出单词气泡。
+      // 答对：先给一个轻震动反馈（和听音辨义一致），
+      // 并把单词气泡直接弹出——正确的词不需要「正在输入」三点动画。
+      HapticFeedback.lightImpact();
       setState(() {
         _pickedIds.add(wordId);
-        _typingSide = _TypingSide.right;
+        if (spelling.isNotEmpty) {
+          _bubbles.add(_ChatBubble.word(spelling, wordId: wordId));
+        }
       });
       // 先记这一次「选对了」，现场恢复靠它判断这一轮答到哪了。
       unawaited(
         _recordPick(wordId: wordId, spelling: spelling, isCorrect: true),
       );
-      // 该含义的全部匹配词都选出后立即结算，不等动画结束——
-      // 万一用户在这 400ms 里退出，结算也不会丢。
+      // 该含义的全部匹配词都选出后立即结算。
       if (_currentRoundDone) {
         unawaited(_recordRound(_roundIndex));
       }
-      _typingController.repeat();
       _scrollToBottom();
-      _typingTimer?.cancel();
-      _typingTimer = Timer(MeaningWordChoiceLayout.typingDelay, () {
-        if (!mounted) return;
-        setState(() {
-          _typingSide = null;
-          if (spelling.isNotEmpty) {
-            _bubbles.add(_ChatBubble.word(spelling, wordId: wordId));
-          }
-        });
-        _typingController.stop();
-        _typingController.value = 0;
+      // 这一轮全部选对后，直接进下一轮（下一轮仍会先播左侧三点动画）。
+      if (_currentRoundDone) {
+        _startRound(_roundIndex + 1);
+      } else {
         unawaited(_persist());
-        _scrollToBottom();
-        // 该含义的全部匹配词都选出后，进入下一轮（或结算）。
-        if (_currentRoundDone) {
-          _startRound(_roundIndex + 1);
-        }
-      });
+      }
     } else {
       // 答错：该候选词禁用置灰，错误数累计。
       setState(() {
@@ -569,7 +569,6 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// 本局已用秒数。
   int get _elapsedSeconds => (_elapsedMs ~/ 1000).clamp(0, 1 << 30);
 
-
   /// ===== 生命周期 =====
 
   ///
@@ -669,34 +668,53 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
             MeaningWordChoiceLayout.pageInset,
             0,
           ),
-          child: Row(
-            children: [
-              // 返回按钮的 34 像素点击画布直接贴齐左侧页面边距。
-              _PlainIconButton(
-                key: const Key('close-meaningWordChoice'),
-                icon: TablerIcons.chevronLeft,
-                alignment: Alignment.centerLeft,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-              Expanded(
-                child: Text(
-                  '$_displayRound / ${_rounds.length}',
-                  key: const Key('meaning-word-choice-progress-label'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: MeaningWordChoiceLayout.headerProgressTextSize,
-                    fontWeight: FontWeight.w600,
-                    // 等宽数字让计数变化时视觉中心不抖动。
-                    fontFeatures: const [FontFeature.tabularFigures()],
+          // 用 Stack 而不是 Row：左右两侧宽度不一定相等，
+          // 只有绝对定位才能保证中间进度数字严格居中，右上可挂用时。
+          child: SizedBox(
+            height: MeaningWordChoiceLayout.headerButtonSize,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Text(
+                      '$_displayRound / ${_rounds.length}',
+                      key: const Key('meaning-word-choice-progress-label'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontSize: MeaningWordChoiceLayout.headerProgressTextSize,
+                        fontWeight: FontWeight.w600,
+                        // 等宽数字让计数变化时视觉中心不抖动。
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(
-                width: MeaningWordChoiceLayout.headerButtonSize,
-                height: MeaningWordChoiceLayout.headerButtonSize,
-              ),
-            ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _PlainIconButton(
+                    key: const Key('close-meaningWordChoice'),
+                    icon: TablerIcons.chevronLeft,
+                    alignment: Alignment.centerLeft,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatElapsed(),
+                    key: const Key('meaning-word-choice-elapsed'),
+                    style: TextStyle(
+                      color: tokens.textMedium,
+                      fontSize: MeaningWordChoiceLayout.headerProgressTextSize - 3,
+                      fontWeight: FontWeight.w500,
+                      // 等宽数字让秒数变化时整体宽度稳定，右侧不抖动。
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         Padding(
@@ -1052,16 +1070,23 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
           ),
           const SizedBox(width: MeaningWordChoiceLayout.optionBadgeGap),
           Expanded(
-            child: Text(
-              spelling,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: stateColor ?? tokens.text,
-                fontSize: MeaningWordChoiceLayout.candidateTextSize,
-                fontWeight: FontWeight.w600,
-                // 点错的词加删除线，一眼看出已排除。
-                decoration: disabled ? TextDecoration.lineThrough : null,
+            // FittedBox 自适应：单词过长时整体等比缩小字号塞进一行，
+            // 而不是截断成省略号让人看不全。中心偏左，紧贴序号徽章。
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                spelling,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: stateColor ?? tokens.text,
+                  fontSize: MeaningWordChoiceLayout.candidateTextSize,
+                  fontWeight: FontWeight.w600,
+                  // 点错的词加删除线，一眼看出已排除。
+                  decoration: disabled ? TextDecoration.lineThrough : null,
+                ),
               ),
             ),
           ),
@@ -1271,14 +1296,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 把本局用时格式化成 mm:ss。
-  String _formatElapsed() {
-    final totalSeconds = _elapsedMs ~/ 1000;
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:'
-        '${seconds.toString().padLeft(2, '0')}';
-  }
+  /// 把本局用时格式化成计时文字：不足一小时 mm:ss，满一小时 hh:mm:ss。
+  String _formatElapsed() => formatTimerSeconds(_elapsedSeconds);
 }
 
 ///

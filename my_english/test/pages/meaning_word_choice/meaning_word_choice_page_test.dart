@@ -169,11 +169,10 @@ void main() {
     expect(_inkWellOf(tester, wrongKey).onTap, isNull);
     expect(store.recordWrites.where((write) => !write.isCorrect), hasLength(1));
 
-    // 点对 apple：右侧三点动画后出现单词气泡，并进入下一题。
+    // 点对 apple：选中即直接弹出单词气泡并进入下一题（正确词不再有右侧三点动画）。
     await tester.tap(find.text('apple'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 900));
-    // 上一轮答完自动开始下一轮，等它的假输入结束后「香蕉」出现。
+    // 下一轮开局的「正在输入」假输入结束，「香蕉」气泡出现。
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byKey(const Key('meaning-word-choice-bubble-word-3')), findsOneWidget);
     expect(find.text('香蕉'), findsOneWidget);

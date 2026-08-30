@@ -11,6 +11,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入应用设计令牌。
 import '../../common/theme.dart';
+// 引入全局计时格式化，右上角时间超过一小时改用 hh:mm:ss。
+import '../../common/date.dart';
 // 引入全局 Toast 工具，层级高于 BottomSheet。
 import '../../common/toast.dart';
 // 引入词义模型。
@@ -168,6 +170,14 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   bool _hasShownTtsNotice = false;
 
   ///
+  /// 页面进入后已用毫秒数，用于右上角 mm:ss 计时。
+  int _elapsedMs = 0;
+
+  ///
+  /// 每秒推进一次 [\_elapsedMs] 的定时器；退后台停表、回前台继续。
+  Timer? _elapsedTimer;
+
+  ///
   /// 中间信息面板当前展示的反馈文案。
   String _feedback = '';
 
@@ -237,6 +247,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       }
       // 完成待提交态不自动重播，普通小题进入后保持原有自动发音体验。
       if (!_isCurrentWordComplete) unawaited(_playAudio());
+      // 进入页面先跑计时；退后台再停，回前台恢复。
+      _startElapsedTimer();
     });
   }
 
@@ -255,6 +267,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     final session = _progress.session;
     // 先恢复单词下标，后续释义边界都依赖当前单词。
     _wordIndex = session.cursor.clamp(0, widget.words.length - 1);
+    // 已用时间来自会话字段（单位秒）；继续模式要累计，不能每次进入从 0 开始。
+    _elapsedMs = session.elapsed * 1000;
     // 累计错误由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
     _errors = _progress.wrongCount;
 
@@ -302,9 +316,17 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   Future<void> _persistSession() async {
     // 完成页已经结算过这一局，禁止 dispose 再把状态写回「进行中」。
     if (_isDone) return;
-    // 听音辨义没有计时需求，已用时间恒为 0。
-    await _progress.save(cursor: _wordIndex, elapsed: 0);
+    // 本局已用时间（秒），右上角计时器实时推进这个值，供续玩回放。
+    await _progress.save(cursor: _wordIndex, elapsed: _elapsedSeconds);
   }
+
+  ///
+  /// 本局已用秒数。
+  int get _elapsedSeconds => (_elapsedMs ~/ 1000).clamp(0, 1 << 30);
+
+  ///
+  /// 把本局用时格式化成计时文字：不足一小时 mm:ss，满一小时 hh:mm:ss。
+  String _formatElapsed() => formatTimerSeconds(_elapsedSeconds);
 
   ///
   /// 给这一局结算。
@@ -316,6 +338,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 走到这里说明全部单词都已操作完一遍，不论过程中是否答错，都算过关。
     perfect: true,
     cursor: widget.words.length,
+    elapsed: _elapsedSeconds,
   );
 
   ///
@@ -366,27 +389,25 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 用指定干扰项组装完整四选一。
   ///
-  /// 正确答案插在哪一格由**主键**决定（`id % 4`），不是随机数：
-  /// 同一道题每次进来位置都一样，续玩时也就不必额外存一份顺序。
+  /// 正确项与三个干扰项放在一起**按拼写字母升序**排：同一道题每次进来顺序都
+  /// 一致（与看义选词、词义连连的候选口径统一），续玩时也就不必额外存位置。
+  /// [distractors] 的长度被截到 3，保证最终恒为四格。
   List<ListeningMeaningOption> _buildOptions({List<String>? distractors}) {
-    // 未传混淆词时同步生成，确保页面首帧已经有完整四选一。
+    // 未传正确项混淆词时系统生成，确保页面首帧已经有完整四选一。
     final resolved = distractors ?? _generateCurrentDistractors();
-    final options = <ListeningMeaningOption>[
-      for (final distractor in resolved.take(3))
-        ListeningMeaningOption(text: distractor, isCorrect: false),
-    ];
-    // 用主键取模得到一个稳定位置；没有主键的临时数据放第一格。
-    final anchor = _stage == ListeningMeaningStage.word
-        ? _currentWord.id
-        : _availableMeanings[_meaningIndex].id;
-    final correctIndex = anchor == null ? 0 : anchor % (options.length + 1);
-    options.insert(
-      correctIndex,
-      // 正确答案文本永远取当前模型，只有位置是稳定推导出来的。
-      ListeningMeaningOption(text: _currentCorrectAnswer, isCorrect: true),
-    );
-    // 再次冻结列表，状态层只在进入下一小题时整体替换它。
-    return List<ListeningMeaningOption>.unmodifiable(options);
+    final correctText = _currentCorrectAnswer;
+    // 四选一 = 三个干扰项 + 正确答案，放在一起统一排序。
+    final picks = <String>[for (final distractor in resolved.take(3)) distractor, correctText];
+    // 忽略大小写按字母升序；拼写完全相同（理论上被生成器去重排除了）才原样比较。
+    picks.sort((first, second) {
+      final byLetter = first.toLowerCase().compareTo(second.toLowerCase());
+      return byLetter != 0 ? byLetter : first.compareTo(second);
+    });
+    // isCorrect 用文本判定：排序无论怎么搬，正确答案身份都不会丢失。
+    return List<ListeningMeaningOption>.unmodifiable(<ListeningMeaningOption>[
+      for (final text in picks)
+        ListeningMeaningOption(text: text, isCorrect: text == correctText),
+    ]);
   }
 
   ///
@@ -513,10 +534,17 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     }
   }
 
-  /// App 离开前台时停止当前发音，并重置下一次播放的 TTS 提示状态。
+  /// App 离开前台时停止当前发音与计时，并重置下一次播放的 TTS 提示状态。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) return;
+    if (state == AppLifecycleState.resumed) {
+      // 回前台恢复计时，只在当前局尚未结束时继续。
+      if (!_isDone && !_isCurrentWordComplete) _startElapsedTimer();
+      return;
+    }
+    // 退后台停表，避免把后台停留时间计进本局。
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
     _hasShownTtsNotice = false;
     ++_playGeneration;
     if (mounted) {
@@ -524,6 +552,16 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       setState(() => _isPlaying = false);
     }
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
+  }
+
+  ///
+  /// 启动（或恢复）每秒一次的计时；只在本局进行中生效。
+  void _startElapsedTimer() {
+    if (_elapsedTimer != null) return;
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _isDone) return;
+      setState(() => _elapsedMs += 1000);
+    });
   }
 
 
@@ -1112,8 +1150,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
               : (isGroupActive
                     ? ListeningMeaningStepStatus.active
                     : ListeningMeaningStepStatus.pending),
-          // 未选词性显示成「释义」而不是星号，步骤标题里星号太突兀。
-          pos: group.pos == '*' ? '释义' : group.pos,
+          // 未选词性显示成星号，与词库里的「*」占位口径一致。
+          pos: group.pos == '*' ? '*' : group.pos,
           definitions: definitions,
         ),
       );
@@ -1134,7 +1172,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     for (final group in _currentWord.meaningGroups) {
       final groupEnd = flatIndex + group.meanings.length;
       if (_meaningIndex < groupEnd) {
-        final pos = group.pos == '*' ? '释义' : group.pos;
+        final pos = group.pos == '*' ? '*' : group.pos;
         return '$pos · 选择释义 ${_meaningIndex - flatIndex + 1}/${group.meanings.length}';
       }
       flatIndex = groupEnd;
@@ -1166,6 +1204,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   void dispose() {
     // 页面销毁前注销生命周期监听，避免后台回调访问已释放页面。
     WidgetsBinding.instance.removeObserver(this);
+    // 停掉右上角计时器，避免释放后回调。
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
     // 系统返回（手势或返回键）时触发最后一博：立即把当前答题快照写入数据库。
     // _persistSession 内部本身是轻量的（key-value 存储），直接同步 await 不会显著阻塞转场，
     // 但能确保用户手势返回时，首页能在同一帧读到最新会话并立即重建「继续」入口卡片。
@@ -1197,8 +1238,16 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
               _buildHeader(tokens, progress),
               if (_isDone)
                 Expanded(child: _buildDone(tokens))
-              else
+              else ...[
+                // 可滚动题目区占满候选词以上的空间，轻点其中任意位置都能重播。
                 Expanded(child: _buildQuestion(tokens)),
+                // 难度横幅在文档流中贴着底部候选区正上方，不再悬浮遮挡内容。
+                _buildDifficultyHintBanner(tokens),
+                // 底部候选词位于文档流底部：一行两个，与看义选词一致。
+                _isCurrentWordComplete
+                    ? _buildNextQuestionButton(tokens)
+                    : _buildBottomControls(tokens),
+              ],
             ],
           ),
         ),
@@ -1222,38 +1271,53 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             ListeningMeaningLayout.pageInset,
             0,
           ),
-          // Row 将返回按钮、中央进度和右侧占位区排成一行。
-          child: Row(
-            children: [
-              // 返回按钮的 34 像素点击画布直接贴齐左侧页面边距。
-              _PlainIconButton(
-                key: const Key('close-listeningMeaning'),
-                icon: TablerIcons.chevronLeft,
-                alignment: Alignment.centerLeft,
-                onTap: _exitListeningMeaning,
-              ),
-              // Expanded 占用左右等宽画布之间的全部空间。
-              Expanded(
-                // 当前题号放在中间，不再由左侧“听音辨义”标题把它挤到右边。
-                child: Text(
-                  '${_isDone ? widget.words.length : _wordIndex + 1} / ${widget.words.length}',
-                  key: const Key('listening-meaning-progress-label'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    // tabularFigures 让每个数字占用相同宽度，题号变化时视觉中心不抖动。
-                    fontFeatures: const [FontFeature.tabularFigures()],
+          // 用 Stack 而不是 Row：左右两侧宽度不一定相等，
+          // 只有绝对定位才能保证中央题号严格居中，右上角挂 mm:ss 计时。
+          child: SizedBox(
+            height: ListeningMeaningLayout.headerButtonSize,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Text(
+                      '${_isDone ? widget.words.length : _wordIndex + 1} / ${widget.words.length}',
+                      key: const Key('listening-meaning-progress-label'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: tokens.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        // tabularFigures 让每个数字占用相同宽度，题号变化时视觉中心不抖动。
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              // 右侧保留与返回按钮等宽的空白画布，让中央题号继续保持绝对居中。
-              SizedBox(
-                width: ListeningMeaningLayout.headerButtonSize,
-                height: ListeningMeaningLayout.headerButtonSize,
-              ),
-            ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _PlainIconButton(
+                    key: const Key('close-listeningMeaning'),
+                    icon: TablerIcons.chevronLeft,
+                    alignment: Alignment.centerLeft,
+                    onTap: _exitListeningMeaning,
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatElapsed(),
+                    key: const Key('listening-meaning-elapsed'),
+                    style: TextStyle(
+                      color: tokens.textMedium,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      // 等宽数字让秒数变化时整体宽度稳定，右侧不抖动。
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         // 进度条的左右边界与顶栏严格对齐。
@@ -1281,14 +1345,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   }
 
   ///
-  /// 构建可滚动题目区、透明播放热区和悬浮候选区。
+  /// 构建可滚动题目区与透明播放热区；底部候选词在文档流中（见页面 body）。
   Widget _buildQuestion(AppTokens tokens) {
-    // 底部控件虽然脱离普通布局，但滚动内容仍需保留等高的尾部内边距，
-    // 否则较长 Steps 的最后几行会被悬浮候选区遮住。
-    final bottomOverlayHeight = _isCurrentWordComplete
-        ? ListeningMeaningLayout.nextControlsExtent
-        : ListeningMeaningLayout.bottomControlsExtent;
-    // Stack 让底部控件覆盖滚动内容，同时保留整块内容区的播放热区。
+    // Stack 底部候选区不再与滚动内容重叠（已移出到文档流），
+    // 但透明播放层仍需覆盖整个可滚动区域，轻点任意位置都能重播。
     return Stack(
       key: const Key('listening-meaning-question-stack'),
       fit: StackFit.expand,
@@ -1311,8 +1371,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                   ListeningMeaningLayout.pageInset,
                   ListeningMeaningLayout.questionVerticalInset,
                   ListeningMeaningLayout.pageInset,
-                  bottomOverlayHeight +
-                      ListeningMeaningLayout.questionVerticalInset,
+                  ListeningMeaningLayout.questionVerticalInset,
                 ),
                 // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
                 child: Align(
@@ -1340,28 +1399,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                 ),
               ),
             ),
-          ),
-        ),
-        // 第二层最后绘制，相当于 zIndex:100；Positioned 使其脱离 Stack 普通布局，
-        // 因此候选区不会压缩上面的内容层，并且按钮会优先于透明播放层接收点击。
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _isCurrentWordComplete
-              ? _buildNextQuestionButton(tokens)
-              : _buildBottomControls(tokens),
-        ),
-        // 第三层：难度提示横幅，绘制在候选区之上的悬浮层（纯界面提示，不碰数据库）。
-        // 悬浮在候选区正上方，既显眼又贴合现有卡片视觉，不与内容争夺布局空间。
-        Positioned(
-          left: ListeningMeaningLayout.pageInset,
-          right: ListeningMeaningLayout.pageInset,
-          // 紧贴候选控件顶边上方，露出完整横幅。
-          bottom: bottomOverlayHeight + 12,
-          child: Align(
-            alignment: Alignment.center,
-            child: _buildDifficultyHintBanner(tokens),
           ),
         ),
       ],
@@ -1460,129 +1497,48 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         ListeningMeaningLayout.pageInset,
         ListeningMeaningLayout.bottomInset,
       ),
-      // 固定两栏总高度，左右两组控件都以同一条底边向上堆叠。
-      child: SizedBox(
-        key: const Key('listening-meaning-control-columns'),
-        height: ListeningMeaningLayout.optionStackHeight,
-        // Row 将左侧四个候选词和右侧两个操作按钮分成两栏。
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 左栏获得三份宽度，是右栏的三倍。
-            Expanded(
-              key: const Key('listening-meaning-option-column'),
-              flex: ListeningMeaningLayout.optionColumnFlex,
-              // 候选组外包一层 AnimatedSwitcher：进入下一小题 / 下一词 / 刷新候选时，
-              // 旧候选组向上推出、新候选组从下方升入，过渡期同时渲染两组四个按钮，
-              // 形成清晰的「上一轮离场、本轮入场」层次感，不再整体下沉再回弹（仿 Duolingo / Quizlet 的整组切换）。
-              child: AnimatedSwitcher(
-                // 整组过渡时长，210ms（较原 320ms 减少约三分之一）让切换更利落。
-                duration: const Duration(milliseconds: 210),
-                // 进出用「方向一致的上推」：旧组向上淡出离场，新组从下方淡入归位，
-                // 二者在垂直方向一进一退，衔接顺滑且层次分明。
-                transitionBuilder: (child, animation) {
-                  // AnimatedSwitcher 对离场子组件传入反向动画（status 为 reverse），
-                  // 据此区分「离场」与「入场」并施加不同方向的位移与透明度。
-                  final isLeaving = animation.status == AnimationStatus.reverse;
-                  // 离场：从原位上移 16% 高度并淡出，像被推上去；入场：从下方 16% 升入归位并淡入。
-                  final slide = isLeaving
-                      ? Tween<Offset>(
-                          begin: Offset.zero,
-                          end: const Offset(0, -0.16),
-                        ).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeInCubic,
-                          ),
-                        )
-                      : Tween<Offset>(
-                          begin: const Offset(0, 0.16),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutCubic,
-                          ),
-                        );
-                  final fade = isLeaving
-                      ? Tween<double>(begin: 1, end: 0).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeInCubic,
-                          ),
-                        )
-                      : Tween<double>(begin: 0, end: 1).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutCubic,
-                          ),
-                        );
-                  return FadeTransition(
-                    opacity: fade,
-                    child: SlideTransition(position: slide, child: child),
-                  );
-                },
-                // 用当前四个候选文本拼接成唯一 Key；文本变化即触发整组过渡，文本不变则不重启动画。
-                child: Column(
-                  key: ValueKey(
-                    'listening-meaning-option-group-${_options.map((option) => option.text).join('|')}',
-                  ),
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    for (var index = 0; index < _options.length; index++) ...[
-                      // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
-                      _OptionCard(
-                        key: ValueKey(
-                          'listening-meaning-option-$index-${_options[index].text}',
-                        ),
-                        option: _options[index],
-                        index: index,
-                        wrong: _wrongOptions.contains(_options[index].text),
-                        onTap: () => _pickOption(_options[index]),
-                        // 长按任意候选都进入同一刷新确认流程，不暴露正确答案身份。
-                        onLongPress: () => _requestOptionRefresh(index),
-                      ),
-                      // 最后一行下方不再添加多余间距，它的底边就是整个控制区底边。
-                      if (index < _options.length - 1)
-                        const SizedBox(
-                          height: ListeningMeaningLayout.optionGap,
-                        ),
-                    ],
-                  ],
-                ),
-              ),
+      // 候选词位于文档流底部：与看义选词一致，一行两个、底边对齐，
+      // 不再有悬浮右侧的播放按钮（重播交给单词卡听音钮与透明播放层）。
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 用父级实际宽度算按钮宽度：一行两个，各占 (宽 − 间距) / 2。
+          final buttonWidth =
+              (constraints.maxWidth - ListeningMeaningLayout.optionGap) / 2;
+          // 候选组外包一层 AnimatedSwitcher：进入下一小题 / 下一词 / 刷新候选时，
+          // 旧候选组淡出、新候选组淡入，整组切换不整体下沉回弹（仿 Duolingo / Quizlet）。
+          return AnimatedSwitcher(
+            // 整组过渡时长，210ms 让切换更利落。
+            duration: const Duration(milliseconds: 210),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: child,
             ),
-            // 两栏之间只使用正常布局间距，不使用任何偏移。
-            const SizedBox(width: ListeningMeaningLayout.columnGap),
-            // 右栏获得一份宽度，把主要空间留给可能较长的候选词。
-            Expanded(
-              key: const Key('listening-meaning-action-column'),
-              flex: ListeningMeaningLayout.actionColumnFlex,
-              // end 让播放先贴齐底边，提示再依照间距堆叠到它上方。
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 播放按钮作为右栏最后一项，底边直接对齐第四个候选词。
-                  _OutlineAction(
-                    key: const Key('listening-meaning-play'),
-                    icon: _isPlaying
-                        ? TablerIcons.volume2
-                        : TablerIcons.playerPlay,
-                    label: '播放',
-                    foreground: Colors.white,
-                    border: AppTokens.accent,
-                    background: AppTokens.accent,
-                    height: ListeningMeaningLayout.actionHeight,
-                    horizontalPadding: 8,
-                    // 底部播放按钮允许打断重播。
-                    onTap: () => _playAudio(interrupt: true),
-                  ),
-                ],
+            // 用当前四个候选文本拼接成唯一 Key；文本变化即触发整组过渡。
+            child: Wrap(
+              key: ValueKey(
+                'listening-meaning-option-group-${_options.map((option) => option.text).join('|')}',
               ),
+              spacing: ListeningMeaningLayout.optionGap,
+              runSpacing: ListeningMeaningLayout.optionGap,
+              children: <Widget>[
+                for (var index = 0; index < _options.length; index += 1)
+                  // 每个选项由独立 _OptionCard 管理，支持错选抖动动画。
+                  _OptionCard(
+                    key: ValueKey(
+                      'listening-meaning-option-$index-${_options[index].text}',
+                    ),
+                    option: _options[index],
+                    index: index,
+                    width: buttonWidth,
+                    wrong: _wrongOptions.contains(_options[index].text),
+                    onTap: () => _pickOption(_options[index]),
+                    // 长按任意候选都进入同一刷新确认流程，不暴露正确答案身份。
+                    onLongPress: () => _requestOptionRefresh(index),
+                  ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1792,92 +1748,6 @@ class _PlainIconButton extends StatelessWidget {
 }
 
 ///
-/// 底部提示和播放入口共用的 Tabler 描边操作按钮。
-///
-class _OutlineAction extends StatelessWidget {
-  ///
-  /// 构建右侧的提示或播放按钮。
-  const _OutlineAction({
-    required this.label,
-    required this.foreground,
-    required this.border,
-    required this.onTap,
-    this.height = 32,
-    this.horizontalPadding = 16,
-    this.background,
-    this.icon,
-    super.key,
-  });
-
-  ///
-  /// 仅当按钮具有图标语义时传入 Tabler 图标。
-  final IconData? icon;
-
-  ///
-  /// 按钮中显示的命令文字。
-  final String label;
-
-  ///
-  /// 图标和文字的前景色。
-  final Color foreground;
-
-  ///
-  /// 按钮一像素外边框的颜色。
-  final Color border;
-
-  ///
-  /// 可选按钮背景色；播放主操作传入蓝色，提示按钮则沿用卡片色。
-  final Color? background;
-
-  ///
-  /// 点击按钮时执行的业务操作。
-  final VoidCallback onTap;
-
-  ///
-  /// 按钮的固定高度，底部操作区使用 48 像素。
-  final double height;
-
-  ///
-  /// 按钮文字两侧留白，窄右栏使用较紧凑的值。
-  final double horizontalPadding;
-
-  ///
-  /// Flutter 绘制提示或播放按钮时调用此方法。
-  @override
-  Widget build(BuildContext context) {
-    // 读取当前主题的卡片背景色。
-    final tokens = AppTokens.of(context);
-    // 两种按钮形态共用同一套颜色、边框、留白和文字规则。
-    final buttonStyle = OutlinedButton.styleFrom(
-      foregroundColor: foreground,
-      backgroundColor: background ?? tokens.card,
-      side: BorderSide(color: border),
-      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    );
-    // SizedBox 保证提示和播放在不同图标状态下都保持相同高度。
-    return SizedBox(
-      height: height,
-      // 没有图标时使用普通 OutlinedButton，避免产生空的图标占位。
-      child: icon == null
-          ? OutlinedButton(
-              onPressed: onTap,
-              style: buttonStyle,
-              child: Text(label),
-            )
-          // 播放按钮使用带 Tabler 图标的标准形态。
-          : OutlinedButton.icon(
-              onPressed: onTap,
-              icon: Icon(icon, size: 15),
-              label: Text(label),
-              style: buttonStyle,
-            ),
-    );
-  }
-}
-
-///
 /// 候选词卡片：错选时触发左右抖动动画，配合触觉反馈传达错误感。
 ///
 /// 动画时长 300ms，振幅从 ±8px 衰减到 0，类似微信摇一摇的阻尼抖动。
@@ -1890,6 +1760,7 @@ class _OptionCard extends StatefulWidget {
     required this.option,
     required this.index,
     required this.wrong,
+    required this.width,
     required this.onTap,
     required this.onLongPress,
     super.key,
@@ -1906,6 +1777,10 @@ class _OptionCard extends StatefulWidget {
   ///
   /// 是否已被选错；从 false 变 true 时触发抖动。
   final bool wrong;
+
+  ///
+  /// 卡片宽度；两列网格中每张卡各占 (可用宽度 − 间距) / 2。
+  final double width;
 
   ///
   /// 点击回调；错选后由调用方传入 null 禁用。
@@ -1986,8 +1861,10 @@ class _OptionCardState extends State<_OptionCard>
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
     final wrong = widget.wrong;
-    // AnimatedBuilder 只在抖动期间重建，不影响正常状态下的性能。
-    return AnimatedBuilder(
+    // 两列网格中每张卡固定一半宽度，卡片内部文字随宽度自适应。
+    return SizedBox(
+      width: widget.width,
+      child: AnimatedBuilder(
       animation: _shakeAnimation,
       builder: (context, child) {
         // Transform.translate 按 animation 值做水平位移。
@@ -2056,15 +1933,21 @@ class _OptionCardState extends State<_OptionCard>
                         ListeningMeaningLayout.optionBadgeSize +
                         ListeningMeaningLayout.optionHorizontalInset,
                   ),
-                  child: Text(
-                    widget.option.text,
-                    key: Key('listening-meaning-option-label-${widget.index}'),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
-                    style: TextStyle(
-                      color: wrong ? AppTokens.danger : tokens.text,
-                      fontSize: 14,
+                  // FittedBox 自适应：单词过长时整体等比缩小字号塞进可用宽度，
+                  // 不靠换行/省略号把长词截掉，保证每个候选都完整可见。
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.option.text,
+                      key: Key('listening-meaning-option-label-${widget.index}'),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: wrong ? AppTokens.danger : tokens.text,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -2072,6 +1955,7 @@ class _OptionCardState extends State<_OptionCard>
             ),
           ),
         ),
+      ),
       ),
     );
   }

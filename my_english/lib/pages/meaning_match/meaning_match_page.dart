@@ -9,6 +9,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局设计令牌（颜色变量，随亮色/深色主题自动切换）。
 import '../../common/theme.dart';
+// 引入全局计时格式化，右上角倒计时不足一小时 mm:ss，满一小时 hh:mm:ss。
+import '../../common/date.dart';
 // 引入单词数据模型，首页会把当天固定词单传进来。
 import '../../models/word.dart';
 // 引入复习会话模型：模块标识、主线/巩固类型与状态。
@@ -1135,15 +1137,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   }
 
   ///
-  /// 把剩余毫秒格式化为 mm:ss。
-  String _formatRemaining() {
-    final totalSeconds = max(0, _remainingSeconds);
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    // 补零保证两位，视觉上不会因秒数变化而宽度抖动。
-    return '${minutes.toString().padLeft(2, '0')}:'
-        '${seconds.toString().padLeft(2, '0')}';
-  }
+  /// 把剩余秒数格式化成计时文字：不足一小时 mm:ss，满一小时 hh:mm:ss。
+  String _formatRemaining() => formatTimerSeconds(_remainingSeconds);
 
   ///
   /// 构建左右两列棋盘，并在下层铺一张“连线画布”。

@@ -56,148 +56,133 @@ void main() {
     expect(distractors, <String>['cat', 'bat', 'mat']);
   });
 
-  test('definition distractors prefer same-length similar source meanings', () {
-    // 词库中同时放入同字数和不同字数的释义。
+  test('definition distractors draw only from other words and cap at count', () {
+    // 词库里同时给出正确词与其他词：候选只能来自其他词的释义，随机、至多 count。
+    Word w(String s, List<String> defs) => Word(
+          spelling: s,
+          meanings: <Meaning>[for (final d in defs) Meaning(pos: 'n.', definition: d)],
+        );
     final sourceWords = <Word>[
-      Word(
-        spelling: 'ability',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '能力'), Meaning(pos: 'n.', definition: '才能'),
-        ],
-      ),
-      Word(
-        spelling: 'energy',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '能量'),
-        ],
-      ),
-      Word(
-        spelling: 'strength',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '实力'),
-        ],
-      ),
-      Word(
-        spelling: 'capable',
-        meanings: <Meaning>[
-          Meaning(pos: 'adj.', definition: '可以完成任务的'),
-        ],
-      ),
+      w('ability', <String>['能力', '才能']), // 当前正确词，两个含义都不得当混淆项
+      w('energy', <String>['能量']),
+      w('strength', <String>['实力']),
+      w('capable', <String>['可以完成任务的']),
     ];
-    // 以“能力”作为正确释义进行检索。
-    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
-      correct: '能力',
-      sourceWords: sourceWords,
-    );
 
-    // 三个两字释义必须排在长释义之前；其中“能量”和“实力”各只需替换一字。
-    expect(distractors, <String>['能量', '实力', '才能']);
+    // 多次抽样，验证每一次都只包含其他单词的释义、不含自身含义、数量正确。
+    // 页面会传入当前正确词自身的全部含义（能力 / 才能）作排除，这里照做。
+    final pooled = <String>{'能量', '实力', '可以完成任务的'};
+    for (var i = 0; i < 20; i++) {
+      final distractors =
+          ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+        correct: '能力',
+        sourceWords: sourceWords,
+        excludeDefinitions: const <String>{'能力', '才能'},
+      );
+      expect(distractors.toSet().difference(pooled), isEmpty,
+          reason: '候选必须全部来自其他单词的释义：$distractors');
+      expect(distractors, isNot(contains('能力')));
+      expect(distractors, isNot(contains('才能')));
+      expect(distractors, hasLength(3));
+      expect(distractors.toSet(), hasLength(3));
+    }
   });
 
-  test('tiny definition source still produces three unique distractors', () {
-    // 只有正确释义的极小词库无法直接提供三个其他释义。
+  test('definition distractors return zero when the bank holds only one word', () {
+    // 用户只录入 1 个单词就开始复习：没有其他词可当混淆项。
     final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
       correct: '能力',
       sourceWords: <Word>[
         Word(
           spelling: 'ability',
-          meanings: <Meaning>[
-            Meaning(pos: 'n.', definition: '能力'),
-          ],
+          meanings: <Meaning>[Meaning(pos: 'n.', definition: '能力')],
         ),
       ],
     );
 
-    // 即使词库不足，界面仍会得到三个不重复且不等于正确值的干扰项。
-    expect(distractors, hasLength(3));
-    expect(distractors.toSet(), hasLength(3));
-    expect(distractors, isNot(contains('能力')));
-    // 优先的人工回退仍保持和正确释义相同的字数。
-    expect(distractors.every((item) => item.runes.length == 2), isTrue);
+    // 没有混淆项时直接返回空，绝不强行凑够——“不强凑”。
+    expect(distractors, isEmpty);
+    // count 为 0 也直接返回空。
+    expect(
+      ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+        correct: '能力',
+        sourceWords: <Word>[
+          Word(spelling: 'a', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能力')]),
+          Word(spelling: 'b', meanings: <Meaning>[Meaning(pos: 'n.', definition: '别的')]),
+        ],
+        count: 0,
+      ),
+      isEmpty,
+    );
   });
 
-  test('definition distractors skip the current word own meanings', () {
-    // correct 是 ability 的「能力」，同词还有「才能」这个含义，两者不能互做干扰项。
-    final sourceWords = <Word>[
-      Word(
-        spelling: 'ability',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '能力'), Meaning(pos: 'n.', definition: '才能'),
-        ],
-      ),
-      Word(
-        spelling: 'energy',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '能量'),
-        ],
-      ),
-      Word(
-        spelling: 'strength',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '实力'),
-        ],
-      ),
-    ];
+  test('definition distractors return fewer than count when bank is tiny', () {
+    // 词库只有 2 个其他释义时，只能给 2 个混淆项（不补齐到 3）。
     final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
       correct: '能力',
-      sourceWords: sourceWords,
-      excludeDefinitions: const <String>{'能力', '才能'},
+      sourceWords: <Word>[
+        Word(spelling: 'ability', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能力')]),
+        Word(spelling: 'energy', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能量')]),
+        Word(spelling: 'strength', meanings: <Meaning>[Meaning(pos: 'n.', definition: '实力')]),
+      ],
     );
-
-    // 「才能」与正确词同属一个单词，绝不进入干扰列表。
-    expect(distractors, isNot(contains('才能')));
+    expect(distractors.toSet(), equals(<String>{'能量', '实力'}));
     expect(distractors, isNot(contains('能力')));
-    // 排掉同词含义后仍能凑齐三个唯一干扰项，并优先保留其他单词的释义。
+  });
+
+  test('definition distractors never contain the current word own meanings', () {
+    final sourceWords = <Word>[
+      Word(spelling: 'a', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能力')]),
+      Word(spelling: 'b', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能量')]),
+      Word(spelling: 'c', meanings: <Meaning>[Meaning(pos: 'n.', definition: '实力')]),
+      Word(spelling: 'd', meanings: <Meaning>[Meaning(pos: 'n.', definition: '状态')]),
+    ];
+    for (var i = 0; i < 20; i++) {
+      final correct = '实力';
+      final distrac = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+        correct: correct,
+        sourceWords: sourceWords,
+      );
+      expect(distrac, isNot(contains('实力')));
+      expect(distrac.toSet().difference(<String>{'能力', '能量', '状态'}), isEmpty);
+      expect(distrac, hasLength(3));
+    }
+  });
+
+  test('replacement definition helper returns a fresh candidate when pool allows', () {
+    final sourceWords = <Word>[
+      Word(spelling: 'a', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能力')]),
+      Word(spelling: 'b', meanings: <Meaning>[Meaning(pos: 'n.', definition: '能量')]),
+      Word(spelling: 'c', meanings: <Meaning>[Meaning(pos: 'n.', definition: '实力')]),
+      Word(spelling: 'd', meanings: <Meaning>[Meaning(pos: 'n.', definition: '状态')]),
+      Word(spelling: 'e', meanings: <Meaning>[Meaning(pos: 'n.', definition: '目标')]),
+      Word(spelling: 'f', meanings: <Meaning>[Meaning(pos: 'n.', definition: '方式')]),
+    ];
+    final initial = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+      correct: '能量',
+      sourceWords: sourceWords,
+    );
+    final replacement =
+        ListeningMeaningOptionGenerator.findReplacementDefinitionDistractor(
+          correct: '能量',
+          sourceWords: sourceWords,
+          excluded: <String>['能量', ...initial],
+        );
+    expect(replacement, isNotNull);
+    expect(initial, isNot(contains(replacement)));
+    expect(replacement, isNot('能量'));
+  });
+
+  test('definition distractors cap at count even with a rich pool', () {
+    final distractors = ListeningMeaningOptionGenerator.buildDefinitionDistractors(
+      correct: '能力',
+      sourceWords: <Word>[
+        for (var i = 0; i < 30; i++)
+          Word(spelling: 'word$i', meanings: <Meaning>[Meaning(pos: 'n.', definition: '含义$i')]),
+      ],
+    );
     expect(distractors, hasLength(3));
     expect(distractors.toSet(), hasLength(3));
-    expect(distractors, containsAll(<String>['能量', '实力']));
   });
 
-  test('replacement helpers skip every currently visible candidate', () {
-    // 先取得初始英文四选一中的三个干扰项。
-    final initialWords = ListeningMeaningOptionGenerator.buildWordDistractors(
-      correct: 'ability',
-      sourceWords: <Word>[Word(spelling: 'ability')],
-    );
-    // 刷新必须从更大的候选池里寻找未显示项。
-    final replacementWord =
-        ListeningMeaningOptionGenerator.findReplacementWordDistractor(
-          correct: 'ability',
-          sourceWords: <Word>[Word(spelling: 'ability')],
-          excluded: <String>['ability', ...initialWords],
-        );
-    expect(replacementWord, isNotNull);
-    expect(initialWords, isNot(contains(replacementWord)));
-    expect(replacementWord, isNot('ability'));
-
-    // 中文释义同样排除正确答案与当前三个干扰项。
-    final initialDefinitions =
-        ListeningMeaningOptionGenerator.buildDefinitionDistractors(
-          correct: '能力',
-          sourceWords: <Word>[
-            Word(
-              spelling: 'ability',
-              meanings: <Meaning>[
-                Meaning(pos: 'n.', definition: '能力'),
-              ],
-            ),
-          ],
-        );
-    final replacementDefinition =
-        ListeningMeaningOptionGenerator.findReplacementDefinitionDistractor(
-          correct: '能力',
-          sourceWords: <Word>[
-            Word(
-              spelling: 'ability',
-              meanings: <Meaning>[
-                Meaning(pos: 'n.', definition: '能力'),
-              ],
-            ),
-          ],
-          excluded: <String>['能力', ...initialDefinitions],
-        );
-    expect(replacementDefinition, isNotNull);
-    expect(initialDefinitions, isNot(contains(replacementDefinition)));
-    expect(replacementDefinition, isNot('能力'));
-  });
 }

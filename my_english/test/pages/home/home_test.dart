@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入页面设计令牌，核对全屏表单三段区域的实际背景色。
 import 'package:my_english/common/theme.dart';
+import 'package:my_english/common/date.dart';
 // 引入被测试的首页。
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
@@ -87,34 +88,6 @@ void main() {
   });
 
   // 验证未开放复习模式在真实首页中会显示统一提示。
-  testWidgets('unavailable review mode opens the coming-soon page', (
-    tester,
-  ) async {
-    // 使用接近真机比例的高屏幕，让复习卡片无需滚动即可接受点击。
-    tester.view.physicalSize = const Size(800, 1000);
-    tester.view.devicePixelRatio = 1;
-    // 用例结束后恢复测试框架默认屏幕参数，避免影响后续测试。
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    // 保持词库默认隐藏，直接操作首页上的复习模式入口。
-    await _pumpHome(tester, expandWordLibrary: false);
-    // 点击前页面中没有占位页的文字。
-    expect(find.text('暂未开放'), findsNothing);
-    // 点击尚未开放的「看义选词」；这类模块不建词库也不开会话，直接进占位页。
-    // 原先点的是「拼写巩固」，那个模块已经上线，改点当前唯一未开放的玩法。
-    await tester.tap(find.text('看义选词'));
-    await tester.pumpAndSettle();
-
-    // 占位页明确告知该玩法尚未开放，并顺带展示今天的词单规模。
-    expect(find.text('暂未开放'), findsOneWidget);
-    expect(find.textContaining('今日词单'), findsOneWidget);
-
-    // 清理页面；底部提示图标是循环动画，因此不使用 pumpAndSettle。
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  // 验证点击作者邮箱会自动复制并弹出提示。
   testWidgets('tapping author email copies it and shows a snackbar', (
     tester,
   ) async {
@@ -180,11 +153,11 @@ void main() {
       expect(find.text('口语发音'), findsOneWidget);
       expect(find.text('单词分隔'), findsOneWidget);
       expect(find.text('每日复习'), findsOneWidget);
-      // 默认值：美式、顿号、Light、50。
+      // 默认值：美式、全角分号、Light、50。
       expect(settings.accent, PronunciationAccent.american);
       expect(
         settings.definitionSeparator,
-        DefinitionSeparator.ideographicComma,
+        DefinitionSeparator.fullWidthSemicolon,
       );
       expect(settings.theme, AppThemePreference.light);
       expect(settings.dailyGoal, 50);
@@ -619,8 +592,8 @@ void main() {
     expect(audioPlayer.lastAccent, PronunciationAccent.british);
     // 播放期间左侧出现“实心喇叭 + 三道弧线”的自绘动画。
     expect(find.byKey(const Key('playing-speaker-icon')), findsOneWidget);
-    // 释义同步展开：两个 Meaning 各自显示为一行。
-    expect(find.text('能力、才能'), findsOneWidget);
+    // 释义同步展开：同词性释义用默认全角分号连接显示为一行。
+    expect(find.text('能力；才能'), findsOneWidget);
     expect(find.text('能干的'), findsOneWidget);
     // 展开后整项高度大于标题行。
     expect(
@@ -695,7 +668,8 @@ void main() {
   testWidgets('sort bar toggles all fields with the agreed null rules', (
     tester,
   ) async {
-    // 第一个单词复习时间最早，但难度最低。
+    // 三个词故意安排在同一天复习，落在同一个「复习时间」分组内，
+    // 这样切换排序字段才对整组可见（v2.0 排序只在组内生效）。
     final words = <Word>[
       Word(
         id: 21,
@@ -703,9 +677,9 @@ void main() {
         difficulty: 1,
         createdAt: DateTime(2026, 1, 1),
         updatedAt: DateTime(2026, 7, 1),
-        reviewedAt: DateTime(2026, 1, 1),
+        reviewedAt: DateTime(2026, 6, 1),
       ),
-      // 第二个单词没有更新时间，复习时间较新。
+      // 难度最高，含义层按数量参与比较。
       Word(
         id: 22,
         spelling: 'apple',
@@ -713,8 +687,8 @@ void main() {
         createdAt: DateTime(2026, 6, 1),
         reviewedAt: DateTime(2026, 6, 1),
       ),
-      // 第三个单词故意没有难度和日期，难度层按 0 参与比较。
-      Word(id: 23, spelling: 'middle'),
+      // 故意没有难度，难度层按 0 参与比较。
+      Word(id: 23, spelling: 'middle', reviewedAt: DateTime(2026, 6, 1)),
     ];
     // 使用稳定测试数据打开首页。
     await _pumpHome(tester, words: words);
@@ -755,10 +729,10 @@ void main() {
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
-    // 再点日期从早到晚，空日期排最前（升序 null 在前，与难度升序一致）。
+    // 再点日期切到升序；三个词日期相同，落入次级「难度降序」，顺序不变。
     await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
-    _expectTextsInVerticalOrder(tester, <String>['middle', 'zebra', 'apple']);
+    _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
 
     // 清理页面资源。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -833,11 +807,11 @@ void main() {
     ];
     // 重新打开首页。
     await _pumpHome(tester, words: sameSpellingWords);
-    // 点击默认项（字母规则）；拼写完全相同，顺序由难度降序和日期降序决定。
+    // 点击默认项（字母规则）；默认按复习时间分组，日期降序排在前面。
     await tester.tap(find.byKey(const Key('word-sort-original')));
     await tester.pump();
     // 文字相同无法用文本定位，改为逐行读取列表项的 Word 主键。
-    expect(_visibleWordIds(tester), <int>[43, 42, 41]);
+    expect(_visibleWordIds(tester), <int>[41, 43, 42]);
 
     // 两个字段完全相同的单词只剩编号可比，Store 顺序故意倒置。
     final twinWords = <Word>[
@@ -946,13 +920,13 @@ void main() {
 
   // 验证分组头点击可折叠该组单词，"折叠/展开"按钮可整体切换。
   testWidgets('section headers collapse and expand rows', (tester) async {
-    // 打开首页；默认全部单词在"未分组"。
+    // 打开首页；默认按复习时间分组，两个词都未复习，落在「未复习」组。
     await _pumpHome(tester);
 
     // 初始两行单词都可见。
     expect(find.text('ability'), findsOneWidget);
-    // 点击"未分组"分组头折叠。
-    await tester.tap(find.byKey(const Key('section-c0')));
+    // 点击「未复习」分组头折叠。
+    await tester.tap(find.byKey(const Key('section-r0')));
     await tester.pumpAndSettle();
     // 折叠后行消失。
     expect(find.text('ability'), findsNothing);
@@ -1007,8 +981,6 @@ void main() {
       'toggle-select-mode',
       'select-all',
       'invert-selection',
-      'move-selected',
-      'copy-selected',
     ]) {
       // 从带 key 的动作组件内部取得真正响应点击的 InkWell。
       final inkWell = tester.widget<InkWell>(
@@ -1039,30 +1011,8 @@ void main() {
     await tester.tap(find.byKey(const Key('invert-selection')));
     await tester.pump();
     expect(find.text('已选 0'), findsOneWidget);
-
-    // 复制目标只能是自定义分组，先通过管理面板建一个（桩返回 id=1）。
-    await tester.tap(find.byKey(const Key('open-manage')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('add-group')));
-    await tester.pumpAndSettle();
-    // 关闭管理面板。
-    await tester.tap(find.byKey(const Key('manage-done')));
-    await tester.pumpAndSettle();
-    // 新建分组区块已出现。
-    expect(find.byKey(const Key('section-c1')), findsOneWidget);
-
-    // 勾选 abandon 并执行复制。
-    await tester.tap(find.text('abandon'));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('copy-selected')));
-    await tester.pumpAndSettle();
-    // 复制面板只列出自定义分组（不含「未分组」），选择「新分组 1」(id=1)。
-    await tester.tap(find.byKey(const Key('pick-group-1')));
-    await tester.pumpAndSettle();
-    // abandon 被加入分组 1，因此只在 c1 区块出现一次（不再是未分组成员）。
-    expect(find.text('abandon'), findsOneWidget);
-    // 复制后该单词确实归属分组 1 的区块。
-    expect(find.byKey(const Key('section-c1')), findsOneWidget);
+    // 2.0 起「复制/移动到自定义分组」已下线：选择模式当前只保留勾选、
+    // 全选与反选（外加行内左滑的修改/删除），不再有复制面板与管理分组流程。
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1236,38 +1186,9 @@ void main() {
             .padding,
         const EdgeInsets.all(20),
       );
-      // 分组约占 40%，单词约占 60%，两个 Label 均位于独立字段上方。
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('form-group-field')),
-          matching: find.text('分组'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('form-spelling-field')),
-          matching: find.text('单词'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        tester.getSize(find.byKey(const Key('form-group-field'))).width,
-        lessThan(
-          tester.getSize(find.byKey(const Key('form-spelling-field'))).width,
-        ),
-      );
-      // 分组和单词输入框均只保留下边线，不再具有四周边框或圆角。
-      final groupInput = tester.widget<Container>(
-        find.byKey(const Key('form-group-input')),
-      );
-      final groupDecoration = groupInput.decoration! as BoxDecoration;
-      final groupBorder = groupDecoration.border! as Border;
-      expect(groupBorder.top.style, BorderStyle.none);
-      expect(groupBorder.left.style, BorderStyle.none);
-      expect(groupBorder.right.style, BorderStyle.none);
-      expect(groupBorder.bottom.style, BorderStyle.solid);
-      expect(groupDecoration.borderRadius, isNull);
+      // 首个表单卡内是单词拼写字段（2.0 起分组下线，不再有 40%/60% 两列）。
+      expect(find.byKey(const Key('form-spelling-field')), findsOneWidget);
+      // 单词输入框只保留下边线，不再具有四周边框或圆角。
       final spellingInputContainer = tester.widget<Container>(
         find.byKey(const Key('form-spelling-input')),
       );
@@ -1287,43 +1208,21 @@ void main() {
         find.byKey(const Key('form-spelling-alignment')),
       );
       expect(spellingAlignment.alignment, Alignment.center);
-      // 两个字段由同样的 44 像素外层绘制底线，因此顶部、底部和高度完全相同。
-      final groupInputRect = tester.getRect(
-        find.byKey(const Key('form-group-input')),
-      );
+      // 2.0 起分组下线，拼写独占整行，仍由 44 像素外层绘制底线。
       final spellingInputRect = tester.getRect(
         find.byKey(const Key('form-spelling-input')),
       );
-      expect(groupInputRect.height, 44);
-      expect(spellingInputRect.height, groupInputRect.height);
-      expect(spellingInputRect.top, closeTo(groupInputRect.top, 0.1));
-      expect(spellingInputRect.bottom, closeTo(groupInputRect.bottom, 0.1));
-      // 输入真实文字后，它必须与对应 Label 左对齐，并和“未分组”文字垂直居中。
+      expect(spellingInputRect.height, 44);
+      // 输入真实文字后，必须与对应 Label 左对齐。
       await tester.enterText(find.byKey(const Key('form-spelling')), 'align');
       await tester.pump();
       final spellingEditable = find.descendant(
         of: find.byKey(const Key('form-spelling-input')),
         matching: find.byType(EditableText),
       );
-      final groupValue = find.descendant(
-        of: find.byKey(const Key('form-group-input')),
-        matching: find.text('未分组'),
-      );
-      final groupLabel = find.descendant(
-        of: find.byKey(const Key('form-group-field')),
-        matching: find.text('分组'),
-      );
       final spellingLabel = find.descendant(
         of: find.byKey(const Key('form-spelling-field')),
         matching: find.text('单词'),
-      );
-      expect(
-        tester.getCenter(spellingEditable).dy,
-        closeTo(tester.getCenter(groupValue).dy, 0.5),
-      );
-      expect(
-        tester.getTopLeft(groupValue).dx,
-        closeTo(tester.getTopLeft(groupLabel).dx, 0.1),
       );
       expect(
         tester.getTopLeft(spellingEditable).dx,
@@ -1442,56 +1341,46 @@ void main() {
     await tester.tap(find.byKey(const Key('swipe-edit')));
     await tester.pumpAndSettle();
 
-    // 第一组 vt. 与第三组 vi. vt. 都应主动滚离起点，而中间的 n. 保持起点。
-    final firstSelector = find.byKey(const Key('pos-selector-0'));
-    final secondSelector = find.byKey(const Key('pos-selector-1'));
-    final thirdSelector = find.byKey(const Key('pos-selector-2'));
-    final firstScrollView = tester.widget<SingleChildScrollView>(
-      find.descendant(
-        of: firstSelector,
-        matching: find.byType(SingleChildScrollView),
-      ),
-    );
-    final secondScrollView = tester.widget<SingleChildScrollView>(
-      find.descendant(
-        of: secondSelector,
-        matching: find.byType(SingleChildScrollView),
-      ),
-    );
-    final thirdScrollView = tester.widget<SingleChildScrollView>(
-      find.descendant(
-        of: thirdSelector,
-        matching: find.byType(SingleChildScrollView),
-      ),
-    );
-    expect(firstScrollView.controller!.offset, greaterThan(0));
-    expect(secondScrollView.controller!.offset, 0);
-    expect(thirdScrollView.controller!.offset, greaterThan(0));
+    // v2.0 编辑表单会把每组选中词性都居中定位；含义卡片按 meaningGroups 顺序生成。
+    // 不过 meanings 存的是按词性合并的 Map，迭代顺序不一定等于传入顺序，因此这里
+    // 直接用 catchWord.meaningGroups 推出「第 N 个选择器对应的选中词性」，避免硬编码顺序。
+    final selectorOrder = catchWord.meaningGroups
+        .map((group) => group.pos)
+        .toList(growable: false);
+    final selectorScrollViews = <SingleChildScrollView>[
+      for (var i = 0; i < selectorOrder.length; i += 1)
+        tester.widget<SingleChildScrollView>(
+          find.descendant(
+            of: find.byKey(Key('pos-selector-$i')),
+            matching: find.byType(SingleChildScrollView),
+          ),
+        ),
+    ];
 
-    // 靠后的选中胶囊必须完整落在各自横向可视区域内，不只是露出一条边。
-    final firstSelectorRect = tester.getRect(firstSelector);
-    final thirdSelectorRect = tester.getRect(thirdSelector);
-    final selectedTransitive = find.descendant(
-      of: firstSelector,
-      matching: find.byKey(const Key('pos-chip-vt.')),
-    );
-    final selectedCombined = find.descendant(
-      of: thirdSelector,
-      matching: find.byKey(const Key('pos-chip-vi. vt.')),
-    );
-    final transitiveRect = tester.getRect(selectedTransitive);
-    final combinedRect = tester.getRect(selectedCombined);
-    expect(transitiveRect.left, greaterThanOrEqualTo(firstSelectorRect.left));
-    expect(transitiveRect.right, lessThanOrEqualTo(firstSelectorRect.right));
-    expect(combinedRect.left, greaterThanOrEqualTo(thirdSelectorRect.left));
-    expect(combinedRect.right, lessThanOrEqualTo(thirdSelectorRect.right));
+    // 一组完整落在各自横向可视区域内，露出边的都不能过线。
+    for (var i = 0; i < selectorOrder.length; i += 1) {
+      final selector = find.byKey(Key('pos-selector-$i'));
+      final selectorRect = tester.getRect(selector);
+      // 该卡片真正选中的词性胶囊（可能位于选项列表后段，正是需要被定位的原因）。
+      final selectedChip = find.descendant(
+        of: selector,
+        matching: find.byKey(Key('pos-chip-${selectorOrder[i]}')),
+      );
+      final chipRect = tester.getRect(selectedChip);
+      expect(chipRect.left, greaterThanOrEqualTo(selectorRect.left));
+      expect(chipRect.right, lessThanOrEqualTo(selectorRect.right));
+      // 已经滚离起点的记录留作最后一项的「重建后保持定位」检查。
+    }
 
-    // 用户手动滑回开头后触发普通重建，列表不能再次抢走用户的滚动位置。
-    firstScrollView.controller!.jumpTo(0);
+    // 用户手动滑回开头后触发普通重建。
+    selectorScrollViews.first.controller!.jumpTo(0);
     await tester.tap(find.byKey(const Key('form-spelling')));
     await tester.enterText(find.byKey(const Key('form-spelling')), 'catching');
     await tester.pump();
-    expect(firstScrollView.controller!.offset, 0);
+    // v2.0 只在首次打开时把选中词性定位到可视区域中间（_didRevealInitialSelection
+    // 一次性防抖，见 word_form_sheet 的 _revealInitialSelection）；重建不会再次抢走
+    // 用户主动滑回的滚动位置，因此回到 0 后依旧保持 0。
+    expect(selectorScrollViews.first.controller!.offset, 0);
 
     // 清理页面及各词性列表的滚动控制器。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1597,19 +1486,25 @@ void main() {
   ) async {
     // 两种学习方式都准备一条进行中的会话；随身听列表故意使用与首页相反的顺序。
     final sessionStore = MemorySessionStore();
-    await sessionStore.createSession(
+    final listeningSessionId = await sessionStore.createSession(
       module: ReviewModule.listening,
       kind: SessionKind.reinforce,
       wordSetId: null,
       items: const <int>[2, 1],
-      date: '2026-08-29',
+      date: todayKey(),
+    );
+    // 随身听已播到第 2 个（index 1），验证继续能恢复到历史顺序的中间位置。
+    await sessionStore.updateProgress(
+      sessionId: listeningSessionId,
+      cursor: 1,
+      elapsed: 0,
     );
     await sessionStore.createSession(
       module: ReviewModule.listeningMeaning,
       kind: SessionKind.reinforce,
       wordSetId: null,
       items: const <int>[1, 2],
-      date: '2026-08-29',
+      date: todayKey(),
     );
     await _pumpHome(tester, sessionStore: sessionStore);
 
@@ -2012,16 +1907,6 @@ class _MemoryWordStore implements WordStore {
   }
 
   ///
-  /// 整库替换写入：先清空旧数据再装入导入列表。
-  @override
-  Future<void> importWords(List<Word> words) async {
-    // 清空后追加导入副本。
-    _words
-      ..clear()
-      ..addAll(words);
-  }
-
-  ///
   /// 整库替换（含分组/成员）写入：内存 Store 只重建单词，分组由 UI 层负责。
   @override
   Future<void> importData(Map<String, Object?> data) async {
@@ -2149,13 +2034,6 @@ class _ThrowingWordStore implements WordStore {
   @override
   Future<void> delete(int id) async => throw UnimplementedError();
 
-  ///
-  /// 其余接口不属于本测试流程。
-  @override
-  Future<void> importWords(List<Word> words) async =>
-      throw UnimplementedError();
-
-  ///
   /// 其余接口不属于本测试流程。
   @override
   Future<void> importData(Map<String, Object?> data) async =>

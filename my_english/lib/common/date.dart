@@ -59,3 +59,27 @@ String dateKey(DateTime date) {
 ///
 /// 今天的 `yyyy-MM-dd`。
 String todayKey() => dateKey(DateTime.now());
+
+///
+/// 把秒数格式化成统一的计时文字。
+///
+/// 不足 1 小时用 `mm:ss`（如 `12:03`），满 1 小时改用 `hh:mm:ss`
+/// （如 `01:02:03`），这样右上角计时器既能保持两位补零，超过一小时也不会溢出。
+///
+/// 听音辨义、看义选词、拼写强化、词义连连四个模块的右上角计时共用这一个函数，
+/// 保证全局口径一致、只改一处即可全局生效。
+String formatTimerSeconds(int totalSeconds) {
+  // 秒数不可能为负；为极端情况兜底成 0，避免出现负数冒号。
+  final safe = totalSeconds < 0 ? 0 : totalSeconds;
+  // 先把总秒数拆成 时/分/秒 三段。
+  final hours = safe ~/ 3600;
+  final minutes = (safe % 3600) ~/ 60;
+  final seconds = safe % 60;
+  // 不足两位时左补 0，让每个字段始终占两位，视觉上不随数字变化抖动宽度。
+  String two(int n) => n.toString().padLeft(2, '0');
+  // 满 1 小时才带小时段；否则只显示分钟和秒，保持右上角不拥挤。
+  if (hours > 0) {
+    return '${two(hours)}:${two(minutes)}:${two(seconds)}';
+  }
+  return '${two(minutes)}:${two(seconds)}';
+}

@@ -11,6 +11,8 @@ import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局设计令牌（颜色变量，随亮色/深色主题自动切换）。
 import '../../common/theme.dart';
+// 引入全局计时格式化，右上角时间超过一小时改用 hh:mm:ss，不足用 mm:ss。
+import '../../common/date.dart';
 // 引入全局 Toast 工具，播放失败时提示用户。
 import '../../common/toast.dart';
 // 引入单词数据模型，首页会把当天固定词单传进来。
@@ -1171,6 +1173,20 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                     ),
                   ),
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatElapsed(),
+                    key: const Key('spelling-elapsed'),
+                    style: TextStyle(
+                      color: tokens.textMedium,
+                      fontSize: SpellingLayout.headerProgressTextSize - 3,
+                      fontWeight: FontWeight.w500,
+                      // 等宽数字让秒数变化时整体宽度稳定，右侧不抖动。
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1914,15 +1930,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   }
 
   ///
-  /// 把本局用时格式化成 mm:ss。
-  String _formatElapsed() {
-    final totalSeconds = _elapsedMs ~/ 1000;
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    // 补零保证两位，视觉上不会因秒数变化而宽度抖动。
-    return '${minutes.toString().padLeft(2, '0')}:'
-        '${seconds.toString().padLeft(2, '0')}';
-  }
+  /// 把本局用时格式化成计时文字：不足一小时 mm:ss，满一小时 hh:mm:ss。
+  String _formatElapsed() => formatTimerSeconds(_elapsedSeconds);
 }
 
 ///

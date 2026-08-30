@@ -896,16 +896,24 @@ class _PosSelectorState extends State<_PosSelector> {
     }
     // 无论已有词性是否在选项表中，都只尝试这一次，避免后续重建反复定位。
     _didRevealInitialSelection = true;
-    // 通过 GlobalKey 取得当前选中胶囊对应的渲染节点。
-    final renderObject = _initialSelectedKey.currentContext?.findRenderObject();
-    // 数据里没有匹配选项，或横向列表尚未挂载时保持默认位置。
-    if (renderObject == null || !_scrollController.hasClients) return;
-    // 只调用本横向 ScrollPosition，避免同时把外层纵向表单滚到其他位置。
-    _scrollController.position.ensureVisible(
-      renderObject,
-      alignment: 0.5,
-      duration: Duration.zero,
-    );
+    final context = _initialSelectedKey.currentContext;
+    // 选中胶囊或横向列表尚未挂载时保持默认位置。
+    if (context == null || !_scrollController.hasClients) return;
+    final chip = context.findRenderObject() as RenderBox?;
+    // 通过 Scrollable 得到横向视口的渲染盒，用它与芯片在全局坐标上的
+    // 横向差值算出需要滚动到的目标位置。不用 ScrollPosition.ensureVisible：
+    // 表单本身是纵向滚动，ensureVisible 要向上找最近的可滚动祖先，嵌套多级
+    // 视口时偶发把目标当成「已在可视区内」而不滚动，导致长词性胶囊仍被裁切。
+    final scrollable = _scrollController.position.context.storageContext;
+    final viewport = scrollable.findRenderObject() as RenderBox?;
+    if (chip == null || viewport == null || !chip.attached) return;
+    final chipLeft = chip.localToGlobal(Offset.zero).dx;
+    final viewportLeft = viewport.localToGlobal(Offset.zero).dx;
+    final chipCenter = chipLeft - viewportLeft + chip.size.width / 2;
+    final viewportWidth = _scrollController.position.viewportDimension;
+    final target = (chipCenter - viewportWidth / 2)
+        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    _scrollController.jumpTo(target);
   }
 
   ///
