@@ -10,22 +10,34 @@ import '../store/settings.dart';
 /// 同一个单词在选中口音之下可能被多个音源朗读。以后新增音源时，只要原生播放器
 /// 支持并加入本枚举，轮转渠道播放就能自动覆盖到它。
 ///
+/// 渠道优先级用数字表示，数字越大越优先：
+/// - 100 = 最优先（不背单词）
+/// - 50  = 以后新增渠道的默认优先级
+/// - 10  = 倒数第二（有道）
+/// - 0   = 最低（本地 TTS，永远最后兜底）
+///
+/// 本枚举的声明顺序必须按 priority 从大到小排列，因为轮转播放
+/// （[pickNextChannel]）和原生兜底顺序都直接按声明顺序执行。
 enum PronunciationChannel {
   ///
-  /// 不背单词：网络 MP3 音源。
-  beingfine('beingfine', '不背单词'),
+  /// 不背单词：网络 MP3 音源，优先级最高。
+  beingfine('beingfine', '不背单词', 100),
 
   ///
-  /// 有道：网络 MP3 音源。
-  youdao('youdao', '有道'),
+  /// 百度翻译：网络 TTS 音源（fanyi.baidu.com/gettts），新增渠道的默认优先级。
+  baidu('baidu', '百度翻译', 50),
 
   ///
-  /// 系统离线英语 TTS：设备本地朗读。
-  tts('tts', '系统TTS');
+  /// 有道：网络 MP3 音源，优先级倒数第二。
+  youdao('youdao', '有道', 10),
 
   ///
-  /// 渠道搭配固定枚举值。
-  const PronunciationChannel(this.storageValue, this.label);
+  /// 系统离线英语 TTS：设备本地朗读，优先级最低、永远兜底。
+  tts('tts', '系统TTS', 0);
+
+  ///
+  /// 渠道搭配固定枚举值与优先级数字。
+  const PronunciationChannel(this.storageValue, this.label, this.priority);
 
   ///
   /// 原生协议使用的稳定英文值；改动会破坏与 Android 侧的约定。
@@ -34,6 +46,10 @@ enum PronunciationChannel {
   ///
   /// 界面与日志使用的中文名称。
   final String label;
+
+  ///
+  /// 优先级数字：越大越优先；新增渠道默认 50。
+  final int priority;
 }
 
 ///
@@ -223,8 +239,8 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   ///
   /// 用轮转挑选的渠道朗读单词。
   ///
-  /// 渠道按“不背单词 -> 有道 -> 系统 TTS -> 不背单词……”的顺序轮转，且始终限定
-  /// 在用户设置的口音之内，不擅自切换美式/英式。
+  /// 渠道按“不背单词 -> 百度翻译 -> 有道 -> 系统 TTS -> 不背单词……”的顺序轮转，
+  /// 且始终限定在用户设置的口音之内，不擅自切换美式/英式。
   @override
   Future<void> playRandomChannel(
     String spelling,

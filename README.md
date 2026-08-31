@@ -2,7 +2,7 @@
 
 MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用。词库、分组、复习记录和学习进度主要保存在手机本地，不需要注册账号。
 
-当前版本：`v2.0.3`（构建号 `53`）
+当前版本：`v2.1.0`（构建号 `54`）
 
 > 当前只提供 Android 版本，暂不支持 iPhone 和 iPad。
 
@@ -158,13 +158,14 @@ MyEnglish 是一款面向个人长期使用的 Android 英语单词学习应用�
 ```text
 本地 MP3 缓存
 → 不背单词网络音频
+→ 百度翻译网络 TTS
 → 有道网络音频
 → Android 系统离线英语 TTS
 ```
 
 TTS 是手机系统提供的文字转语音功能。应用只选择系统标记为可离线使用的英语声音；如果手机没有离线英语语音包，需要先在系统设置中安装。
 
-菜单中的“离线语音”会尝试把当前词库全部单词的“不背单词 / 有道”两个网络渠道、
+菜单中的“离线语音”会尝试把当前词库全部单词的“不背单词 / 百度翻译 / 有道”三个网络渠道、
 美式和英式两种口音都下载到本地，并显示缓存进度。进度以单词为单位：一个单词只要
 有一家渠道同时缓存了美式和英式，就算已缓存。网络音频连续失败后，应用会在 5 分钟内
 优先使用系统 TTS，减少重复等待。
@@ -175,10 +176,10 @@ TTS 是手机系统提供的文字转语音功能。应用只选择系统标记�
 会在当前口音下按固定顺序轮转一个发音渠道来读，而不是每次都走固定顺序：
 
 ```text
-不背单词网络音频 → 有道网络音频 → 系统离线英语 TTS → 不背单词……
+不背单词网络音频 → 百度翻译网络 TTS → 有道网络音频 → 系统离线英语 TTS → 不背单词……
 ```
 
-第一次播放从“不背单词”开始，下一次用“有道”，再下一次用系统 TTS，之后回到
+第一次播放从“不背单词”开始，下一次用“百度翻译”，再下一次用“有道”，之后轮到
 “不背单词”，以此类推。这样反复点击重听能稳定听到多个来源的声音，又不会因为真
 随机而出现同一家连续读多次的情况。每个网络渠道会在本地独立缓存，离线时优先复用
 已有缓存；用户设置的美式/英式口音不会被轮转渠道打断。
@@ -210,7 +211,7 @@ TTS 是手机系统提供的文字转语音功能。应用只选择系统标记�
 | Dart SDK 约束 | `^3.12.2` |
 | Java | `17` |
 | Gradle | `9.1.0` |
-| 应用版本 | `1.5.0+40` |
+| 应用版本 | `2.1.0+54` |
 | SQLite 结构版本 | `11` |
 | Android applicationId | `com.example.my_english` |
 
@@ -355,15 +356,17 @@ reviewedAt ASC（null 最前）
 Flutter 通过 `my_english/word_audio` MethodChannel 调用 `WordAudioPlayer`。Android 侧负责：
 
 - 读取和写入 App 私有目录中的 MP3 缓存（普通播放按口音合并存储，按渠道播放按渠道分目录存储；离线预缓存会尝试补齐所有网络渠道）。
-- 依次尝试不背单词与有道网络音源。
+- 依次尝试不背单词、百度翻译与有道网络音源。
 - 检查网络状态，并为连续失败保存 5 分钟冷却时间。
 - 使用 Android `TextToSpeech` 作为离线兜底。
 - 通过 `MediaSessionCompat` 和 MediaStyle 通知提供系统媒体控制。
 
-网络音频来源：
+网络音频来源（优先级数字越大越优先：不背单词 100、百度翻译 50、有道 10）：
 
 - 不背单词美式：`https://audio.beingfine.cn/speeches/US/US-speech/{spelling}.mp3`
 - 不背单词英式：`https://audio.beingfine.cn/speeches/UK/UK-speech/{spelling}.mp3`
+- 百度翻译美式：`https://fanyi.baidu.com/gettts?lan=en&text={spelling}&spd=3&source=web`
+- 百度翻译英式：`https://fanyi.baidu.com/gettts?lan=uk&text={spelling}&spd=3&source=web`
 - 有道美式：`https://dict.youdao.com/dictvoice?audio={spelling}&type=2`
 - 有道英式：`https://dict.youdao.com/dictvoice?audio={spelling}&type=1`
 

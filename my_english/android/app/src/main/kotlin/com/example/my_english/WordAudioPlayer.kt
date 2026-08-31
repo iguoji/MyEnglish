@@ -65,7 +65,7 @@ import android.os.Build
 /**
  * 单词音频下载、缓存和播放服务。
  *
- * 查找顺序固定为：口音对应的本地缓存 -> 不背单词 -> 有道 -> 本地英语 TTS。
+ * 查找顺序固定为：口音对应的本地缓存 -> 不背单词 -> 百度翻译 -> 有道 -> 本地英语 TTS。
  * 下载成功后先写临时文件，再原子替换正式缓存，避免网络中断留下一个看似存在但无法播放
  * 的残缺 mp3；TTS 只选择设备标记为不需要网络的英语声音。
  */
@@ -303,8 +303,9 @@ class WordAudioPlayer(
             result.error("AUDIO_ARGUMENT_ERROR", "不支持的发音口音：$accent", null)
             return
         }
-        // 渠道必须来自 Dart 约定的三个来源。
+        // 渠道必须来自 Dart 约定的四个来源。
         if (channel != CHANNEL_BEINGFINE &&
+            channel != CHANNEL_BAIDU &&
             channel != CHANNEL_YOUDAO &&
             channel != CHANNEL_TTS
         ) {
@@ -555,7 +556,7 @@ class WordAudioPlayer(
     }
 
     /**
-     * 统一的缓存解析实现：先查本地缓存，没有时按"不背单词 -> 有道"顺序下载。
+     * 统一的缓存解析实现：先查本地缓存，没有时按"不背单词 -> 百度翻译 -> 有道"顺序下载。
      *
      * [cancelEnabled] 为 true 时（播放路径）会在下载过程中校验 requestGeneration，
      * 用户点其它单词可立即中断；为 false 时（离线预缓存）跳过校验，任务只受
@@ -687,9 +688,10 @@ class WordAudioPlayer(
         return File(channelDirectory, "$cacheKey.mp3")
     }
 
-    /** 根据口音与指定渠道生成准确 HTTPS URL；只支持不背单词与有道两个网络渠道。 */
+    /** 根据口音与指定渠道生成准确 HTTPS URL；支持不背单词、百度翻译与有道三个网络渠道。 */
     private fun channelUrl(spelling: String, accent: String, channel: String): String {
-        // URLEncoder 默认把空格写成 +，路径中改用标准 %20。
+        // URLEncoder 默认把空格写成 +，路径中改用标准 %20；
+        // 撇号会被编码成 %27，百度翻译接口两种写法都接受。
         val encodedSpelling = URLEncoder.encode(
             spelling,
             StandardCharsets.UTF_8.toString(),
@@ -698,23 +700,33 @@ class WordAudioPlayer(
         val beingFineAccent = if (accent == AMERICAN) "US" else "UK"
         // 有道 type=2 是美式，type=1 是英式。
         val youdaoType = if (accent == AMERICAN) "2" else "1"
+        // 百度翻译 lan=en 是美式，lan=uk 是英式；spd=3 是正常语速（可调 1-5）。
+        val baiduLan = if (accent == AMERICAN) "en" else "uk"
         return when (channel) {
             CHANNEL_BEINGFINE ->
                 "https://audio.beingfine.cn/speeches/$beingFineAccent/" +
                     "$beingFineAccent-speech/$encodedSpelling.mp3"
+            CHANNEL_BAIDU ->
+                "https://fanyi.baidu.com/gettts" +
+                    "?lan=$baiduLan&text=$encodedSpelling&spd=3&source=web"
             CHANNEL_YOUDAO ->
                 "https://dict.youdao.com/dictvoice?audio=$encodedSpelling&type=$youdaoType"
             else -> error("不支持的发音渠道：$channel")
         }
     }
 
-    /** 根据口音生成“不背单词 -> 有道”的准确 HTTPS URL，供普通固定顺序播放使用。 */
+    /**
+     * 根据口音生成“不背单词 -> 百度翻译 -> 有道”的准确 HTTPS URL，
+     * 供普通固定顺序播放使用；顺序即优先级（数字越大越优先）。
+     */
     private fun buildSources(spelling: String, accent: String): List<Pair<String, String>> {
         // List 保持明确优先级。
         return listOf(
-            // 第一优先：不背单词。
+            // 第一优先：不背单词（100）。
             "不背单词" to channelUrl(spelling, accent, CHANNEL_BEINGFINE),
-            // 第二优先：有道。
+            // 第二优先：百度翻译（50）。
+            "百度翻译" to channelUrl(spelling, accent, CHANNEL_BAIDU),
+            // 第三优先：有道（10）。
             "有道" to channelUrl(spelling, accent, CHANNEL_YOUDAO),
         )
     }
@@ -1482,7 +1494,12 @@ class WordAudioPlayer(
 
         // 发音渠道：与 Dart 侧 PronunciationChannel.storageValue 一一对应。
         // 随机渠道播放时，原生据此只解析并缓存这一个来源。
+        // 优先级约定（数字越大越优先）：不背单词=100、百度翻译=50（新增渠道默认值）、
+        // 有道=10、系统 TTS=0。
         const val CHANNEL_BEINGFINE = "beingfine"
+
+        // 百度翻译网络 TTS 渠道（fanyi.baidu.com/gettts）。
+        const val CHANNEL_BAIDU = "baidu"
 
         // 有道网络音频渠道。
         const val CHANNEL_YOUDAO = "youdao"
@@ -1491,7 +1508,8 @@ class WordAudioPlayer(
         const val CHANNEL_TTS = "tts"
 
         // 离线预缓存会尝试下载的网络渠道；系统 TTS 是设备实时合成，没有文件可缓存。
-        val NETWORK_CHANNELS = listOf(CHANNEL_BEINGFINE, CHANNEL_YOUDAO)
+        // 顺序即优先级：与 buildSources 的兜底顺序保持一致。
+        val NETWORK_CHANNELS = listOf(CHANNEL_BEINGFINE, CHANNEL_BAIDU, CHANNEL_YOUDAO)
 
         // 旧版本的口音级缓存只保留一份“任意网络渠道成功”的结果；进度统计时把它
         // 当作一个虚拟渠道，避免升级后明明已有离线发音却显示成 0%。
@@ -1500,7 +1518,7 @@ class WordAudioPlayer(
         // 每个网络来源最多等待 1 秒；超时后立即尝试下一个音源或后续 TTS 兜底。
         const val NETWORK_TIMEOUT_MILLIS = 1_000
 
-        // 网络音频失败记录有效 5 分钟，避免每个单词重复请求两个网络音源。
+        // 网络音频失败记录有效 5 分钟，避免每个单词重复请求三个网络音源。
         const val NETWORK_FAILURE_TTL_MILLIS = 5 * 60 * 1_000L
 
         // settings 表中保存网络音频失败截止时间的键名。
