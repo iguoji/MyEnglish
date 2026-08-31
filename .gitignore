@@ -12,5 +12,10 @@
 __pycache__/
 *.pyc
 
+# memory/ 是思路、构思与临时文件的统一归档目录，整体纳入版本控制；
+# 但里面的 MyEnglish-*.json 是 App 导出的数据快照（单份 1~3M），
+# 属于可再生数据且体积大，只留在本地，不进版本库。
+memory/MyEnglish-*.json
+
 # Kotlin/Gradle 编译缓存（android 构建产生，每台机器不同，不纳入版本控制）
 my_english/android/.kotlin/
