@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+  <title>看义选词 - Tabler 原型</title>
+
+  <!-- Tabler Core CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+  <!-- Tabler Icons CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+
+  <style>
+    /* =====================================================================
+     * 设计说明
+     * 「看义选词」沿用「词义连连」的视觉语言，让两种玩法在同一 App 里观感统一：
+     *   1. 手机外框 414×844 / 统一 20px 两侧边距
+     *   2. 顶部 Header：左返回 / 中「x/50」进度 / 右倒计时
+     *   3. 淡边框卡片、选中蓝色高亮、正确绿 / 错误红 + 震动
+     *   4. 限时 60 秒，最后 10 秒呼吸红
+     *   5. 结果页沿用 2×2 统计矩阵
+     * 与「词义连连」的区别点（针对原界面不满意的优化）：
+     *   - 释义作为「题目」置顶居中大卡，突出阅读焦点
+     *   - 四个候选项带 A/B/C/D 徽标，扫视更快，误触更少
+     *   - 答错时自动显示正确答案并泛绿，辅助记忆（背词而非纯考验）
+     * ===================================================================== */
+    :root {
+      --app-px: 20px; /* 全局统一 20px 两侧边距 */
+    }
+
+    body {
+      background-color: #f1f5f9;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+    }
+
+    .mobile-screen {
+      width: 100%;
+      max-width: 414px;
+      height: 100vh;
+      max-height: 844px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-width: 576px) {
+      .mobile-screen {
+        border-radius: 28px;
+        height: 820px;
+      }
+    }
+
+    .app-padding-x {
+      padding-left: var(--app-px) !important;
+      padding-right: var(--app-px) !important;
+    }
+
+    /* 垂直轨道：主体在 Header 与底部之间垂直居中，呼吸舒适 */
+    .quiz-main {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* ============ 题目释义卡片 ============ */
+    .meaning-card {
+      background: linear-gradient(160deg, #ffffff 0%, #f7faff 100%);
+      border: 1px solid #e6e8ec;
+      border-radius: 16px;
+      padding: 24px 20px;
+      box-shadow: 0 4px 16px rgba(32, 107, 196, 0.06);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 释义卡左上角一枚小标签，点明这是「要选的词的意思」 */
+    .meaning-badge {
+      position: absolute;
+      top: 12px;
+      left: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--tblr-primary);
+      background: var(--tblr-primary-lt);
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.3px;
+    }
+
+    /* 释义正文：大字号、加粗、居中，作为唯一阅读焦点 */
+    .meaning-text {
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--tblr-body-color);
+      text-align: center;
+      margin: 26px 0 6px;
+      word-break: break-word;
+    }
+
+    /* 词性提示行：辅助判断，弱化呈现 */
+    .meaning-tag {
+      text-align: center;
+      font-size: 12px;
+      color: #8a93a2;
+      letter-spacing: 0.4px;
+    }
+    .meaning-tag .pos {
+      font-weight: 600;
+      color: var(--tblr-secondary);
+      background: #f0f2f5;
+      border-radius: 6px;
+      padding: 2px 8px;
+    }
+
+    /* 切换题目的淡入动效 */
+    .fade-switch {
+      animation: fadeIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============ 候选项卡片 ============ */
+    .option-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .option-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 56px;
+      padding: 10px 14px;
+      border: 1px solid #e6e8ec;
+      border-radius: 12px;
+      background: var(--tblr-bg-surface);
+      color: var(--tblr-body-color);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      text-align: left;
+      width: 100%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+
+    /* A/B/C/D 字母徽标，方便脑海定位，扫视更快 */
+    .option-letter {
+      flex-shrink: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: #f1f4f7;
+      border: 1px solid #e6e8ec;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: #667382;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .option-word {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--tblr-body-color);
+      line-height: 1.3;
+      word-break: break-word;
+      flex: 1;
+    }
+
+    /* 右侧结果图标（答对勾 / 答错叉）仅在判定后出现，避免抢视觉焦点 */
+    .option-state {
+      flex-shrink: 0;
+      font-size: 1.1rem;
+      opacity: 0;
+      transition: opacity 0.2s ease-out;
+    }
+
+    /* 选中态（悬停/点按瞬时反馈） */
+    .option-btn:hover {
+      border-color: #d5dae1;
+    }
+    .option-btn:active {
+      transform: scale(0.985);
+    }
+
+    /* 正确（自动高亮） */
+    .option-btn.correct {
+      border-color: var(--tblr-success);
+      background-color: var(--tblr-success-lt);
+    }
+    .option-btn.correct .option-letter {
+      background: var(--tblr-bg-surface);
+      border-color: var(--tblr-success);
+      color: var(--tblr-success);
+    }
+    .option-btn.correct .option-word {
+      color: var(--tblr-success);
+    }
+
+    /* 错误（用户误选） */
+    .option-btn.incorrect {
+      border-color: var(--tblr-danger);
+      background-color: var(--tblr-danger-lt);
+    }
+    .option-btn.incorrect .option-letter {
+      background: var(--tblr-danger-lt);
+      border-color: var(--tblr-danger);
+      color: var(--tblr-danger);
+    }
+    .option-btn.incorrect .option-word {
+      color: var(--tblr-danger);
+      text-decoration: line-through;
+    }
+
+    /* 判定后禁用再次点击 */
+    .option-btn.locked {
+      pointer-events: none;
+    }
+
+    /* 震动动效 */
+    .shake {
+      animation: shake 0.35s ease-in-out;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60%  { transform: translateX(-4px); }
+      40%, 80%  { transform: translateX(4px); }
+    }
+
+    /* 顶部反馈条：答对/答错的一句话提示 */
+    .feedback-bar {
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 16px;
+    }
+    .feedback-bar.ok  { color: var(--tblr-success); }
+    .feedback-bar.bad { color: var(--tblr-danger); }
+
+    /* 倒计时最后 10s 呼吸动效 */
+    .pulse-danger {
+      animation: pulseDanger 0.8s infinite;
+    }
+    @keyframes pulseDanger {
+      0%  { transform: scale(1);   opacity: 1; }
+      50% { transform: scale(1.06); opacity: 0.8; }
+      100%{ transform: scale(1);   opacity: 1; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="mobile-screen">
+
+    <!-- ==================== 页面 1：答题界面 ==================== -->
+    <div id="game-view" class="h-100 d-flex flex-column">
+
+      <!-- 1. 顶部 Header：左返回 / 中 5/50 / 右倒计时 -->
+      <header class="app-padding-x pt-3 pb-2 d-flex align-items-center justify-content-between">
+        <div style="flex: 1;" class="d-flex justify-content-start">
+          <a href="javascript:void(0);" class="text-body p-0 border-0 bg-transparent d-inline-flex align-items-center text-decoration-none" title="返回">
+            <i class="ti ti-chevron-left fs-1 lh-1"></i>
+          </a>
+        </div>
+        <div class="d-flex justify-content-center align-items-center">
+          <div class="fs-2 fw-bold text-primary font-monospace lh-1">
+            <span id="current-progress">0</span><span class="text-muted fw-normal fs-3"> / 50</span>
+          </div>
+        </div>
+        <div style="flex: 1;" class="d-flex justify-content-end align-items-center">
+          <span class="fw-bold font-monospace fs-3 text-secondary lh-1" id="time-text">01:00</span>
+        </div>
+      </header>
+
+      <!-- 2. 时间进度条 -->
+      <div class="app-padding-x pb-2">
+        <div class="progress progress-xs w-100 bg-light" style="height: 3px; border-radius: 2px;">
+          <div class="progress-bar bg-primary transition-all" id="time-bar" style="width: 100%;"></div>
+        </div>
+      </div>
+
+      <!-- 3. 主体：释义题目 + 四个候选项 -->
+      <main class="quiz-main flex-fill app-padding-x py-3">
+
+        <div id="quiz-stage"></div>
+
+      </main>
+    </div>
+
+    <!-- ==================== 页面 2：倒计时结束状态页 ==================== -->
+    <div id="result-view" class="h-100 d-flex flex-column justify-content-center py-4 d-none" style="padding-left: 40px; padding-right: 40px;">
+      <div class="w-100 d-flex flex-column gap-4">
+
+        <!-- 结算 Header -->
+        <div class="text-center">
+          <div class="avatar avatar-xl rounded-circle bg-orange-lt mb-3 mx-auto shadow-sm">
+            <i class="ti ti-clock-stop fs-1 text-orange"></i>
+          </div>
+          <h2 class="card-title fs-1 fw-bold mb-1">挑战结束</h2>
+          <p class="text-muted small mb-0">时间已耗尽！已为你结算本次训练</p>
+        </div>
+
+        <!-- 2×2 统计信息卡片矩阵 -->
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-check text-success me-1"></i>答对题数</div>
+              <div class="display-6 fw-bold text-success" id="stat-right-count">0</div>
+              <div class="text-muted text-xs">共作答 n 题</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-x text-danger me-1"></i>答错题数</div>
+              <div class="display-6 fw-bold text-danger" id="stat-wrong-count">0</div>
+              <div class="text-muted text-xs">失误 n 次</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-clock text-primary me-1"></i>剩余时间</div>
+              <div class="fs-1 fw-bold font-monospace text-primary pt-1" id="stat-remaining-time">00:00</div>
+              <div class="text-muted text-xs">限时 60 秒</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card card-sm bg-light-subtle text-center py-3 border">
+              <div class="text-muted small mb-1"><i class="ti ti-droplet-filled text-orange me-1"></i>最高连对</div>
+              <div class="display-6 fw-bold text-orange" id="stat-max-streak">0</div>
+              <div class="text-muted text-xs">连续正确次数</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部操作按钮 -->
+        <button type="button" class="btn btn-primary w-100 py-2 fs-3" onclick="restartGame()">
+          <i class="ti ti-rotate-clockwise me-1"></i>再挑战一次
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+
+  <script>
+    // ================= 词库数据 =================
+    // 每轮一题：q 为题干的释义，ans 为正确单词，distract 为 3 个干扰词。
+    const wordRounds = [
+      { q: "同时地；一齐；同步发生",        pos: "adv.", ans: "simultaneously",    distract: ["prestigiously", "conventionally", "deliberately"] },
+      { q: "适得其反；产生相反效果",        pos: "adj.", ans: "counterproductive", distract: ["disproportionate", "comprehensive", "perpendicular"] },
+      { q: "史无前例的；空前绝后的",        pos: "adj.", ans: "unprecedented",     distract: ["indispensable", "controversial", "sophisticated"] },
+      { q: "不成比例的；极不相称的",        pos: "adj.", ans: "disproportionate",  distract: ["extraordinary", "circumflex", "substandard"] },
+      { q: "区别；辨别；显出特色",          pos: "v.",   ans: "distinguish",       distract: ["disguise", "extinguish", "convince"] },
+      { q: "获得；购得；学到手",            pos: "v.",   ans: "acquire",           distract: ["inquire", "require", "enquire"] },
+      { q: "产生；屈服；出产",              pos: "v.",   ans: "yield",             distract: ["shield", "field", "wield"] },
+      { q: "简短的；短暂的",                pos: "adj.", ans: "brief",             distract: ["thief", "grief", "chief"] },
+      { q: "不可理解性；极度晦涩难懂",      pos: "n.",   ans: "incomprehensibility", distract: ["hypersensitivity", "infrastructure", "intersection"] },
+      { q: "心电图（记录心脏电活动）",      pos: "n.",   ans: "electrocardiogram", distract: ["chronometer", "telegram", "odometer"] }
+    ];
+
+    const TOTAL_TARGET = 50;
+    const TOTAL_TIME   = 60;
+
+    // ================= 游戏状态 =================
+    let currentIdx = 0;        // 当前第几题
+    let rightCount = 0;        // 累计答对
+    let wrongCount = 0;        // 累计答错
+    let currentStreak = 0;     // 当前连续答对
+    let maxStreak = 0;         // 最高连续答对
+    let timeLeft = TOTAL_TIME;
+    let timerInterval = null;
+    let isProcessing = false;  // 防止一题判定期间连点
+
+    // ================= 工具函数 =================
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function formatSeconds(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // ================= 计时器 =================
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = TOTAL_TIME;
+      updateTimerUI();
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerUI();
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          finishGame();
+        }
+      }, 1000);
+    }
+
+    function updateTimerUI() {
+      const timeText = document.getElementById("time-text");
+      const timeBar  = document.getElementById("time-bar");
+      timeText.innerText = formatSeconds(timeLeft);
+
+      const percent = (timeLeft / TOTAL_TIME) * 100;
+      timeBar.style.width = `${percent}%`;
+
+      if (timeLeft <= 10) {
+        timeText.className = "fw-bold font-monospace fs-3 text-danger pulse-danger lh-1";
+        timeBar.className = "progress-bar bg-danger transition-all";
+      } else {
+        timeText.className = "fw-bold font-monospace fs-3 text-secondary lh-1";
+        timeBar.className = "progress-bar bg-primary transition-all";
+      }
+    }
+
+    // ================= 渲染单题 =================
+    function renderQuestion(idx) {
+      const data = wordRounds[idx % wordRounds.length];
+      const stage = document.getElementById("quiz-stage");
+
+      isProcessing = false;
+
+      // 三个干扰词 + 正确答案，一起打乱排列
+      const options = shuffle([data.ans, ...data.distract]);
+      const letters = ["A", "B", "C", "D"];
+
+      stage.classList.remove("fade-switch");
+      void stage.offsetWidth; // 强制重排以重放动画
+      stage.classList.add("fade-switch");
+
+      stage.innerHTML = `
+        <!-- 题目释义卡 -->
+        <div class="meaning-card">
+          <span class="meaning-badge">
+            <i class="ti ti-language"></i>看义选词
+          </span>
+          <div class="meaning-text">${data.q}</div>
+          <div class="meaning-tag"><span class="pos">${data.pos}</span></div>
+        </div>
+
+        <!-- 四个候选项 -->
+        <div class="option-list">
+          ${options.map((opt, i) => `
+            <button type="button" class="option-btn" data-word="${opt}">
+              <span class="option-letter">${letters[i]}</span>
+              <span class="option-word">${opt}</span>
+              <i class="ti ti-check option-state text-success" style="display:none"></i>
+              <i class="ti ti-x option-state text-danger" style="display:none"></i>
+            </button>
+          `).join("")}
+        </div>
+
+        <!-- 反馈条 -->
+        <div class="feedback-bar" id="feedback-bar"></div>
+      `;
+
+      // 绑定点击
+      stage.querySelectorAll(".option-btn").forEach(btn => {
+        btn.addEventListener("click", () => onPick(btn, data));
+      });
+
+      updateProgress();
+    }
+
+    // ================= 点击判定 =================
+    function onPick(clickedBtn, data) {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      // 锁定全部按钮，防抢点
+      const allBtns = document.querySelectorAll(".option-btn");
+      allBtns.forEach(b => b.classList.add("locked"));
+
+      const picked   = clickedBtn.dataset.word;
+      const isRight  = picked === data.ans;
+      const feedback = document.getElementById("feedback-bar");
+
+      // 先处理当前题目已作答，推进进度计数
+      document.getElementById("current-progress").innerText = currentIdx + 1;
+
+      if (isRight) {
+        clickedBtn.classList.add("correct");
+        clickedBtn.querySelector(".ti-check").style.display = "block";
+        clickedBtn.querySelector(".ti-check").style.opacity = 1;
+        rightCount++;
+        currentStreak++;
+        maxStreak = Math.max(maxStreak, currentStreak);
+        feedback.className = "feedback-bar ok";
+        feedback.innerHTML = `<i class="ti ti-check me-1"></i>答对了，继续保持！`;
+      } else {
+        // 误选：震一下，并标红
+        clickedBtn.classList.add("incorrect", "shake");
+        clickedBtn.querySelector(".ti-x").style.display = "block";
+        clickedBtn.querySelector(".ti-x").style.opacity = 1;
+        wrongCount++;
+        currentStreak = 0;
+        feedback.className = "feedback-bar bad";
+        feedback.innerHTML = `<i class="ti ti-x me-1"></i>再想想，答案帮你标出来了`;
+
+        // 自动标出正确答案（辅助记忆）
+        document.querySelectorAll(".option-btn").forEach(b => {
+          if (b.dataset.word === data.ans) {
+            b.classList.add("correct");
+            b.querySelector(".ti-check").style.display = "block";
+            b.querySelector(".ti-check").style.opacity = 1;
+          }
+        });
+      }
+
+      // 短暂停留后进入下一题
+      setTimeout(() => {
+        currentIdx++;
+        if (currentIdx >= TOTAL_TARGET) {
+          finishGame();
+          return;
+        }
+        renderQuestion(currentIdx);
+      }, 850);
+    }
+
+    // 更新顶部进度（渲染新题时调用）
+    function updateProgress() {
+      document.getElementById("current-progress").innerText = currentIdx;
+    }
+
+    // ================= 结算 =================
+    function finishGame() {
+      clearInterval(timerInterval);
+      document.getElementById("game-view").classList.add("d-none");
+      document.getElementById("result-view").classList.remove("d-none");
+
+      const answered = rightCount + wrongCount;
+      document.getElementById("stat-right-count").innerText = rightCount;
+      document.getElementById("stat-wrong-count").innerText = wrongCount;
+      document.getElementById("stat-remaining-time").innerText = formatSeconds(timeLeft);
+
+      // 更新统计脚注小字说明
+      document.querySelector("#result-view .col-6:nth-child(1) small:last-child") &&
+        (document.querySelector("#result-view .col-6:nth-child(1) small:last-child").innerText = `共作答 ${answered} 题`);
+      document.querySelector("#result-view .col-6:nth-child(2) small:last-child") &&
+        (document.querySelector("#result-view .col-6:nth-child(2) small:last-child").innerText = `失误 ${wrongCount} 次`);
+      document.getElementById("stat-max-streak").innerText = maxStreak;
+    }
+
+    // ================= 重新开始 =================
+    function restartGame() {
+      document.getElementById("result-view").classList.add("d-none");
+      document.getElementById("game-view").classList.remove("d-none");
+
+      // 完全重置
+      currentIdx = 0;
+      rightCount = 0;
+      wrongCount = 0;
+      currentStreak = 0;
+      maxStreak = 0;
+
+      renderQuestion(0);
+      startTimer();
+    }
+
+    // ================= 启动 =================
+    renderQuestion(0);
+    startTimer();
+  </script>
+</body>
+</html>
