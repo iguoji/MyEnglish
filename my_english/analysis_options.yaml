@@ -1,1 +1,10 @@
 include: package:flutter_lints/flutter.yaml
+
+# 仓库根目录的 memory/ 是思路、构思与临时文件的统一归档目录，
+# 里面会存放一些不再参与 App 编译的 Dart 源码（例如聊天界面演示页）。
+# 这些文件位于本 package 之外，import 'package:my_english/...' 无法解析，
+# 如果不排除，IDE 与静态检查会对这些纯参考资料报满屏错误。
+# 排除后它们只作为样式蓝本保留，需要复用时手动拷回 lib/ 即可。
+analyzer:
+  exclude:
+    - ../memory/**

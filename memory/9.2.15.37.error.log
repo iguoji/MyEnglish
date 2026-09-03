@@ -1,0 +1,258 @@
+
+Restarted application in 7,022ms.
+D/WindowOnBackDispatcher(15333): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@d6f90eb
+D/WindowOnBackDispatcher(15333): setOnBackInvokedCallbackInfo: android.app.Activity$$ExternalSyntheticLambda0@d6f90eb
+W/mple.my_english(15333): Reducing the number of considered missed Gc histogram windows from 125 to 100
+D/WindowOnBackDispatcher(15333): setTopOnBackInvokedCallback (unwrapped): io.flutter.embedding.android.FlutterActivity$1@ad23137
+D/WindowOnBackDispatcher(15333): setOnBackInvokedCallbackInfo: io.flutter.embedding.android.FlutterActivity$1@ad23137
+I/mple.my_english(15333): Background concurrent mark compact GC freed 336KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 5828KB/11MB, paused 3.959ms,6.429ms total 45.087ms
+V/MediaPlayer(15333): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer(15333): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer(15333): mediaplayer went away with unhandled events
+V/MediaPlayer(15333): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer(15333): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer(15333): mediaplayer went away with unhandled events
+V/MediaPlayer(15333): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer(15333): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/WindowOnBackDispatcher(15333): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@d6f90eb
+D/WindowOnBackDispatcher(15333): setOnBackInvokedCallbackInfo: android.app.Activity$$ExternalSyntheticLambda0@d6f90eb
+D/WindowOnBackDispatcher(15333): setTopOnBackInvokedCallback (unwrapped): io.flutter.embedding.android.FlutterActivity$1@ad23137
+D/WindowOnBackDispatcher(15333): setOnBackInvokedCallbackInfo: io.flutter.embedding.android.FlutterActivity$1@ad23137
+V/MediaPlayer(15333): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer(15333): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer(15333): mediaplayer went away with unhandled events
+V/MediaPlayer(15333): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer(15333): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer(15333): mediaplayer went away with unhandled events
+V/MediaPlayer(15333): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer(15333): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer(15333): mediaplayer went away with unhandled events
+
+════════ Exception caught by rendering library ═════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 43 pixels on the bottom.
+
+The relevant error-causing widget was:
+    Column-[<'development-chat'>] Column:file:///Users/iguoji/Desktop/Learn/MyEnglish/my_english/lib/pages/development/development_page.dart:739:12
+
+: To inspect this widget in Flutter DevTools, visit: http://127.0.0.1:9100/#/inspector?uri=http%3A%2F%2F127.0.0.1%3A53249%2FUmNkc1bx1Uc%3D%2F&inspectorRef=inspector-1124
+
+The overflowing RenderFlex has an orientation of Axis.vertical.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be seen. If the content is legitimately bigger than the available space, consider clipping it with a ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex, like a ListView.
+The specific RenderFlex in question is: RenderFlex#ad39e relayoutBoundary=up3 OVERFLOWING
+    needs compositing
+    parentData: offset=Offset(0.0, 66.0); flex=1; fit=FlexFit.tight (can use size)
+    constraints: BoxConstraints(0.0<=w<=411.4, h=621.3)
+    size: Size(411.4, 621.3)
+    direction: vertical
+    mainAxisAlignment: start
+    mainAxisSize: max
+    crossAxisAlignment: stretch
+    verticalDirection: down
+    spacing: 0.0
+    child 1: RenderClipRect#dc1e1
+        needs compositing
+        parentData: offset=Offset(0.0, 0.0); flex=1; fit=FlexFit.tight (can use size)
+        constraints: BoxConstraints(w=411.4, h=0.0)
+        size: Size(411.4, 0.0)
+        child: _ImageFilterRenderObject#e0de1
+            needs compositing
+            parentData: <none> (can use size)
+            constraints: BoxConstraints(w=411.4, h=0.0)
+            size: Size(411.4, 0.0)
+            child: RenderCustomPaint#c8e93
+                needs compositing
+                parentData: <none> (can use size)
+                constraints: BoxConstraints(w=411.4, h=0.0)
+                size: Size(411.4, 0.0)
+                painter: null
+                child: _RenderScrollSemantics#c2e7f
+                    needs compositing
+                    parentData: <none> (can use size)
+                    constraints: BoxConstraints(w=411.4, h=0.0)
+                    semantic boundary
+                    size: Size(411.4, 0.0)
+    child 2: RenderPadding#71edd relayoutBoundary=up4
+        needs compositing
+        parentData: offset=Offset(0.0, 0.0); flex=null; fit=null (can use size)
+        constraints: BoxConstraints(w=411.4, 0.0<=h<=Infinity)
+        size: Size(411.4, 664.0)
+        padding: EdgeInsets(20.0, 14.0, 20.0, 20.0)
+        textDirection: ltr
+        child: RenderFlex#e4a08 relayoutBoundary=up5
+            needs compositing
+            parentData: offset=Offset(20.0, 14.0) (can use size)
+            constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+            size: Size(371.4, 630.0)
+            direction: vertical
+            mainAxisAlignment: start
+            mainAxisSize: min
+            crossAxisAlignment: stretch
+            verticalDirection: down
+            spacing: 0.0
+            child 1: RenderPositionedBox#cd5d9 relayoutBoundary=up6
+                needs compositing
+                parentData: offset=Offset(0.0, 0.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 150.0)
+                alignment: Alignment.centerLeft
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderConstrainedBox#88960 relayoutBoundary=up7
+                    needs compositing
+                    parentData: offset=Offset(0.0, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(371.4, 150.0)
+                    additionalConstraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+            child 2: RenderConstrainedBox#b57eb relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 150.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 3: RenderPositionedBox#940ef relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 164.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderSemanticsGestureHandler#3c8c0 relayoutBoundary=up7
+                    parentData: offset=Offset(312.4, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(59.0, 46.0)
+                    behavior: opaque
+                    gestures: tap
+            child 4: RenderConstrainedBox#4260d relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 210.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 5: RenderPositionedBox#2f3a5 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 224.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderConstrainedBox#4ae9a relayoutBoundary=up7
+                    parentData: offset=Offset(296.1, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(75.3, 46.0)
+                    additionalConstraints: BoxConstraints(0.0<=w<=304.6, 0.0<=h<=Infinity)
+            child 6: RenderConstrainedBox#89fed relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 270.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 7: RenderPositionedBox#5864b relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 284.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderSemanticsGestureHandler#66203 relayoutBoundary=up7
+                    parentData: offset=Offset(299.7, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(71.8, 46.0)
+                    behavior: opaque
+                    gestures: tap
+            child 8: RenderConstrainedBox#a4f8d relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 330.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 9: RenderPositionedBox#14dc4 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 344.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderConstrainedBox#2e0e3 relayoutBoundary=up7
+                    parentData: offset=Offset(254.1, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(117.3, 46.0)
+                    additionalConstraints: BoxConstraints(0.0<=w<=304.6, 0.0<=h<=Infinity)
+            child 10: RenderConstrainedBox#59575 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 390.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 11: RenderPositionedBox#4e06c relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 404.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderSemanticsGestureHandler#c7438 relayoutBoundary=up7
+                    parentData: offset=Offset(314.9, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(56.5, 46.0)
+                    behavior: opaque
+                    gestures: tap
+            child 12: RenderConstrainedBox#d1451 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 450.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 13: RenderPositionedBox#ac298 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 464.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderConstrainedBox#92dcb relayoutBoundary=up7
+                    parentData: offset=Offset(254.1, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(117.3, 46.0)
+                    additionalConstraints: BoxConstraints(0.0<=w<=304.6, 0.0<=h<=Infinity)
+            child 14: RenderConstrainedBox#32ee6 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 510.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 15: RenderPositionedBox#ce7a0 relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 524.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderConstrainedBox#e4669 relayoutBoundary=up7
+                    parentData: offset=Offset(314.9, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(56.5, 46.0)
+                    additionalConstraints: BoxConstraints(0.0<=w<=304.6, 0.0<=h<=Infinity)
+            child 16: RenderConstrainedBox#fda3a relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 570.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 14.0)
+                additionalConstraints: BoxConstraints(0.0<=w<=Infinity, h=14.0)
+            child 17: RenderPositionedBox#1b63f relayoutBoundary=up6
+                parentData: offset=Offset(0.0, 584.0); flex=null; fit=null (can use size)
+                constraints: BoxConstraints(w=371.4, 0.0<=h<=Infinity)
+                size: Size(371.4, 46.0)
+                alignment: Alignment.centerRight
+                textDirection: ltr
+                widthFactor: expand
+                heightFactor: expand
+                child: RenderConstrainedBox#daf8a relayoutBoundary=up7
+                    parentData: offset=Offset(259.4, 0.0) (can use size)
+                    constraints: BoxConstraints(0.0<=w<=371.4, 0.0<=h<=Infinity)
+                    size: Size(112.0, 46.0)
+                    additionalConstraints: BoxConstraints(0.0<=w<=304.6, 0.0<=h<=Infinity)
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════

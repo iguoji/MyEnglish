@@ -1,0 +1,1765 @@
+<!doctype html>
+<html lang="zh-CN" data-page-node-id="lCdXaKkxhT0OEy4EbPngCg">
+<head data-page-node-id="ypHfaoTadE7USm425LacBT">
+    <meta charset="utf-8" data-page-node-id="iSBoGQFOyJRyFpulAeKpJA">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" data-page-node-id="ulcn1BV4VCf5LEW16Vk5iR">
+    <title>WordFlow V14 系统消息与时间分隔</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css" data-page-node-id="pOarMqdIMo1bC98NsyisKe">
+    <!-- 图标不再依赖 CDN 的 tabler-icons 字体：断网或被墙时字体会加载失败、图标全变空白。
+         改为把用到的图标以 <symbol> 内嵌在页面里，用 <svg class="ti"><use></svg> 引用，永远显示得出来。 -->
+    <style>
+        :root {
+            --blue: #206bc4;
+            --blue-lt: #e9f2ff;
+            --green: #2fb344;
+            --green-lt: #eaf8ed;
+            --yellow: #f59f00;
+            --yellow-lt: #fff5d6;
+            --red: #d63939;
+            --red-lt: #fceaea;
+            --line: #e3e8ef;
+            --ink: #182433;
+            --muted: #667382;
+            --page: #f4f6fa;
+            --space: 20px
+        }
+        /* ====== Tabler 图标：内联 SVG，不依赖网络字体 ======
+           图标随文字颜色（currentColor）变化，尺寸跟着 font-size 走（1em 见方）。 */
+        .ti {
+            width: 1em;
+            height: 1em;
+            display: inline-block;
+            /* 让图标和文字的基线对齐，不然图标会比文字高一截 */
+            vertical-align: -.125em;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round
+        }
+        /* 实心图标（如 circle-check-filled）走填充而不是描边 */
+        .ti.filled {
+            fill: currentColor;
+            stroke: none
+        }
+        /* 装 <symbol> 的精灵容器本身不能占地方 */
+        .icon-sprite {
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: hidden
+        }
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent
+        }
+        html,
+        body {
+            height: 100%;
+            margin: 0
+        }
+        body {
+            overflow: hidden;
+            background: #e8edf4;
+            color: var(--ink);
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
+        }
+        button,
+        input,
+        textarea,
+        select {
+            font: inherit
+        }
+        .workspace {
+            height: 100dvh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px
+        }
+        .composer {
+            width: 350px;
+            height: calc(100dvh - 40px);
+            padding: 20px;
+            overflow: auto;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: 0 12px 32px #18243312
+        }
+        .composer h2 {
+            margin: 0 0 14px;
+            font-size: 18px
+        }
+        .tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            padding: 4px;
+            border-radius: 11px;
+            background: #f0f3f7
+        }
+        .tab {
+            height: 36px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #657185;
+            font-size: 13px;
+            font-weight: 750
+        }
+        .tab.active {
+            background: #fff;
+            color: var(--blue);
+            box-shadow: 0 1px 4px #18243318
+        }
+        .label {
+            margin: 18px 0 7px;
+            color: #526176;
+            font-size: 12px;
+            font-weight: 800
+        }
+        .type-grid,
+        .tone-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 7px
+        }
+        .type-btn,
+        .tone-btn {
+            height: 38px;
+            border: 1px solid #dce3ec;
+            border-radius: 9px;
+            background: #fff;
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700
+        }
+        .type-btn.active,
+        .tone-btn.active {
+            border-color: var(--blue);
+            background: var(--blue-lt);
+            color: var(--blue)
+        }
+        textarea,
+        .select {
+            width: 100%;
+            border: 1px solid #dce3ec;
+            border-radius: 10px;
+            background: #fff;
+            color: #334155;
+            font-size: 13px
+        }
+        .text-input {
+            height: 76px;
+            padding: 10px;
+            resize: vertical
+        }
+        .select {
+            height: 40px;
+            padding: 0 9px
+        }
+        .word-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 7px
+        }
+        .word-btn {
+            height: 38px;
+            border: 1px solid #dce3ec;
+            border-radius: 9px;
+            background: #fff;
+            font-size: 12px;
+            font-weight: 750
+        }
+        .word-btn.active {
+            border-color: var(--blue);
+            background: var(--blue-lt);
+            color: var(--blue)
+        }
+        .meanings {
+            display: flex;
+            flex-direction: column;
+            gap: 6px
+        }
+        .meaning {
+            min-height: 36px;
+            padding: 6px 8px;
+            border: 1px solid #e1e6ed;
+            border-radius: 9px;
+            display: grid;
+            grid-template-columns: 17px 35px 1fr;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px
+        }
+        .meaning input {
+            width: 15px;
+            height: 15px;
+            accent-color: var(--blue)
+        }
+        .pos {
+            color: var(--blue);
+            font-weight: 800
+        }
+        .send-control {
+            width: 100%;
+            height: 44px;
+            margin-top: 18px;
+            border: 0;
+            border-radius: 11px;
+            background: var(--blue);
+            color: #fff;
+            font-weight: 800
+        }
+        .send-control:disabled {
+            background: #c9d2dc
+        }
+        .hint-note {
+            margin-top: 9px;
+            padding: 9px;
+            border-radius: 9px;
+            background: #f5f7fa;
+            color: #748196;
+            font-size: 11px;
+            line-height: 17px
+        }
+        .hidden {
+            display: none !important
+        }
+        .phone {
+            width: 430px;
+            height: calc(100dvh - 40px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--page);
+            border-radius: 26px;
+            box-shadow: 0 16px 46px #18243322
+        }
+        .topbar {
+            height: 64px;
+            flex: none;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 76px 1fr 76px;
+            align-items: center;
+            background: #fff
+        }
+        .back {
+            width: 76px;
+            padding: 0;
+            border: 0;
+            background: none;
+            text-align: left;
+            color: #334155;
+            font-size: 23px
+        }
+        .counter {
+            text-align: center;
+            font-weight: 800
+        }
+        .counter span {
+            color: #8b98aa
+        }
+        .timer {
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums
+        }
+        .track {
+            height: 4px;
+            flex: none;
+            background: #e8edf3
+        }
+        .fill {
+            height: 100%;
+            width: 0;
+            background: var(--blue);
+            transition: .3s
+        }
+        .chat {
+            flex: 1;
+            min-height: 0;
+            padding: 20px;
+            overflow: auto
+        }
+        .empty {
+            height: 100%;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            color: #8995a5
+        }
+        /* 空状态里的大图标：字号即尺寸（.ti 是 1em 见方） */
+        .empty .ti {
+            display: block;
+            margin: 0 auto 8px;
+            font-size: 32px
+        }
+        /* 发送按钮里的图标：原来靠 tabler 的 me-1 撑开间距，这里自己给 */
+        .send-control .ti {
+            margin-right: 6px
+        }
+        .message {
+            /* 纵向排列：气泡本身自成一行，列布局便于将来在气泡下方挂附加行 */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 14px
+        }
+        .message.user {
+            align-items: flex-end
+        }
+        /* 系统消息：没有气泡，一行居中的小灰字（微信里的"时间/系统提示"同款）。
+           既支持手动发送，也会在"消息间隔超过 1 分钟"时自动插入一条当前时间 */
+        .message.system {
+            align-items: center
+        }
+        .message.system .system-msg {
+            font-size: 11px;
+            color: #8a98ab;
+            line-height: 1.4;
+            text-align: center
+        }
+        .bubble {
+            position: relative;
+            /* 光晕三件套：主色 / 播放时描边 / 播放时外圈。
+               下面按消息配色（正常/提醒/警告/错误）分别覆盖，默认这套是蓝色，别动。 */
+            --glow: #206bc4;
+            --glow-line: #6da6df;
+            --glow-ring: #206bc418;
+            /* 语音圆点的颜色，跟着消息配色一起变 */
+            --dot: #9bbce0;
+            min-height: 46px;
+            max-width: 82%;
+            padding: 11px 13px;
+            border: 1px solid var(--line);
+            border-radius: 15px 15px 15px 3px;
+            background: #fff;
+            box-shadow: 0 3px 10px #1824330b;
+            font-size: 15px;
+            line-height: 22px
+        }
+        .user .bubble {
+            border-radius: 15px 15px 3px 15px;
+            border-color: var(--blue);
+            background: var(--blue);
+            color: #fff
+        }
+        /* 用户侧消息：所有配色统一为"实色底 + 白字"，与默认蓝气泡同形式。
+           系统/文字消息的 tone 是浅底深字，用户侧不沿用那套（否则 normal 是实色蓝、
+           info/warning/danger 却变浅底深字，形式不一致）。
+           .user .bubble.tone-* 特异性更高，会盖过下方 .bubble.tone-* 的浅色设定。 */
+        .user .bubble.tone-info    { background: #1c7ed6; border-color: #1c7ed6; color: #fff }
+        .user .bubble.tone-warning { background: #e8590c; border-color: #e8590c; color: #fff }
+        .user .bubble.tone-danger  { background: #e03131; border-color: #e03131; color: #fff }
+        /* 用户侧"答对"消息：白底圆 + 绿色对勾，居右 */
+        .msg-checked { display: flex; align-items: center; gap: 6px }
+        .msg-check { margin-left: auto; width: 19px; height: 19px; flex: none }
+        /* 提醒：天蓝（比默认的深蓝亮一档，同色系但不撞车） */
+        .bubble.tone-info {
+            --glow: #4299e1;
+            /* 描边压深一档，否则在浅蓝底上看不出"在播放" */
+            --glow-line: #1c7ed6;
+            --glow-ring: #1c7ed624;
+            --dot: #8dc4ec;
+            border-color: #b8d5f3;
+            background: var(--blue-lt);
+            color: #185799
+        }
+        /* 警告：橙黄，和黄色底一对 */
+        .bubble.tone-warning {
+            --glow: #f59f00;
+            --glow-line: #d97706;
+            --glow-ring: #d9770628;
+            --dot: #eec269;
+            border-color: #f2d088;
+            background: var(--yellow-lt);
+            color: #8a5b00
+        }
+        /* 错误：红色，和红色底一对 */
+        .bubble.tone-danger {
+            --glow: #d63939;
+            --glow-line: #c92a2a;
+            --glow-ring: #c92a2a28;
+            --dot: #e59b9b;
+            border-color: #efb5b5;
+            background: var(--red-lt);
+            color: #a92c2c
+        }
+        .voice-bubble {
+            width: 190px;
+            height: 46px;
+            padding: 0 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer
+        }
+        .voice-icon {
+            width: 23px;
+            height: 23px;
+            flex: none;
+            /* 喇叭颜色跟着消息配色走（正常蓝 / 提醒天蓝 / 警告橙黄 / 错误红） */
+            color: var(--glow)
+        }
+        .voice-dots {
+            display: flex;
+            align-items: center;
+            gap: 4px
+        }
+        .voice-dots i {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--dot)
+        }
+        /* 播放时的光晕：颜色由 --glow-line / --glow-ring 决定，随消息配色变 */
+        .voice-bubble.playing {
+            border-color: var(--glow-line) !important;
+            box-shadow: 0 0 0 3px var(--glow-ring) !important
+        }
+        /* 播放时：两条弧线由内向外依次亮起、再依次熄灭，像水波一圈圈荡出去 */
+        .voice-bubble.playing .sound-wave {
+            animation: soundWave .96s ease-in-out infinite backwards;
+            /* 每条弧线错开一点时间：第二条比第一条晚 0.14 秒，形成"依次"的感觉 */
+            animation-delay: calc(var(--w, 0)*.14s);
+            /* 以喇叭口为原点缩放，看起来像声音是从喇叭里推出来的 */
+            transform-origin: 10px 12px
+        }
+        /* 右侧圆点：只做轻微呼吸，放大量控制在 1.25 倍以内，避免显得笨重 */
+        .voice-bubble.playing .voice-dots i {
+            animation: dot .72s ease-in-out infinite;
+            animation-delay: calc(var(--i)*75ms)
+        }
+        @keyframes soundWave {
+            /* 未轮到自己时：暗一点、缩一点（相当于"隐藏"） */
+            0%,
+            14% {
+                opacity: .22;
+                transform: scale(.9)
+            }
+            /* 轮到自己时：完全点亮（相当于"显示"） */
+            30%,
+            52% {
+                opacity: 1;
+                transform: scale(1)
+            }
+            /* 亮完再暗回去，等下一轮 */
+            68%,
+            100% {
+                opacity: .22;
+                transform: scale(.9)
+            }
+        }
+        @keyframes dot {
+            50% {
+                transform: scale(1.25);
+                background: var(--blue)
+            }
+        }
+        .quiz-bubble {
+            position: relative;
+            /* 确保光晕伪元素定位正确 */
+            width: 190px;
+            min-width: 190px;
+            max-width: 100%;
+            padding: 11px 13px;
+            transition: width .3s cubic-bezier(.16, 1, .3, 1), max-width .3s ease
+        }
+        .quiz-bubble:has(.meaning-results:not(.hidden)) {
+            width: 100%
+        }
+        .quiz-top {
+            height: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer
+        }
+        .quiz-slots {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap
+        }
+        .slot {
+            position: relative;
+            width: 5px;
+            height: 20px;
+            flex: 0 0 5px;
+            display: grid;
+            place-items: center;
+            color: #334155;
+            font-size: 15px;
+            font-weight: 800
+        }
+        /* 新字母落位：格子先从圆点的宽度撑到字母宽度。
+           注意这里必须用 animation 而不是 transition —— 每次按键都会重建整个槽位，
+           新插入的元素不会触发 transition，写了也是白写。 */
+        .slot.is-new {
+            animation: slotGrow .26s cubic-bezier(.16, 1, .3, 1) both
+        }
+        /* 落位瞬间的一圈柔光，只闪一次就散掉（替代原来两层重影式的回声） */
+        .slot.is-new:before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 16px;
+            height: 16px;
+            margin: -8px 0 0 -8px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #206bc43d, #206bc400 70%);
+            animation: letterHalo .42s ease-out both;
+            pointer-events: none
+        }
+        .slot.dot:after {
+            content: "";
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #9bbce0;
+            box-shadow: 0 0 0 0 #206bc400
+        }
+        .slot.letter {
+            width: 13px;
+            flex-basis: 13px
+        }
+        .letter-static {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: var(--blue);
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1;
+            text-shadow: 0 0 8px rgba(32, 107, 196, .22)
+        }
+        /* 被顶掉的那个圆点：缩小淡出，保证"点 → 字"的画面不断档 */
+        .ghost-dot {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 5px;
+            height: 5px;
+            margin: -2.5px 0 0 -2.5px;
+            border-radius: 50%;
+            background: #9bbce0;
+            pointer-events: none
+        }
+        .letter-layer {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: var(--blue);
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1;
+            /* 与静止字母保持完全一致，动画结束时不会有"跳一下"的感觉 */
+            text-shadow: 0 0 8px rgba(32, 107, 196, .22);
+            transform-origin: center;
+            pointer-events: none
+        }
+        /* 字母本体：从圆点大小"抽芽"长出来，末尾带一点回弹 */
+        .slot.is-new .letter-layer {
+            animation: letterPop .34s cubic-bezier(.2, .9, .25, 1) both
+        }
+        .slot.is-new .ghost-dot {
+            animation: ghostDot .2s ease-out both
+        }
+        /* 错误重置：字母已经在离场，圆点要重新"入场"（依次淡入 + 轻微放大） */
+        .quiz-slots.dots-back .slot.dot:after {
+            animation: dotBack .26s ease-out both;
+            animation-delay: calc(var(--i)*40ms)
+        }
+        .slot.resetting {
+            animation: dataOut .22s ease forwards
+        }
+        @keyframes slotGrow {
+            from {
+                width: 5px;
+                flex-basis: 5px
+            }
+            to {
+                width: 13px;
+                flex-basis: 13px
+            }
+        }
+        @keyframes letterHalo {
+            from {
+                opacity: 1;
+                transform: scale(.45)
+            }
+            to {
+                opacity: 0;
+                transform: scale(1.45)
+            }
+        }
+        @keyframes letterPop {
+            0% {
+                opacity: .5;
+                transform: scale(.4);
+                filter: blur(1.5px)
+            }
+            45% {
+                opacity: 1;
+                transform: scale(1.06);
+                filter: blur(0)
+            }
+            72% {
+                transform: scale(.98)
+            }
+            100% {
+                transform: scale(1);
+                filter: none
+            }
+        }
+        @keyframes ghostDot {
+            to {
+                opacity: 0;
+                transform: scale(.4)
+            }
+        }
+        /* 拼对以后：圆点和字母全部撤掉，换成一个完整的蓝色单词。
+           颜色和字号与"圆点被替换成字母"时保持一致，区别只是连成一整个词、不再一个个隔开。 */
+        .solved-word {
+            color: var(--blue);
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1;
+            text-shadow: 0 0 8px rgba(32, 107, 196, .22);
+            white-space: nowrap;
+            animation: solvedWord .36s cubic-bezier(.16, 1, .3, 1) both
+        }
+        /* 出场时字距从圆点的间距往里收，看上去像散着的字母"聚拢"成一个词 */
+        @keyframes solvedWord {
+            from {
+                opacity: 0;
+                letter-spacing: 5px;
+                filter: blur(2px)
+            }
+            to {
+                opacity: 1;
+                letter-spacing: 0;
+                filter: blur(0)
+            }
+        }
+        @keyframes dotBack {
+            from {
+                opacity: 0;
+                transform: scale(.4)
+            }
+            to {
+                opacity: 1;
+                transform: scale(1)
+            }
+        }
+        @keyframes dataOut {
+            to {
+                opacity: 0;
+                filter: blur(4px);
+                transform: translateY(-6px) scale(.5)
+            }
+        }
+        /* 播放时的光晕：与语音消息共用同一套变量 */
+        .quiz-bubble.playing {
+            border-color: var(--glow-line) !important;
+            box-shadow: 0 0 0 3px var(--glow-ring) !important;
+            transition: border-color .18s ease, box-shadow .18s ease
+        }
+        /* 与语音消息共用同一套"弧线依次点亮"动画 */
+        .quiz-bubble.playing .sound-wave {
+            animation: soundWave .96s ease-in-out infinite backwards;
+            animation-delay: calc(var(--w, 0)*.14s);
+            transform-origin: 10px 12px
+        }
+        .quiz-bubble.playing .slot.dot:after {
+            animation: dot .72s ease-in-out infinite;
+            animation-delay: calc(var(--i)*60ms)
+        }
+        @keyframes reveal {
+            from {
+                opacity: 0;
+                transform: translateY(6px) scale(.65)
+            }
+        }
+        /* ====== 拼写错误：整条消息切到"错误级别"的光晕 ======
+           直接复用"错误"配色那一套值（与 .bubble.tone-danger 完全一致），
+           所以错误光晕和红色系消息的播放光晕是同一个颜色等级。 */
+        .quiz-bubble.wrong {
+            --glow-line: #c92a2a;
+            --glow-ring: #c92a2a28;
+            border-color: var(--glow-line) !important;
+            box-shadow: 0 0 0 3px var(--glow-ring) !important;
+            animation: shake .3s ease
+        }
+        /* 一圈红光从消息边缘向外扩散一次，用来强调"这条错了" */
+        .quiz-bubble.wrong:after {
+            content: "";
+            position: absolute;
+            inset: -1px;
+            border-radius: inherit;
+            border: 2px solid var(--red);
+            animation: wrongRing .55s ease-out forwards;
+            pointer-events: none
+        }
+        @keyframes shake {
+            25% {
+                transform: translateX(-4px)
+            }
+            75% {
+                transform: translateX(4px)
+            }
+        }
+        @keyframes wrongRing {
+            from {
+                opacity: .85;
+                transform: scale(1)
+            }
+            to {
+                opacity: 0;
+                transform: scale(1.05)
+            }
+        }
+        /* ====== 错误提示：不再用"错误次数 N"持久提示行 ======
+           错误改由用户身份插入一条"错误"配色（danger）的消息来表达，
+           气泡上的短暂红光晕（.quiz-bubble.wrong）保留作为瞬时反馈。 */
+        .meaning-results {
+            margin-top: 11px;
+            padding-top: 10px;
+            border-top: 1px solid var(--line)
+        }
+        .pos-group {
+            display: grid;
+            grid-template-columns: 38px 1fr;
+            gap: 7px;
+            margin: 5px 0;
+            align-items: start;
+            /* 含义 chip / 空白槽的字号统一比气泡正文小 2px */
+            font-size: 11px
+        }
+        .group-pos {
+            color: var(--blue);
+            font-weight: 800
+        }
+        .group-values {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px
+        }
+        .meaning-chip,
+        .meaning-blank {
+            min-width: 54px;
+            height: 22px;
+            padding: 0 7px;
+            border-radius: 6px;
+            display: grid;
+            place-items: center
+        }
+        /* 含义 chip：基础样式（正常灰底）。"刚刚填对"的那一个 chip 额外带 reveal 动画 */
+        .meaning-chip {
+            background: #f0f3f7;
+            color: #334155;
+            font-weight: 650;
+            /* 去掉默认动画——现在只对"这次新配对"的那个 chip 播，见 .meaning-chip.reveal */
+        }
+        .meaning-chip.reveal {
+            animation: reveal .22s ease
+        }
+        .meaning-blank {
+            border: 1px dashed #abb7c6;
+            background: #fafbfc;
+            color: #9aa6b5
+        }
+        .complete-icon {
+            margin-left: auto;
+            color: var(--green);
+            font-size: 19px
+        }
+        /* 看义选词的消息：文字气泡 + 右侧完成图标（flex 排成一行，图标靠右） */
+        .see-bubble {
+            display: flex;
+            align-items: center;
+            gap: 10px
+        }
+        .answer-wrap {
+            position: relative;
+            flex: none
+        }
+        /* ====== 底部提示信息：纯文字，无边框/背景/阴影 ====== */
+        .phase-float {
+            position: absolute;
+            left: 50%;
+            top: -34px;
+            z-index: 8;
+            color: #47739f;
+            transform: translateX(-50%);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .2px;
+            white-space: nowrap;
+            /* 纯文字，没有任何装饰 */
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
+            backdrop-filter: none;
+            padding: 0;
+            height: auto;
+            min-width: 0
+        }
+        .answer-panel {
+            padding: 20px;
+            border-top: 1px solid var(--line);
+            background: #fff
+        }
+        .keyboard {
+            --gap: 5px;
+            --key: calc((100% - 9 * var(--gap))/10);
+            display: flex;
+            flex-direction: column;
+            gap: 7px
+        }
+        .key-row {
+            display: flex;
+            justify-content: center;
+            gap: var(--gap)
+        }
+        .key {
+            width: var(--key);
+            height: 38px;
+            flex: 0 0 var(--key);
+            padding: 0;
+            border: 0;
+            border-radius: 7px;
+            background: #edf1f5;
+            color: #2d3a4d;
+            font-size: 13px;
+            font-weight: 750;
+            box-shadow: 0 1px 0 #d3dbe4
+        }
+        .key.delete {
+            width: calc(var(--key)*1.22);
+            flex-basis: calc(var(--key)*1.22);
+            font-size: 18px
+        }
+        .key:disabled {
+            opacity: .45
+        }
+        .choices {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+        .choice {
+            height: 42px;
+            padding: 0 9px;
+            border: 1.5px solid #dbe3ec;
+            border-radius: 10px;
+            background: #fff;
+            display: grid;
+            grid-template-columns: 22px 1fr;
+            align-items: center;
+            gap: 8px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 700
+        }
+        .choice-letter {
+            width: 22px;
+            height: 22px;
+            border-radius: 7px;
+            background: var(--blue-lt);
+            color: var(--blue);
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            line-height: 1
+        }
+        .choice.wrong {
+            border-color: #e8a0a0;
+            background: var(--red-lt);
+            opacity: .52;
+            text-decoration: line-through
+        }
+        /* 多选题目（看义选词）里已答对的候选：绿色边框 + 淡绿底，字母块变成实心绿勾 */
+        .choice.correct {
+            border-color: #7fc98e;
+            background: var(--green-lt)
+        }
+        .choice.correct .choice-letter {
+            background: var(--green);
+            color: #fff
+        }
+        .phase {
+            display: none
+        }
+        @media(max-width:820px) {
+            .workspace {
+                padding: 0
+            }
+            .composer {
+                display: none
+            }
+            .phone {
+                height: 100dvh;
+                border-radius: 0
+            }
+        }
+    </style>
+</head>
+<body data-page-node-id="qRSNEMbJzlLpL1gUJpSKrc">
+    <!-- ====== Tabler 图标精灵：图标路径原样内嵌，来源 @tabler/icons 3.34.1 ====== -->
+    <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <symbol id="ti-message-plus" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M8 9h8" />
+            <path d="M8 13h6" />
+            <path d="M12.01 18.594l-4.01 2.406v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v5.5" />
+            <path d="M16 19h6" />
+            <path d="M19 16v6" />
+        </symbol>
+        <symbol id="ti-send" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M10 14l11 -11" />
+            <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+        </symbol>
+        <symbol id="ti-chevron-left" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M15 6l-6 6l6 6" />
+        </symbol>
+        <symbol id="ti-messages" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" />
+            <path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" />
+        </symbol>
+        <symbol id="ti-x" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M18 6l-12 12" />
+            <path d="M6 6l12 12" />
+        </symbol>
+        <symbol id="ti-backspace" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -5a1.5 1.5 0 0 1 0 -2l5 -5z" />
+            <path d="M12 10l4 4m0 -4l-4 4" />
+        </symbol>
+        <symbol id="ti-circle-check-filled" viewBox="0 0 24 24">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M17 3.34a10 10 0 1 1 -14.995 8.984l-.005 -.324l.005 -.324a10 10 0 0 1 14.995 -8.336zm-1.293 5.953a1 1 0 0 0 -1.32 -.083l-.094 .083l-3.293 3.292l-1.293 -1.292l-.094 -.083a1 1 0 0 0 -1.403 1.403l.083 .094l2 2l.094 .083a1 1 0 0 0 1.226 0l.094 -.083l4 -4l.083 -.094a1 1 0 0 0 -.083 -1.32z" />
+        </symbol>
+    </svg>
+    <div class="workspace" data-page-node-id="8BqlM2ppfC9Wog0pmuiY2q">
+        <aside class="composer" data-page-node-id="CskA5RG2zo9wmQLDNPhBYk">
+            <h2 data-page-node-id="eV9NTUEMUl1eNeYXkazmHu"><svg class="ti" data-page-node-id="fuL70Z9TvDSNjeQB1AGLIG"><use href="#ti-message-plus" /></svg> 消息编排器</h2>
+            <div class="tabs" data-page-node-id="pa9mlrpRFED0EBK5KyJ7Ia">
+                <button class="tab active" data-tab="system" data-page-node-id="0dbeTjwVRjSY5mGf4AnDOi">系统</button>
+                <button class="tab" data-tab="user" data-page-node-id="L7BTEKHnVUrS7BNknHxEgZ">用户</button>
+            </div>
+            <div id="systemPane" data-page-node-id="0Fu1eXrrhJw8s5JeHtOSAQ">
+                <div class="label" data-page-node-id="Uavxa4aPgdqXSZ0Rowd7Fk">消息类型</div>
+                <div class="type-grid" data-page-node-id="3QKbCxtq7RkMWgmrQqc9rS">
+                    <button class="type-btn" data-type="system">系统消息</button>
+                    <button class="type-btn active" data-type="text" data-page-node-id="O3ki0bUEz7ARuGfMJcrCM1">文字消息</button>
+                    <button class="type-btn" data-type="voice" data-page-node-id="sz42KZFc1EsHssG0sfX32U">语音消息</button>
+                    <button class="type-btn" data-type="quiz" data-page-node-id="hvNanf9rnaHYhT52vfpFDO">拼写选义题</button>
+                    <button class="type-btn" data-type="listen-word">听音选词</button>
+                    <button class="type-btn" data-type="listen-meaning">听音选义</button>
+                    <button class="type-btn" data-type="listen-spell">听音拼写</button>
+                    <button class="type-btn" data-type="see-word">看义选词</button>
+                </div>
+                <div id="textConfig" data-page-node-id="fGHU0byKWizgx946j4mwe0">
+                    <div class="label" data-page-node-id="Zl41i4fvisLjBdptZsN9C9">消息内容</div>
+                    <textarea id="systemText" class="text-input">这是一条系统消息</textarea>
+                </div>
+                <div id="voiceConfig" class="hidden" data-page-node-id="C9zXCEj9BVdtXscLYy8aAU">
+                    <div class="label" data-page-node-id="XPQ5E2dMGxkqGM57wkEyUu">TTS 播放内容</div>
+                    <textarea id="voiceText" class="text-input">Hello</textarea>
+                </div>
+                <!-- quizConfig 是所有"带单词"题型的共用配置：拼写选义 / 听音选词 / 听音选义 / 听音拼写 -->
+                <div id="quizConfig" class="hidden" data-page-node-id="I87zEYHnPscCDK16wJDOTl">
+                    <div class="label" data-page-node-id="zTWqowmgFHAKEbd2DV79xw">选择单词</div>
+                    <div id="wordGrid" class="word-grid" data-page-node-id="WWUqcLya8N0gAeHTc3NWpr"></div>
+                    <div class="label" id="meaningLabel" data-page-node-id="qNfPfyEdED5aBJV22Tttja">选择含义，默认全选</div>
+                    <div id="meaningList" class="meanings" data-page-node-id="Ye9m5CoRMMo8OUu0yKWLHt"></div>
+                </div>
+                <!-- 看义选词：只选一个中文含义（选项里标注"几个词"，方便理解多选场景） -->
+                <div id="seeConfig" class="hidden">
+                    <div class="label">选择含义（中文）</div>
+                    <div id="seeMeaningList" class="meanings"></div>
+                </div>
+                <div id="toneConfig" data-page-node-id="AMvfxl3hvax3BfeSLy7Tlt">
+                    <div class="label" data-page-node-id="TCgeDlcHs9gtcYGPNxY6eJ">消息配色</div>
+                    <div class="tone-grid" data-page-node-id="NTU39b2TFLpnF5RaMsh04V">
+                        <button class="tone-btn active" data-tone="normal" data-page-node-id="t6Ic9gE13avgSwJZnoHMdC">正常</button>
+                        <button class="tone-btn" data-tone="info" data-page-node-id="Ft80xdMMwZCzgi1Kuq5g3x">提醒</button>
+                        <button class="tone-btn" data-tone="warning" data-page-node-id="wOenJd2DZh3hRrKfhAYycl">警告</button>
+                        <button class="tone-btn" data-tone="danger" data-page-node-id="FJMqYFoi32huMITZfFRhgg">错误</button>
+                    </div>
+                </div>
+                <button id="systemSend" class="send-control" data-page-node-id="HBDrel3oflvBfinNHhPKjg"><svg class="ti" data-page-node-id="65y3ppiBTYx6peUcp70EtY"><use href="#ti-send" /></svg>发送系统消息</button>
+            </div>
+            <div id="userPane" class="hidden" data-page-node-id="YtEWGWri32CKu1lj4QLM6X">
+                <div class="label" data-page-node-id="sZYTv0FqaNYE18z6P4Cs8a">用户文字消息</div>
+                <textarea id="userText" class="text-input">这是一条用户消息</textarea>
+                <div id="userToneConfig">
+                    <div class="label">消息配色</div>
+                    <div class="tone-grid">
+                        <button class="tone-btn active" data-user-tone="normal">正常</button>
+                        <button class="tone-btn" data-user-tone="info">提醒</button>
+                        <button class="tone-btn" data-user-tone="warning">警告</button>
+                        <button class="tone-btn" data-user-tone="danger">错误</button>
+                    </div>
+                </div>
+                <button id="userSend" class="send-control" data-page-node-id="S8vjJMt8mdgRPFwWCVgR1o"><svg class="ti" data-page-node-id="L7Zm8Usc1M2NlRouAHDwAX"><use href="#ti-send" /></svg>发送用户消息</button>
+            </div>
+            <div class="label" data-page-node-id="sbdYBEBPNTSYVeHG8Dxp6i">macOS 英语语音</div>
+            <select id="voiceSelect" class="select" data-page-node-id="OYxAdkkot9pnS5jUSYA2r8"><option data-page-node-id="3d1zlNMA3VJMBDepiiZuzA">正在读取系统语音…</option></select>
+            <div class="hint-note" data-page-node-id="nqewAZJcGNdHUuVyqCP6VM">消息和题目都会追加到右侧。每道题拥有独立答题状态；发新题时上一题自动收起。</div>
+        </aside>
+        <main class="phone" data-page-node-id="TCc6z5Eygf1N4ki4hY5mlM">
+            <header class="topbar" data-page-node-id="sQ9RaDrHDE8gGK8xCuMwmJ">
+                <button class="back" data-page-node-id="8FSUuJiIHaqzy2NMkutE76"><svg class="ti" data-page-node-id="lbQzDxgzmrkgVH7dDfDdKD"><use href="#ti-chevron-left" /></svg></button>
+                <div class="counter title-placeholder" data-page-node-id="gA2ZlrdtBs51QBeaswcEAq">这里是标题</div>
+                <div class="timer" id="timer" data-page-node-id="5oGiDfAtG6IDsNMUQuY3XJ">00:00</div>
+            </header>
+            <div class="track" data-page-node-id="je9oQ2NZ598NWEnjhbx138"><div id="fill" class="fill" data-page-node-id="5EfpSH8G1saKqKZ0cBOavO"></div></div>
+            <section id="chat" class="chat" data-page-node-id="b3HiMWjU62F8LpmZ3QCEQT">
+                <div id="empty" class="empty" data-page-node-id="6lnnebEIZPl4akw3Q4IAgz"><div data-page-node-id="fx92K0gNwyyj5oHQZBOX27"><svg class="ti" data-page-node-id="jWLPyRNERlh5Q8VYEj3aGb"><use href="#ti-messages" /></svg>从左侧发送一条消息</div></div>
+            </section>
+            <div id="answerWrap" class="answer-wrap hidden" data-page-node-id="zuFLds4bPJ4nBUmPwzfikG">
+                <div id="phaseFloat" class="phase-float hidden" data-page-node-id="v94dDTPPaXMEE4h8fxRCKh"></div>
+                <section id="answerPanel" class="answer-panel" data-page-node-id="OELCiijE76nbTJIQeZU5sq">
+                    <div id="keyboard" class="keyboard hidden" data-page-node-id="FXSEdH6GrtnkwfwVy0RV2u"></div>
+                    <div id="choices" class="choices hidden" data-page-node-id="nZFmIIE1ST4hC9GCkGMRHo"></div>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script>
+        const vocab = [
+            { word: 'world', meanings: [{ pos: 'n.', text: '世界' }, { pos: 'n.', text: '地球' }, { pos: 'n.', text: '天下' },
+                { pos: 'adj.', text: '世界的' }, { pos: 'adj.', text: '天下的' }] },
+            { word: 'quote', meanings: [{ pos: 'v.', text: '引用' }, { pos: 'v.', text: '引述' }, { pos: 'n.', text: '报价' }] },
+            { word: 'borrow', meanings: [{ pos: 'v.', text: '借用' }, { pos: 'v.', text: '引用' }] },
+            { word: 'bright', meanings: [{ pos: 'adj.', text: '明亮的' }, { pos: 'adj.', text: '聪明的' }, { pos: 'adj.',
+                    text: '鲜艳的' }] },
+            { word: 'travel', meanings: [{ pos: 'v.', text: '旅行' }, { pos: 'v.', text: '游历' }, { pos: 'v.', text: '行进' }] }
+        ];
+        const distractors = ['海洋', '建造', '温暖的', '返回', '安静的', '快速的', '记忆', '道路', '聆听', '古老的', '快乐', '寻找'];
+        const $ = id => document.getElementById(id);
+        let tab = 'system',
+            type = 'text',
+            tone = 'normal',
+            userTone = 'normal',
+            selectedWord = vocab[0],
+            selectedMeanings = [...vocab[0].meanings],
+            voices = [],
+            voiceObj = null,
+            seconds = 0,
+            activeQuiz = null,
+            selectedSeeMeaning = null;
+
+        setInterval(() => {
+            $('timer').textContent = String(++seconds / 60 | 0).padStart(2, '0') + ':' + String(seconds % 60).padStart(2,
+                '0')
+        }, 1000);
+
+        const toneClass = tone => tone === 'normal' ? '' : `tone-${tone}`;
+
+        // 取一个 Tabler 图标（引用页面里内嵌的 <symbol>，不需要网络字体）
+        // name 例如 'ti-x'；filled 传 true 表示实心图标
+        function icon(name, filled) {
+            return `<svg class="ti${filled ? ' filled' : ''}"><use href="#${name}"/></svg>`
+        }
+
+        function bottom() { requestAnimationFrame(() => $('chat').scrollTop = $('chat').scrollHeight) }
+
+        function wake() { $('empty').classList.add('hidden') }
+
+        // 系统消息：没有气泡、文字水平居中的一条提示（微信里的"时间/系统提示"同款）。
+        // 它既可以被手动发送，也会在"消息间隔超过 1 分钟"时自动插入一条当前时间。
+        // 注意：系统消息自己不触发时间检查（否则会无限循环插入）。
+        function addSystem(text) {
+            wake();
+            let e = document.createElement('div');
+            e.className = 'message system';
+            e._ts = Date.now();
+            e.innerHTML = `<div class="system-msg">${escapeHTML(text)}</div>`;
+            $('chat').append(e);
+            bottom()
+        }
+
+        // 当前时间，形如 "14:50"（时和分都补零到两位数）
+        function nowTime() {
+            let d = new Date();
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
+        }
+
+        // 时间分隔：发送任何消息前调用。如果聊天里还没有任何消息，
+        // 或者上一条消息已经超过 1 分钟，就先插一条"当前时间"的系统消息。
+        // 判断用的时间戳存在每条消息的 _ts 上（系统消息也会被算作"上一条"，
+        // 所以刚插完时间后紧接着的那条真实消息不会重复再插）。
+        function stampIfStale() {
+            let msgs = document.querySelectorAll('#chat .message'),
+                last = msgs[msgs.length - 1];
+            if (!last || (Date.now() - (last._ts || 0)) > 60000) addSystem(nowTime())
+        }
+
+        function addText(text, user = false, t = 'normal', mark = false) {
+            stampIfStale();
+            wake();
+            let e = document.createElement('div');
+            e.className = 'message ' + (user ? 'user' : '');
+            e._ts = Date.now();
+            // 用户消息也支持消息配色：tone 类挂到气泡上，与系统/文字消息共用同一套色板。
+            // tone 为 normal 时 toneClass 返回空串，气泡回落到 .user .bubble 的默认蓝；
+            // info/warning/danger 由 .user .bubble.tone-* 覆盖成"实色底 + 白字"。
+            // mark=true 时气泡右侧加一个"白底圆 + 绿色对勾"图标，用于"用户答对的答案"。
+            let markHTML = mark ?
+                `<svg class="msg-check" viewBox="0 0 24 24" fill="none">`
+                + `<circle cx="12" cy="12" r="10" fill="#fff"/>`
+                + `<path d="M8 12.5l2.5 2.5 5-5.5" stroke="#2fb344" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
+                + `</svg>` : '';
+            e.innerHTML =
+                `<div class="bubble ${toneClass(t)}${mark ? ' msg-checked' : ''}">${escapeHTML(text).replace(/\n/g,'<br>')}${markHTML}</div>`;
+            $('chat').append(e);
+            bottom()
+        }
+
+        function iconSVG() {
+            // 喇叭本体 + 两条声波弧线；弧线拆成两个独立元素，方便各自错开时间做"依次亮/灭"
+            return '<svg class="voice-icon" viewBox="0 0 24 24" fill="none">'
+                + '<path d="M4 9v6h4l4 3V6L8 9H4Z" fill="currentColor"/>'
+                + '<path class="sound-wave" style="--w:0" d="M15 9.2c1.7 1.55 1.7 4.05 0 5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+                + '<path class="sound-wave" style="--w:1" d="M18 6.7c3.1 2.93 3.1 7.67 0 10.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+                + '</svg>'
+        }
+
+        function speak(text, el) {
+            speechSynthesis.cancel();
+            document.querySelectorAll('.playing').forEach(x => x.classList.remove('playing'));
+            el?.classList.add('playing');
+            let u = new SpeechSynthesisUtterance(text);
+            if (voiceObj) u.voice = voiceObj;
+            u.lang = voiceObj?.lang || 'en-US';
+            u.rate = .82;
+            let stop = () => el?.classList.remove('playing');
+            u.onend = stop;
+            u.onerror = stop;
+            speechSynthesis.speak(u)
+        }
+
+        // ====== 消息的"继承"关系（原型里用 DOM 结构体现，将来 Flutter 里就是类继承）======
+        // 1. 文字消息 = 基类：气泡里直接放文本。
+        // 2. 语音消息 = 文字消息的子类：把"文本"替换成"扬声器 + 一排圆点"，
+        //    语义上类似微信消息里的表情 / 动图——文字换成了会动的载体；
+        //    播放时整条消息亮光晕，扬声器弧线依次亮灭、圆点呼吸。
+        // 3. 拼写选义消息 = 语音消息的子类、文字消息的孙类：
+        //    扬声器和圆点保留，但每个圆点可以被字母替换（字母有自己的出场动画）；
+        //    全部替换后若拼错 → 错误级光晕 + 字母离场 + 圆点重新入场 + 由用户发一条"错误"配色消息；
+        //    若拼对 → 圆点和字母全部撤下，换成"一个整体"的蓝色单词。
+        function addVoice(text, t = 'normal') {
+            stampIfStale();
+            wake();
+            let e = document.createElement('div');
+            e.className = 'message';
+            e._ts = Date.now();
+            e.innerHTML =
+                `<div class="bubble voice-bubble ${toneClass(t)}">${iconSVG()}<span class="voice-dots">${[0,1,2,3,4,5].map(i=>`<i style="--i:${i}"></i>`).join('')}</span></div>`;
+            $('chat').append(e);
+            let b = e.querySelector('.voice-bubble');
+            b.onclick = () => speak(text, b);
+            bottom();
+            speak(text, b)
+        }
+
+        function addQuiz(word, meanings) {
+            stampIfStale();
+            wake();
+            if (activeQuiz && activeQuiz.phase !== 'done') deactivateQuiz();
+            let e = document.createElement('div');
+            e.className = 'message';
+            e._ts = Date.now();
+            e.innerHTML =
+                `<div class="bubble quiz-bubble"><div class="quiz-top">${iconSVG()}<div class="quiz-slots"></div><svg class="complete-icon ti filled hidden"><use href="#ti-circle-check-filled"/></svg></div><div class="meaning-results hidden"></div></div>`;
+            $('chat').append(e);
+            activeQuiz = { word, meanings, typed: [], index: 0, phase: 'spell', el: e.querySelector('.quiz-bubble') };
+            activeQuiz.el.querySelector('.quiz-top').onclick = () => speak(word.word, activeQuiz.el);
+            renderSlots();
+            showKeyboard();
+            bottom();
+            speak(word.word, activeQuiz.el)
+        }
+
+        // ====== 四种新题型 ======
+        // 它们与"拼写选义题"共用同一套气泡骨架（语音消息的子类），
+        // 区别只在底部答题区：听音选词/选义用 4 候选按钮，听音拼写用 26 键键盘，
+        // 看义选词则是"文字消息 + 4 候选"（无语音）。
+
+        // 通用：把槽位区渲染成 N 个纯圆点。
+        // 听音选词/选义用固定 6 个（纯装饰，不随答案变，避免泄露单词长度）；
+        // 听音拼写拼对后用它恢复圆点。
+        function renderDots(count) {
+            let box = activeQuiz.el.querySelector('.quiz-slots');
+            box.classList.remove('dots-back');
+            box.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                let s = document.createElement('span');
+                s.className = 'slot dot';
+                s.style.setProperty('--i', i);
+                box.append(s)
+            }
+        }
+
+        // 听音选词 / 听音选义：共用的"语音题"流程。
+        // 气泡 = 语音消息样式（扬声器 + 圆点），点气泡可重播读音；
+        // 底部 = 4 个候选按钮（单词或含义）。
+        function addListenChoice(kind, word, meanings) {
+            stampIfStale();
+            wake();
+            if (activeQuiz && activeQuiz.phase !== 'done') deactivateQuiz();
+            let e = document.createElement('div');
+            e.className = 'message';
+            e._ts = Date.now();
+            e.innerHTML =
+                `<div class="bubble quiz-bubble"><div class="quiz-top">${iconSVG()}<div class="quiz-slots"></div><svg class="complete-icon ti filled hidden"><use href="#ti-circle-check-filled"/></svg></div></div>`;
+            $('chat').append(e);
+            activeQuiz = {
+                type: kind, word, meanings,
+                typed: [], index: 0,
+                phase: 'choice',
+                el: e.querySelector('.quiz-bubble')
+            };
+            renderDots(6);
+            activeQuiz.el.querySelector('.quiz-top').onclick = () => speak(word.word, activeQuiz.el);
+            showListenChoices(kind);
+            bottom();
+            speak(word.word, activeQuiz.el)
+        }
+        function addListenWord(word) { addListenChoice('listen-word', word, null) }
+        function addListenMeaning(word, meanings) { addListenChoice('listen-meaning', word, meanings) }
+
+        // 听音题的 4 候选：答错 → 该候选禁用 + 气泡闪一下错误光晕；
+        // 答对 → 以正确答案发一条用户消息，此题结束
+        function showListenChoices(kind) {
+            $('answerWrap').classList.remove('hidden');
+            $('choices').classList.remove('hidden');
+            $('keyboard').classList.add('hidden');
+            $('phaseFloat').classList.add('hidden');
+            $('phaseFloat').textContent = '';
+            let correct, pool;
+            if (kind === 'listen-word') {
+                // 候选 = 单词：目标单词 + 从词库里抽 3 个别的单词当干扰
+                correct = activeQuiz.word.word;
+                pool = vocab.filter(w => w.word !== correct).map(w => w.word)
+            } else {
+                // 候选 = 含义：从勾选的含义里随机抽 1 个当目标（听力题随机考）；
+                // 干扰含义来自干扰池 + 别的单词的含义（排除目标词自身所有含义）
+                correct = shuffle(activeQuiz.meanings)[0].text;
+                let forbidden = new Set(activeQuiz.word.meanings.map(m => m.text));
+                pool = distractors.filter(x => !forbidden.has(x));
+                vocab.forEach(w => w.meanings.forEach(m => { if (!forbidden.has(m.text)) pool.push(m.text) }));
+                pool = [...new Set(pool)]
+            }
+            // 记住正确答案（存到题上），方便点击时比对，也便于将来统计
+            activeQuiz.target = correct;
+            let opts = shuffle([correct, ...shuffle(pool).slice(0, 3)]);
+            $('choices').innerHTML = '';
+            opts.forEach((x, i) => {
+                let b = document.createElement('button');
+                b.className = 'choice';
+                b.innerHTML = `<span class="choice-letter">${'ABCD'[i]}</span><span>${escapeHTML(x)}</span>`;
+                b.onclick = () => {
+                    if (x !== correct) {
+                        // 答错：候选禁用 + 气泡闪一下红光晕，并由用户身份发一条"错误"配色消息（见下）
+                        b.classList.add('wrong');
+                        b.disabled = true;
+                        activeQuiz.el.classList.add('wrong');
+                        // 错误次数概念已取消：改为由用户身份发一条"错误"配色的答案消息（用户选错的答案）
+                        addText(x, true, 'danger');
+                        let quiz = activeQuiz;
+                        setTimeout(() => { if (activeQuiz === quiz) activeQuiz.el.classList.remove('wrong') }, 500)
+                    } else {
+                        listenChoiceDone(x)
+                    }
+                };
+                $('choices').append(b)
+            })
+        }
+        // 听音题答对：不再在题目上打对勾，改为以正确答案发一条"带对勾"的用户消息
+        function listenChoiceDone(answer) {
+            activeQuiz.phase = 'done';
+            $('answerWrap').classList.add('hidden');
+            $('fill').style.width = '100%';
+            addText(answer, true, 'normal', true)
+        }
+
+        // 听音拼写：语音 + 26 键键盘，拼写时圆点被字母替换（与拼写选义同款动画）。
+        // 和拼写选义唯一的不同在"拼对之后"：不显示蓝色单词，而是恢复圆点。
+        function addListenSpell(word) {
+            stampIfStale();
+            wake();
+            if (activeQuiz && activeQuiz.phase !== 'done') deactivateQuiz();
+            let e = document.createElement('div');
+            e.className = 'message';
+            e._ts = Date.now();
+            e.innerHTML =
+                `<div class="bubble quiz-bubble"><div class="quiz-top">${iconSVG()}<div class="quiz-slots"></div><svg class="complete-icon ti filled hidden"><use href="#ti-circle-check-filled"/></svg></div></div>`;
+            $('chat').append(e);
+            activeQuiz = {
+                type: 'listen-spell', word, meanings: null,
+                typed: [], index: 0,
+                phase: 'spell',
+                el: e.querySelector('.quiz-bubble')
+            };
+            activeQuiz.el.querySelector('.quiz-top').onclick = () => speak(word.word, activeQuiz.el);
+            renderSlots();
+            showKeyboard();
+            bottom();
+            speak(word.word, activeQuiz.el)
+        }
+        // 听音拼写结算：拼对 → 圆点恢复 + 以正确答案发用户消息；拼错 → 与拼写选义同一套
+        // 错误流程（红光晕 + 由用户发"错误"配色消息 + 字母离场圆点重入）
+        function checkListenSpell() {
+            activeQuiz.phase = 'check';
+            setKeys(true);
+            if (activeQuiz.typed.join('') === activeQuiz.word.word) {
+                activeQuiz.phase = 'done';
+                $('answerWrap').classList.add('hidden');
+                $('fill').style.width = '100%';
+                renderDots(activeQuiz.word.word.length);
+                // 不再在题目上打对勾，改为带对勾的用户消息
+                addText(activeQuiz.word.word, true, 'normal', true)
+            } else {
+                activeQuiz.el.classList.add('wrong');
+                // 错误次数概念已取消：改为由用户身份发一条"错误"配色的答案消息（用户实际拼错的词）
+                addText(activeQuiz.typed.join(''), true, 'danger');
+                // 与拼写选义一致的身份校验：650ms 后若已切新题则不动
+                let quiz = activeQuiz;
+                setTimeout(() => { if (activeQuiz === quiz) resetSlots() }, 650)
+            }
+        }
+
+        // 看义选词：系统发一条中文含义文字消息（无语音），底部 4 个单词候选。
+        // 可能不止一个正确答案（比如"引用"对应 quote 和 borrow 两个词）→ 天然多选；
+        // 点对 → 该词以用户消息发出并标绿，点错 → 禁用；全部答对则此题结束
+        function addSeeWord(meaning) {
+            stampIfStale();
+            wake();
+            if (activeQuiz && activeQuiz.phase !== 'done') deactivateQuiz();
+            // 找出词库里所有带这个含义的单词 = 全部正确答案
+            let correctWords = vocab.filter(w => w.meanings.some(m => m.text === meaning)).map(w => w.word);
+            let e = document.createElement('div');
+            e.className = 'message';
+            e._ts = Date.now();
+            e.innerHTML =
+                `<div class="bubble see-bubble">${escapeHTML(meaning)}<svg class="complete-icon ti filled hidden"><use href="#ti-circle-check-filled"/></svg></div>`;
+            $('chat').append(e);
+            activeQuiz = {
+                type: 'see-word', meaning, correctWords,
+                picked: [], phase: 'choice',
+                el: e.querySelector('.bubble')
+            };
+            showSeeChoices(correctWords);
+            bottom()
+        }
+        function showSeeChoices(correctWords) {
+            $('answerWrap').classList.remove('hidden');
+            $('choices').classList.remove('hidden');
+            $('keyboard').classList.add('hidden');
+            $('phaseFloat').classList.add('hidden');
+            $('phaseFloat').textContent = '';
+            // 候选 = 全部正确词 + 词库其他词补足到 4 个。
+            // 注意：others 必须取 .word 字符串，直接把词条对象塞进候选，
+            // 渲染 `${w}` 会变成 [object object]（之前就是这么坏的）
+            let others = shuffle(vocab.filter(w => !correctWords.includes(w.word))).map(w => w.word);
+            let candidates = shuffle([...correctWords, ...others.slice(0, 4 - correctWords.length)]);
+            $('choices').innerHTML = '';
+            candidates.forEach((w, i) => {
+                let b = document.createElement('button');
+                b.className = 'choice';
+                b.innerHTML = `<span class="choice-letter">${'ABCD'[i]}</span><span>${w}</span>`;
+                b.onclick = () => seeWordPick(b, w);
+                $('choices').append(b)
+            })
+        }
+        function seeWordPick(b, w) {
+            if (activeQuiz.correctWords.includes(w)) {
+                // 点中正确答案：标绿 + 以该词发一条"带对勾"的用户消息
+                if (!activeQuiz.picked.includes(w)) {
+                    activeQuiz.picked.push(w);
+                    markCorrect(b);
+                    addText(w, true, 'normal', true);
+                    // 全部正确答案都发出去 → 此题结束（题目上不再打对勾）
+                    if (activeQuiz.picked.length === activeQuiz.correctWords.length) {
+                        activeQuiz.phase = 'done';
+                        $('answerWrap').classList.add('hidden');
+                        $('fill').style.width = '100%'
+                    }
+                }
+            } else {
+                // 点错：候选禁用 + 气泡闪一下红光晕，并由用户身份发一条"错误"配色消息（见下）
+                b.classList.add('wrong');
+                b.disabled = true;
+                activeQuiz.el.classList.add('wrong');
+                // 错误次数概念已取消：改为由用户身份发一条"错误"配色的答案消息（用户选错的词）
+                addText(w, true, 'danger');
+                let quiz = activeQuiz;
+                setTimeout(() => { if (activeQuiz === quiz) activeQuiz.el.classList.remove('wrong') }, 500)
+            }
+        }
+        // 正确候选的样式：字母块变实心绿勾（Tabler 图标，不用文字代替）
+        function markCorrect(b) {
+            b.classList.add('correct');
+            b.disabled = true;
+            b.querySelector('.choice-letter').innerHTML = icon('ti-circle-check-filled', true)
+        }
+
+        function renderSlots(animateIndex = -1) {
+            let box = activeQuiz.el.querySelector('.quiz-slots');
+            // 圆点入场动画只在"拼错重置"那一次播放；平时打字重建时不再触发
+            box.classList.remove('dots-back');
+            box.innerHTML = '';
+            [...activeQuiz.word.word].forEach((_, i) => {
+                let s = document.createElement('span'),
+                    has = i < activeQuiz.typed.length,
+                    isNew = has && i === animateIndex;
+                s.className = 'slot ' + (has ? 'letter' : 'dot') + (isNew ? ' is-new' : '');
+                s.style.setProperty('--i', i);
+                if (has) {
+                    const ch = activeQuiz.typed[i];
+                    s.innerHTML = isNew ?
+                        // 新字母：一个淡出的旧圆点 + 一个抽芽长出来的字母
+                        `<span class="ghost-dot"></span><span class="letter-layer">${ch}</span>` :
+                        `<span class="letter-static">${ch}</span>`;
+                }
+                box.append(s)
+            })
+        }
+
+        function showKeyboard() {
+            $('answerWrap').classList.remove('hidden');
+            $('keyboard').classList.remove('hidden');
+            $('choices').classList.add('hidden');
+            $('phaseFloat').classList.add('hidden');
+            $('phaseFloat').textContent = '';
+            // 每次显示键盘都把按键恢复成可用——这是修复点：
+            // 上一题若在"拼写检查"时锁过键（setKeys(true)），之后从未解锁的话，
+            // 新题的键盘就会全部点不动（26 键失灵的根因就在这里）
+            setKeys(false)
+        }
+
+        function letterInput(k) {
+            if (!activeQuiz || activeQuiz.phase !== 'spell') return;
+            if (activeQuiz.typed.length < activeQuiz.word.word.length) {
+                activeQuiz.typed.push(k.toLowerCase());
+                renderSlots(activeQuiz.typed.length - 1)
+            }
+            if (activeQuiz.typed.length === activeQuiz.word.word.length) {
+                // 听音拼写答完走自己的结算（拼对恢复圆点）；拼写选义走原有结算（拼对显示单词）
+                if (activeQuiz.type === 'listen-spell') checkListenSpell();
+                else checkSpelling()
+            }
+        }
+
+        function checkSpelling() {
+            activeQuiz.phase = 'check';
+            setKeys(true);
+            if (activeQuiz.typed.join('') === activeQuiz.word.word) {
+                // 拼写成功：圆点和字母全部撤下，换成"一个整体"的蓝色单词（题目自身的完成态展示）
+                showWordResult();
+                // 同时以"带对勾"的用户消息记录这次答对（用户侧正确/错误都会发消息）
+                addText(activeQuiz.word.word, true, 'normal', true);
+                // 记住"这是哪一题"，480ms 后如果用户已经发了新题，就不要错去操作新题
+                let quiz = activeQuiz;
+                setTimeout(() => { if (activeQuiz === quiz) beginMeanings() }, 480)
+            } else {
+                // 拼错了：整条消息转红光晕 + 由用户身份发一条"错误"配色的答案消息；
+                // 字母随后离场、圆点重新入场
+                activeQuiz.el.classList.add('wrong');
+                // 错误次数概念已取消：改为由用户身份发一条"错误"配色的答案消息（用户实际拼错的词）
+                addText(activeQuiz.typed.join(''), true, 'danger');
+                // 带身份校验：650ms 后如果已切到新题，不要误操作
+                let quiz = activeQuiz;
+                setTimeout(() => { if (activeQuiz === quiz) resetSlots() }, 650)
+            }
+        }
+
+        // 拼错后的重置：字母挨个离场（dataOut 上浮淡出），然后圆点依次重新入场
+        function resetSlots() {
+            let quiz = activeQuiz,
+                box = quiz.el.querySelector('.quiz-slots');
+            quiz.el.querySelectorAll('.slot').forEach(x => x.classList.add('resetting'));
+            setTimeout(() => {
+                // 万一这 240ms 里用户发了新题，旧题的动画就不再继续（身份校验）
+                if (activeQuiz !== quiz) return;
+                quiz.typed = [];
+                quiz.phase = 'spell';
+                // 只把红光晕收掉（错误提示行已取消，错误改由用户身份的错误配色消息表示）
+                quiz.el.classList.remove('wrong');
+                renderSlots();
+                // 加回 dots-back：圆点带着入场动画依次出现（dotBack，按顺序错峰）
+                box.classList.add('dots-back');
+                setKeys(false)
+            }, 240)
+        }
+
+        // 拼写成功：槽位区整个换成蓝色单词（整体一个元素，不再逐字母隔开）
+        function showWordResult() {
+            let box = activeQuiz.el.querySelector('.quiz-slots');
+            box.classList.remove('dots-back');
+            box.innerHTML = `<span class="solved-word">${escapeHTML(activeQuiz.word.word)}</span>`
+        }
+
+        // 错误次数概念已取消：所有模式答错时，改为由用户身份发一条"错误"配色的答案消息
+        // （见各 check/choice 分支），不再维护"错误次数 N"持久提示行与计数。
+
+        function beginMeanings() {
+            activeQuiz.phase = 'meaning';
+            activeQuiz.index = 0;
+            $('keyboard').classList.add('hidden');
+            activeQuiz.el.querySelector('.meaning-results').classList.remove('hidden');
+            renderMeaningGroups();
+            showMeaningChoice()
+        }
+
+        function grouped() {
+            let map = new Map;
+            activeQuiz.meanings.forEach((m, i) => {
+                if (!map.has(m.pos)) map.set(m.pos, []);
+                map.get(m.pos).push({ ...m, globalIndex: i })
+            });
+            return map
+        }
+
+        function renderMeaningGroups() {
+            let box = activeQuiz.el.querySelector('.meaning-results');
+            box.innerHTML = '';
+            grouped().forEach((arr, pos) => {
+                let row = document.createElement('div');
+                row.className = 'pos-group';
+                row.innerHTML =
+                    // 只有"目标 index 的那一条"才是刚配对成功的 chip，给它打上 reveal 动画
+                    // （此时已经自增过 index，所以当前刚配对的那条是 index-1）
+                    `<span class="group-pos">${pos}</span><span class="group-values">${arr.map(m=>{
+                let c = 'meaning-chip';
+                if(m.globalIndex < activeQuiz.index) { if(m.globalIndex === activeQuiz.index - 1) c += ' reveal' }
+                else { c = 'meaning-blank' }
+                return `<span class="${c}">${m.globalIndex < activeQuiz.index ? m.text : '待选择'}</span>`;
+            }).join('')}</span>`;
+                box.append(row)
+            })
+        }
+
+        function showMeaningChoice() {
+            activeQuiz.phase = 'meaning';
+            $('answerWrap').classList.remove('hidden');
+            $('choices').classList.remove('hidden');
+            $('phaseFloat').textContent = `选择含义 ${activeQuiz.index+1}/${activeQuiz.meanings.length}`;
+            $('phaseFloat').classList.remove('hidden');
+            let correct = activeQuiz.meanings[activeQuiz.index].text,
+                forbidden = new Set(activeQuiz.word.meanings.map(x => x.text)),
+                pool = distractors.filter(x => !forbidden.has(x));
+            vocab.forEach(w => w.meanings.forEach(m => { if (!forbidden.has(m.text)) pool.push(m.text) }));
+            let opts = shuffle([correct, ...shuffle([...new Set(pool)]).slice(0, 3)]);
+            $('choices').innerHTML = '';
+            opts.forEach((x, i) => {
+                let b = document.createElement('button');
+                b.className = 'choice';
+                b.innerHTML = `<span class="choice-letter">${'ABCD'[i]}</span><span>${x}</span>`;
+                b.onclick = () => {
+                    if (x !== correct) { b.classList.add('wrong');
+                        b.disabled = true;
+                        // 错误次数概念已取消：改为由用户身份发一条"错误"配色的答案消息（用户选错的含义）
+                        addText(x, true, 'danger') } else {
+                        activeQuiz.index++;
+                        renderMeaningGroups();
+                        updateProgress();
+                        if (activeQuiz.index < activeQuiz.meanings.length) setTimeout(showMeaningChoice,
+                        240);
+                        else finishQuiz()
+                    }
+                };
+                $('choices').append(b)
+            })
+        }
+
+        function finishQuiz() {
+            activeQuiz.phase = 'done';
+            // 题目上不再打对勾（对勾已移到用户侧消息）；含义题本身用 chip 回填表达进度
+            $('answerWrap').classList.add('hidden');
+            $('fill').style.width = '100%'
+        }
+
+        function deactivateQuiz() {
+            activeQuiz.phase = 'done';
+            $('answerWrap').classList.add('hidden');
+            // 顺手把键盘解锁，双保险：即使上一题卡在锁键状态，下一题也不会被连累
+            setKeys(false)
+        }
+
+        function updateProgress() {
+            let n = Math.round(activeQuiz.index / activeQuiz.meanings.length * 50);
+            $('fill').style.width = n * 2 + '%'
+        }
+
+        function setKeys(v) { $('keyboard').querySelectorAll('button').forEach(b => b.disabled = v) }
+
+        function shuffle(a) { for (let i = a.length - 1; i; i--) { let j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]] } return a }
+
+        function escapeHTML(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
+                "'": '&#39;' } [c])) }
+
+        document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+            tab = b.dataset.tab;
+            document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === b));
+            $('systemPane').classList.toggle('hidden', tab !== 'system');
+            $('userPane').classList.toggle('hidden', tab !== 'user')
+        });
+
+        document.querySelectorAll('.type-btn').forEach(b => b.onclick = () => {
+            type = b.dataset.type;
+            document.querySelectorAll('.type-btn').forEach(x => x.classList.toggle('active', x === b));
+            // 系统消息和文字消息共用同一个文本输入框
+            $('textConfig').classList.toggle('hidden', !['text', 'system'].includes(type));
+            $('voiceConfig').classList.toggle('hidden', type !== 'voice');
+            // quizConfig 服务所有"带单词"的题型：拼写选义 / 听音选词 / 听音选义 / 听音拼写
+            let usesWord = ['quiz', 'listen-word', 'listen-meaning', 'listen-spell'].includes(type);
+            $('quizConfig').classList.toggle('hidden', !usesWord);
+            // 只有需要"选含义"的题型才显示含义区：拼写选义（多选） / 听音选义（随机考一个）
+            let usesMeaning = ['quiz', 'listen-meaning'].includes(type);
+            $('meaningLabel').classList.toggle('hidden', !usesMeaning);
+            $('meaningList').classList.toggle('hidden', !usesMeaning);
+            $('seeConfig').classList.toggle('hidden', type !== 'see-word');
+            // 题目类消息配色固定（蓝色系）；系统消息没有气泡，也无配色可选
+            $('toneConfig').classList.toggle('hidden', usesWord || type === 'see-word' || type === 'system')
+        });
+
+        // 系统消息的配色选择器：用 data-tone 限定，避免误绑到用户面板里同样带 tone-btn 类的按钮
+        document.querySelectorAll('[data-tone]').forEach(b => b.onclick = () => {
+            tone = b.dataset.tone;
+            document.querySelectorAll('[data-tone]').forEach(x => x.classList.toggle('active', x === b))
+        });
+
+        // 用户消息的配色选择器：与系统消息共用同一套 tone，但用独立的 data-user-tone 区分，
+        // 避免和系统设计面板里的 data-tone 互相覆盖。
+        document.querySelectorAll('[data-user-tone]').forEach(b => b.onclick = () => {
+            userTone = b.dataset.userTone;
+            document.querySelectorAll('[data-user-tone]').forEach(x => x.classList.toggle('active', x === b))
+        });
+
+        function renderWords() {
+            $('wordGrid').innerHTML = '';
+            vocab.forEach((w, i) => {
+                let b = document.createElement('button');
+                b.className = 'word-btn ' + (!i ? 'active' : '');
+                b.textContent = w.word;
+                b.onclick = () => { selectedWord = w;
+                    document.querySelectorAll('.word-btn').forEach(x => x.classList.remove('active'));
+                    b.classList.add('active');
+                    renderMeanings() };
+                $('wordGrid').append(b)
+            });
+            renderMeanings()
+        }
+
+        // 看义选词的含义候选：词库里所有去重含义，标注"几个词"方便理解多选场景
+        // （比如"引用"在 quote 和 borrow 两个词里都出现，就是 2 个正确答案）
+        function renderSeeMeanings() {
+            let seen = new Set(),
+                all = [];
+            vocab.forEach(w => w.meanings.forEach(m => {
+                if (!seen.has(m.text)) {
+                    seen.add(m.text);
+                    all.push({
+                        ...m,
+                        count: vocab.filter(w2 => w2.meanings.some(x => x.text === m.text)).length
+                    })
+                }
+            }));
+            $('seeMeaningList').innerHTML = '';
+            all.forEach((m, i) => {
+                let l = document.createElement('label');
+                l.className = 'meaning';
+                l.innerHTML =
+                    `<input type="radio" name="seeMeaning" value="${i}" ${!i?'checked':''}><span class="pos">${m.pos}</span><span>${m.text}（${m.count} 个词）</span>`;
+                l.querySelector('input').onchange = () => selectedSeeMeaning = m.text;
+                $('seeMeaningList').append(l)
+            });
+            selectedSeeMeaning = all[0]?.text || null
+        }
+
+        function renderMeanings() {
+            selectedMeanings = [...selectedWord.meanings];
+            $('meaningList').innerHTML = '';
+            selectedWord.meanings.forEach((m, i) => {
+                let l = document.createElement('label');
+                l.className = 'meaning';
+                l.innerHTML =
+                    `<input type="checkbox" checked value="${i}"><span class="pos">${m.pos}</span><span>${m.text}</span>`;
+                l.querySelector('input').onchange = () => selectedMeanings = [...$('meaningList')
+                    .querySelectorAll('input:checked')].map(x => selectedWord.meanings[+x.value]
+                );
+                $('meaningList').append(l)
+            })
+        }
+
+        $('systemSend').onclick = () => {
+            if (type === 'system') addSystem($('systemText').value || '--');
+            if (type === 'text') addText($('systemText').value, false, tone);
+            if (type === 'voice') addVoice($('voiceText').value || 'Hello', tone);
+            if (type === 'quiz' && selectedMeanings.length) addQuiz(selectedWord, [...selectedMeanings]);
+            if (type === 'listen-word') addListenWord(selectedWord);
+            if (type === 'listen-meaning' && selectedMeanings.length) addListenMeaning(selectedWord, [...selectedMeanings]);
+            if (type === 'listen-spell') addListenSpell(selectedWord);
+            if (type === 'see-word' && selectedSeeMeaning) addSeeWord(selectedSeeMeaning)
+        };
+        $('userSend').onclick = () => addText($('userText').value, true, userTone);
+
+        [
+            ['QWERTYUIOP'],
+            ['ASDFGHJKL'],
+            ['ZXCVBNM']
+        ].forEach((r, ri) => {
+            let row = document.createElement('div');
+            row.className = 'key-row';
+            [...r[0]].forEach(k => {
+                let b = document.createElement('button');
+                b.className = 'key';
+                b.textContent = k;
+                b.onclick = () => letterInput(k);
+                row.append(b)
+            });
+            if (ri === 2) {
+                let d = document.createElement('button');
+                d.className = 'key delete';
+                d.innerHTML = icon('ti-backspace');
+                d.onclick = () => { if (activeQuiz?.phase === 'spell' && activeQuiz.typed.length) { activeQuiz
+                            .typed.pop();
+                        renderSlots(-1) } };
+                row.append(d)
+            }
+            $('keyboard').append(row)
+        });
+
+        function loadVoices() {
+            voices = speechSynthesis.getVoices().filter(v => v.lang?.startsWith('en-'));
+            $('voiceSelect').innerHTML = '';
+            voices.forEach((v, i) => $('voiceSelect').add(new Option(v.name + ' · ' + v.lang, i)));
+            voiceObj = voices.find(v => /Samantha|Ava|Allison/.test(v.name)) || voices[0]
+        }
+        $('voiceSelect').onchange = e => voiceObj = voices[e.target.value];
+        speechSynthesis.onvoiceschanged = loadVoices;
+        renderWords();
+        renderSeeMeanings();
+        loadVoices();
+        setTimeout(loadVoices, 300);
+    </script>
+</body>
+</html>
