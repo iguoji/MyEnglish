@@ -49,4 +49,17 @@ class LocalFileIo {
       'jsonText': jsonText,
     });
   }
+
+  ///
+  /// 打开系统保存框，把当前单日运行日志导出到用户指定的位置。
+  ///
+  /// [fileName] 作为系统保存框预填的文件名（例如 MyEnglish-日志-2026-09-06.txt）。
+  /// 日志内容由原生侧直接读取并流式拷贝，不经 Dart 中转。
+  /// 返回真实保存位置的 Uri 字符串；用户取消保存时返回 null。
+  Future<String?> exportLogFile({required String fileName}) {
+    // 原生用 ACTION_CREATE_DOCUMENT 预填文件名，再把日志文件拷贝到用户选的位置。
+    return _channel.invokeMethod<String?>('exportLogFile', <String, Object?>{
+      'fileName': fileName,
+    });
+  }
 }

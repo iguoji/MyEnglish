@@ -3,11 +3,12 @@ import 'dart:async';
 
 // material.dart 提供 Drawer、ListTile 风格布局与 ChangeNotifier 监听所需组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 统一提供应用内图标，避免使用 Flutter Material 内置图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import 'home_layout.dart';
 // 引入应用元信息常量（pubspec.yaml 单一数据源同步生成的版本号与展示名）。
 import '../../../common/app_info.dart';
 // 引入全局 Toast 工具，层级高于 Drawer/BottomSheet。
@@ -32,7 +33,7 @@ import '../../../services/word_audio_cache.dart';
 /// 9. 分割线
 /// 10. “学习设置”分区标题（字号小 2px）
 /// 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习
-/// 16. 页脚：Github 图标 + 邮箱图标（居左、有间隔）
+/// 16. 页脚：Github 图标 + 邮箱图标 + 日志导出图标（居左、有间隔）
 ///
 class HomeDrawer extends StatelessWidget {
   ///
@@ -46,6 +47,7 @@ class HomeDrawer extends StatelessWidget {
     required this.onClearData,
     required this.onOpenGithub,
     required this.onCopyEmail,
+    required this.onExportLog,
     super.key,
   });
 
@@ -82,6 +84,10 @@ class HomeDrawer extends StatelessWidget {
   final VoidCallback onCopyEmail;
 
   ///
+  /// 点击页脚日志图标后的动作：由首页直接弹系统保存框导出单日日志。
+  final VoidCallback onExportLog;
+
+  ///
   /// 输出与设计稿一致的 252 宽抽屉内容。
   @override
   Widget build(BuildContext context) {
@@ -90,73 +96,102 @@ class HomeDrawer extends StatelessWidget {
 
     // Drawer 是 Material 标准侧边面板；宽度固定为设计稿的 252。
     return Drawer(
-      width: 252,
+      width: HomeDrawerLayout.width,
       // 表面使用卡片色。
       backgroundColor: tokens.card,
       // 抽屉自带圆角在右侧展开时不需要，设为直角贴边。
       shape: const RoundedRectangleBorder(),
-      // SafeArea 避开状态栏，保持顶部信息完整可见。
-      child: SafeArea(
-        // Column 让页脚固定在底部，中间菜单区可滚动。
-        child: Column(
-          children: [
-            // Expanded 让菜单区在剩余空间内滚动：内嵌设置后内容变高，
-            // 小屏设备也不会因超出屏幕高度而溢出。
-            Expanded(
-              child: SingleChildScrollView(
-                // 子项默认左对齐。
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. 顶部三栏：左 logo、中 Azure 徽章（名字+版号）、右主题切换图标。
-                    _DrawerHeader(settings: settings),
-                    // 2. 头部下方分隔线。
-                    Divider(height: 1, color: tokens.rowBorder),
-                    // 3. Primary 添加单词按钮（主色实底）。
-                    _AddWordButton(onTap: onAddWord),
-                    // 4. 分隔线。
-                    Divider(height: 1, color: tokens.rowBorder),
-                    // 5. 离线语音入口：右侧实时显示缓存百分比，缓存中下方出现圆角进度条。
-                    _DrawerOfflineSpeech(cache: cache),
-                    // 6. 数据导入。
-                    _DrawerItem(
-                      key: const Key('drawer-import'),
-                      icon: TablerIcons.fileImport,
-                      label: '数据导入',
-                      onTap: onImport,
-                    ),
-                    // 7. 数据导出。
-                    _DrawerItem(
-                      key: const Key('drawer-export'),
-                      icon: TablerIcons.fileExport,
-                      label: '数据导出',
-                      onTap: onExport,
-                    ),
-                    // 8. 清空数据：红色危险样式，作为本区块末项补下边距 20。
-                    _DrawerItem(
-                      key: const Key('drawer-clear'),
-                      icon: TablerIcons.trash,
-                      label: '清空数据',
-                      onTap: onClearData,
-                      isDanger: true,
-                      bottomPadding: 20,
-                    ),
-                    // 9. 分隔线。
-                    Divider(height: 1, color: tokens.rowBorder),
-                    // 10. “学习设置”分区标题，字号比普通菜单项小 2px。
-                    const _SectionLabel('学习设置'),
-                    // 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习。
-                    // 卡片有 padding、无边框、有背景色（tokens.expand）。
-                    _SettingsCard(settings: settings),
-                  ],
+      // IconTheme 给整个抽屉定下**默认图标尺寸**，就像 CSS 里在父元素上写一次
+      // `font-size`、子元素不用再各写一遍。
+      //
+      // 抽屉里有 10 个图标（菜单项、设置项、页脚……），原来每一个都自己写
+      // `size: AppIcon.i16`：想整体调大一档得改 10 处，漏一处就有一个图标
+      // 比别人小。现在只有这一处；确实要与众不同的图标仍可在自己那一行写
+      // `size:` 覆盖，写法和 CSS 的就近覆盖一模一样。
+      //
+      // 颜色没有一起提上来：抽屉里的图标颜色本来就分好几种角色（普通项灰、
+      // 危险项红、选中项白），提上来反而要在多数地方再写一遍覆盖。
+      child: IconTheme.merge(
+        data: const IconThemeData(size: AppIcon.i16),
+        // SafeArea 避开状态栏，保持顶部信息完整可见。
+        child: SafeArea(
+          // Column 让页脚固定在底部，中间菜单区可滚动。
+          child: Column(
+            children: [
+              // Expanded 让菜单区在剩余空间内滚动：内嵌设置后内容变高，
+              // 小屏设备也不会因超出屏幕高度而溢出。
+              Expanded(
+                child: SingleChildScrollView(
+                  // 子项默认左对齐。
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. 顶部三栏：左 logo、中 Azure 徽章（名字+版号）、右主题切换图标。
+                      _DrawerHeader(settings: settings),
+                      // 2. 头部下方分隔线。
+                      Divider(
+                        height: HomeDrawerLayout.dividerHeight,
+                        color: tokens.rowBorder,
+                      ),
+                      // 3. Primary 添加单词按钮（主色实底）。
+                      _AddWordButton(onTap: onAddWord),
+                      // 4. 分隔线。
+                      Divider(
+                        height: HomeDrawerLayout.dividerHeight,
+                        color: tokens.rowBorder,
+                      ),
+                      // 5. 离线语音入口：右侧实时显示缓存百分比，缓存中下方出现圆角进度条。
+                      _DrawerOfflineSpeech(cache: cache),
+                      // 6. 数据导入。
+                      _DrawerItem(
+                        key: const Key('drawer-import'),
+                        icon: AppGlyph.importFile,
+                        label: '数据导入',
+                        onTap: onImport,
+                      ),
+                      // 7. 数据导出。
+                      _DrawerItem(
+                        key: const Key('drawer-export'),
+                        icon: AppGlyph.exportFile,
+                        label: '数据导出',
+                        onTap: onExport,
+                      ),
+                      // 8. 清空数据：红色危险样式，作为本区块末项补一档下边距（`pBase`）。
+                      _DrawerItem(
+                        key: const Key('drawer-clear'),
+                        icon: AppGlyph.clearAll,
+                        label: '清空数据',
+                        onTap: onClearData,
+                        isDanger: true,
+                        bottomPadding: AppSpace.pBase,
+                      ),
+                      // 9. 分隔线。
+                      Divider(
+                        height: HomeDrawerLayout.dividerHeight,
+                        color: tokens.rowBorder,
+                      ),
+                      // 10. “学习设置”分区标题，字号比普通菜单项小 2px。
+                      const _SectionLabel('学习设置'),
+                      // 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习。
+                      // 卡片有 padding、无边框、有背景色（tokens.expand）。
+                      _SettingsCard(settings: settings),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            // 页脚上方分隔线。
-            Divider(height: 1, color: tokens.rowBorder),
-            // 16. 页脚：Github + 邮箱，水平排列、居左、两项之间有间隔。
-            _DrawerFooter(onOpenGithub: onOpenGithub, onCopyEmail: onCopyEmail),
-          ],
+              // 页脚上方分隔线。
+              Divider(
+                height: HomeDrawerLayout.dividerHeight,
+                color: tokens.rowBorder,
+              ),
+              // 16. 页脚：Github + 邮箱 + 日志导出，水平排列、居左、有间隔。
+              _DrawerFooter(
+                onOpenGithub: onOpenGithub,
+                onCopyEmail: onCopyEmail,
+                onExportLog: onExportLog,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -229,6 +264,7 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // ListenableBuilder 让主题变化后只刷新头部，不重绘整个抽屉。
     return ListenableBuilder(
       // 监听全局设置 Store。
@@ -237,40 +273,40 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
       builder: (context, child) {
         // 当前是否为深色主题，决定显示太阳还是月亮。
         final isDark = widget.settings.theme == AppThemePreference.dark;
-        // 当前亮度，决定 Azure 徽章在深浅色下的具体色值。
-        final isDarkBrightness =
-            Theme.of(context).brightness == Brightness.dark;
-        // Azure 徽章背景：浅色 10% 透明、深色 20% 透明（深色 surface 上更可见）。
-        final badgeBg = isDarkBrightness
-            ? const Color(0x3345AAF2)
-            : const Color(0x1A45AAF2);
-        // Azure 徽章文字：浅色用加深的 azure、深色用标准 azure。
-        final badgeText = isDarkBrightness
-            ? const Color(0xFF45AAF2)
-            : const Color(0xFF2B94D4);
+        // Azure 徽章的底色与文字色都收进了设计令牌：浅色 10% 透明 + 加深文字、
+        // 深色 20% 透明 + 标准文字，明暗判断由 AppTokens.of 统一完成，
+        // 这里不再自己问一次「现在是不是深色」。
+        final badge = AppTokens.of(context);
+        final badgeBg = badge.badgeAzureBg;
+        final badgeText = badge.badgeAzureText;
         // Row 三栏：logo / Expanded 居中徽章 / 主题图标。
         return Padding(
-          // 左 20 与菜单项对齐；右 8 因为图标按钮自带 6 内边距。
-          padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
+          // 左侧与菜单项对齐（`pBase`）；右侧收窄一档（`p2`），因为图标按钮自带内边距。
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.pBase,
+            AppSpace.p3,
+            AppSpace.p2,
+            AppSpace.p3,
+          ),
           child: Row(
             children: [
               // 左：42×42 品牌 logo（来自 assets/logo/app_logo.png，
               // 即 logo/_source/master_1024.png 的 C3 翻页书页方案）。
-              // 不再使用 TablerIcons.book2 占位，因为 App Logo 必须原创几何、
+              // 不再使用 Tabler 的 book2 图标 占位，因为 App Logo 必须原创几何、
               // 不能搬用任何图标库现成图形（参考项目约定）。
               ClipRRect(
                 // PNG 本身已含圆角，ClipRRect 仅作边缘抗锯齿兜底。
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppRadius.roundedLg),
                 child: Image.asset(
                   'assets/logo/app_logo.png',
-                  width: 42,
-                  height: 42,
+                  width: HomeDrawerLayout.logoSize,
+                  height: HomeDrawerLayout.logoSize,
                   // 强制 42×42 缩放，PNG 源 1024×1024。
                   fit: BoxFit.cover,
                 ),
               ),
               // 图标与文字间距。
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.p3),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,59 +315,52 @@ class _DrawerHeaderState extends State<_DrawerHeader> {
                     // 应用名称（从 pubspec.yaml 同步，单一数据源）。
                     Text(
                       AppInfo.displayName,
-                      style: TextStyle(
-                        color: tokens.text,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      // 14 号粗那一档：和菜单项同字号，应用名靠字重抓眼。
+                      style: textTheme.fs5Bold,
                     ),
                     // 名称与版号间距。
-                    const SizedBox(height: 4),
-                    // 版号 Azure 浅色徽章：圆角 4、横向 8 纵向 2 内边距（高度减小 2px）。
+                    const SizedBox(height: AppSpace.p1),
+                    // 版号 Azure 浅色徽章：徽标那一档圆角（`rounded`）、横向常规间隙（`p2`）、纵向最小档（`p1`）。
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
+                        horizontal: AppSpace.p2,
+                        vertical: AppSpace.p1,
                       ),
                       decoration: BoxDecoration(
                         // Azure 主色按透明度叠加为浅底。
                         color: badgeBg,
-                        // Tabler badge 默认 4 像素圆角。
-                        borderRadius: BorderRadius.circular(4),
+                        // Tabler badge 走基准圆角那一档。
+                        borderRadius: BorderRadius.circular(AppRadius.rounded),
                       ),
                       // 版本号前加 v 前缀，与历史样式保持一致；
                       // AppInfo.version 由 pubspec.yaml 同步生成，不再硬编码。
                       child: Text(
                         'v${AppInfo.version}',
-                        style: TextStyle(
+                        // 12 号半粗那一档，正好是 Tabler badge 的规格。
+                        style: textTheme.fs6Semibold.copyWith(
                           // Azure 加深色文字。
                           color: badgeText,
-                          // 版号字号比名称小。
-                          fontSize: 11,
-                          // Tabler badge 字重 600。
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              // 右：主题切换图标按钮，尺寸与页脚图标一致(图标 18 + padding 4)。
+              // 右：主题切换图标按钮，尺寸与页脚图标一致（图标 18 + 一档最小内边距）。
               InkWell(
                 // key 供测试点击切换主题（替代原 dark-mode-switch）。
                 key: const Key('theme-toggle'),
                 // 保存中禁用点击。
                 onTap: _isSaving ? null : () => unawaited(_toggleTheme()),
                 // 圆形点击反馈区。
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AppRadius.rounded),
                 child: Padding(
                   // padding 4 与页脚图标项一致。
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(AppSpace.p1),
                   child: Icon(
                     // 深色显示太阳（切回浅色）、浅色显示月亮（切到深色）。
-                    isDark ? TablerIcons.sun : TablerIcons.moon,
-                    // 与页脚图标一致 18px。
-                    size: 18,
+                    isDark ? AppGlyph.lightMode : AppGlyph.darkMode,
+                    // 尺寸继承抽屉根部的 IconTheme，这里只定颜色。
                     // 次要文字色，不抢 logo 视觉。
                     color: tokens.textSecondary,
                   ),
@@ -363,9 +392,15 @@ class _AddWordButton extends StatelessWidget {
   /// 输出 38 高的整行主色按钮。
   @override
   Widget build(BuildContext context) {
-    // Padding 让按钮左右与菜单项对齐（20），上下 32 对称留白。
+    final textTheme = Theme.of(context).textTheme;
+    // Padding 让按钮左右与菜单项对齐（`pBase`），上下用大一档（`p5`）对称留白。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 32, 20, 32),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.pBase,
+        AppSpace.p5,
+        AppSpace.pBase,
+        AppSpace.p5,
+      ),
       // InkWell 提供整行点击反馈。
       child: InkWell(
         // key 供测试点击触发添加单词表单。
@@ -373,33 +408,29 @@ class _AddWordButton extends StatelessWidget {
         // 点击回调。
         onTap: onTap,
         // 圆角与容器一致，避免按下时方角溢出。
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(AppRadius.rounded),
         child: Container(
           // 按钮高度 38，与 Tabler btn 默认尺寸接近。
-          height: 38,
+          height: HomeDrawerLayout.addWordButtonHeight,
           // 主色实底。
           decoration: BoxDecoration(
-            color: AppTokens.accent,
-            borderRadius: BorderRadius.circular(6),
+            color: AppTokens.primary,
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
           ),
           // 内容居中。
           alignment: Alignment.center,
-          child: const Row(
+          child: Row(
             // 主轴居中：图标 + 文字整体居中。
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // plus 图标对应“+”号。
-              Icon(TablerIcons.plus, size: 18, color: Colors.white),
+              // plus 图标对应“+”号。尺寸继承抽屉根部的 IconTheme。
+              const Icon(AppGlyph.add, color: Colors.white),
               // 图标与文字间距。
-              SizedBox(width: 6),
+              const SizedBox(width: AppSpace.p2),
               // 按钮文字。
               Text(
                 '添加单词',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: textTheme.fs5Semibold.copyWith(color: Colors.white),
               ),
             ],
           ),
@@ -432,6 +463,7 @@ class _DrawerOfflineSpeech extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // ListenableBuilder 让服务每次进度更新只刷新本入口，不重绘整个抽屉。
     return ListenableBuilder(
       // 监听全局缓存服务。
@@ -460,30 +492,32 @@ class _DrawerOfflineSpeech extends StatelessWidget {
                 // 否则进入缓存（进行中时内部自动忽略重复点击）。
                 cache.start();
               },
-              // 与 _DrawerItem 一致的整行内边距：上 20 下 0，让项间间距=20 对等。
+              // 与 _DrawerItem 一致的整行内边距：上一档（`pBase`）下不留，让项间间距彼此相等。
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.pBase,
+                  AppSpace.pBase,
+                  AppSpace.pBase,
+                  AppSpace.p0,
+                ),
                 child: Row(
                   children: <Widget>[
-                    // 17 像素灰色描边图标，与 _DrawerItem 视觉一致。
-                    Icon(
-                      TablerIcons.cloudDownload,
-                      size: 17,
-                      color: tokens.muted,
-                    ),
+                    // 灰色描边图标，与 _DrawerItem 视觉一致；尺寸继承 IconTheme。
+                    Icon(AppGlyph.download, color: tokens.muted),
                     // 图标与文字间距。
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpace.p3),
                     // 入口文案使用主文字色。
                     Text(
+                      // 正文那一档自带主文字色，与其它菜单项完全一致。
                       '离线语音',
-                      style: TextStyle(color: tokens.text, fontSize: 14.5),
+                      style: textTheme.fs5,
                     ),
                     // 撑开中间空间，把百分比推到最右侧。
                     const Spacer(),
                     // 右侧居右对齐的百分比数字（默认 0%）。
                     Text(
                       '$percent%',
-                      style: TextStyle(color: tokens.muted, fontSize: 13),
+                      style: textTheme.fs5.copyWith(color: tokens.muted),
                     ),
                   ],
                 ),
@@ -493,20 +527,27 @@ class _DrawerOfflineSpeech extends StatelessWidget {
             if (isCaching)
               Padding(
                 // 左右与入口行对齐，进度条占满中间宽度。
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.pBase,
+                  AppSpace.p0,
+                  AppSpace.pBase,
+                  AppSpace.p2,
+                ),
                 // ClipRRect 给方形 LinearProgressIndicator 加圆角。
                 child: ClipRRect(
                   // 2 像素圆角，4 高进度条视觉更柔和。
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(AppRadius.roundedSm),
                   child: LinearProgressIndicator(
                     // 已完成比例，0~1。
                     value: cache.ratio,
                     // 轨道底色用次级面色。
                     backgroundColor: tokens.sub,
                     // 已完成部分用主色。
-                    valueColor: AlwaysStoppedAnimation<Color>(AppTokens.accent),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppTokens.primary,
+                    ),
                     // 明确压低高度，避免默认 4 之上再增高。
-                    minHeight: 4,
+                    minHeight: HomeDrawerLayout.speechCacheBarHeight,
                   ),
                 ),
               ),
@@ -530,7 +571,7 @@ class _DrawerItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.isDanger = false,
-    this.bottomPadding = 0,
+    this.bottomPadding = AppSpace.p0,
     super.key,
   });
 
@@ -551,16 +592,17 @@ class _DrawerItem extends StatelessWidget {
   final bool isDanger;
 
   ///
-  /// 底部内边距：默认 0（项间间距由下一项的 top 20 决定），
-  /// 区块最后一项传 20 让其与下方分割线间距也=20，保持全链路对等。
+  /// 底部内边距：默认不留（项间间距由下一项的上内边距决定），
+  /// 区块最后一项补一档（`pBase`），让它与下方分割线的间距和项间间距相等，保持全链路对等。
   final double bottomPadding;
 
   ///
-  /// 输出上 20、下 [bottomPadding] 的入口行。
+  /// 输出上一档（`pBase`）、下 [bottomPadding] 的入口行。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // 危险样式使用红色，普通样式使用默认色。
     final color = isDanger ? AppTokens.danger : tokens.text;
     final iconColor = isDanger ? AppTokens.danger : tokens.muted;
@@ -568,16 +610,21 @@ class _DrawerItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        // 上 20 下 bottomPadding：项间间距=20 对等，末项补下边距让与下方分割线也=20。
-        padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
+        // 上一档（`pBase`）下 bottomPadding：项间间距彼此相等，末项补下边距让它与下方分割线也一样。
+        padding: EdgeInsets.fromLTRB(
+          AppSpace.pBase,
+          AppSpace.pBase,
+          AppSpace.pBase,
+          bottomPadding,
+        ),
         child: Row(
           children: [
-            // 17 像素图标，危险样式红色、普通样式灰色。
-            Icon(icon, size: 17, color: iconColor),
+            // 危险样式红色、普通样式灰色；尺寸继承抽屉根部的 IconTheme。
+            Icon(icon, color: iconColor),
             // 图标与文字间距。
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.p3),
             // 入口文案，危险样式红色、普通样式主文字色。
-            Text(label, style: TextStyle(color: color, fontSize: 14.5)),
+            Text(label, style: textTheme.fs5.copyWith(color: color)),
           ],
         ),
       ),
@@ -586,9 +633,9 @@ class _DrawerItem extends StatelessWidget {
 }
 
 ///
-/// 分区标题（如“学习设置”）：字号比普通菜单项小 2px，muted 色。
+/// 分区标题（如“学习设置”）：字号比普通菜单项小一档，muted 色。
 ///
-/// 普通 _DrawerItem 字号 14.5，这里 12.5，对应 Tabler 的 section label 风格。
+/// 普通 _DrawerItem 用正文档（`fs5`），这里降到最小档（`fs6`），对应 Tabler 的 section label 风格。
 ///
 class _SectionLabel extends StatelessWidget {
   ///
@@ -605,18 +652,21 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     return Padding(
-      // 上 14 与上方分隔线留白，下 8 与卡片留白。
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      // 上留一档基准间距（`p3`）与上方分隔线分开，下收到常规间隙（`p2`）贴近卡片。
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.pBase,
+        AppSpace.p3,
+        AppSpace.pBase,
+        AppSpace.p2,
+      ),
       child: Text(
         text,
-        style: TextStyle(
+        // 12 号半粗那一档：比普通菜单项小一档，字重 600 让小字仍清晰。
+        style: textTheme.fs6Semibold.copyWith(
           // 弱化色，作为分区提示不抢主菜单视觉。
           color: tokens.muted,
-          // 比普通菜单项 14.5 小 2px。
-          fontSize: 12.5,
-          // 字重 600 让小字仍清晰。
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -692,6 +742,24 @@ class _SettingsCardState extends State<_SettingsCard> {
   }
 
   ///
+  /// 保存文字大小档位，流程与口音、分隔符完全一致。
+  ///
+  /// 这一项落盘成功后，全站文字会立刻按新倍数重排——不是只有这张卡片变，
+  /// 而是首页、词库、四个练习页一起变，因为放大是挂在 App 最外层的。
+  Future<void> _setFontScale(AppFontScale value) async {
+    // 已有设置正在写入时忽略并发点击。
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      await widget.settings.setFontScale(value);
+    } catch (error) {
+      if (mounted) _showSaveError(error);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  ///
   /// 统一显示设置保存错误。
   void _showSaveError(Object error) {
     // Toast 基于根 Overlay，层级高于 Drawer。
@@ -704,17 +772,17 @@ class _SettingsCardState extends State<_SettingsCard> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
-    // Container 作为卡片：横向 10 边距、纵向 4 内边距、tokens.expand 背景、8 圆角、无边框。
+    // Container 作为卡片：横向常规边距、纵向最小内边距、tokens.expand 背景、卡片那一档圆角、无边框。
     return Container(
-      // 横向 10 边距。
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      // 纵向 4 内边距避免设置行紧贴卡片上下边。
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      // 横向留一档常规边距（`p2`）。
+      margin: const EdgeInsets.symmetric(horizontal: AppSpace.p2),
+      // 纵向留一档最小内边距（`p1`），避免设置行紧贴卡片上下边。
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.p1),
       decoration: BoxDecoration(
         // 卡片背景用 tokens.expand（比 tokens.sub 更浅），让选择器轨道 tokens.sub 可见。
         color: tokens.expand,
         // 8 像素圆角。
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         // 无边框（用户要求）。
       ),
       // ListenableBuilder 让 Store 成功修改后只刷新卡片内容。
@@ -731,8 +799,8 @@ class _SettingsCardState extends State<_SettingsCard> {
                 label: '口语发音',
                 // 卡片内行间分隔线。
                 showDivider: true,
-                // 卡片内横向 8 内边距（卡片已有 20 边距对齐标题）。
-                horizontalPadding: 10,
+                // 卡片内横向收到一档常规间隙（`p2`）；卡片自己已有一档 `pBase` 边距对齐标题。
+                horizontalPadding: AppSpace.p2,
                 control: _AccentControl(
                   settings: widget.settings,
                   onTap: (accent) => unawaited(_setAccent(accent)),
@@ -743,11 +811,21 @@ class _SettingsCardState extends State<_SettingsCard> {
                 label: '单词分隔',
                 // 中间行画分隔线，与下方每日复习分隔。
                 showDivider: true,
-                horizontalPadding: 10,
+                horizontalPadding: AppSpace.p2,
                 control: _SeparatorControl(
                   settings: widget.settings,
                   onTap: (separator) =>
                       unawaited(_setDefinitionSeparator(separator)),
+                ),
+              ),
+              // 14. 字体大小 + 标准/大/特大分段选择器（俗称老年版开关）。
+              _SettingRow(
+                label: '字体大小',
+                showDivider: true,
+                horizontalPadding: AppSpace.p2,
+                control: _FontScaleControl(
+                  settings: widget.settings,
+                  onTap: (scale) => unawaited(_setFontScale(scale)),
                 ),
               ),
               // 15. 每日复习步进器（不再是最后一行，下方接词义连连）。
@@ -764,7 +842,9 @@ class _SettingsCardState extends State<_SettingsCard> {
 
 ///
 /// 三种设置控件共用的轨道宽度，让口语发音/单词分隔/每日复习视觉等宽。
-const double _kSettingControlWidth = 108;
+/// 数值取自首页尺寸表的 [HomeDrawerLayout.controlWidth]，这里只是给本文件
+/// 起一个短名字，四处引用读起来更利落。
+const double _kSettingControlWidth = HomeDrawerLayout.controlWidth;
 
 ///
 /// 口语发音分段选择器：美式 / 英式。
@@ -790,16 +870,17 @@ class _AccentControl extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       // 固定宽度让三种控件视觉等宽。
       width: _kSettingControlWidth,
-      // 固定高度 38（padding 6*2 + 段钮 26），与单词分隔/每日复习统一。
-      height: 38,
-      // padding 6（原 2 增大三倍），让段钮间隔更舒展。
-      padding: const EdgeInsets.all(6),
+      // 高度由内部结构算出（上下各一档 `p2` 加 26 高的段钮 = 42），与单词分隔 / 每日复习统一。
+      height: HomeDrawerLayout.controlTrackHeight,
+      // 四周留一档常规内边距（`p2`），让段钮间隔更舒展。
+      padding: const EdgeInsets.all(AppSpace.p2),
       decoration: BoxDecoration(
         color: tokens.sub,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
       ),
       child: Row(
         // 两个段钮均分轨道宽度。
@@ -810,25 +891,23 @@ class _AccentControl extends StatelessWidget {
                 // key 供测试点击具体口音。
                 key: Key('accent-${accent.storageValue}'),
                 onTap: () => onTap(accent),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AppRadius.rounded),
                 child: Container(
-                  height: 26,
+                  height: HomeDrawerLayout.controlSegmentHeight,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     // 当前口音使用卡片底浮起。
                     color: settings.accent == accent
                         ? tokens.card
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                   ),
                   child: Text(
                     accent.label,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
+                    style: textTheme.fs6Semibold.copyWith(
                       // 当前口音主色，其余次要色。
                       color: settings.accent == accent
-                          ? AppTokens.accent
+                          ? AppTokens.primary
                           : tokens.textSecondary,
                     ),
                   ),
@@ -865,16 +944,17 @@ class _SeparatorControl extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       // 与口语发音等宽。
       width: _kSettingControlWidth,
-      // 固定高度 38，与口语发音/每日复习统一。
-      height: 38,
-      // padding 6 与口语发音一致。
-      padding: const EdgeInsets.all(6),
+      // 高度取分段轨道那一档（`controlTrackHeight`），与口语发音 / 每日复习统一。
+      height: HomeDrawerLayout.controlTrackHeight,
+      // 四周内边距与口语发音那一行一致（`p2`）。
+      padding: const EdgeInsets.all(AppSpace.p2),
       decoration: BoxDecoration(
         color: tokens.sub,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
       ),
       child: Row(
         // 三个段钮均分轨道宽度。
@@ -885,24 +965,22 @@ class _SeparatorControl extends StatelessWidget {
                 // key 供 Widget 测试和自动化准确选择标点。
                 key: Key('definition-separator-${separator.storageValue}'),
                 onTap: () => onTap(separator),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(AppRadius.rounded),
                 child: Container(
-                  height: 26,
+                  height: HomeDrawerLayout.controlSegmentHeight,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     // 当前符号使用卡片底浮起，其他符号保持透明。
                     color: settings.definitionSeparator == separator
                         ? tokens.card
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                   ),
                   child: Text(
                     separator.symbol,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    style: textTheme.fs5Semibold.copyWith(
                       color: settings.definitionSeparator == separator
-                          ? AppTokens.accent
+                          ? AppTokens.primary
                           : tokens.textSecondary,
                     ),
                   ),
@@ -910,6 +988,93 @@ class _SeparatorControl extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+///
+/// 字体大小分段选择器：标准 / 大 / 特大。
+///
+/// 轨道宽度与口语发音、单词分隔一致 [_kSettingControlWidth]，三个段钮均分。
+///
+/// 这个控件有一处和兄弟控件不同的处理：段钮里的文字包了一层 [FittedBox]。
+/// 原因是它本身就是「调字号」的开关——选到特大之后，连它自己的三个段钮文字
+/// 也会跟着变大，而轨道宽度是固定的。包一层之后文字最多缩着显示，
+/// 不会把「特大」两个字挤掉一半。
+///
+class _FontScaleControl extends StatelessWidget {
+  ///
+  /// 接收设置 Store 与选择回调。
+  const _FontScaleControl({required this.settings, required this.onTap});
+
+  ///
+  /// 全局设置 Store，读取当前档位。
+  final SettingsStore settings;
+
+  ///
+  /// 点击某个档位后的回调。
+  final void Function(AppFontScale) onTap;
+
+  ///
+  /// 输出固定宽轨道 + 三个段钮。
+  @override
+  Widget build(BuildContext context) {
+    // 读取当前明暗对应的设计令牌。
+    final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      // 与口语发音等宽。
+      width: _kSettingControlWidth,
+      // 高度取分段轨道那一档（`controlTrackHeight`），与其余三种控件统一。
+      height: HomeDrawerLayout.controlTrackHeight,
+      // 四周内边距与口语发音那一行一致（`p2`）。
+      padding: const EdgeInsets.all(AppSpace.p2),
+      decoration: BoxDecoration(
+        color: tokens.sub,
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
+      ),
+      child: Row(
+        // 三个段钮均分轨道宽度。
+        children: [
+          for (final scale in AppFontScale.values)
+            Expanded(child: _segment(scale, tokens, textTheme)),
+        ],
+      ),
+    );
+  }
+
+  ///
+  /// 输出一个段钮：当前档位浮起并转成品牌蓝，其余保持透明。
+  ///
+  /// 文字样式表由 build 取一次再递进来：本方法没有自己的 context，
+  /// 三个段钮各自再取一遍反而更绕。
+  Widget _segment(AppFontScale scale, AppTokens tokens, TextTheme textTheme) {
+    // 是否为当前生效的档位。
+    final isActive = settings.fontScale == scale;
+    return InkWell(
+      // key 供 Widget 测试和自动化准确选择档位。
+      key: Key('font-scale-${scale.storageValue}'),
+      onTap: () => onTap(scale),
+      borderRadius: BorderRadius.circular(AppRadius.rounded),
+      child: Container(
+        height: HomeDrawerLayout.controlSegmentHeight,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          // 当前档位使用卡片底浮起。
+          color: isActive ? tokens.card : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.rounded),
+        ),
+        // scaleDown 只在放不下时才缩小，正常字号下不影响观感。
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            scale.label,
+            style: textTheme.fs6Semibold.copyWith(
+              color: isActive ? AppTokens.primary : tokens.textSecondary,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -969,6 +1134,7 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // ListenableBuilder 让目标值变化后只刷新本行。
     return ListenableBuilder(
       // 监听同一个全局 SettingsStore。
@@ -979,22 +1145,22 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
           label: '每日复习',
           // 下方还有“词义连连”行，这里画分隔线把两行隔开。
           showDivider: true,
-          // 卡片内横向 10 内边距，与口语发音/单词分隔两行完全一致，
-          // 保证三行右侧控件左右边缘对齐（此前误传 8 导致本行整体偏左 2px）。
-          horizontalPadding: 10,
+          // 卡片内横向内边距与口语发音 / 单词分隔两行取同一档（`p2`），
+          // 三行右侧控件的左右边缘才会对齐成一条线（早先这里误传过另一档，本行整体偏左两像素）。
+          horizontalPadding: AppSpace.p2,
           // 右侧容器：与口语发音/单词分隔同样的 switch 风格轨道。
           control: Container(
             // 与口语发音/单词分隔等宽。
             width: _kSettingControlWidth,
-            // 固定高度 38，与口语发音/单词分隔统一，避免占满整行。
-            height: 38,
-            // padding 6 与其他两个控件一致。
-            padding: const EdgeInsets.all(6),
+            // 高度取分段轨道那一档（`controlTrackHeight`），与口语发音 / 单词分隔统一，避免占满整行。
+            height: HomeDrawerLayout.controlTrackHeight,
+            // 四周内边距与其他两个控件取同一档（`p2`）。
+            padding: const EdgeInsets.all(AppSpace.p2),
             decoration: BoxDecoration(
               // 同样的背景色。
               color: tokens.sub,
               // 同样的圆角。
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             child: Row(
               children: [
@@ -1003,29 +1169,24 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
                   child: InkWell(
                     key: const Key('goal-minus'),
                     onTap: _isSaving ? null : () => unawaited(_changeGoal(-5)),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                     child: Container(
-                      height: 26,
+                      height: HomeDrawerLayout.controlSegmentHeight,
                       alignment: Alignment.center,
-                      child: Icon(
-                        TablerIcons.minus,
-                        size: 15,
-                        color: tokens.textMedium,
-                      ),
+                      child: Icon(AppGlyph.stepDown, color: tokens.textMedium),
                     ),
                   ),
                 ),
                 // 当前目标值。
                 Container(
-                  constraints: const BoxConstraints(minWidth: 34),
-                  height: 26,
+                  constraints: const BoxConstraints(
+                    minWidth: HomeDrawerLayout.stepperValueMinWidth,
+                  ),
+                  height: HomeDrawerLayout.controlSegmentHeight,
                   alignment: Alignment.center,
                   child: Text(
                     widget.settings.dailyGoal.toString(),
-                    style: TextStyle(
-                      color: tokens.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    style: textTheme.fs5Semibold.copyWith(
                       // 等宽数字避免加减时宽度跳动。
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -1036,15 +1197,11 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
                   child: InkWell(
                     key: const Key('goal-plus'),
                     onTap: _isSaving ? null : () => unawaited(_changeGoal(5)),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                     child: Container(
-                      height: 26,
+                      height: HomeDrawerLayout.controlSegmentHeight,
                       alignment: Alignment.center,
-                      child: Icon(
-                        TablerIcons.plus,
-                        size: 15,
-                        color: tokens.textMedium,
-                      ),
+                      child: Icon(AppGlyph.stepUp, color: tokens.textMedium),
                     ),
                   ),
                 ),
@@ -1113,6 +1270,7 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // ListenableBuilder 让秒数值变化后只刷新本行。
     return ListenableBuilder(
       // 监听同一个全局 SettingsStore。
@@ -1124,16 +1282,16 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
           // 卡片内最后一行，不画分隔线。
           showDivider: false,
           // 右侧容器：与每日复习等宽的步进轨道。
-          horizontalPadding: 10,
+          horizontalPadding: AppSpace.p2,
           control: Container(
             // 与每日复习等宽。
             width: _kSettingControlWidth,
-            // 固定高度 38，与每日复习统一。
-            height: 38,
-            padding: const EdgeInsets.all(6),
+            // 高度取分段轨道那一档（`controlTrackHeight`），与每日复习统一。
+            height: HomeDrawerLayout.controlTrackHeight,
+            padding: const EdgeInsets.all(AppSpace.p2),
             decoration: BoxDecoration(
               color: tokens.sub,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             child: Row(
               children: [
@@ -1142,29 +1300,24 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
                   child: InkWell(
                     key: const Key('meaning-match-minus'),
                     onTap: _isSaving ? null : () => unawaited(_change(-30)),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                     child: Container(
-                      height: 26,
+                      height: HomeDrawerLayout.controlSegmentHeight,
                       alignment: Alignment.center,
-                      child: Icon(
-                        TablerIcons.minus,
-                        size: 15,
-                        color: tokens.textMedium,
-                      ),
+                      child: Icon(AppGlyph.stepDown, color: tokens.textMedium),
                     ),
                   ),
                 ),
                 // 当前秒数（默认 150）。
                 Container(
-                  constraints: const BoxConstraints(minWidth: 34),
-                  height: 26,
+                  constraints: const BoxConstraints(
+                    minWidth: HomeDrawerLayout.stepperValueMinWidth,
+                  ),
+                  height: HomeDrawerLayout.controlSegmentHeight,
                   alignment: Alignment.center,
                   child: Text(
                     widget.settings.meaningMatchDuration.toString(),
-                    style: TextStyle(
-                      color: tokens.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    style: textTheme.fs5Semibold.copyWith(
                       // 等宽数字避免加减时宽度跳动。
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -1175,15 +1328,11 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
                   child: InkWell(
                     key: const Key('meaning-match-plus'),
                     onTap: _isSaving ? null : () => unawaited(_change(30)),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                     child: Container(
-                      height: 26,
+                      height: HomeDrawerLayout.controlSegmentHeight,
                       alignment: Alignment.center,
-                      child: Icon(
-                        TablerIcons.plus,
-                        size: 15,
-                        color: tokens.textMedium,
-                      ),
+                      child: Icon(AppGlyph.stepUp, color: tokens.textMedium),
                     ),
                   ),
                 ),
@@ -1199,7 +1348,7 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
 ///
 /// 设置项的通用一行：左标签、右控件、可选底部分隔线。
 ///
-/// [horizontalPadding] 默认 20（卡片外菜单项对齐），卡片内统一传 10。
+/// [horizontalPadding] 默认与菜单项同档（`pBase`，卡片外使用），卡片内统一传常规间隙那一档（`p2`）。
 ///
 class _SettingRow extends StatelessWidget {
   ///
@@ -1208,7 +1357,7 @@ class _SettingRow extends StatelessWidget {
     required this.label,
     required this.control,
     required this.showDivider,
-    this.horizontalPadding = 20,
+    this.horizontalPadding = AppSpace.pBase,
   });
 
   ///
@@ -1224,7 +1373,7 @@ class _SettingRow extends StatelessWidget {
   final bool showDivider;
 
   ///
-  /// 横向内边距：卡片外 20、卡片内 16。
+  /// 横向内边距：卡片外与菜单项同档（`pBase`），卡片内收到常规间隙那一档（`p2`）。
   final double horizontalPadding;
 
   ///
@@ -1233,9 +1382,10 @@ class _SettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // Container 统一高度与分隔线。
     return Container(
-      height: 52,
+      height: HomeDrawerLayout.rowHeight,
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       decoration: BoxDecoration(
         border: showDivider
@@ -1245,7 +1395,11 @@ class _SettingRow extends StatelessWidget {
       child: Row(
         children: [
           // 左侧标签。
-          Text(label, style: TextStyle(color: tokens.text, fontSize: 14.5)),
+          Text(
+            // 正文那一档自带主文字色。
+            label,
+            style: textTheme.fs5,
+          ),
           // 撑开中间空间。
           const Spacer(),
           // 右侧控件。
@@ -1257,14 +1411,18 @@ class _SettingRow extends StatelessWidget {
 }
 
 ///
-/// 页脚：Github 图标 + 邮箱图标，两个图标居左排列、有间隔。
+/// 页脚：Github 图标 + 邮箱图标 + 日志导出图标，居左排列、有间隔。
 ///
 /// 仅显示图标，不显示文字。整行位于抽屉底部。
 ///
 class _DrawerFooter extends StatelessWidget {
   ///
-  /// 接收两个点击动作。
-  const _DrawerFooter({required this.onOpenGithub, required this.onCopyEmail});
+  /// 接收三个点击动作。
+  const _DrawerFooter({
+    required this.onOpenGithub,
+    required this.onCopyEmail,
+    required this.onExportLog,
+  });
 
   ///
   /// 点击 Github 项后用系统默认浏览器打开仓库。
@@ -1275,14 +1433,23 @@ class _DrawerFooter extends StatelessWidget {
   final VoidCallback onCopyEmail;
 
   ///
-  /// 输出水平排列的两个可点击项。
+  /// 点击日志图标项后由首页弹系统保存框导出单日运行日志。
+  final VoidCallback onExportLog;
+
+  ///
+  /// 输出水平排列的三个可点击项（Github / 邮箱 / 日志导出）。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
     return Padding(
-      // 上 14 与分隔线留白，下 18 贴近抽屉底。
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+      // 上下都留一档基准间距（`p3`）：上方与分隔线分开，下方贴近抽屉底。
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.pBase,
+        AppSpace.p3,
+        AppSpace.pBase,
+        AppSpace.p3,
+      ),
       child: Row(
         // 两图标居左排列。
         mainAxisAlignment: MainAxisAlignment.start,
@@ -1290,29 +1457,34 @@ class _DrawerFooter extends StatelessWidget {
           // Github 图标项。
           InkWell(
             onTap: onOpenGithub,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
             child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(
-                TablerIcons.brandGithub,
-                size: 18,
-                color: tokens.textSecondary,
-              ),
+              padding: const EdgeInsets.all(AppSpace.p1),
+              child: Icon(AppGlyph.github, color: tokens.textSecondary),
             ),
           ),
           // 两图标之间 16 像素间隔。
-          const SizedBox(width: 16),
+          const SizedBox(width: AppSpace.p3),
           // 邮箱图标项。
           InkWell(
             onTap: onCopyEmail,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
             child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(
-                TablerIcons.mail,
-                size: 18,
-                color: tokens.textSecondary,
-              ),
+              padding: const EdgeInsets.all(AppSpace.p1),
+              child: Icon(AppGlyph.mail, color: tokens.textSecondary),
+            ),
+          ),
+          // 邮箱与日志图标之间 16 像素间隔。
+          const SizedBox(width: AppSpace.p3),
+          // 日志导出图标项：点击后由首页直接弹系统保存框，导出单日运行日志。
+          InkWell(
+            // key 供测试点击触发日志导出。
+            key: const Key('drawer-export-log'),
+            onTap: onExportLog,
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpace.p1),
+              child: Icon(AppGlyph.logExport, color: tokens.textSecondary),
             ),
           ),
         ],

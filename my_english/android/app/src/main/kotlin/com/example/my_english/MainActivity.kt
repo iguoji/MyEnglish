@@ -20,6 +20,8 @@ import android.app.Activity
 import android.content.Intent
 // Uri 是 SAF 返回的文件定位符，类似小程序临时文件路径但由系统托管。
 import android.net.Uri
+// 设备品牌型号与 SDK 版本：启动日志里带上，复查时先确认跑在哪台机器。
+import android.os.Build
 // IO 与字符集工具：把 Uri 读成文本、把文本写进 Uri。
 import java.io.BufferedReader
 import java.io.IOException
@@ -94,6 +96,18 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         // 从这里开始当前引擎可以安全接收异步通道结果。
         acceptsChannelResults = true
+        // 运行日志内核：先初始化，后面数据库、音频、设置的埋点才有地方写。
+        AppLog.setup(applicationContext)
+        // 首行留痕：App 版本 + 设备信息，复查日志先看这里确认跑在哪台机器、哪个版本。
+        val appVersion = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+        } catch (_: Throwable) {
+            "?"
+        }
+        AppLog.i(
+            "lifecycle",
+            "应用启动 v$appVersion 设备=${Build.MANUFACTURER} ${Build.MODEL} Android ${Build.VERSION.SDK_INT}",
+        )
         // 创建 SQLite helper；applicationContext 可避免持有 Activity 导致内存泄漏。
         // 设置现在也住在这个数据库里，不再有独立的 SharedPreferences Store。
         wordsDatabase = WordsDatabase(applicationContext)
@@ -384,6 +398,8 @@ class MainActivity : FlutterActivity() {
                         val type = payload["type"]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
                             ?: "string"
                         wordsDatabase.setSetting(key, value, type)
+                        // 记录设置变更：选词与发音行为都受设置影响，改动留痕方便复查。
+                        AppLog.i("settings", "设置变更 key=$key value=$value type=$type")
                         null
                     }
 
@@ -393,6 +409,24 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
+                    // 未登记方法按 Flutter 规范返回 notImplemented。
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Dart 侧日志通道：接收 AppLog 转发的事件，与原生埋点写进同一个单文件日志。
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "my_english/app_log")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // Dart 传一行事件，按级别落到同一个 AppLog 文件。
+                    "append" -> {
+                        val payload = call.arguments as? Map<*, *>
+                        val level = payload?.get("level") as? String ?: "info"
+                        val tag = payload?.get("tag") as? String ?: "dart"
+                        val message = payload?.get("message") as? String ?: ""
+                        if (level == "error") AppLog.e(tag, message) else AppLog.i(tag, message)
+                        result.success(null)
+                    }
                     // 未登记方法按 Flutter 规范返回 notImplemented。
                     else -> result.notImplemented()
                 }
@@ -426,6 +460,19 @@ class MainActivity : FlutterActivity() {
                         val channel = payload?.get("channel") as? String ?: ""
                         // 只解析并播放该渠道；完成前不立即调用 result。
                         wordAudioPlayer.playChannel(spelling, accent, channel, result)
+                    }
+
+                    // 智能轮转播放：统一“正常播放”与“轮转重听”的入口（4.5.0 起 Dart 主用）。
+                    // 原生在“本周期未读且有缓存”的网络渠道间点名播放，缺缓存的渠道后台并发
+                    // 补下载，全部不可用才由系统 TTS 最后兜底，渠道挑选不再由 Dart 完成。
+                    "playSmart" -> {
+                        // arguments 对应 Dart 传来的普通 Map。
+                        val payload = call.arguments as? Map<*, *>
+                        // 读取拼写与口音；缺失时交给服务输出统一参数错误。
+                        val spelling = payload?.get("spelling") as? String ?: ""
+                        val accent = payload?.get("accent") as? String ?: ""
+                        // 原生内部自行轮转渠道并等待短暂下载窗口；完成前不立即调用 result。
+                        wordAudioPlayer.playSmart(spelling, accent, result)
                     }
 
                     // 页面销毁或进入后台时停止当前播放。
@@ -608,6 +655,33 @@ class MainActivity : FlutterActivity() {
                         startActivityForResult(intent, REQUEST_CODE_FILE_IO)
                     }
 
+                    // 导出运行日志：同样走系统保存框，动作类型为 writeLog。
+                    "exportLogFile" -> {
+                        // 参数必须是带 fileName 的 Map。
+                        val payload = call.arguments as? Map<*, *>
+                            ?: error("exportLogFile 缺少参数")
+                        // 预填文件名，例如 MyEnglish-日志-2026-09-06.txt。
+                        val fileName = payload["fileName"] as? String
+                            ?: error("exportLogFile 缺少 fileName")
+                        // 同样保证同一时刻只有一个文件操作。
+                        if (pendingFileResult != null) {
+                            result.error("FILE_BUSY", "上一次文件操作尚未完成", null)
+                            return@setMethodCallHandler
+                        }
+                        // text/plain 让日志在任何文本编辑器里都能打开。
+                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "text/plain"
+                            // EXTRA_TITLE 作为系统保存框默认文件名。
+                            putExtra(Intent.EXTRA_TITLE, fileName)
+                        }
+                        // 记录等待中的 Dart 调用与本次动作类型。
+                        pendingFileResult = result
+                        pendingFileAction = "writeLog"
+                        // 调起系统保存框，结果在 onActivityResult 回调。
+                        startActivityForResult(intent, REQUEST_CODE_FILE_IO)
+                    }
+
                         // 未登记方法按 Flutter 规范返回 notImplemented。
                         else -> result.notImplemented()
                 }
@@ -720,6 +794,8 @@ class MainActivity : FlutterActivity() {
                     // MethodChannel 结果回到主线程发送，保持 Android UI 调用约定。
                     postChannelResult { result.success(value) }
                 } catch (exception: Throwable) {
+                    // 原生通道出错也写进单日日志，避免「哪里坏了」只能靠真机 logcat 查。
+                    AppLog.e(errorCode, exception.message ?: exception.javaClass.simpleName)
                     // 将原生异常转换成 Dart 可捕获的 PlatformException。
                     postChannelResult {
                         // errorCode 让 Dart UI 可以区分数据库、文件或缓存错误。
@@ -735,6 +811,7 @@ class MainActivity : FlutterActivity() {
             }
         } catch (exception: RejectedExecutionException) {
             // Activity 销毁期间执行器可能已经关闭；只在页面仍存活时返回明确错误。
+            AppLog.e(errorCode, "后台执行器已关闭")
             postChannelResult {
                 result.error(errorCode, "后台执行器已关闭", null)
             }
@@ -796,6 +873,21 @@ class MainActivity : FlutterActivity() {
                 // 大文件写入放入 I/O 队列，完成后返回真实保存位置供 Dart 提示。
                 runIoCall(pending, "FILE_IO_ERROR") {
                     writeUriText(uri, exportText ?: "")
+                    uri.toString()
+                }
+            }
+            // 写日志：用户确认且有 Uri 才把日志文件流式拷贝过去。
+            "writeLog" -> {
+                if (resultCode != Activity.RESULT_OK || uri == null) {
+                    // 取消保存返回 null，Dart 据此不提示。
+                    pending.success(null)
+                    return
+                }
+                // 文件拷贝放入 I/O 队列，完成后返回真实保存位置供 Dart 提示。
+                runIoCall(pending, "FILE_IO_ERROR") {
+                    AppLog.copyTo(uri)
+                    // 导出成功后自己也记一条，方便复查「日志是什么时候导出的」。
+                    AppLog.i("file", "日志文件已导出到 $uri")
                     uri.toString()
                 }
             }

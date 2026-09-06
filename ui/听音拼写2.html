@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="JW9WC1h9hxfv85fs519x4g">
+<head data-page-node-id="TSAVJ7nJhGwQT0tNgv9xdY">
+<meta charset="UTF-8" data-page-node-id="D6Gugetfn6AaEcwETjUa1V" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-page-node-id="ARDbkSOBN4Z7dBNHqZR3qG" />
+<title>听音拼写 · 练习稿</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- 原项目自定义动画 -->
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body, #root { height: 100%; }
+  body { margin: 0; background: #eceef1; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif; -webkit-font-smoothing: antialiased; }
+  .no-tap { -webkit-tap-highlight-color: transparent; user-select: none; }
+
+  @keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-7px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(2px);} }
+  .animate-shake { animation: shake 0.4s ease; }
+
+  @keyframes pop { 0%{transform:scale(0.6);opacity:0;} 60%{transform:scale(1.12);opacity:1;} 100%{transform:scale(1);opacity:1;} }
+  .animate-pop { animation: pop 0.18s ease-out; }
+
+  @keyframes ring { 0%{transform:scale(0.85);opacity:0.55;} 100%{transform:scale(1.9);opacity:0;} }
+  .animate-ring { animation: ring 1.6s ease-out infinite; }
+
+  @keyframes bar { 0%,100%{transform:scaleY(0.25);} 50%{transform:scaleY(1);} }
+
+  @keyframes fadeup { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+  .animate-fadeup { animation: fadeup 0.35s ease both; }
+</style>
+</head>
+
+<body data-page-node-id="A1JWY0ryAPOF4IM3M1MwUs">
+<div id="root" class="flex min-h-screen justify-center bg-[#eceef1]" data-page-node-id="qjcuOmTbMABYHM0yokfH9k">
+  <div class="relative flex h-screen w-full max-w-[430px] flex-col overflow-hidden bg-white shadow-[0_0_60px_rgba(15,23,42,0.12)]" data-page-node-id="pqvabHezWAOcVJQyAdsLg4">
+
+    <!-- Header -->
+    <header class="shrink-0 pt-[max(12px,env(safe-area-inset-top))]" data-page-node-id="UXK5jJGfo53aDxiqGymI5N">
+      <div class="flex h-12 items-center justify-between px-3" data-page-node-id="MsWODs2OekSxXlBapNuuP2">
+        <button id="backBtn" aria-label="back" class="no-tap -ml-1 flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 transition active:bg-slate-100" data-page-node-id="mfano2wCRvZzE1GmHZBpBU">
+          <span id="ic-back" data-page-node-id="d2GcTYW5GFShNU5CzF5G03"></span>
+        </button>
+        <div class="flex items-baseline gap-1 font-mono" data-page-node-id="Jt6rnWKrQLaOW7roJUac3K">
+          <span id="curNum" class="text-[19px] font-semibold tracking-tight text-slate-900" data-page-node-id="ev7TIfB3nMnfqbcbcte18f">01</span>
+          <span class="text-[13px] text-slate-300" data-page-node-id="sjrs0P8Wh9a3EFB8JZW21w">/</span>
+          <span class="text-[13px] text-slate-400" data-page-node-id="FENeOSQMtYLiYb5qpHUEea">50</span>
+        </div>
+        <div class="flex h-7 items-center gap-1 rounded-full bg-slate-100 px-2.5 text-slate-500" data-page-node-id="cKzUMExCTYKL1vmeyqGkO7">
+          <span id="ic-clock" data-page-node-id="aq5ITeaSDGI02wENE78PL1"></span>
+          <span id="timer" class="font-mono text-[12px] tabular-nums" data-page-node-id="bgo1dNO8EGZmUgfDGXu1od">00:00</span>
+        </div>
+      </div>
+      <div class="h-[3px] w-full bg-slate-100" data-page-node-id="ltHmDLQJQr6iR2pgZTjoZF">
+        <div id="progressBar" class="h-full rounded-r-full bg-[#206bc4] transition-[width] duration-500 ease-out" style="width:1.5%;" data-page-node-id="VNsJtWNXBbFXK6UwjvJdGs"></div>
+      </div>
+    </header>
+
+    <!-- Body -->
+    <main class="flex flex-1 flex-col overflow-y-auto px-6" data-page-node-id="w0p7Yqwa5dBDFPkSXEmVz9">
+      <!-- 发音 -->
+      <section class="pt-9 pb-8" data-page-node-id="4FGsB6Tj98M94R9Bo7Dnf4">
+        <div class="flex items-center justify-center gap-4" data-page-node-id="ND5NkrcejwwBfy5xjm7feM">
+          <div class="relative flex items-center justify-center" data-page-node-id="FzgotTqrLeTs5MGAvJO84I">
+            <span id="ring1" class="animate-ring absolute hidden h-14 w-14 rounded-full bg-[#206bc4]/25" data-page-node-id="gsqctlvBWGnjAJ9bCSJS4r"></span>
+            <span id="ring2" class="animate-ring absolute hidden h-14 w-14 rounded-full bg-[#206bc4]/20" style="animation-delay:0.5s;" data-page-node-id="PiuXJaf8HO06w9YzjDclnD"></span>
+            <button id="playBtn" aria-label="play pronunciation"
+              class="no-tap relative flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-md shadow-slate-900/20 transition-all duration-300 active:scale-95" data-page-node-id="5zIHRHnF74VpqsH2i2iXAZ">
+              <span id="ic-volume" data-page-node-id="bkSu7sD3NlderJTFLC4NRK"></span>
+            </button>
+          </div>
+          <div class="flex flex-col items-start gap-2" data-page-node-id="7okW2E9ytR7zOe8oDnERnd">
+            <div id="wave" class="flex h-6 items-end gap-[3px]" data-page-node-id="zJ6dx7QaAatipbvabQwrEz"></div>
+            <span id="phonetic" class="font-mono text-[13px] tracking-wide text-slate-400" data-page-node-id="WFt350h72sqtr5dIEZ2S8r"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 拼写输入 -->
+      <section id="inputSection" class="flex flex-col items-center" data-page-node-id="SNWw36tQVYd7xD8PQxgB4V">
+        <div id="slots" class="flex flex-wrap items-end justify-center gap-x-2 gap-y-3" data-page-node-id="qBMBFZDKnxZ4YxCySfbXuW"></div>
+        <div class="mt-4 flex h-7 items-center" data-page-node-id="1kCtvyiAkbydERaK5TFe4U">
+          <span id="statusMsg" data-page-node-id="7BC5rEQJLV7gGAUHP8NPjX"></span>
+        </div>
+      </section>
+
+      <!-- 释义 -->
+      <section class="mt-8 mb-6" data-page-node-id="BhDsPKDtZwCvsnohOCY0qR">
+        <div class="mb-3 flex items-center gap-3" data-page-node-id="p9sbcLgqC5s10ZwOY12xhT">
+          <span class="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase" data-page-node-id="Mf5gM97P0fYuVXeaZ8zjgu">Meaning</span>
+          <span class="h-px flex-1 bg-slate-100" data-page-node-id="TIUN87OMfGvKwXnivPBoEW"></span>
+        </div>
+        <ul id="senseList" class="space-y-2.5" data-page-node-id="vTqBlmu9CApuQ5Ak2OGRp5"></ul>
+      </section>
+    </main>
+
+    <!-- 键盘 -->
+    <div id="keyboard" class="no-tap select-none border-t border-slate-200/80 bg-[#f2f3f5] px-1.5 pt-2.5 pb-[max(14px,env(safe-area-inset-bottom))]" data-page-node-id="JZlkMVLuWC9JAYXVXQBPEi"></div>
+
+  </div>
+</div>
+
+<script>
+/* ===== 图标 ===== */
+const svg=(inner,cls)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="${cls}">${inner}</svg>`;
+const icBack=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><path d="M15 6l-6 6l6 6"/></svg>`;
+const icClock=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-[15px] w-[15px]"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
+const icVolume=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15h-2a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h2l3.5-4.5a.8.8 0 0 1 1.5.5v14a.8.8 0 0 1 -1.5.5l-3.5 -4.5"/></svg>`;
+const icBackspace=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-[22px] w-[22px]"><path d="M20 6a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-11l-5-6l5-6z"/><path d="M12 10l4 4m0-4l-4 4"/></svg>`;
+const icBulb=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M3 12h1m8-9v1m8 8h1M5.6 5.6l.7.7m12.1-.7l-.7.7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0-1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17h4.6"/></svg>`;
+const icCheck=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M5 12l5 5l9-9"/></svg>`;
+
+document.getElementById('ic-back').innerHTML=icBack;
+document.getElementById('ic-clock').innerHTML=icClock;
+document.getElementById('ic-volume').innerHTML=icVolume;
+
+/* ===== 词库 ===== */
+const WORDS = [
+  { word:'abandon', phonetic:'/əˈbændən/', senses:[{pos:'v.',def:'抛弃，遗弃；放弃（想法、计划）'},{pos:'n.',def:'放纵，放任'}] },
+  { word:'brilliant', phonetic:'/ˈbrɪliənt/', senses:[{pos:'adj.',def:'明亮的，鲜艳的'},{pos:'adj.',def:'才华横溢的；极好的'}] },
+  { word:'capture', phonetic:'/ˈkæptʃə(r)/', senses:[{pos:'v.',def:'俘获，捕获；夺取'},{pos:'v.',def:'（用照片、文字）记录，捕捉'},{pos:'n.',def:'捕获，占领'}] },
+  { word:'delicate', phonetic:'/ˈdelɪkət/', senses:[{pos:'adj.',def:'精致的，精美的'},{pos:'adj.',def:'微妙的，需谨慎处理的'}] },
+  { word:'essential', phonetic:'/ɪˈsenʃl/', senses:[{pos:'adj.',def:'必不可少的，极其重要的'},{pos:'n.',def:'必需品；要素'}] },
+];
+const TOTAL = 50;
+const pad=(n)=>String(n).padStart(2,'0');
+const fmt=(t)=>`${pad(Math.floor(t/60))}:${pad(t%60)}`;
+
+/* ===== 状态 ===== */
+const state = { index:0, typed:'', status:'typing', playing:false, seconds:0, hint:false };
+let playTimer=null;
+
+const word=()=>WORDS[state.index % WORDS.length];
+const letters=()=>word().word.split('');
+
+/* ===== 计时 ===== */
+setInterval(()=>{ state.seconds++; document.getElementById('timer').textContent=fmt(state.seconds); }, 1000);
+
+/* ===== 发音 ===== */
+function setPlaying(on){
+  state.playing=on;
+  const btn=document.getElementById('playBtn');
+  btn.className = `no-tap relative flex h-14 w-14 items-center justify-center rounded-full text-white shadow-md transition-all duration-300 active:scale-95 ${on?'bg-[#206bc4] shadow-lg shadow-[#206bc4]/35':'bg-slate-900 shadow-md shadow-slate-900/20'}`;
+  document.getElementById('ring1').classList.toggle('hidden', !on);
+  document.getElementById('ring2').classList.toggle('hidden', !on);
+  renderWave();
+}
+function play(){
+  if(playTimer) clearTimeout(playTimer);
+  setPlaying(true);
+  try{
+    const u=new SpeechSynthesisUtterance(word().word);
+    u.lang='en-US'; u.rate=0.85;
+    window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+  }catch(e){}
+  playTimer=setTimeout(()=>setPlaying(false),1400);
+}
+function renderWave(){
+  const BARS=[0.35,0.6,1,0.75,0.45,0.85,0.5];
+  document.getElementById('wave').innerHTML = BARS.map((h,i)=>{
+    const playing=state.playing;
+    const height = playing ? 22*h+2 : 6;
+    const anim = playing ? `bar 0.85s ease-in-out ${i*0.09}s infinite` : '';
+    const bg = playing ? 'bg-[#206bc4]' : 'bg-slate-300';
+    return `<span class="w-[3px] origin-bottom rounded-full transition-colors ${bg}" style="height:${height}px;animation:${anim}"></span>`;
+  }).join('');
+}
+
+/* ===== 渲染 ===== */
+function renderTop(){
+  document.getElementById('curNum').textContent = pad((state.index % TOTAL)+1);
+  const progress = ((state.index % TOTAL)/TOTAL)*100;
+  document.getElementById('progressBar').style.width = Math.max(progress,1.5)+'%';
+  document.getElementById('phonetic').textContent = word().phonetic;
+}
+function buildSlots(){
+  const L=letters();
+  const box=document.getElementById('slots'); box.innerHTML='';
+  L.forEach((ch,i)=>{
+    const wrap=document.createElement('div'); wrap.className='flex w-[26px] flex-col items-center';
+    const span=document.createElement('span');
+    const line=document.createElement('span');
+    line.className='h-[2px] w-full rounded-full transition-colors duration-200';
+    wrap.appendChild(span); wrap.appendChild(line);
+    box.appendChild(wrap);
+  });
+  paintSlots();
+}
+function paintSlots(){
+  const L=letters(); const val=state.typed;
+  const active = val.length;
+  document.querySelectorAll('#slots > div').forEach((wrap,i)=>{
+    const ch=L[i]; const v=val[i]; const revealed=state.hint && !v;
+    const span=wrap.querySelector('span'); const line=wrap.querySelector('span:last-child');
+    const color = state.status==='correct'?'text-[#2fb344]':state.status==='wrong'?'text-[#d63939]':'text-slate-900';
+    const lineColor = state.status==='correct'?'bg-[#2fb344]':state.status==='wrong'?'bg-[#d63939]':(i===active&&state.status==='typing')?'bg-[#206bc4]':v?'bg-slate-800':'bg-slate-200';
+    span.className = `${v?'animate-pop':''} h-[38px] text-[27px] leading-[38px] font-semibold tracking-tight ${revealed?'text-slate-300':color}`;
+    span.innerHTML = (v ?? (revealed?ch:'')) + (i===active && state.status==='typing' && !v ? '<span class="inline-block h-[26px] w-[2px] animate-pulse bg-[#206bc4] align-middle"></span>' : '');
+    line.className=`h-[2px] w-full rounded-full transition-colors duration-200 ${lineColor}`;
+  });
+}
+function renderSenses(){
+  const list=document.getElementById('senseList');
+  list.innerHTML = word().senses.map((s,i)=>`
+    <li class="animate-fadeup flex items-start gap-3 rounded-xl border border-slate-100 bg-[#fafbfc] px-3.5 py-2.5" style="animation-delay:${i*60}ms;">
+      <span class="mt-[3px] rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#206bc4] ring-1 ring-slate-200 ring-inset">${s.pos}</span>
+      <span class="text-[14.5px] leading-6 text-slate-700">${s.def}</span>
+    </li>`).join('');
+}
+function renderStatus(){
+  const el=document.getElementById('statusMsg');
+  if(state.status==='correct'){
+    el.className='animate-fadeup flex items-center gap-1.5 rounded-full bg-[#2fb344]/10 px-3 py-1 text-[13px] font-medium text-[#2fb344]';
+    el.innerHTML=icCheck+' 拼写正确';
+  } else if(state.status==='wrong'){
+    el.className='animate-fadeup rounded-full bg-[#d63939]/10 px-3 py-1 text-[13px] font-medium text-[#d63939]';
+    el.textContent='再想想，重新输入';
+  } else {
+    el.className='';
+    el.innerHTML=`<button id="hintBtn" class="no-tap flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-[13px] text-slate-500 transition active:bg-slate-50">${icBulb} 提示 · ${letters().length} 个字母</button>`;
+    document.getElementById('hintBtn').onclick=()=>{ state.hint=true; paintSlots(); renderStatus(); };
+  }
+}
+
+/* ===== 流转 ===== */
+function next(){
+  state.index++; state.typed=''; state.hint=false; state.status='typing';
+  renderTop(); buildSlots(); renderSenses(); renderStatus();
+  setTimeout(play,320);
+}
+function onKey(l){
+  if(state.status!=='typing'||state.typed.length>=letters().length) return;
+  const value=state.typed+l; state.typed=value;
+  if(value.length===letters().length){
+    if(value===word().word){ state.status='correct'; paintSlots(); renderStatus(); setTimeout(next,900); }
+    else { state.status='wrong'; paintSlots(); renderStatus(); document.getElementById('inputSection').classList.add('animate-shake'); setTimeout(()=>document.getElementById('inputSection').classList.remove('animate-shake'),400); setTimeout(()=>{ state.typed=''; state.status='typing'; paintSlots(); renderStatus(); },700); }
+  } else { paintSlots(); }
+}
+function onDelete(){
+  if(state.status==='correct') return;
+  state.typed=state.typed.slice(0,-1); state.status='typing'; paintSlots(); renderStatus();
+}
+
+/* ===== 键盘 ===== */
+function buildKeyboard(){
+  const rows=['qwertyuiop','asdfghjkl','zxcvbnm'];
+  const box=document.getElementById('keyboard'); box.innerHTML='';
+  rows.forEach((row,i)=>{
+    const div=document.createElement('div');
+    div.className='mb-2 flex justify-center gap-1.5';
+    if(i===1) div.style.paddingInline='4.5%';
+    if(i===2){ const sp=document.createElement('span'); sp.className='flex-[0.6]'; div.appendChild(sp); }
+    row.split('').forEach(l=>{
+      const b=document.createElement('button');
+      b.className='h-11 flex-1 rounded-[7px] bg-white text-[17px] font-medium text-slate-800 shadow-[0_1px_0_rgba(15,23,42,0.22)] transition active:translate-y-[1px] active:bg-slate-100 active:shadow-none';
+      b.textContent=l; b.onclick=()=>onKey(l);
+      div.appendChild(b);
+    });
+    if(i===2){
+      const del=document.createElement('button');
+      del.className='flex h-11 flex-[1.6] items-center justify-center rounded-[7px] bg-slate-300/70 text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.18)] transition active:translate-y-[1px] active:bg-slate-400/60 active:shadow-none';
+      del.innerHTML=icBackspace; del.onclick=onDelete;
+      div.appendChild(del);
+    }
+    box.appendChild(div);
+  });
+}
+
+/* ===== 绑定 ===== */
+document.getElementById('playBtn').onclick=play;
+document.getElementById('backBtn').onclick=()=>{ window.history.length>1?history.back():null; };
+
+/* ===== 初始化 ===== */
+renderWave();
+renderTop();
+buildSlots();
+renderSenses();
+renderStatus();
+buildKeyboard();
+setTimeout(play,320);
+</script>
+</body>
+</html>

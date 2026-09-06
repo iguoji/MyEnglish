@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 // 引入设计稿色板令牌；曲线主色与背景色都从这里读取，自动适配浅色/深色。
 import '../../../../common/theme.dart';
 
+// 首页专属尺寸表：本图表的高度、留白与节点半径从这里取名字。
+import '../home_layout.dart';
+
 ///
 /// 曲线图单个数据点。
 ///
@@ -49,16 +52,16 @@ class TrendChart extends StatefulWidget {
   const TrendChart({
     required this.data,
     this.color,
-    this.height = 140,
+    this.height = TrendChartLayout.height,
     this.edgeInset = 0,
-    this.duration = const Duration(milliseconds: 600),
+    this.duration = const Duration(milliseconds: AppDuration.ms800),
     super.key,
   });
 
   /// 要绘制的数据点列表；每个点包含横轴文字 label 与纵轴数值 value。
   final List<TrendDataPoint> data;
 
-  /// 曲线主色；不传则使用品牌蓝 [AppTokens.accent]。
+  /// 曲线主色；不传则使用品牌蓝 [AppTokens.primary]。
   final Color? color;
 
   /// 曲线图整体高度（含底部日期标签的预留区）。
@@ -236,7 +239,7 @@ class _TrendChartState extends State<TrendChart>
   @override
   Widget build(BuildContext context) {
     // 主色缺省回退到品牌蓝；背景取卡片底色，用于选中节点的镂空圆心。
-    final lineColor = widget.color ?? AppTokens.accent;
+    final lineColor = widget.color ?? AppTokens.primary;
     final tokens = AppTokens.of(context);
     return SizedBox(
       // 固定高度，内部画布撑满此区域。
@@ -275,6 +278,8 @@ class _TrendChartState extends State<TrendChart>
                 data: display,
                 color: lineColor,
                 bg: tokens.card,
+                axis: tokens.border,
+                axisLabel: tokens.muted,
                 edgeInset: widget.edgeInset,
                 selectedIndex: _selectedIndex,
                 // 纵轴刻度固定按目标数据的范围计算：动画期间不随中间值
@@ -301,6 +306,8 @@ class _TrendChartPainter extends CustomPainter {
     required this.data,
     required this.color,
     required this.bg,
+    required this.axis,
+    required this.axisLabel,
     required this.edgeInset,
     required this.selectedIndex,
     required this.minValue,
@@ -315,6 +322,19 @@ class _TrendChartPainter extends CustomPainter {
 
   /// 背景色（用于选中节点的镂空圆心）。
   final Color bg;
+
+  ///
+  /// 底部那条横轴分割线的颜色。
+  ///
+  /// 由外部传入而不是写死：画笔是纯绘图代码，拿不到 BuildContext，
+  /// 只能由卡片把当前主题的分隔线色（tokens.border）递进来。
+  /// 收进令牌之前这里写死一个浅灰，深色主题下会在暗色卡片上画出一道
+  /// 近乎白色的亮线，非常突兀。
+  final Color axis;
+
+  ///
+  /// 横轴日期文字的颜色（当前主题的弱化文字色 tokens.muted）。
+  final Color axisLabel;
 
   /// 安全边界：节点与文字的横向排列范围。
   final double edgeInset;
@@ -337,10 +357,10 @@ class _TrendChartPainter extends CustomPainter {
     final h = size.height;
 
     // 底部预留 18px 给横轴日期文字；分割线画在这段预留区的顶部。
-    final labelSpace = 18.0;
+    final labelSpace = TrendChartLayout.labelSpace;
     final dividerY = h - labelSpace;
     // 顶部留白：给选中节点上方的数值文字腾位置。
-    final topPadding = 30.0;
+    final topPadding = TrendChartLayout.topPadding;
 
     // 纵轴刻度范围由外部按目标数据给定，动画期间保持固定：
     // 若按每帧中间值重新归一化，节点位移会被缩放抵消（初始加载时
@@ -399,21 +419,24 @@ class _TrendChartPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [color.withValues(alpha: 0.25), color.withValues(alpha: 0.0)],
+        colors: [
+          color.withValues(alpha: AppAlpha.a24),
+          color.withValues(alpha: AppAlpha.none),
+        ],
       ).createShader(Rect.fromLTWH(0, topPadding, w, dividerY - topPadding));
     canvas.drawPath(areaPath, areaPaint);
 
     // 底部分割线：从屏幕左边缘贯通到右边缘（突破安全边界）。
     final basePaint = Paint()
-      ..color = const Color(0xFFEBEBEB)
-      ..strokeWidth = 1;
+      ..color = axis
+      ..strokeWidth = AppStroke.thin;
     canvas.drawLine(Offset(0, dividerY), Offset(w, dividerY), basePaint);
 
     // 曲线本身：主色描边，圆头圆角。
     final linePaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
+      ..strokeWidth = AppStroke.bold
       ..strokeCap = StrokeCap.round;
     canvas.drawPath(linePath, linePaint);
 
@@ -421,18 +444,39 @@ class _TrendChartPainter extends CustomPainter {
     final dotPaint = Paint()..color = color;
     for (var i = 0; i < n; i++) {
       if (i == selectedIndex) {
-        canvas.drawCircle(Offset(xs[i], ys[i]), 4.5, dotPaint);
-        canvas.drawCircle(Offset(xs[i], ys[i]), 2, Paint()..color = bg);
+        canvas.drawCircle(
+          Offset(xs[i], ys[i]),
+          TrendChartLayout.dotOuterRadius,
+          dotPaint,
+        );
+        canvas.drawCircle(
+          Offset(xs[i], ys[i]),
+          TrendChartLayout.dotCoreRadius,
+          Paint()..color = bg,
+        );
       } else {
-        canvas.drawCircle(Offset(xs[i], ys[i]), 3, dotPaint);
+        canvas.drawCircle(
+          Offset(xs[i], ys[i]),
+          TrendChartLayout.dotPlainRadius,
+          dotPaint,
+        );
       }
     }
 
     // 选中节点上方的数值：动画期间跟着插值一起从旧值滚动到新值。
+    //
+    // 本文件里的两处文字样式刻意不改成读主题的文字档位，原因有两个：一是画布上的
+    // 绘制发生在 CustomPainter 里，这里根本拿不到 context；二是那些档统一带
+    // 1.43 的行高，而下面这些坐标是拿 `painter.height` 反推出来的，行高一变
+    // 数值气泡和横轴日期就会整体挪位。字号仍然引用总表台阶。
     final valueSpan = TextSpan(
       // 四舍五入取整显示。
       text: data[selectedIndex].value.round().toString(),
-      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
+      style: TextStyle(
+        fontSize: AppFont.fs5,
+        fontWeight: AppWeight.bold,
+        color: color,
+      ),
     );
     final valuePainter = TextPainter(
       text: valueSpan,
@@ -444,15 +488,17 @@ class _TrendChartPainter extends CustomPainter {
       w - valuePainter.width - 2.0,
     );
     // 垂直：位于节点上方 6px；节点已在顶部时钳制到 0，防止裁切。
-    final valueDy = (ys[selectedIndex] - valuePainter.height - 6).clamp(
-      0.0,
-      double.infinity,
-    );
+    final valueDy =
+        (ys[selectedIndex] -
+                valuePainter.height -
+                TrendChartLayout.valueLabelGap)
+            .clamp(0.0, double.infinity);
     valuePainter.paint(canvas, Offset(valueDx, valueDy));
 
     // 横轴标签：绘制全部节点的 label（7 个数据点就显示 7 个日期/文字）。
     // 首个在安全边界处左对齐、末个右对齐，避免贴边文字被裁切；中间居中。
-    final labelStyle = TextStyle(fontSize: 10, color: const Color(0xFFA0A0A0));
+    // 同上：画布文字保持显式样式，颜色仍由外部传入的令牌决定。
+    final labelStyle = TextStyle(fontSize: AppFont.fs6, color: axisLabel);
     void drawLabel(String text, double x, TextAlign align) {
       final span = TextSpan(text: text, style: labelStyle);
       final painter = TextPainter(
@@ -467,7 +513,10 @@ class _TrendChartPainter extends CustomPainter {
         _ => x - painter.width / 2,
       };
       // 标签画在分割线下方 4px 处（即底部预留区内）。
-      painter.paint(canvas, Offset(dx, dividerY + 4));
+      painter.paint(
+        canvas,
+        Offset(dx, dividerY + TrendChartLayout.axisLabelGap),
+      );
     }
 
     for (var i = 0; i < n; i++) {
@@ -483,9 +532,13 @@ class _TrendChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TrendChartPainter oldDelegate) {
     // 数据（动画每帧都是新列表）、颜色、边界、选中项或刻度变化时重绘。
+    // 明暗模式切换时曲线主色与背景色都会变，横轴两色也一起加入比较，
+    // 保证换主题后分割线和日期文字跟着刷新。
     return oldDelegate.data != data ||
         oldDelegate.color != color ||
         oldDelegate.bg != bg ||
+        oldDelegate.axis != axis ||
+        oldDelegate.axisLabel != axisLabel ||
         oldDelegate.edgeInset != edgeInset ||
         oldDelegate.selectedIndex != selectedIndex ||
         oldDelegate.minValue != minValue ||

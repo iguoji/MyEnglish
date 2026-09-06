@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 // flutter_test 提供 Widget 测试驱动。
 import 'package:flutter_test/flutter_test.dart';
+
+// AppTheme 提供全站统一的字号、字重与颜色槽位。
+import 'package:my_english/common/theme.dart';
 // 测试识别 Tabler 勾选图标，避免继续把文字字符当图标。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // 引入全局模型。
@@ -24,7 +27,8 @@ void main() {
     createdAt: DateTime(2026, 1, 5),
     meanings: const <Meaning>[
       // 故意传入旧数据中的大写词性，验证共享展示入口会统一转成小写。
-      Meaning(pos: 'N.', definition: '能力'), Meaning(pos: 'N.', definition: '才能'),
+      Meaning(pos: 'N.', definition: '能力'),
+      Meaning(pos: 'N.', definition: '才能'),
       Meaning(pos: 'ADJ.', definition: '能干的'),
     ],
   );
@@ -44,6 +48,9 @@ void main() {
     // Scaffold 提供 InkWell 需要的 Material 祖先。
     return tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Scaffold(
           body: WordListTile(
             item: item,
@@ -140,6 +147,9 @@ void main() {
     // 直接传入中文全角逗号模拟首页设置切换后的值。
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Scaffold(
           body: WordListTile(
             item: sample,

@@ -5,8 +5,6 @@ import 'dart:convert';
 
 // material.dart 提供页面、布局、加载指示器和按钮等 Flutter UI 组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 提供分组头的勾选和折叠方向图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 // url_launcher 用于点击仓库地址时用系统默认浏览器打开外部链接。
 import 'package:url_launcher/url_launcher.dart';
 // services 提供剪贴板，用于点击作者邮箱时把内容复制到系统剪贴板。
@@ -30,13 +28,15 @@ import '../../services/word_audio.dart';
 import '../../services/word_audio_cache.dart';
 // 原生 SAF 文件读写服务：导入选 JSON、导出写文件，不依赖第三方 file_picker。
 import '../../services/file_io.dart';
+// 运行日志：导入导出清空等数据操作留痕，方便日后复查时间线。
+import '../../services/app_log.dart';
 // 全屏听音辨义页。
 import '../listening_meaning/listening_meaning_page.dart';
 // 全屏随身听页。
 import '../listening/listening_page.dart';
 // 词义连连骨架页（顶部框架已就位，候选词区域待接入）。
 import '../meaning_match/meaning_match_page.dart';
-// 拼写巩固页：听发音、看释义拼出单词，片段与逐字母两种作答方式。
+// 拼写巩固页：听发音、看释义，用 26 键键盘拼出单词。
 import '../spelling_reinforcement/spelling_reinforcement_page.dart';
 // 看义选词页：看中文含义，从候选词里选出匹配的英文单词。
 import '../meaning_word_choice/meaning_word_choice_page.dart';
@@ -50,8 +50,8 @@ import '../../store/session.dart';
 import '../review/services/review_flow.dart';
 // 引入答题进度出口：写进度、记每次点击、结算难度都走它。
 import '../review/services/session_progress.dart';
-// 分组行：模式切换、筛选 chips 与分组管理入口。
-import 'widgets/group_filter_bar.dart';
+// 引入全站统一的二次确认对话框：删除单词、清空数据都弹它。
+import '../../widgets/app_confirm_dialog.dart';
 // 右侧抽屉菜单。
 import 'widgets/home_drawer.dart';
 // 添加/修改单词表单。
@@ -62,6 +62,9 @@ import 'widgets/word_list_tile.dart';
 import 'widgets/word_sort_bar.dart';
 // 纯排序服务负责搜索过滤和多级稳定排序，页面只提供当前交互参数。
 import 'services/home_word_sorter.dart';
+
+// 首页专属尺寸表：本页的行高、弹窗按钮高度等都从这里取名字。
+import 'widgets/home_layout.dart';
 
 // 仪表盘：趋势曲线 + 打卡热力图 + 复习模式入口。
 import 'widgets/dashboard/home_dashboard.dart';
@@ -81,6 +84,7 @@ class HomePage extends StatefulWidget {
     this.audioPlayer,
     this.fileIo,
     this.sessionStore,
+    this.clock = DateTime.now,
   });
 
   ///
@@ -103,6 +107,21 @@ class HomePage extends StatefulWidget {
   ///
   /// 复习词库、会话、点击记录与全部统计都由它一个负责。
   final SessionStore? sessionStore;
+
+  ///
+  /// 「现在几点」的取法，首页这一整屏的时间感都从这里来。
+  ///
+  /// 生活化解释：首页有好几处会看日历——顶部的「早上好 / 晚上好」、单词列表
+  /// 按天分组的「今天 / 昨天」、打卡日历里今天那一格、趋势曲线横轴上的日期。
+  /// 以前这几处各自去问一次系统「现在几点」，平时没问题，但基准截图
+  /// （`test/goldens/`）就跟着日子走了：昨天拍的图和今天跑出来的图，
+  /// 打卡日历必然差一格，于是每过一天测试就红一次，还得重拍一遍才能变绿——
+  /// 真正的样式改动反倒被这种「假失败」盖住了。
+  ///
+  /// 所以时间也当成一个可注入的依赖：默认就是去问系统（`DateTime.now`），
+  /// 正式 App 什么都不用传、行为和以前完全一样；测试传一个固定时刻进来，
+  /// 整屏就定在那一天，截图从此不会自己变。
+  final DateTime Function() clock;
 
   ///
   /// 为页面创建保存 data 和生命周期的 State。
@@ -254,8 +273,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 今天还挂着「进行中」的随身听 / 听音辨义会话，用来显示词库底部的「继续」。
   ///
   /// 只看今天：会话表按日期组织，昨天没练完的局启动时已经收成「中断」。
-  var _resumableSessions =
-      const <ReviewModule, Session>{};
+  var _resumableSessions = const <ReviewModule, Session>{};
 
   ///
   /// 当前处于下载或播放状态的具体 Word 对象。
@@ -264,14 +282,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 当前左滑露出操作区的行；同一时刻最多一行。
   Word? _swipedWord;
-
-  ///
-  /// 当前分段视角，默认按复习时间。
-  GroupMode _mode = GroupMode.reviewed;
-
-  ///
-  /// 当前筛选的分组区块 key；null 表示"全部"。
-  String? _filterKey;
 
   ///
   /// 已折叠的分组区块 key 集合。
@@ -320,8 +330,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     // 保留 StatefulWidget 父类初始化流程。
     super.initState();
-    // 同一初始时刻供问候语和列表年份判断使用。
-    final initialTime = DateTime.now();
+    // 同一初始时刻供问候语和列表年份判断使用；时间统一从注入的 clock 取。
+    final initialTime = widget.clock();
     // 有测试 Store 就使用注入值，否则使用全局 SQLite Store。
     _store = widget.store ?? LocalWordStore.instance;
     // 记录设置 Store 是否由首页临时创建。
@@ -410,8 +420,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 按当前页面状态创建纯排序服务；服务不持有 Widget，可独立测试。
   HomeWordSorter get _wordSorter => HomeWordSorter(
-    // 分组视角决定日期字段取 reviewedAt、updatedAt 或 createdAt。
-    mode: _mode,
     // 当前排序入口由工具栏维护。
     field: _sortField,
     // 各字段保留自己的升降序。
@@ -421,7 +429,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   );
 
   ///
-  /// 返回当前分组视角下列表行应展示的日期。
+  /// 返回列表行应展示的日期（固定为最近一次复习时间）。
   DateTime? _listDateOf(Word word) => _wordSorter.dateOf(word);
 
   ///
@@ -433,86 +441,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   ///
   /// 按当前分组视角把全部单词组织成区块列表。
+  ///
+  /// 词库固定按难度分组：难度数值从高到低排列，「无难度」固定在最后，
+  /// 不再有「按复习时间 / 未复习」等其他分组视角。
   List<_WordSection> _buildSections() {
     // 汇总结果。
     final sections = <_WordSection>[];
     // 难度视角：数值从高到低，"无难度"固定在最后。
-    if (_mode == GroupMode.difficulty) {
-      // 业务约定：难度 0 与"无难度"(null) 是同一概念，内部必须合并成同一个组，
-      // 不能像以前那样把 0 显示成"难度 0"、把 null 显示成"无难度"分成两个区块。
-      // 因此先把每个单词的难度按 null→0 归一成 int，再收集去重。
-      final values = <int>{
-        for (final word in _allWords) word.difficulty,
-      }.toList()..sort((a, b) => b.compareTo(a));
-      // 逐个难度生成区块；分区筛选与单词归属都用 (difficulty ?? 0) 比较。
-      for (final value in values) {
-        sections.add(
-          _WordSection(
-            // 合并后 0 与 null 共用 key 'd0'，不再出现 'dx'。
-            key: 'd$value',
-            // 值为 0 表示"无难度"（含原 null 单词），其余显示具体难度。
-            name: value == 0 ? '无难度' : '难度 $value',
-            words: _filterAndSort(
-              _allWords.where((word) => word.difficulty == value).toList(),
-            ),
-          ),
-        );
-      }
-      return sections;
-    }
-    // 时间视角分组：复用 _listDateOf 确保分组日期与列表行显示日期完全一致。
-    // 复习时间视角 → reviewedAt；更新时间视角 → updatedAt；加入时间视角 → createdAt。
-    ///
-    /// 读取当前分组视角下用于分段的单词日期。
-    DateTime? dateOf(Word word) => _listDateOf(word);
-    // 收集出现过的"天"数字键（yyyyMMdd），null 单独一组。
-    final dayKeys = <int>{};
-    var hasNullDate = false;
-    for (final word in _allWords) {
-      final date = dateOf(word);
-      if (date == null) {
-        hasNullDate = true;
-      } else {
-        final local = date.toLocal();
-        dayKeys.add(local.year * 10000 + local.month * 100 + local.day);
-      }
-    }
-    // 日期从新到旧排列。
-    final sortedKeys = dayKeys.toList()..sort((a, b) => b.compareTo(a));
-    // 只剩复习时间一个日期视角，前缀固定为 r。
-    const prefix = 'r';
-    // 逐天生成区块。
-    for (final dayKey in sortedKeys) {
-      // 还原该天日期对象用于格式化标题。
-      final day = DateTime(
-        dayKey ~/ 10000,
-        dayKey % 10000 ~/ 100,
-        dayKey % 100,
-      );
+    // 业务约定：难度 0 与"无难度"(null) 是同一概念，内部必须合并成同一个组，
+    // 不能像以前那样把 0 显示成"难度 0"、把 null 显示成"无难度"分成两个区块。
+    // 因此先把每个单词的难度按 null→0 归一成 int，再收集去重。
+    final values = <int>{
+      for (final word in _allWords) word.difficulty,
+    }.toList()..sort((a, b) => b.compareTo(a));
+    // 逐个难度生成区块；分区筛选与单词归属都用 (difficulty ?? 0) 比较。
+    for (final value in values) {
       sections.add(
         _WordSection(
-          key: '$prefix$dayKey',
-          name: formatWordDate(day, _dateReference),
+          // 合并后 0 与 null 共用 key 'd0'，不再出现 'dx'。
+          key: 'd$value',
+          // 值为 0 表示"无难度"（含原 null 单词），其余显示具体难度。
+          name: value == 0 ? '无难度' : '难度 $value',
           words: _filterAndSort(
-            _allWords.where((word) {
-              final date = dateOf(word);
-              if (date == null) return false;
-              final local = date.toLocal();
-              return local.year * 10000 + local.month * 100 + local.day ==
-                  dayKey;
-            }).toList(),
-          ),
-        ),
-      );
-    }
-    // 没有日期的单词固定放在最后一组；复习时间视角下"没有日期"即"从未复习"。
-    if (hasNullDate) {
-      sections.add(
-        _WordSection(
-          key: '${prefix}0',
-          name: _mode == GroupMode.reviewed ? '未复习' : '无日期',
-          words: _filterAndSort(
-            _allWords.where((word) => dateOf(word) == null).toList(),
+            _allWords.where((word) => word.difficulty == value).toList(),
           ),
         ),
       );
@@ -984,7 +935,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               progress: progress,
               audioPlayer: _audioPlayer,
               accent: _settings.accent,
-              wordStore: _store,
+              definitionSeparator: _settings.definitionSeparator.symbol,
             ),
           ),
         );
@@ -1101,7 +1052,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // resumed 表示 App 回到前台。
     if (state == AppLifecycleState.resumed) {
       // 获取恢复时真实时间。
-      final resumedAt = DateTime.now();
+      final resumedAt = widget.clock();
       // 跨年后重新构建静态列表日期；问候语也顺带刷新。
       setState(() {
         _dateReference = resumedAt;
@@ -1204,7 +1155,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       // 读取点击时的口音快照；设置变化只影响下一次播放。
       final accent = _settings.accent;
-      // 原生先查口音缓存，再按不背单词、有道顺序下载并播放。
+      // 原生智能轮转：优先播“本周期未读且有缓存”的网络渠道，缺缓存则后台补齐，
+      // 全部不可用才由系统 TTS 兜底（TTS 是否发声会在返回后通过来源信息判断）。
       await _audioPlayer.play(word.spelling, accent);
       // 只有真正使用本地 TTS 并成功朗读后，才在本次前台会话第一次提示。
       if (!_hasShownTtsNotice &&
@@ -1272,10 +1224,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 编辑模式：在原对象基础上替换拼写与释义。
       if (editing != null) {
         await _store.update(
-          editing.edited(
-            spelling: result.spelling,
-            meanings: result.meanings,
-          ),
+          editing.edited(spelling: result.spelling, meanings: result.meanings),
         );
       } else {
         // 新增模式：交给 Store 生成主键与时间。
@@ -1294,114 +1243,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   ///
   /// 弹出删除确认对话框。
+  ///
+  /// 骨架交给公共组件 [AppConfirmDialog]，这里只填这一处特有的文案。
+  /// 确认按钮刻意用危险红：删掉的单词连释义一起没了，颜色要先把后果说出来。
   void _confirmDelete(Word word) {
     // 先收起滑动操作区。
     setState(() => _swipedWord = null);
-    // showDialog 展示设计稿风格的居中确认卡。
     unawaited(
-      showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          // 读取当前明暗对应的设计令牌。
-          final tokens = AppTokens.of(dialogContext);
-          // Dialog 自绘圆角卡片。
-          return Dialog(
-            backgroundColor: tokens.card,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                // 高度只包住内容。
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 对话框标题。
-                  Text(
-                    '删除单词',
-                    style: TextStyle(
-                      color: tokens.text,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  // 标题与正文间距。
-                  const SizedBox(height: 8),
-                  // 确认文案带上单词拼写。
-                  Text(
-                    '确定要删除「${word.spelling}」吗？此操作无法撤销。',
-                    style: TextStyle(
-                      color: tokens.textSecondary,
-                      fontSize: 13.5,
-                      height: 1.5,
-                    ),
-                  ),
-                  // 正文与按钮间距。
-                  const SizedBox(height: 18),
-                  // 取消与删除按钮。
-                  Row(
-                    children: [
-                      // 取消按钮：描边样式。
-                      Expanded(
-                        child: InkWell(
-                          key: const Key('delete-cancel'),
-                          onTap: () => Navigator.of(dialogContext).pop(),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            height: 38,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: tokens.inputBorder),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '取消',
-                              style: TextStyle(
-                                color: tokens.textMedium,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // 删除按钮：危险色实底。
-                      Expanded(
-                        child: InkWell(
-                          key: const Key('delete-confirm'),
-                          onTap: () {
-                            // 先关闭对话框再执行删除。
-                            Navigator.of(dialogContext).pop();
-                            unawaited(_deleteWord(word));
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            height: 38,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: AppTokens.danger,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              '删除',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+      AppConfirmDialog.show(
+        context,
+        AppConfirmDialog(
+          title: '删除单词',
+          message: '确定要删除「${word.spelling}」吗？此操作无法撤销。',
+          cancelKey: const Key('delete-cancel'),
+          confirmKey: const Key('delete-confirm'),
+          confirmLabel: '删除',
+          confirmColor: AppTokens.danger,
+        ),
+      ).then((confirmed) {
+        // 对话框自己关好了，这里只管确认之后的事。
+        if (confirmed) unawaited(_deleteWord(word));
+      }),
     );
   }
 
@@ -1472,7 +1334,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final words = payload['words'] as List? ?? const <Object?>[];
       // 只要文件携带词库、分组、设置或任一学习数据中的一种就允许导入；
       // 纯空对象不做任何改动，避免误触把本机数据整库清空。
-      final hasRestorableData = words.isNotEmpty ||
+      final hasRestorableData =
+          words.isNotEmpty ||
           (payload['groups'] as List?)?.isNotEmpty == true ||
           payload['settings'] is Map ||
           (payload['daily_word_sets'] as List?)?.isNotEmpty == true ||
@@ -1503,6 +1366,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _loadWords();
       await _refreshReviewDashboard();
       if (!mounted) return;
+      // 数据操作留痕：整库导入成功，记录单词数量。
+      AppLog.i('data', '数据导入完成 words=$importedCount');
       if (payload['settings'] is Map || payload['review_records'] is List) {
         _showSnackBar('已导入全部数据（词库/设置/会话/复习等）');
       } else {
@@ -1533,7 +1398,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
       // 文件名：App 名 + 当前日期，例如 MyEnglish-2026-07-28.json。
       final fileName =
-          'MyEnglish-${DateTime.now().toIso8601String().substring(0, 10)}.json';
+          'MyEnglish-${widget.clock().toIso8601String().substring(0, 10)}.json';
       // 通过系统保存框写出；由原生 SAF 把文本落盘到用户选择的位置。
       final savedUri = await _fileIo.writeExportJson(
         fileName: fileName,
@@ -1541,12 +1406,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
       // 用户取消保存不提示。
       if (savedUri == null) return;
-      // 系统保存框返回时首页可能已经销毁。
       if (!mounted) return;
+      // 数据操作留痕：导出成功写入日志，复查时能对齐到具体时间点。
+      AppLog.i('data', '数据导出完成，保存位置=$savedUri');
       _showSnackBar('已导出全部数据（词库/设置/会话/复习等）');
     } catch (error) {
       // 读取或保存异常，显示可读详情。
       _showSnackBar('导出失败：${_describeLoadError(error)}');
+    }
+  }
+
+  ///
+  /// 导出运行日志：直接调起系统保存框，把单日日志文件拷贝到用户选择的位置。
+  ///
+  /// 与数据导出不同，日志文件已在原生侧维护（单文件、只留当天），这里只负责
+  /// 起一个默认文件名并打开系统保存框；用户确认后由原生流式拷贝，无多余步骤。
+  Future<void> _exportLog() async {
+    // 先收起抽屉，避免遮挡系统保存框。
+    _scaffoldKey.currentState?.closeEndDrawer();
+    try {
+      // 文件名：App 名 + 日志 + 当前日期，例如 MyEnglish-日志-2026-09-06.txt。
+      final fileName =
+          'MyEnglish-日志-${widget.clock().toIso8601String().substring(0, 10)}.txt';
+      // 通过系统保存框导出；用户选择位置并确认后返回真实 Uri。
+      final savedUri = await _fileIo.exportLogFile(fileName: fileName);
+      // 用户取消保存不提示。
+      if (savedUri == null) return;
+      if (!mounted) return;
+      AppLog.i('file', '用户从抽屉导出日志 $fileName');
+      _showSnackBar('日志已导出');
+    } catch (error) {
+      // 读取或保存异常，显示可读详情。
+      if (!mounted) return;
+      _showSnackBar('日志导出失败：${_describeLoadError(error)}');
     }
   }
 
@@ -1580,6 +1472,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 重新加载空列表，并刷新今日词库/复习进度/继续入口，让卡片立即归零。
       unawaited(_loadWords());
       unawaited(_refreshReviewDashboard());
+      // 数据操作留痕：清空是破坏性动作，务必留下时间点。
+      AppLog.i('data', '已清空全部本地数据');
       // 提示已清空。
       _showSnackBar('已清空全部本地数据');
     } catch (error) {
@@ -1590,107 +1484,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   ///
   /// 清空数据的二次确认弹窗，返回 true 表示用户确认清空。
-  Future<bool> _showClearConfirmDialog() async {
-    // showDialog 返回 bool?，确认按钮 pop(true)。
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        // 读取当前明暗对应的设计令牌。
-        final tokens = AppTokens.of(dialogContext);
-        // Dialog 自绘圆角卡片。
-        return Dialog(
-          backgroundColor: tokens.card,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              // 高度只包住内容。
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 对话框标题。
-                Text(
-                  '清空数据',
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                // 标题与正文间距。
-                const SizedBox(height: 8),
-                // 明确告知后果，不可恢复。
-                Text(
-                  '将删除全部单词（含释义）、所有设置与已下载的离线语音音频，此操作不可恢复。',
-                  style: TextStyle(
-                    color: tokens.textSecondary,
-                    fontSize: 13.5,
-                    height: 1.5,
-                  ),
-                ),
-                // 正文与按钮间距。
-                const SizedBox(height: 18),
-                // 取消与确认按钮。
-                Row(
-                  children: [
-                    // 取消按钮：描边样式。
-                    Expanded(
-                      child: InkWell(
-                        key: const Key('clear-cancel'),
-                        onTap: () => Navigator.of(dialogContext).pop(false),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          height: 38,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: tokens.inputBorder),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '取消',
-                            style: TextStyle(color: tokens.text, fontSize: 14),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // 按钮之间留白。
-                    const SizedBox(width: 12),
-                    // 确认清空按钮：主色填充。
-                    Expanded(
-                      child: InkWell(
-                        key: const Key('clear-confirm'),
-                        onTap: () => Navigator.of(dialogContext).pop(true),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          height: 38,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: AppTokens.accent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            '确认清空',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  ///
+  /// 骨架交给公共组件 [AppConfirmDialog]，这里只填这一处特有的文案。
+  Future<bool> _showClearConfirmDialog() {
+    return AppConfirmDialog.show(
+      context,
+      const AppConfirmDialog(
+        title: '清空数据',
+        // 明确告知后果，不可恢复。
+        message: '将删除全部单词（含释义）、所有设置与已下载的离线语音音频，此操作不可恢复。',
+        cancelKey: Key('clear-cancel'),
+        confirmKey: Key('clear-confirm'),
+        confirmLabel: '确认清空',
+      ),
     );
-    // null（点遮罩关闭）视为取消。
-    return result == true;
   }
 
   ///
@@ -1743,10 +1550,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // SizedBox 限定小型进度圈尺寸。
       return const Center(
         child: SizedBox(
-          width: 20,
-          height: 20,
+          width: HomeLayout.loadingIndicatorSize,
+          height: HomeLayout.loadingIndicatorSize,
           // CircularProgressIndicator 显示加载中的旋转指示圈。
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: CircularProgressIndicator(strokeWidth: AppStroke.ring),
         ),
       );
     }
@@ -1757,7 +1564,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return Center(
         child: SingleChildScrollView(
           // 错误区与屏幕边缘保持足够距离。
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppSpace.pBase),
           child: Column(
             // mainAxisSize.min 让内容不强制撑满整个滚动区域。
             mainAxisSize: MainAxisSize.min,
@@ -1765,10 +1572,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               // 用户首先看到简短结论。
               const Text(
                 '单词数据加载失败',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: AppWeight.semibold),
               ),
               // 标题与详情之间留白。
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.p2),
               // SelectableText 允许长按选择并复制真机上的具体错误。
               SelectableText(
                 // key 让测试能确认具体错误确实已经输出到页面。
@@ -1778,13 +1585,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 // 错误详情居中阅读。
                 textAlign: TextAlign.center,
                 // 使用次要颜色与较小字号，不抢过错误标题。
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.fs6.copyWith(
+                  color: AppTokens.of(context).textSecondary,
                 ),
               ),
               // 详情与按钮间距。
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.p2),
               // TextButton 承载点击重试的操作。
               TextButton(
                 // 点击后重新执行 Store 查询。
@@ -1805,10 +1611,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         child: Text(
           // 有搜索词时按设计稿提示"未找到相关单词"。
           _query.isEmpty ? '暂无单词' : '未找到相关单词',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 13,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.fs5.copyWith(color: AppTokens.of(context).textSecondary),
         ),
       );
     }
@@ -1867,7 +1672,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ],
             ),
           // 操作栏已经位于列表外部，列表末尾只保留正常呼吸空间即可。
-          const SliverPadding(padding: EdgeInsets.only(bottom: 12)),
+          const SliverPadding(padding: EdgeInsets.only(bottom: AppSpace.p3)),
         ],
       ),
     );
@@ -1983,17 +1788,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final tokens = AppTokens.of(context);
     // 组织全部分组区块。
     final sections = _buildSections();
-    // 当前筛选 key 失效（分组被删除等）时回退到"全部"。
-    final activeFilter = sections.any((section) => section.key == _filterKey)
-        ? _filterKey
-        : null;
-    // 应用筛选后的区块。
-    var shownSections = activeFilter == null
-        ? sections
-        : sections.where((section) => section.key == activeFilter).toList();
+    // 词库不再提供"只看某个难度"的筛选胶囊（4.4.1 起删除），所有区块平铺显示；
     // 搜索时隐藏没有匹配的分组。
+    var shownSections = sections;
     if (_query.isNotEmpty) {
-      shownSections = shownSections
+      shownSections = sections
           .where((section) => section.words.isNotEmpty)
           .toList();
     }
@@ -2003,20 +1802,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ];
     // 把首页当前顺序冻结成只读快照，页面跳转后不受后续重建中的临时列表影响。
     final visibleWordSnapshot = List<Word>.unmodifiable(visibleWords);
-    // 筛选 chips 使用未过滤的区块名（含"全部"）。
-    final chips = <GroupFilterChip>[
-      GroupFilterChip(
-        sectionKey: null,
-        name: '全部',
-        isActive: activeFilter == null,
-      ),
-      for (final section in sections)
-        GroupFilterChip(
-          sectionKey: section.key,
-          name: section.name,
-          isActive: activeFilter == section.key,
-        ),
-    ];
     // 随身听/听音辨义的目标数量：有勾选用勾选数，否则用全部可见数。
     final selectedVisible = visibleWords.where(_selectedWords.contains).length;
     final targetCount = selectedVisible > 0
@@ -2068,6 +1853,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         onOpenGithub: () => unawaited(_openGithub()),
         // 作者邮箱：复制到剪贴板并提示。
         onCopyEmail: () => unawaited(_copyEmail()),
+        // 导出运行日志：直接弹系统保存框，把单日日志拷到用户选的位置。
+        onExportLog: () => unawaited(_exportLog()),
       ),
       // SafeArea 只避让顶部状态栏与刘海；底部不避让，避免在屏幕底部留出
       // 一块固定色块。手势导航区的呼吸空间由各内容区域自行留 padding。
@@ -2119,7 +1906,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               children: [
                 // 上层：仪表盘（问候 + 趋势 + 打卡 + 复习模式入口）。
                 HomeDashboard(
-                  now: DateTime.now(),
+                  clock: widget.clock,
                   wordCount: _allWords.length,
                   dailyGoal: _settings.dailyGoal,
                   reviewModeDailyGoal: reviewModeDailyGoal,
@@ -2145,15 +1932,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     }
                   },
                   onSearchChanged: _handleSearchChanged,
-                  groupFilterBar: GroupFilterBar(
-                    mode: _mode,
-                    chips: chips,
-                    onModeSelected: (mode) => setState(() {
-                      _mode = mode;
-                      _filterKey = null;
-                    }),
-                    onChipSelected: (key) => setState(() => _filterKey = key),
-                  ),
                   wordSortBar: WordSortBar(
                     selectedField: _sortField,
                     directions: _sortDirections,
@@ -2199,7 +1977,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       position: DecorationPosition.foreground,
                       decoration: BoxDecoration(
                         border: Border(
-                          top: BorderSide(color: tokens.border, width: 1),
+                          top: BorderSide(
+                            color: tokens.border,
+                            width: AppStroke.thin,
+                          ),
                         ),
                       ),
                       child: _buildListContent(
@@ -2250,7 +2031,7 @@ class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   ///
   /// 分组行必须始终保持原型规定的 34 逻辑像素高度。
-  static const double height = 34;
+  static const double height = HomeLayout.sectionHeaderHeight;
 
   ///
   /// 真正显示的分组头组件。
@@ -2332,6 +2113,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // InkWell 提供整行点击反馈。
     return InkWell(
       // key 便于测试点击具体分组头。
@@ -2339,8 +2121,8 @@ class _SectionHeader extends StatelessWidget {
       onTap: onTap,
       child: Container(
         // 34 高浅底与底部分隔线。
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        height: HomeLayout.sectionHeaderHeight,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.pBase),
         decoration: BoxDecoration(
           color: tokens.sub,
           border: Border(bottom: BorderSide(color: tokens.border)),
@@ -2354,54 +2136,50 @@ class _SectionHeader extends StatelessWidget {
                 onTap: onToggleSelect,
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  width: 18,
-                  height: 18,
+                  width: HomeLayout.sectionCheckboxSize,
+                  height: HomeLayout.sectionCheckboxSize,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isAllSelected ? AppTokens.accent : tokens.card,
+                    color: isAllSelected ? AppTokens.primary : tokens.card,
                     border: Border.all(
-                      color: isAllSelected ? AppTokens.accent : tokens.check,
-                      width: 1.5,
+                      color: isAllSelected ? AppTokens.primary : tokens.check,
+                      width: AppStroke.bold,
                     ),
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(AppRadius.rounded),
                   ),
                   child: isAllSelected
                       ? const Icon(
-                          TablerIcons.check,
+                          AppGlyph.selected,
                           color: Colors.white,
-                          size: 13,
+                          size: AppIcon.i14,
                         )
                       : null,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpace.p2),
             ],
             // 分组名称。
             Text(
               section.name,
-              style: TextStyle(
-                color: tokens.textMedium,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
+              style: textTheme.fs6Semibold.copyWith(color: tokens.textMedium),
             ),
             // 撑开中间空间。
             const Spacer(),
             // 区块内单词数量。
             Text(
               '${section.words.length} 词',
-              style: TextStyle(color: tokens.muted, fontSize: 11.5),
+              style: textTheme.fs6.copyWith(color: tokens.muted),
             ),
             // 数量与箭头间距。
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.p2),
             // 折叠箭头：折叠 0 度，展开旋转 90 度。
             AnimatedRotation(
               turns: isCollapsed ? 0 : 0.25,
-              duration: const Duration(milliseconds: 150),
+              duration: const Duration(milliseconds: AppDuration.ms160),
               child: Icon(
-                TablerIcons.chevronRight,
+                AppGlyph.expandRow,
                 color: tokens.muted,
-                size: 14,
+                size: AppIcon.i14,
               ),
             ),
           ],

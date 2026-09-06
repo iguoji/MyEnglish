@@ -1,6 +1,51 @@
 // material.dart 提供 Overlay、OverlayEntry 和动画组件。
 import 'package:flutter/material.dart';
 
+// 设计令牌总表：本文件顶部那张小表只负责给 Toast 的方寸起业务名字，
+// 数值凡是总表有台阶的一律引用台阶（相当于组件专属 CSS 继承基础 CSS）。
+import '../common/theme.dart';
+
+///
+/// Toast 的布局尺寸表。
+///
+/// Toast 是跨页面共用的组件，所以它的样式表就写在自己文件的开头——和键盘、
+/// 字母格、词性及含义面板一样。这张表只有五档，全部只服务于屏幕底部那一个
+/// 黑色小胶囊。
+///
+abstract final class ToastLayout {
+  ///
+  /// 胶囊距离屏幕底部的高度。
+  ///
+  /// 抬这么高是为了躲开系统手势导航条：贴着底边显示的话，用户想把它划走时
+  /// 很容易先触发系统返回。
+  ///
+  /// 名字里的 `screen` 用来和听音辨义的 `bottomActionInset` 区分：那一档说的是
+  /// 「底部操作区在安全区之上再留多少」，这一档说的是「浮层离屏幕底边多远」。
+  static const double screenBottomInset = AppSpace.p5;
+
+  ///
+  /// 胶囊的最大宽度。
+  ///
+  /// 用最大宽度而不是写死宽度：短消息按文字自然收窄成一颗小胶囊，长消息才撑到
+  /// 这个上限并换行。横屏时如果不限宽，一句话会拉成横贯整个屏幕的一条，很难读。
+  static const double maxWidth = 320;
+
+  ///
+  /// 胶囊投影的扩散范围。
+  ///
+  /// 比全站卡片那一档（`AppShadow.cardBlur`）散得多：卡片是「贴在页面上的一张
+  /// 纸」，Toast 是「盖在所有界面之上的一层浮层」，影子散开才有那种悬空感。
+  /// 但也远不到词库面板那一档（`WordLibraryLayout.panelShadowBlur`，24）——
+  /// 那是盖满整屏的大面板，这只是一颗小胶囊。
+  static const double capsuleShadowBlur = 8;
+
+  ///
+  /// 胶囊投影往下偏移的距离。
+  ///
+  /// 同样比卡片那一档沉得多，理由和 [capsuleShadowBlur] 一样。
+  static const double capsuleShadowOffsetY = 2;
+}
+
 ///
 /// 全局 Toast 工具：基于根 Navigator 的 Overlay 显示提示。
 ///
@@ -110,10 +155,10 @@ class _ToastViewState extends State<_ToastView>
   void initState() {
     // 保留父类初始化。
     super.initState();
-    // 动画时长 200ms。
+    // 进出场动画时长走 AppDuration 的 160 毫秒这一档（原来写死 200）。
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: AppDuration.ms160),
     );
     // Curves.easeOut 让进场自然减速。
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
@@ -145,16 +190,19 @@ class _ToastViewState extends State<_ToastView>
   /// 输出底部居中的 Toast 视觉。
   @override
   Widget build(BuildContext context) {
+    // Toast 挂在根 Overlay 上，仍在 MaterialApp 的主题范围内，
+    // 所以这里能正常读到全站统一的文字样式表。
+    final textTheme = Theme.of(context).textTheme;
     // SafeArea 避开导航栏和状态栏。
     return Positioned(
-      // 底部偏移 32，与 SnackBar 默认位置接近。
-      bottom: 32,
+      // 抬离底边一段距离，躲开系统手势导航条。
+      bottom: ToastLayout.screenBottomInset,
       // 左右撑开，让内部居中。
       left: 0,
       right: 0,
       child: SafeArea(
         // Minimum 避免被系统手势区域遮挡。
-        minimum: const EdgeInsets.symmetric(horizontal: 16),
+        minimum: const EdgeInsets.symmetric(horizontal: AppSpace.p3),
         child: Center(
           child: FadeTransition(
             // 进出场淡入淡出。
@@ -164,23 +212,26 @@ class _ToastViewState extends State<_ToastView>
               color: Colors.transparent,
               child: Container(
                 // 限制最大宽度，避免横屏时过宽。
-                constraints: const BoxConstraints(maxWidth: 320),
-                // 横向 16 纵向 12 内边距。
+                constraints: const BoxConstraints(
+                  maxWidth: ToastLayout.maxWidth,
+                ),
+                // 横向与纵向都用基准那一档内边距（`p3`）：贴 Tabler 档之前纵向比横向小一档，
+                // 现在并成同一个值，气泡略高一点、更接近方胶囊。
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: AppSpace.p3,
+                  vertical: AppSpace.p3,
                 ),
                 decoration: BoxDecoration(
                   // 深色底，浅色文字，与 SnackBar 视觉一致。
-                  color: const Color(0xFF182433),
+                  color: AppTokens.toastSurface,
                   // 8 像素圆角。
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.roundedLg),
                   // 轻微阴影提升层次感。
                   boxShadow: const [
                     BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
+                      color: AppTokens.toastShadow,
+                      blurRadius: ToastLayout.capsuleShadowBlur,
+                      offset: Offset(0, ToastLayout.capsuleShadowOffsetY),
                     ),
                   ],
                 ),
@@ -188,11 +239,9 @@ class _ToastViewState extends State<_ToastView>
                 child: Text(
                   widget.message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13.5,
-                    height: 1.4,
-                  ),
+                  // 深色胶囊上的白字：读全站正文那一档（`fs5`），只换颜色。
+                  // 行距不必再写——那一档自带 1.43，写一遍只是重复。
+                  style: textTheme.fs5.copyWith(color: Colors.white),
                 ),
               ),
             ),

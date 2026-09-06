@@ -5,6 +5,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 // flutter_test 提供 Widget 测试驱动与断言。
 import 'package:flutter_test/flutter_test.dart';
+
+// AppTheme 提供全站统一的字号、字重与颜色槽位。
+import 'package:my_english/common/theme.dart';
 // Tabler 图标用于确认播放状态没有回退成文字符号。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
@@ -37,6 +40,9 @@ void main() {
     await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningPage(
           words: _words,
           audioPlayer: audio,
@@ -144,21 +150,22 @@ void main() {
     expect(find.text('才能'), findsNothing);
     expect(find.byIcon(TablerIcons.eye), findsOneWidget);
 
-    // 返回按钮的 34 像素点击区域仍从页面 20 像素边距开始。
+    // 返回按钮的点击区域仍从页面留白那一档开始。
     expect(
       tester.getTopLeft(find.byKey(const Key('close-listening'))).dx,
-      closeTo(20, 0.01),
+      closeTo(ListeningLayout.pageInset, 0.01),
     );
     // 箭头画布通过 Align 直接对齐按钮左边，不再使用 Transform 或负数偏移。
     expect(
       tester.getTopLeft(find.byIcon(TablerIcons.chevronLeft)).dx,
-      closeTo(20, 0.01),
+      closeTo(ListeningLayout.pageInset, 0.01),
     );
-    // 设置图标的可见画布保持贴齐右侧 20 像素边距。
+    // 设置图标的可见画布保持贴齐右侧同一档边距。
     expect(
       // getBottomRight(...).dx 就是可见设置图标最右侧的横坐标。
       tester.getBottomRight(find.byIcon(TablerIcons.settings)).dx,
-      closeTo(780, 0.01),
+      // 800 是 flutter_test 的默认画布宽度，减去一档页面留白就是目标右边缘。
+      closeTo(800 - ListeningLayout.pageInset, 0.01),
     );
 
     // 上一个图标在文字左侧，下一个图标在文字右侧。
@@ -183,17 +190,17 @@ void main() {
     expect(find.text('播放间隔(秒)'), findsOneWidget);
     expect(find.text('列表循环'), findsOneWidget);
     expect(find.byKey(const Key('listening-loop-switch')), findsOneWidget);
-    // “完成”的可见文字应贴齐面板 20 像素右边距，不能被按钮默认内边距向左推。
+    // “完成”的可见文字应贴齐面板右边距那一档，不能被按钮默认内边距向左推。
     // 桌面测试会限制底部面板宽度，因此先读取面板自身的最右侧坐标。
     final settingsSheetRight = tester
         .getBottomRight(find.byKey(const Key('listening-settings-sheet')))
         .dx;
     expect(
-      // 从面板右边缘减去设计约定的 20 像素，就是“完成”文字的目标右边缘。
+      // 从面板右边缘减去设计约定的那一档留白，就是“完成”文字的目标右边缘。
       tester
           .getBottomRight(find.byKey(const Key('listening-settings-done')))
           .dx,
-      closeTo(settingsSheetRight - 20, 0.01),
+      closeTo(settingsSheetRight - ListeningLayout.pageInset, 0.01),
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -223,6 +230,9 @@ void main() {
     // 注入立即完成的播放器，测试只关注答案卡布局。
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningPage(
           words: words,
           audioPlayer: _ImmediateAudioPlayer(),
@@ -286,6 +296,9 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningPage(
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
@@ -343,10 +356,7 @@ final _words = <Word>[
       Meaning(id: 102, pos: 'n.', definition: '才能'),
     ],
   ),
-  Word(
-    id: 2,
-    spelling: 'abandon',
-  ),
+  Word(id: 2, spelling: 'abandon'),
 ];
 
 ///

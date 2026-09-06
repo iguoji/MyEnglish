@@ -5,7 +5,6 @@ import 'dart:math';
 // material.dart 提供全屏页面、进度条、卡片与对话框。
 import 'package:flutter/material.dart';
 // 所有可见图标统一来自 Tabler，禁止使用 Flutter 内置 Icons。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局设计令牌（颜色变量，随亮色/深色主题自动切换）。
 import '../../common/theme.dart';
@@ -21,15 +20,9 @@ import '../../services/word_audio.dart';
 // 引入统一的进度出口：写进度、记每次点击、结算难度都走它。
 import '../review/services/session_progress.dart';
 // 引入集中管理的页面布局尺寸。
+// 引入模块页面模板：上中下三段骨架、顶栏三个插槽与结算页共用版式。
+import '../../widgets/module_scaffold.dart';
 import 'widgets/meaning_match_layout.dart';
-
-///
-/// Tabler 成功绿（`--tblr-success`），用于连线、已连卡片与结算页“完成词汇”。
-const Color _kSuccess = Color(0xFF2FB344);
-
-///
-/// Tabler 橙色（`--tblr-orange`），用于结算页“最高连对”。
-const Color _kOrange = Color(0xFFF76707);
 
 ///
 /// 补充稿 `--spring-ease: cubic-bezier(0.16, 1, 0.3, 1)` 的等价缓动曲线。
@@ -41,18 +34,24 @@ const Cubic _kSpringEase = Cubic(0.16, 1, 0.3, 1);
 ///
 /// 状态底色的兑色比例：主色按这个比例兑进卡片底色。
 ///
-/// 生活化解释：相当于往一整桶白漆里滴 6% 的蓝色，得到补充稿里 #f0f7ff 那种
+/// 生活化解释：相当于往一整桶白漆里滴几滴蓝色，得到补充稿里 #f0f7ff 那种
 /// “乍看还是白的，细看有点蓝”的淡底。写成比例而不是写死颜色，深色主题下
 /// 兑出来的就是“黑里透蓝”，不会突然冒出一块刺眼的白。
-const double _kStateBackgroundAlpha = 0.06;
+///
+/// 收敛前这里写 0.06，现在与其他三处「最淡状态底」一起读总表同一档。
+const double _kStateBackgroundAlpha = AppAlpha.a8;
 
 ///
 /// 连对卡片描边的兑色比例（补充稿 `.is-matched { border-color: #bbf7d0 }`）。
-const double _kMatchedBorderAlpha = 0.35;
+///
+/// 收敛前写 0.35，现在读总表的偶数台阶。
+const double _kMatchedBorderAlpha = AppAlpha.a36;
 
 ///
 /// 连错卡片描边的兑色比例（补充稿 `.is-error { border-color: #fca5a5 }`）。
-const double _kErrorBorderAlpha = 0.45;
+///
+/// 收敛前写 0.45，现在读总表的偶数台阶。
+const double _kErrorBorderAlpha = AppAlpha.a44;
 
 ///
 /// 连错抖动的旋转关键帧倍数，对应补充稿 `errorJolt` 的六个时间点。
@@ -192,7 +191,8 @@ enum _CardVisualState {
 ///
 /// 词义连连页面。
 ///
-/// 玩法：左右两列各有 5 张卡片，左列是英文单词、右列是它的一条中文含义（随机选取）；
+/// 玩法：左右两列各有若干张卡片（整组最多 5 张，词太少时有多少显示多少），
+/// 左列是英文单词、右列是它的一条中文含义（随机选取）；
 /// 点一张左卡再点一张右卡，若二者对应即连成绿线，全部连完进入下一组；连错则红框抖动。
 /// 顶部有倒计时，点一下 +30 秒并同步写入全局设置；进度在离场时冻结，仅当天可续玩。
 ///
@@ -255,22 +255,21 @@ class MeaningMatchPage extends StatefulWidget {
 class _MeaningMatchPageState extends State<MeaningMatchPage>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   ///
-  /// 确定性随机种子：同一份词单 + 同一种子，出题结果完全一致，
-  /// 这样离场再回来时“续玩”能还原完全一样的棋盘（含右列顺序）。
-  ///
-  /// 棋盘每组固定几行；数据列表在开局时就补齐成了它的整数倍。
+  /// 棋盘每组最多几对：数据列表按它切组，最后一组不足上限就**有多少显示多少**，
+  /// 不再补位凑数（词太少时补位会造出重复卡，恢复现场会认错格子）。
   static const int _groupSize = 5;
 
   ///
-  /// 所有分组（每组 5 对），确定性生成后不会再变。
+  /// 所有分组（每组不超过 5 对；只有最后一组可能不足），确定性生成后不会再变。
   late final List<List<MatchPair>> _groups;
 
   ///
-  /// 每组右列的真实配对顺序（排列），长度固定 5；右列第 k 张显示 pairs[order[k]]。
+  /// 每组右列的真实配对顺序（排列），长度与该组的实际对数一致；
+  /// 右列第 k 张显示 pairs[order[k]]。
   late final List<List<int>> _rightOrders;
 
   ///
-  /// 本局总配对数 = 组数 × 5。
+  /// 本局总配对数 = 全部配对的实际数量（不足一组的尾巴也照算）。
   late final int _totalPairs;
 
   ///
@@ -312,15 +311,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   int _totalMs = 0;
 
   ///
-  /// 当前连续配对成功的数量（连错清零）。
-  int _streak = 0;
-
-  ///
-  /// 本局连对最高纪录，用于结算页展示。
-  int _bestStreak = 0;
-
-  ///
-  /// 本局连错次数，用于结算页展示（不影响单词难度，也不写记录）。
+  /// 本局连错次数，只在结算页副标题里露个面（不影响单词难度，也不写记录）。
   int _errors = 0;
 
   ///
@@ -364,17 +355,19 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   final GlobalKey _boardKey = GlobalKey();
 
   ///
-  /// 左列 5 张卡片各自的全局键，用于取锚点坐标画连线。
+  /// 左列卡片各自的全局键，用于取锚点坐标画连线。
   ///
   /// 只用来量“这张卡片画在屏幕的哪个位置”，不承担任何状态调用职责——
   /// 卡片的选中/连对/连错都由下面的下标字段驱动，父级传属性给子卡即可。
+  /// 预置 5 把（一组最多 5 张），实际只把前面「当前组张数」张挂上组件，
+  /// 多余的键不挂任何组件，没有副作用。
   final List<GlobalKey> _leftKeys = List<GlobalKey>.generate(
     5,
     (_) => GlobalKey(),
   );
 
   ///
-  /// 右列 5 张卡片各自的全局键。
+  /// 右列卡片各自的全局键，约定同 [_leftKeys]。
   final List<GlobalKey> _rightKeys = List<GlobalKey>.generate(
     5,
     (_) => GlobalKey(),
@@ -427,8 +420,21 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   List<int> get _currentOrder => _rightOrders[_groupIndex];
 
   ///
-  /// 已匹配总对数 = 已完成整组数 × 5 + 当前组已连数（单调不减）。
-  int get _matchedPairs => _groupIndex * _groupSize + _matchedLeft.length;
+  /// 已匹配总对数 = 前面整组完成的对数 + 当前组已连数（单调不减）。
+  int get _matchedPairs => _donePairsBefore(_groupIndex) + _matchedLeft.length;
+
+  ///
+  /// 第 [group] 组**之前**所有整组完成的对数。
+  ///
+  /// 组的大小是「每 5 对切一组、最后一组可能不足 5」，不能再用「组数 × 5」
+  /// 一笔算完，这里按每组实际张数逐组累加。
+  int _donePairsBefore(int group) {
+    var done = 0;
+    for (var g = 0; g < group; g += 1) {
+      done += _groups[g].length;
+    }
+    return done;
+  }
 
   ///
   /// 是否展示结算页（完成或超时后）。
@@ -436,8 +442,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
 
   ///
   /// 剩余秒数（向上取整，与倒计时文本口径一致）。
-  int get _remainingSeconds =>
-      ((_remainingMs / 1000).ceil()).clamp(0, 1 << 30);
+  int get _remainingSeconds => ((_remainingMs / 1000).ceil()).clamp(0, 1 << 30);
 
   ///
   /// 倒计时是否进入“最后冲刺”（剩余不足 10 秒）。
@@ -510,13 +515,12 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   }
 
   ///
-  /// 按固定种子与词单顺序生成所有分组（每组 5 对）。
-  ///
-  /// 按会话的数据列表还原棋盘。
+  /// 按会话的数据列表还原棋盘，并生成所有分组。
   ///
   /// 「哪个单词配哪条释义」在开局时就已经定好并写进了数据列表，页面只负责
-  /// 把它切成每组 5 行、再决定右列的显示顺序。这样中途退出再进来，棋盘
-  /// 与第一次进来时完全一样——不再依赖「同一个随机种子能算出同样结果」。
+  /// 把它切成每组最多 5 行、再决定右列的显示顺序。右列顺序由会话 id 派生
+  /// 的固定种子打乱，所以同一局每次进来棋盘与顺序完全一样——中途退出再进，
+  /// 不需要依赖任何内存状态就能还原同一张棋盘。
   void _buildGroups() {
     // 数据列表的元素是 [单词id, 含义id]；单词与释义都从会话带来的词表里查。
     final wordsById = <int, Word>{
@@ -549,20 +553,20 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     final random = Random(_progress.session.id);
     final groups = <List<MatchPair>>[];
     final rightOrders = <List<int>>[];
-    // 数据列表在开局时就补齐成了 5 的整数倍，这里直接按 5 切。
-    for (var i = 0; i + _groupSize <= pairs.length; i += _groupSize) {
-      groups.add(
-        List<MatchPair>.unmodifiable(pairs.sublist(i, i + _groupSize)),
-      );
-      final order = List<int>.generate(_groupSize, (index) => index)
+    // 数据列表有多少对就切多少：每 5 对一组，最后一组不足 5 对就少显示
+    // （不补位凑数），棋盘两侧各铺几张、整块仍然垂直居中。
+    for (var i = 0; i < pairs.length; i += _groupSize) {
+      final end = min(i + _groupSize, pairs.length);
+      groups.add(List<MatchPair>.unmodifiable(pairs.sublist(i, end)));
+      final order = List<int>.generate(end - i, (index) => index)
         ..shuffle(random);
       rightOrders.add(List<int>.unmodifiable(order));
     }
 
     _groups = List<List<MatchPair>>.unmodifiable(groups);
     _rightOrders = List<List<int>>.unmodifiable(rightOrders);
-    // 总局数 = 组数 × 5（每组固定 5 行）。
-    _totalPairs = _groups.length * _groupSize;
+    // 总局数 = 全部配对的实际数量（不足一组的尾巴也照算）。
+    _totalPairs = pairs.length;
   }
 
   ///
@@ -758,12 +762,9 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         _activeConnection = (leftIndex, rightIndex);
         _connectController.reset();
         _connectController.forward();
-        _streak += 1;
-        if (_streak > _bestStreak) _bestStreak = _streak;
       } else {
-        // 配对失败：连错数 +1、连对清零。
+        // 配对失败：连错数 +1。
         _errors += 1;
-        _streak = 0;
         // 这一下算在左卡头上：左卡才是用户正在安置的那个单词。等它最终连对时，
         // 结算会看「本局这个词错过没有」，据此调整难度。
         _wrongByLeftIndex[leftIndex] = (_wrongByLeftIndex[leftIndex] ?? 0) + 1;
@@ -785,7 +786,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     unawaited(_persist());
     if (correctLeft == leftIndex) {
       // 当前组全部连完：进入下一组或整局完成。
-      if (_matchedLeft.length >= _groupSize) _onGroupComplete();
+      // 判定用「当前组实际张数」：末组不足 5 张时连满即走，不会空等。
+      if (_matchedLeft.length >= _currentPairs.length) _onGroupComplete();
     } else {
       // 抖动播完之前锁住点击，保证这段红色反馈完整可见（补充稿 isProcessing）。
       _lockInputForShake();
@@ -800,7 +802,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   Future<void> _recordWrongMatch(int leftIndex, int rightIndex) async {
     final pair = _currentPairs[leftIndex];
     final wordId = pair.wordId;
-    // 末组补位可能造出没有主键的临时数据，这类卡跳过写入。
+    // 数据列表里的每一对都来自真实单词与释义，主键缺失只可能是数据异常；
+    // 防御性跳过，避免把一条没有归属的脏记录写进数据库。
     if (wordId == null) return;
     // 右列第 rightIndex 张显示的是 pairs[_currentOrder[rightIndex]] 的释义。
     final chosen = _currentPairs[_currentOrder[rightIndex]];
@@ -831,7 +834,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     if (!_recordedLefts.add(key)) return;
     final pair = _currentPairs[leftIndex];
     final wordId = pair.wordId;
-    // 末组补位可能造出没有主键的临时数据，这类卡跳过写入。
+    // 数据列表里的每一对都来自真实单词与释义，主键缺失只可能是数据异常；
+    // 防御性跳过，避免把一条没有归属的脏记录写进数据库。
     if (wordId == null) return;
     try {
       // 先记这一次「连对了」；之前的每次连错在发生时就已经记过。
@@ -905,25 +909,6 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       _syncPulse();
       unawaited(_finishSession());
     }
-  }
-
-  ///
-  /// 再挑战一次。
-  ///
-  /// 这里不在页面内部重开，而是带着「再来一局」的信号退回首页，由首页重新
-  /// 走一遍 ReviewFlow。原因是「下一局该开什么」并不由本页面决定：
-  /// - 刚才那局失败了 → 下一局仍是今天的主线，单词还是今天这批；
-  /// - 刚才那局过关了 → 下一局是无限巩固，单词换成「今天一半 + 明天一半」。
-  ///
-  /// 判断这件事需要完整词库，只有首页有。放在这里猜等于把规则抄两份，
-  /// 迟早会和 ReviewFlow 对不上。用户感受不到差别——依然是点一下就重开。
-  void _restart() {
-    // 先停掉计时与连错解锁，避免转场期间回调还在跑。
-    _stopTimer();
-    _unlockTimer?.cancel();
-    _inputLocked = false;
-    // true 就是给首页的信号：这一局结束了，请立刻再开一局。
-    Navigator.pop(context, true);
   }
 
   ///
@@ -1041,125 +1026,42 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
 
   ///
   /// 构建词义连连页面。
+  ///
+  /// 骨架整块交给模块模板 [ModuleScaffold]。本页是五个模块里唯一没有下段操作区的
+  /// ——棋盘本身就占满中段，所以 `footer` 不传。
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
 
-    return Scaffold(
-      backgroundColor: tokens.card,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 顶栏与时间进度条：返回键与数字进度沿用听音辨义，倒计时与时间条复刻原型。
-            _buildHeader(tokens),
-            // 结算页或棋盘二选一。
-            if (_showSummary)
-              Expanded(child: _buildSummary(tokens))
-            else
-              Expanded(child: _buildBoard(tokens)),
-          ],
+    return ModuleScaffold(
+      header: ModuleHeader(
+        leading: ModuleIconButton(
+          key: const Key('close-meaning-match'),
+          icon: AppGlyph.back,
+          alignment: Alignment.centerLeft,
+          onTap: () => Navigator.pop(context),
         ),
+        title: ModuleProgressLabel(
+          textKey: const Key('meaning-match-progress-label'),
+          current: _matchedPairs,
+          total: _totalPairs,
+        ),
+        // 右侧不是普通时间文本，而是「点一下 +30 秒」的倒计时按钮。
+        trailing: _buildCountdown(tokens),
+        // 这条进度条表示**剩余时间**占比，会随倒数一点点变短；
+        // 最后 10 秒整条变红，与倒计时文字同步告警。
+        progress: _timeRatio,
+        progressColor: _isTimeDanger ? AppTokens.danger : AppTokens.primary,
+        progressBarKey: const Key('meaning-match-progress'),
       ),
+      // 结算页或棋盘二选一。
+      body: _showSummary ? _buildSummary() : _buildBoard(tokens),
     );
   }
 
-  ///
-  /// 构建顶栏与时间进度条。
-  ///
-  /// 左：返回键（与听音辨义完全相同的 34×34 画布 + 21 像素 Tabler 图标）；
-  /// 中：已配对 / 总数（与听音辨义题号相同的 16 像素等宽数字）；
-  /// 右：可点击的倒计时纯文本（点一下 +30 秒），最后 10 秒转红并呼吸。
-  Widget _buildHeader(AppTokens tokens) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            MeaningMatchLayout.pageInset,
-            MeaningMatchLayout.headerTop,
-            MeaningMatchLayout.pageInset,
-            0,
-          ),
-          // 用 Stack 而不是 Row：左侧返回键 34 像素、右侧倒计时约 50 像素宽度不等，
-          // 若用 Row + Expanded，中间数字会被挤得偏左几像素；Stack 能保证它绝对居中。
-          child: SizedBox(
-            height: MeaningMatchLayout.headerButtonSize,
-            child: Stack(
-              children: [
-                // 中间：已配对 / 总数，样式与听音辨义题号一致。
-                Positioned.fill(
-                  child: Center(
-                    child: Text(
-                      '$_matchedPairs / $_totalPairs',
-                      key: const Key('meaning-match-progress-label'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: tokens.text,
-                        fontSize: MeaningMatchLayout.headerProgressTextSize,
-                        fontWeight: FontWeight.w600,
-                        // 等宽数字让计数变化时视觉中心不抖动。
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ),
-                ),
-                // 左侧：返回键，34 像素点击画布直接贴齐页面边距。
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: SizedBox(
-                    width: MeaningMatchLayout.headerButtonSize,
-                    height: MeaningMatchLayout.headerButtonSize,
-                    child: InkWell(
-                      key: const Key('close-meaning-match'),
-                      onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(
-                        MeaningMatchLayout.headerButtonSize / 2,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Icon(
-                          TablerIcons.chevronLeft,
-                          size: MeaningMatchLayout.headerIconSize,
-                          color: tokens.textMedium,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                // 右侧：纯文本倒计时（原型没有图标），点一下 +30 秒。
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _buildCountdown(tokens),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // 时间进度条：原型里它表示“剩余时间占比”，会随倒数一点点变短。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            MeaningMatchLayout.pageInset,
-            MeaningMatchLayout.progressTop,
-            MeaningMatchLayout.pageInset,
-            0,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(
-              MeaningMatchLayout.progressRadius,
-            ),
-            child: LinearProgressIndicator(
-              key: const Key('meaning-match-progress'),
-              value: _timeRatio,
-              minHeight: MeaningMatchLayout.progressHeight,
-              backgroundColor: tokens.sub,
-              // 最后 10 秒整条变红，与倒计时文字同步告警。
-              color: _isTimeDanger ? AppTokens.danger : AppTokens.accent,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  // 顶栏那一行（返回键、中间数字进度、进度条）已经整块交给模块模板的
+  // ModuleHeader，本页不再自己拼一遍；右上角倒计时因为要接点击加时，
+  // 仍由本页自己造，通过 trailing 插槽塞进模板。
 
   ///
   /// 按 [_countdownStage] 取倒计时文字的颜色。
@@ -1183,9 +1085,12 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       key: const Key('meaning-match-countdown'),
       // 结算页不再允许加时。
       onTap: _showSummary ? null : () => unawaited(_addThirtySeconds()),
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(AppRadius.rounded),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.p1,
+          vertical: AppSpace.p1,
+        ),
         child: AnimatedBuilder(
           animation: _pulseController,
           builder: (context, child) {
@@ -1199,16 +1104,12 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
               ),
             );
           },
-          child: Text(
-            _formatRemaining(),
-            style: TextStyle(
-              color: _countdownColor(tokens),
-              fontSize: MeaningMatchLayout.countdownTextSize,
-              // 不加粗：倒计时是次要信息，弱于中间的主进度数字。
-              fontWeight: FontWeight.w400,
-              // 等宽数字替代原型的 font-monospace：既不跳动，又与全站字体保持一致。
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+          child: ModuleTimeLabel(
+            // 与另外三个模块右上角的时间共用同一份组件：同样的档位、
+            // 同样的等宽数字。本页只多传一个颜色——倒计时会随剩余时间告警，
+            // 而它的默认档取的正是那三个模块用的次要文字色。
+            text: _formatRemaining(),
+            color: _countdownColor(tokens),
           ),
         ),
       ),
@@ -1223,11 +1124,12 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   /// 构建左右两列棋盘，并在下层铺一张“连线画布”。
   ///
   /// 层次与原型一致：最底下是连线画布（含正中那条竖直虚线），上面才是卡片，
-  /// 所以绿色连线会从卡片边缘的小圆点出发，穿过中间 40 像素的空档。
+  /// 所以绿色连线会从卡片边缘的小圆点出发，穿过中间那道空档（[MeaningMatchLayout.boardGap]）。
   Widget _buildBoard(AppTokens tokens) {
-    // 左列 5 张：英文单词。
+    // 左列：当前组的实际张数（英文单词）。
+    final currentCount = _currentPairs.length;
     final leftCards = <Widget>[
-      for (var i = 0; i < 5; i += 1)
+      for (var i = 0; i < currentCount; i += 1)
         _MatchCard(
           key: Key('mm-left-$i'),
           cardKey: _leftKeys[i],
@@ -1239,9 +1141,9 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
           onTap: () => _onCardTap(_CardSide.left, i),
         ),
     ];
-    // 右列 5 张：按 _currentOrder 取对应含义。
+    // 右列：按 _currentOrder 取对应含义，张数与左列一致。
     final rightCards = <Widget>[
-      for (var k = 0; k < 5; k += 1)
+      for (var k = 0; k < currentCount; k += 1)
         _MatchCard(
           key: Key('mm-right-$k'),
           cardKey: _rightKeys[k],
@@ -1254,7 +1156,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         ),
     ];
 
-    // 两列等宽、中间留 40 像素空档给连线穿过（原型 .matching-grid）。
+    // 两列等宽，中间留一道空档给连线穿过（原型 .matching-grid），
+    // 宽度读的是 `boardGap` 那一档，不在这里写死数字。
     final grid = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1296,7 +1199,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
                   connections: _matchedConnections,
                   activeConnection: _activeConnection,
                   activeProgress: _connectController.value,
-                  lineColor: _kSuccess,
+                  lineColor: AppTokens.success,
                   dividerColor: tokens.check,
                 ),
               ),
@@ -1347,289 +1250,43 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   }
 
   ///
-  /// 构建结算页（完成或超时），版式完全复刻原型的「倒计时结束状态页」。
+  /// 构建结算页（完成或超时），与其他三个模块共用同一个极简收尾模板
+  /// [ModuleSummaryView]：圆形图标底盘 → 标题 → 一行说明 → 返回按钮。
   ///
-  /// 从上到下：圆形图标底盘 → 主标题 → 副标题 → 2×2 统计卡 → 再挑战按钮。
-  Widget _buildSummary(AppTokens tokens) {
+  /// 统计卡与「再挑战一次」随「结算页统一走简单显示」一起下线，重开入口
+  /// 收回首页，想再来一局就从首页入口重新进。
+  Widget _buildSummary() {
     final isWin = _completed;
     // 胜负决定主色：赢了用成功绿奖杯，超时用危险红闹钟。
-    final accentColor = isWin ? _kSuccess : AppTokens.danger;
+    final accentColor = isWin ? AppTokens.success : AppTokens.danger;
 
-    return LayoutBuilder(
-      // 内容高度可能超过矮屏幕，用可滚动容器兜底，同时保持“空间够就垂直居中”。
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: MeaningMatchLayout.summaryInset,
-          vertical: MeaningMatchLayout.summarySectionGap,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight:
-                constraints.maxHeight -
-                MeaningMatchLayout.summarySectionGap * 2,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 圆形图标底盘：直径 64，底色是主色的 10% 淡版。
-              Center(
-                child: Container(
-                  width: MeaningMatchLayout.summaryAvatarSize,
-                  height: MeaningMatchLayout.summaryAvatarSize,
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: tokens.cardShadow,
-                        offset: const Offset(0, 1),
-                        blurRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isWin ? TablerIcons.trophy : TablerIcons.alarmOff,
-                    size: MeaningMatchLayout.summaryAvatarIconSize,
-                    color: accentColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // 主标题。
-              Text(
-                isWin ? '大获全胜！' : '挑战结束',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: MeaningMatchLayout.summaryTitleSize,
-                  fontWeight: FontWeight.bold,
-                  color: tokens.text,
-                ),
-              ),
-              const SizedBox(height: 4),
-              // 副标题。
-              Text(
-                isWin
-                    ? '太棒了！你在规定时间内完成了全部 $_totalPairs 个单词配对！'
-                    : '倒计时已结束，已为你结算本次训练战绩！',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: MeaningMatchLayout.summarySubtitleSize,
-                  color: tokens.textSecondary,
-                ),
-              ),
-              const SizedBox(height: MeaningMatchLayout.summarySectionGap),
-              // 2×2 统计卡矩阵：上排“最高连对 / 配对失误”，下排“剩余时间 / 完成词汇”。
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _SummaryStatCard(
-                        icon: TablerIcons.flame,
-                        label: '最高连对',
-                        value: '$_bestStreak',
-                        unit: '次',
-                        color: _kOrange,
-                        tokens: tokens,
-                      ),
-                    ),
-                    const SizedBox(width: MeaningMatchLayout.summaryStatGap),
-                    Expanded(
-                      child: _SummaryStatCard(
-                        icon: TablerIcons.x,
-                        label: '配对失误',
-                        value: '$_errors',
-                        unit: '次',
-                        color: AppTokens.danger,
-                        tokens: tokens,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: MeaningMatchLayout.summaryStatGap),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _SummaryStatCard(
-                        icon: TablerIcons.clock,
-                        label: '剩余时间',
-                        // 超时结算时剩余固定是 00:00。
-                        value: isWin ? _formatRemaining() : '00:00',
-                        unit: '限时 ${_totalMs ~/ 1000} 秒',
-                        color: AppTokens.accent,
-                        tokens: tokens,
-                        isTimeValue: true,
-                      ),
-                    ),
-                    const SizedBox(width: MeaningMatchLayout.summaryStatGap),
-                    Expanded(
-                      child: _SummaryStatCard(
-                        icon: TablerIcons.check,
-                        label: '完成词汇',
-                        value: '$_matchedPairs',
-                        unit: '总词量 $_totalPairs',
-                        color: _kSuccess,
-                        tokens: tokens,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: MeaningMatchLayout.summarySectionGap),
-              // 底部主按钮：重置本局重新开局。
-              SizedBox(
-                height: MeaningMatchLayout.summaryButtonHeight,
-                child: FilledButton.icon(
-                  key: const Key('meaning-match-restart'),
-                  onPressed: _restart,
-                  icon: const Icon(TablerIcons.rotateClockwise, size: 18),
-                  label: const Text('再挑战一次'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTokens.accent,
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(
-                      fontSize: MeaningMatchLayout.summaryButtonTextSize,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        MeaningMatchLayout.cardRadius,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    // 版式整块交给结算页模板 [ModuleSummaryView]，这里只填内容与返回动作。
+    return ModuleSummaryView(
+      icon: isWin ? AppGlyph.win : AppGlyph.timeUp,
+      color: accentColor,
+      title: isWin ? '大获全胜！' : '挑战结束',
+      subtitle: isWin
+          ? '共 $_totalPairs 个单词配对 · 失误 $_errors 次'
+          : '已完成 $_matchedPairs 个配对 · 倒计时结束',
+      actionKey: const Key('finish-meaningMatch'),
+      actionLabel: '返回',
+      onAction: () {
+        // 先停掉计时与连错解锁，避免转场期间回调还在跑；收尾页只回首页，
+        // 不再带「再来一局」的信号弹回。
+        _stopTimer();
+        _unlockTimer?.cancel();
+        _inputLocked = false;
+        Navigator.of(context).pop();
+      },
     );
   }
 }
 
 ///
-/// 结算页 2×2 矩阵中的一张统计卡。
+/// 结算页统计卡已抽成公共组件 [ModuleSummaryStatCard]（见
+/// `lib/widgets/module_scaffold.dart`）：原来词义连连、拼写巩固、看义选词
+/// 各有一个私有的 `_SummaryStatCard`，三份实现画的是同一张卡。
 ///
-/// 版式对应原型 `.card.card-sm.bg-light-subtle.text-center.py-3.border`：
-/// 顶部是「小图标 + 灰色标题」，中间是大号彩色数值，底部是更小的灰色单位说明。
-///
-class _SummaryStatCard extends StatelessWidget {
-  ///
-  /// 创建一张统计卡。
-  const _SummaryStatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.unit,
-    required this.color,
-    required this.tokens,
-    this.isTimeValue = false,
-  });
-
-  ///
-  /// 标题左侧的 Tabler 图标。
-  final IconData icon;
-
-  ///
-  /// 灰色小标题。
-  final String label;
-
-  ///
-  /// 中间的大号数值。
-  final String value;
-
-  ///
-  /// 底部单位说明。
-  final String unit;
-
-  ///
-  /// 图标与数值共用的强调色。
-  final Color color;
-
-  ///
-  /// 当前主题设计令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 数值是否是 mm:ss 时间格式。
-  final bool isTimeValue;
-
-  ///
-  /// 输出一张居中排版的统计卡。
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        vertical: MeaningMatchLayout.summaryStatPaddingVertical,
-        horizontal: 6,
-      ),
-      decoration: BoxDecoration(
-        // bg-light-subtle：比卡片本体更淡一层的底色。
-        color: tokens.expand,
-        borderRadius: BorderRadius.circular(MeaningMatchLayout.cardRadius),
-        border: Border.all(color: tokens.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 第一行：小图标 + 灰色标题。
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 13, color: color),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: MeaningMatchLayout.summaryStatLabelSize,
-                    color: tokens.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // 第二行：大号彩色数值。FittedBox 保证极端窄屏或超大数字也不会溢出。
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: isTimeValue
-                    ? MeaningMatchLayout.summaryStatTimeSize
-                    : MeaningMatchLayout.summaryStatValueSize,
-                fontWeight: FontWeight.bold,
-                color: color,
-                height: 1.2,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          // 第三行：更小的灰色单位说明。
-          Text(
-            unit,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: MeaningMatchLayout.summaryStatUnitSize,
-              color: tokens.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 ///
 /// 一张可点击的候选卡，自带“连错抖动 + 红框闪烁”。
 ///
@@ -1806,21 +1463,22 @@ class _MatchCardState extends State<_MatchCard>
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     final state = _visualState;
     // 三种状态各有一个主色，默认态没有主色（用中性描边与文字色）。
     final stateColor = switch (state) {
       _CardVisualState.error => AppTokens.danger,
-      _CardVisualState.matched => _kSuccess,
-      _CardVisualState.selected => AppTokens.accent,
+      _CardVisualState.matched => AppTokens.success,
+      _CardVisualState.selected => AppTokens.primary,
       _CardVisualState.idle => null,
     };
 
     // 描边色：选中用饱和主色（对应补充稿的 primary 实线边），连对/连错则用
     // 主色兑到卡片底色上的“淡色边”（对应 #bbf7d0 与 #fca5a5），不再喧宾夺主。
     final borderColor = switch (state) {
-      _CardVisualState.selected => AppTokens.accent,
+      _CardVisualState.selected => AppTokens.primary,
       _CardVisualState.matched => Color.alphaBlend(
-        _kSuccess.withValues(alpha: _kMatchedBorderAlpha),
+        AppTokens.success.withValues(alpha: _kMatchedBorderAlpha),
         tokens.card,
       ),
       _CardVisualState.error => Color.alphaBlend(
@@ -1849,10 +1507,13 @@ class _MatchCardState extends State<_MatchCard>
       _CardVisualState.matched => const <BoxShadow>[],
       _CardVisualState.selected => <BoxShadow>[
         // 第一层：紧贴边框再描一圈，视觉上等于把 1 像素蓝边加粗成 2 像素。
-        BoxShadow(color: AppTokens.accent, spreadRadius: 1),
+        BoxShadow(
+          color: AppTokens.primary,
+          spreadRadius: MeaningMatchLayout.cardBorderSpread,
+        ),
         // 第二层：向下 8 像素、模糊 20 像素的蓝色柔光，卡片像浮在纸面上。
         BoxShadow(
-          color: AppTokens.accent.withValues(alpha: 0.2),
+          color: AppTokens.primary.withValues(alpha: AppAlpha.a20),
           offset: const Offset(0, MeaningMatchLayout.selectedGlowOffsetY),
           blurRadius: MeaningMatchLayout.selectedGlowBlur,
           spreadRadius: MeaningMatchLayout.selectedGlowSpread,
@@ -1861,8 +1522,8 @@ class _MatchCardState extends State<_MatchCard>
       _ => <BoxShadow>[
         BoxShadow(
           color: tokens.cardShadow,
-          offset: const Offset(0, 1),
-          blurRadius: 2,
+          offset: const Offset(0, AppShadow.cardOffsetY),
+          blurRadius: AppShadow.cardBlur,
         ),
       ],
     };
@@ -1870,18 +1531,21 @@ class _MatchCardState extends State<_MatchCard>
     // 锚点外圈光晕：选中时最亮最大，连错时是一圈红色薄雾，其余只是一道细描边。
     final anchorHalo = switch (state) {
       _CardVisualState.selected => BoxShadow(
-        color: AppTokens.accent.withValues(alpha: 0.3),
+        color: AppTokens.primary.withValues(alpha: AppAlpha.a30),
         spreadRadius: MeaningMatchLayout.anchorSelectedHalo,
       ),
       _CardVisualState.error => BoxShadow(
-        color: AppTokens.danger.withValues(alpha: 0.25),
+        color: AppTokens.danger.withValues(alpha: AppAlpha.a24),
         spreadRadius: MeaningMatchLayout.anchorErrorHalo,
       ),
       _CardVisualState.matched => const BoxShadow(
-        color: _kSuccess,
-        spreadRadius: 1,
+        color: AppTokens.success,
+        spreadRadius: MeaningMatchLayout.cardBorderSpread,
       ),
-      _CardVisualState.idle => BoxShadow(color: tokens.border, spreadRadius: 1),
+      _CardVisualState.idle => BoxShadow(
+        color: tokens.border,
+        spreadRadius: MeaningMatchLayout.cardBorderSpread,
+      ),
     };
 
     // 锚点圆点：外圈一圈白边 + 再外面一圈光晕，做出“实心小圆点”的质感；
@@ -1918,7 +1582,7 @@ class _MatchCardState extends State<_MatchCard>
     final card = InkWell(
       // 已连上的卡不再响应点击（补充稿 pointer-events: none）。
       onTap: widget.isMatched ? null : widget.onTap,
-      borderRadius: BorderRadius.circular(MeaningMatchLayout.cardRadius),
+      borderRadius: BorderRadius.circular(MeaningMatchLayout.optionCardRadius),
       child: AnimatedContainer(
         // 变色走 0.25 秒，和补充稿的 border-color / background-color 过渡一致。
         duration: const Duration(
@@ -1932,12 +1596,14 @@ class _MatchCardState extends State<_MatchCard>
           maxHeight: MeaningMatchLayout.cardMaxHeight,
         ),
         padding: const EdgeInsets.symmetric(
-          horizontal: MeaningMatchLayout.cardPaddingHorizontal,
-          vertical: MeaningMatchLayout.cardPaddingVertical,
+          horizontal: MeaningMatchLayout.optionCardPaddingHorizontal,
+          vertical: MeaningMatchLayout.optionCardPaddingVertical,
         ),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(MeaningMatchLayout.cardRadius),
+          borderRadius: BorderRadius.circular(
+            MeaningMatchLayout.optionCardRadius,
+          ),
           border: Border.all(color: borderColor),
           boxShadow: shadows,
         ),
@@ -1952,16 +1618,18 @@ class _MatchCardState extends State<_MatchCard>
               milliseconds: MeaningMatchLayout.cardColorTransitionMs,
             ),
             curve: Curves.easeOut,
-            style: TextStyle(
-              color: labelColor,
-              fontSize: MeaningMatchLayout.cardLabelSize,
-              height: MeaningMatchLayout.cardLabelLineHeight,
-              // 左列单词更重，右列释义稍轻，形成主次关系。
-              fontWeight: widget.isLeftSide ? FontWeight.w600 : FontWeight.w500,
-              // 连上的卡片把文字划掉，表示这一对已经消除。
-              decoration: widget.isMatched ? TextDecoration.lineThrough : null,
-              decorationColor: labelColor,
-            ),
+            // 左列单词更重、右列释义稍轻，形成主次关系；两档字号相同，
+            // 差别只在字重，所以直接换一档字重而不是自己写 fontWeight。
+            style: (widget.isLeftSide ? textTheme.fs5Semibold : textTheme.fs5)
+                .copyWith(
+                  color: labelColor,
+                  height: AppLine.lhSm,
+                  // 连上的卡片把文字划掉，表示这一对已经消除。
+                  decoration: widget.isMatched
+                      ? TextDecoration.lineThrough
+                      : null,
+                  decorationColor: labelColor,
+                ),
             child: Text(
               widget.label,
               maxLines: MeaningMatchLayout.cardLabelMaxLines,
@@ -2088,7 +1756,7 @@ class _MatchConnectionPainter extends CustomPainter {
       ..color = dividerColor
       ..strokeWidth = MeaningMatchLayout.dividerWidth
       ..style = PaintingStyle.stroke;
-    // 虚线画在画布水平正中，也就是左右两列之间 40 像素空档的中线。
+    // 虚线画在画布水平正中，也就是左右两列之间那道空档的中线。
     final centerX = size.width / 2;
     var y = 0.0;
     while (y < size.height) {

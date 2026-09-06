@@ -18,9 +18,9 @@ void main() {
     expect(AppTheme.light.brightness.name, 'light');
     expect(AppTheme.dark.brightness.name, 'dark');
     // 浅色 Tabler 分隔线保持需求中的 #E6E7E9。
-    expect(AppTheme.light.dividerColor, AppTheme.tableBorderColor);
+    expect(AppTheme.light.dividerColor, AppTokens.light.border);
     // 深色使用独立分隔线，不能继续显示刺眼浅灰。
-    expect(AppTheme.dark.dividerColor, AppTheme.darkTableBorderColor);
+    expect(AppTheme.dark.dividerColor, AppTokens.dark.border);
   });
 
   // 全局 TextButton（如重新加载、设置完成）按下时不能出现 Material 默认背景。

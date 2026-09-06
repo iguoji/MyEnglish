@@ -44,9 +44,9 @@ class MemoryWordStore implements WordStore {
           ? _compareHard(first, second)
           : _compareStale(first, second),
     );
-    return List<int>.unmodifiable(
-      <int>[for (final word in pool.take(limit)) word.id!],
-    );
+    return List<int>.unmodifiable(<int>[
+      for (final word in pool.take(limit)) word.id!,
+    ]);
   }
 
   ///
@@ -58,7 +58,9 @@ class MemoryWordStore implements WordStore {
     if (result != 0) return result;
     result = first.compareMeaningComplexityTo(second);
     if (result != 0) return result;
-    result = first.spelling.toLowerCase().compareTo(second.spelling.toLowerCase());
+    result = first.spelling.toLowerCase().compareTo(
+      second.spelling.toLowerCase(),
+    );
     if (result != 0) return result;
     return (first.id ?? 0).compareTo(second.id ?? 0);
   }
@@ -72,7 +74,9 @@ class MemoryWordStore implements WordStore {
     if (result != 0) return result;
     result = first.compareMeaningComplexityTo(second);
     if (result != 0) return result;
-    result = first.spelling.toLowerCase().compareTo(second.spelling.toLowerCase());
+    result = first.spelling.toLowerCase().compareTo(
+      second.spelling.toLowerCase(),
+    );
     if (result != 0) return result;
     return (first.id ?? 0).compareTo(second.id ?? 0);
   }
@@ -92,12 +96,11 @@ class MemoryWordStore implements WordStore {
   Future<List<Word>> getAll() async => List<Word>.unmodifiable(words);
 
   @override
-  Future<List<Word>> getByIds(List<int> ids) async => List<Word>.unmodifiable(
-    <Word>[
-      for (final word in words)
-        if (word.id != null && ids.contains(word.id)) word,
-    ],
-  );
+  Future<List<Word>> getByIds(List<int> ids) async =>
+      List<Word>.unmodifiable(<Word>[
+        for (final word in words)
+          if (word.id != null && ids.contains(word.id)) word,
+      ]);
 
   @override
   Future<List<Word>> getByMeaningIds(List<int> meaningIds) async =>
@@ -118,7 +121,10 @@ class MemoryWordStore implements WordStore {
   Future<void> saveWordConfusions(int wordId, List<String> confusions) async {}
 
   @override
-  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) async {}
+  Future<void> saveMeaningConfusions(
+    int meaningId,
+    List<String> confusions,
+  ) async {}
 
   @override
   Future<void> saveWordSyllables(int wordId, List<String> syllables) async {}

@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 // flutter_test 提供组件渲染、点击和断言能力。
 import 'package:flutter_test/flutter_test.dart';
+
+// AppTheme 提供全站统一的字号、字重与颜色槽位。
+import 'package:my_english/common/theme.dart';
 // 复习模块标识与三态进度模型（v2.0 起统一收敛到会话模型文件）。
 import 'package:my_english/models/session.dart';
 // 引入被测试的首页复习模式网格。
@@ -23,9 +26,12 @@ void main() {
     // 在可滚动页面中复刻首页卡片的真实水平留白。
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Scaffold(
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpace.pBase),
             child: ReviewModeGrid(
               moduleStates: const <ReviewModule, ReviewModuleState>{
                 // 听音辨义今天的主线已经过关。
@@ -61,8 +67,9 @@ void main() {
     // 词义连连采用更短的单行描述，不再在两列卡片里换行。
     final matchingDescription = tester.widget<Text>(find.text('释义配对 · 连续匹配'));
     expect(matchingDescription.maxLines, 1);
-    // 三态徽章：听音辨义与拼写巩固已完成，词义连连进行中；
+    // 徽章三态：听音辨义与拼写巩固已完成，词义连连进行中；
     // 看义选词没给状态，回落到「待完成」（2.0 起四个模块全部开放，不再有「即将开放」）。
+    // 徽章永远是一个短词：已完成未巩固就是「已完成」（巩固态的两个短词见下方用例）。
     expect(find.text('已完成'), findsNWidgets(2));
     expect(find.text('进行中'), findsOneWidget);
     expect(find.text('待完成'), findsOneWidget);
@@ -93,9 +100,12 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Scaffold(
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpace.pBase),
             child: ReviewModeGrid(
               // 空 Map 表示今天一个模块都没点开过。
               moduleStates: const <ReviewModule, ReviewModuleState>{},
@@ -112,7 +122,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('主线过关后再进模块，徽章补出巩固中的尾巴', (tester) async {
+  testWidgets('主线过关后巩固进行中，徽章只显示「巩固中」', (tester) async {
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -120,14 +130,20 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Scaffold(
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppSpace.pBase),
             child: ReviewModeGrid(
               moduleStates: const <ReviewModule, ReviewModuleState>{
                 ReviewModule.listeningMeaning: ReviewModuleState(
                   progress: ReviewModuleProgress.completed,
                   isReinforcing: true,
+                  // 与原生 fromMap 的产出保持一致：巩固进行中时
+                  // barPhase 必为 reinforceActive。
+                  barPhase: ReviewBarPhase.reinforceActive,
                 ),
               },
               dailyGoal: 50,
@@ -138,8 +154,45 @@ void main() {
       ),
     );
 
-    // 已完成之后还在加练，用户一眼能看出自己现在做的是巩固。
-    expect(find.text('已完成 · 巩固中'), findsOneWidget);
+    // 已完成之后还在加练，用户一眼能看出自己现在做的是巩固；
+    // 徽章不再带「已完成 ·」前缀，只显示巩固状态这一个短词。
+    expect(find.text('巩固中'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('主线过关且巩固局也打完，徽章显示「已巩固」', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpace.pBase),
+            child: ReviewModeGrid(
+              moduleStates: const <ReviewModule, ReviewModuleState>{
+                // 主线过关后连巩固局也完整打完：barPhase 由原生层精确合成
+                // 为 reinforceDone，徽章要显示「已巩固」而不是「已完成」。
+                ReviewModule.listeningMeaning: ReviewModuleState(
+                  progress: ReviewModuleProgress.completed,
+                  barPhase: ReviewBarPhase.reinforceDone,
+                ),
+              },
+              dailyGoal: 50,
+              onOpenModule: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // 巩固已完成与已完成未巩固是两回事，短词必须区分开。
+    expect(find.text('已巩固'), findsOneWidget);
+    expect(find.text('已完成'), findsNothing);
+    expect(find.text('巩固中'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

@@ -23,6 +23,9 @@ import 'package:my_english/pages/listening_meaning/listening_meaning_page.dart';
 import 'package:my_english/pages/listening/listening_page.dart';
 // 引入单词行，检查高度、徽章与展开内容。
 import 'package:my_english/pages/home/widgets/word_list_tile.dart';
+// 引入首页尺寸表：断言直接读表里的档位，而不是把数字抄进测试。
+// 这样档位搬家（比如页面留白从 20 挪到 24）时，测试跟着表一起动。
+import 'package:my_english/pages/home/widgets/home_layout.dart';
 // 引入音频接口，测试使用不会访问真实网络的受控实现。
 import 'package:my_english/services/word_audio.dart';
 // 引入离线语音缓存服务，验证清空与 100% 提示逻辑。
@@ -415,9 +418,12 @@ void main() {
       tester.getBottomRight(listFinder).dy,
       tester.getTopLeft(learningBar).dy,
     );
-    // 操作栏下面只剩 SafeArea 给系统手势区留的 12 像素呼吸位，
+    // 操作栏下面只剩 SafeArea 给系统手势区留的呼吸位（p3 档），
     // 也就是说列表下方除了这条操作栏没有别的东西。
-    expect(tester.getBottomRight(learningBar).dy, logicalHeight - 12);
+    expect(
+      tester.getBottomRight(learningBar).dy,
+      logicalHeight - AppSpace.p3,
+    );
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -442,9 +448,12 @@ void main() {
     );
     // 两者必须共享同一个控制器，拖动才会真正改变列表位置。
     expect(scrollbar.controller, same(scrollView.controller));
-    // 学习入口已移到列表外部，末尾只保留 12 像素正常呼吸空间。
+    // 学习入口已移到列表外部，末尾只保留 p3 档的正常呼吸空间。
     final bottomPadding = scrollView.slivers.last as SliverPadding;
-    expect(bottomPadding.padding, const EdgeInsets.only(bottom: 12));
+    expect(
+      bottomPadding.padding,
+      const EdgeInsets.only(bottom: AppSpace.p3),
+    );
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -465,10 +474,7 @@ void main() {
 
       // 文档流里只保留这段静态文字，不再渲染上滑动画图标。
       final hintFinder = find.byKey(const Key('word-library-swipe-indicator'));
-      expect(
-        hintFinder,
-        findsOneWidget,
-      );
+      expect(hintFinder, findsOneWidget);
       expect(find.text('向上滑动展开词库'), findsOneWidget);
       // 收起时词库面板压根不渲染（生产代码刻意不保留屏幕外的实例，
       // 免得入场动画留下一条白边）。
@@ -544,8 +550,8 @@ void main() {
     // 输入文字按垂直中心对齐。
     expect(textField.textAlignVertical, TextAlignVertical.center);
     // 输入文字和 placeholder 使用一致行高。
-    expect(textField.style?.height, 1.2);
-    expect(textField.decoration!.hintStyle?.height, 1.2);
+    expect(textField.style?.height, AppLine.lhSm);
+    expect(textField.decoration!.hintStyle?.height, AppLine.lhSm);
     // 左侧搜索图标为 20 像素。
     final searchIcon = textField.decoration!.prefixIcon! as Icon;
     expect(searchIcon.size, 20);
@@ -634,16 +640,12 @@ void main() {
       Word(
         id: 11,
         spelling: 'same',
-        meanings: <Meaning>[
-          Meaning(pos: 'n.', definition: '第一条'),
-        ],
+        meanings: <Meaning>[Meaning(pos: 'n.', definition: '第一条')],
       ),
       Word(
         id: 12,
         spelling: 'same',
-        meanings: <Meaning>[
-          Meaning(pos: 'v.', definition: '第二条'),
-        ],
+        meanings: <Meaning>[Meaning(pos: 'v.', definition: '第二条')],
       ),
     ];
     // 注入包含重复 spelling 的测试数据。
@@ -664,31 +666,33 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证字母、难度、日期都有双向排序；null 难度按 0 参与，null 日期随方向落在边界。
+  // 验证字母、难度、日期都有双向排序；固定难度分组下排序只在组内生效，
+  // 因此测试词故意放进同一个难度组，null 日期随升降序方向落在组内边界。
   testWidgets('sort bar toggles all fields with the agreed null rules', (
     tester,
   ) async {
-    // 三个词故意安排在同一天复习，落在同一个「复习时间」分组内，
-    // 这样切换排序字段才对整组可见（v2.0 排序只在组内生效）。
+    // 三个词难度故意相同、落在同一个「难度 2」分组内，
+    // 这样切换排序字段才对整组可见（排序只在组内生效）。
     final words = <Word>[
+      // 复习时间最早，日期升序时靠前、降序时靠后。
       Word(
         id: 21,
         spelling: 'zebra',
-        difficulty: 1,
+        difficulty: 2,
         createdAt: DateTime(2026, 1, 1),
         updatedAt: DateTime(2026, 7, 1),
-        reviewedAt: DateTime(2026, 6, 1),
+        reviewedAt: DateTime(2026, 1, 1),
       ),
-      // 难度最高，含义层按数量参与比较。
+      // 复习时间最晚。
       Word(
         id: 22,
         spelling: 'apple',
-        difficulty: 3,
+        difficulty: 2,
         createdAt: DateTime(2026, 6, 1),
         reviewedAt: DateTime(2026, 6, 1),
       ),
-      // 故意没有难度，难度层按 0 参与比较。
-      Word(id: 23, spelling: 'middle', reviewedAt: DateTime(2026, 6, 1)),
+      // 从未复习（日期为空），用来检验 null 日期随方向落在组内边界。
+      Word(id: 23, spelling: 'middle', difficulty: 2),
     ];
     // 使用稳定测试数据打开首页。
     await _pumpHome(tester, words: words);
@@ -715,24 +719,26 @@ void main() {
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'middle', 'zebra']);
 
-    // 第一次点难度默认高到低，null 难度按 0 落在最后。
+    // 第一次点难度（默认高到低）。三词难度相等，落到次级「含义 → 日期」：
+    // apple(6/1)、zebra(1/1)，middle 无复习时间固定末尾（日期次级固定降序、null 在后）。
     await tester.tap(find.byKey(const Key('word-sort-difficulty')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
-    // 再点难度切到升序，从 0/null 开始，然后是 1、3。
+    // 再点难度切到升序：分组固定为难度后，同一组内难度必然全部相等，
+    // 难度主键分不出先后，落到次级日期（固定降序），组内顺序保持不变；
+    // 难度升降序真正造成的差异由排序服务的纯函数单测覆盖。
     await tester.tap(find.byKey(const Key('word-sort-difficulty')));
+    await tester.pump();
+    _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
+
+    // 第一次点日期（默认最近到最早）：apple(6/1) → zebra(1/1) → middle（null 在后）。
+    await tester.tap(find.byKey(const Key('word-sort-date')));
+    await tester.pump();
+    _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
+    // 再点日期切到升序：middle（无日期）提到最前，然后 zebra(1/1)、apple(6/1)。
+    await tester.tap(find.byKey(const Key('word-sort-date')));
     await tester.pump();
     _expectTextsInVerticalOrder(tester, <String>['middle', 'zebra', 'apple']);
-
-    // 第一次点日期默认最近到最早；默认模式下日期取 reviewedAt：
-    // apple(6/1) 排在 zebra(1/1) 前，middle 无复习时间固定末尾（降序 null 在后）。
-    await tester.tap(find.byKey(const Key('word-sort-date')));
-    await tester.pump();
-    _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
-    // 再点日期切到升序；三个词日期相同，落入次级「难度降序」，顺序不变。
-    await tester.tap(find.byKey(const Key('word-sort-date')));
-    await tester.pump();
-    _expectTextsInVerticalOrder(tester, <String>['apple', 'zebra', 'middle']);
 
     // 清理页面资源。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -779,16 +785,17 @@ void main() {
     ]);
 
     // 三个重复拼写单词用来检验字母排序的难度、日期层级。
+    // 4.4 起词库固定按难度分组：三者故意同难度，才能同组比较次级规则。
     final sameSpellingWords = <Word>[
-      // 难度最低，应排最后。
+      // 复习时间最新，应排第一。
       Word(
         id: 41,
         spelling: 'same',
-        difficulty: 1,
+        difficulty: 9,
         createdAt: DateTime(2026, 7, 1),
         reviewedAt: DateTime(2026, 7, 1),
       ),
-      // 难度最高但复习时间较旧，应排第二。
+      // 复习时间最旧，应排最后。
       Word(
         id: 42,
         spelling: 'same',
@@ -796,7 +803,7 @@ void main() {
         createdAt: DateTime(2026, 1, 1),
         reviewedAt: DateTime(2026, 1, 1),
       ),
-      // 难度同为最高且复习时间更新，应排第一。
+      // 复习时间居中，应排第二。
       Word(
         id: 43,
         spelling: 'same',
@@ -807,7 +814,8 @@ void main() {
     ];
     // 重新打开首页。
     await _pumpHome(tester, words: sameSpellingWords);
-    // 点击默认项（字母规则）；默认按复习时间分组，日期降序排在前面。
+    // 点击默认项（字母规则）；拼写相同后难度、含义层打平，按日期降序排列：
+    // 41(7/1)、43(6/1)、42(1/1)。
     await tester.tap(find.byKey(const Key('word-sort-original')));
     await tester.pump();
     // 文字相同无法用文本定位，改为逐行读取列表项的 Word 主键。
@@ -842,22 +850,19 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 验证分组视角切换：难度视角生成"难度 N"与"无难度"分组头。
-  testWidgets('difficulty mode groups words by difficulty value', (
+  // 验证词库固定按难度分组：无需切换即生成"难度 N"与"无难度"分组头，
+  // 且不再提供「难度 / 复习时间」分组视角切换按钮（4.4 起）。
+  testWidgets('word library groups words by difficulty without a switcher', (
     tester,
   ) async {
     // 打开首页（ability 难度 3，abandon 无难度）。
     await _pumpHome(tester);
 
-    // 打开模式菜单。
-    await tester.tap(find.byKey(const Key('group-mode-button')));
-    await tester.pumpAndSettle();
-    // 选择难度视角。
-    await tester.tap(find.byKey(const Key('group-mode-difficulty')));
-    await tester.pumpAndSettle();
-    // 出现两个难度分组头。
+    // 直接出现两个难度分组头，无需先打开模式菜单。
     expect(find.text('难度 3'), findsWidgets);
     expect(find.text('无难度'), findsWidgets);
+    // 曾经用于切换「按难度 / 按复习时间」分组的按钮已经删除。
+    expect(find.byKey(const Key('group-mode-button')), findsNothing);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -878,13 +883,8 @@ void main() {
       // 第二个难度值用于确认页面确实生成了多个独立吸顶区块。
       Word(id: 100, spelling: 'lower', difficulty: 2),
     ];
-    // 用长列表打开首页。
+    // 用长列表打开首页；词库固定按难度分组，直接得到“难度 3”和“难度 2”两个区块。
     await _pumpHome(tester, words: words);
-    // 切换到按难度分组，得到“难度 3”和“难度 2”两个区块。
-    await tester.tap(find.byKey(const Key('group-mode-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('group-mode-difficulty')));
-    await tester.pumpAndSettle();
 
     // 从滚动组件配置中读取全部 Sliver；屏幕外分组尚未挂载，也仍应存在于配置列表。
     final scrollView = tester.widget<CustomScrollView>(
@@ -920,21 +920,28 @@ void main() {
 
   // 验证分组头点击可折叠该组单词，"折叠/展开"按钮可整体切换。
   testWidgets('section headers collapse and expand rows', (tester) async {
-    // 打开首页；默认按复习时间分组，两个词都未复习，落在「未复习」组。
+    // 打开首页；词库固定按难度分组，ability（难度 3）与 abandon（无难度）
+    // 分属「难度 3」与「无难度」两个区块。
     await _pumpHome(tester);
 
     // 初始两行单词都可见。
     expect(find.text('ability'), findsOneWidget);
-    // 点击「未复习」分组头折叠。
-    await tester.tap(find.byKey(const Key('section-r0')));
+    expect(find.text('abandon'), findsOneWidget);
+    // 点击「难度 3」分组头折叠：只折掉该组，ability 消失而 abandon 仍在。
+    await tester.tap(find.byKey(const Key('section-d3')));
     await tester.pumpAndSettle();
-    // 折叠后行消失。
     expect(find.text('ability'), findsNothing);
-    // 顶部按钮此时显示"展开"。
+    expect(find.text('abandon'), findsOneWidget);
+    // 顶部按钮此刻会把剩下的组也一起折掉；点击后全部行都消失。
     await tester.tap(find.byKey(const Key('toggle-collapse-all')));
     await tester.pumpAndSettle();
-    // 全部展开后行回来了。
+    expect(find.text('abandon'), findsNothing);
+    // 全部折叠后按钮文案已变成"展开"，点击把全部区块展开，行都回来。
+    expect(find.text('展开'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('toggle-collapse-all')));
+    await tester.pumpAndSettle();
     expect(find.text('ability'), findsOneWidget);
+    expect(find.text('abandon'), findsOneWidget);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1173,18 +1180,20 @@ void main() {
         (primaryCard.decoration! as BoxDecoration).color,
         AppTokens.light.card,
       );
-      // 卡片距离表单内容区左右各 20 像素，卡片内部也统一留出 20 像素。
+      // 卡片距离表单内容区左右、以及卡片自身的内边距，都是同一档页面留白。
+      // 断言直接读令牌而不是写死数字：这一档搬过一次家（20 → 24），
+      // 写死数字的断言当时就会红，读令牌的不会。
       final primaryCardRect = tester.getRect(
         find.byKey(const Key('word-form-primary-card')),
       );
-      expect(primaryCardRect.left - bodyRect.left, closeTo(20, 0.1));
-      expect(bodyRect.right - primaryCardRect.right, closeTo(20, 0.1));
-      expect(primaryCard.padding, const EdgeInsets.all(20));
+      expect(primaryCardRect.left - bodyRect.left, closeTo(AppSpace.pBase, 0.1));
+      expect(bodyRect.right - primaryCardRect.right, closeTo(AppSpace.pBase, 0.1));
+      expect(primaryCard.padding, const EdgeInsets.all(AppSpace.pBase));
       expect(
         tester
             .widget<Container>(find.byKey(const Key('meaning-card-0')))
             .padding,
-        const EdgeInsets.all(20),
+        const EdgeInsets.all(AppSpace.pBase),
       );
       // 首个表单卡内是单词拼写字段（2.0 起分组下线，不再有 40%/60% 两列）。
       expect(find.byKey(const Key('form-spelling-field')), findsOneWidget);
@@ -1251,7 +1260,7 @@ void main() {
         tester.element(nounChipFinder),
       ).colorScheme.primary;
       expect((nounChip.decoration! as BoxDecoration).color, primaryColor);
-      // 默认状态下词性行固定贴着卡片 20 像素内边距，输入框与词性相距 10 像素。
+      // 默认状态下词性行贴着卡片内边距那一档，输入框与词性相距一档含义内间距。
       final defaultMeaningCardRect = tester.getRect(
         find.byKey(const Key('meaning-card-0')),
       );
@@ -1261,10 +1270,16 @@ void main() {
       final defaultMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-0')),
       );
-      // 卡片自身有 1 像素边框；扣除边框后，实际内边距正好为 20。
-      expect(defaultPosRowRect.top - defaultMeaningCardRect.top - 1, 20);
-      expect(defaultPosRowRect.height, 30);
-      expect(defaultMeaningInputRect.top - defaultPosRowRect.bottom, 10);
+      // 卡片自身有 1 像素边框；扣除边框后，实际内边距正好是那一档。
+      expect(
+        defaultPosRowRect.top - defaultMeaningCardRect.top - AppStroke.thin,
+        AppSpace.pBase,
+      );
+      expect(defaultPosRowRect.height, WordFormLayout.posRowHeight);
+      expect(
+        defaultMeaningInputRect.top - defaultPosRowRect.bottom,
+        WordFormLayout.meaningContentGap,
+      );
 
       // 输入并确认一条含义，生成的标签使用 Azure 浅色背景。
       await tester.enterText(find.byKey(const Key('meaning-draft-0')), '新的含义');
@@ -1277,15 +1292,21 @@ void main() {
         (meaningTag.decoration! as BoxDecoration).color,
         const Color(0x1A45AAF2),
       );
-      // 添加含义后，词性到标签、标签到输入框都保持相同的 10 像素距离。
+      // 添加含义后，词性到标签、标签到输入框都保持同一档含义内容间距。
       final meaningTagsRect = tester.getRect(
         find.byKey(const Key('meaning-tags-0')),
       );
       final taggedMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-0')),
       );
-      expect(meaningTagsRect.top - defaultPosRowRect.bottom, 10);
-      expect(taggedMeaningInputRect.top - meaningTagsRect.bottom, 10);
+      expect(
+        meaningTagsRect.top - defaultPosRowRect.bottom,
+        WordFormLayout.meaningContentGap,
+      );
+      expect(
+        taggedMeaningInputRect.top - meaningTagsRect.bottom,
+        WordFormLayout.meaningContentGap,
+      );
       // 添加第二组后，两组都显示 Tabler 垃圾桶；删除后保留一个基础组。
       await tester.tap(find.byKey(const Key('add-meaning')));
       await tester.pump();
@@ -1299,7 +1320,7 @@ void main() {
         final deleteRect = tester.getRect(
           find.byKey(Key('meaning-delete-$index')),
         );
-        expect(posRowRect.top - cardRect.top - 1, 20);
+        expect(posRowRect.top - cardRect.top - 1, AppSpace.pBase);
         expect(posRowRect.height, 30);
         expect(deleteRect.top, closeTo(posRowRect.top, 0.1));
         expect(deleteRect.bottom, closeTo(posRowRect.bottom, 0.1));
@@ -1310,7 +1331,10 @@ void main() {
       final secondMeaningInputRect = tester.getRect(
         find.byKey(const Key('meaning-input-1')),
       );
-      expect(secondMeaningInputRect.top - secondPosRowRect.bottom, 10);
+      expect(
+        secondMeaningInputRect.top - secondPosRowRect.bottom,
+        WordFormLayout.meaningContentGap,
+      );
       await tester.tap(find.byKey(const Key('meaning-delete-1')));
       await tester.pump();
       expect(find.byIcon(TablerIcons.trash), findsNothing);
@@ -1570,7 +1594,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 从另一个平铺入口进入听音辨义。
-    await tester.tap(find.byKey(const Key('word-library-listening-meaning-action')));
+    await tester.tap(
+      find.byKey(const Key('word-library-listening-meaning-action')),
+    );
     await tester.pumpAndSettle();
     // 听音辨义的真正学习列表必须与刚才的随身听完全相同。
     final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
@@ -1622,7 +1648,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 打开听音辨义。
-    await tester.tap(find.byKey(const Key('word-library-listening-meaning-action')));
+    await tester.tap(
+      find.byKey(const Key('word-library-listening-meaning-action')),
+    );
     await tester.pumpAndSettle();
     // 听音辨义收到的学习列表必须与随身听一致。
     final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
@@ -1647,6 +1675,8 @@ void main() {
       // 使用固定抛错 Store 模拟 JSON 解析失败。
       await tester.pumpWidget(
         MaterialApp(
+          // 同上：错误态里的文字同样要按真实主题渲染。
+          theme: AppTheme.light,
           home: HomePage(
             store: const _ThrowingWordStore(),
             audioPlayer: _SilentAudioPlayer(),
@@ -1748,6 +1778,9 @@ Future<void> _pumpHome(
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
     MaterialApp(
+      // 必须装上真实主题：页面里的字号、字重、文字色现在统一从主题的
+      // TextTheme 槽位取，缺了它读到的会是 Material 自带的默认字号。
+      theme: AppTheme.light,
       // HomePage 通过构造器注入测试 Store 与静音播放器。
       home: HomePage(
         // UniqueKey 强制每次 pump 创建全新 State；否则同一用例内换数据重
@@ -1940,14 +1973,16 @@ class _MemoryWordStore implements WordStore {
   ///
   /// 清空全部内存单词。
   @override
-  Future<List<Word>> getByMeaningIds(List<int> meaningIds) async =>
-      <Word>[];
+  Future<List<Word>> getByMeaningIds(List<int> meaningIds) async => <Word>[];
 
   @override
   Future<void> saveWordConfusions(int wordId, List<String> confusions) async {}
 
   @override
-  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) async {}
+  Future<void> saveMeaningConfusions(
+    int meaningId,
+    List<String> confusions,
+  ) async {}
 
   @override
   Future<void> saveWordSyllables(int wordId, List<String> syllables) async {}
@@ -1998,8 +2033,10 @@ class _ThrowingWordStore implements WordStore {
 
   /// 其余接口不属于本测试流程。
   @override
-  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) async =>
-      throw UnimplementedError();
+  Future<void> saveMeaningConfusions(
+    int meaningId,
+    List<String> confusions,
+  ) async => throw UnimplementedError();
 
   /// 其余接口不属于本测试流程。
   @override

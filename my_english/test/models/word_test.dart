@@ -66,9 +66,7 @@ void main() {
     final verbose = Word(
       id: 2,
       spelling: 'ability',
-      meanings: const <Meaning>[
-        Meaning(pos: 'n.', definition: '完成某件事情的能力'),
-      ],
+      meanings: const <Meaning>[Meaning(pos: 'n.', definition: '完成某件事情的能力')],
     );
     // 双释义的词。
     final multi = Word(

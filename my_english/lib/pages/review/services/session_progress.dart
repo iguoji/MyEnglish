@@ -64,7 +64,8 @@ class SessionProgress {
 
   ///
   /// 本局已经产生的全部记录（含进入页面后新写的）。
-  List<SessionRecord> get allRecords => List<SessionRecord>.unmodifiable(_liveRecords);
+  List<SessionRecord> get allRecords =>
+      List<SessionRecord>.unmodifiable(_liveRecords);
 
   ///
   /// 记录列表的可变副本：新写的记录会追加进来，让现场查询立刻反映最新状态。
@@ -153,11 +154,7 @@ class SessionProgress {
   /// - 失败：超时、中途退出，或者过程中错过。
   ///
   /// 「中断」不走这里——它只在用户改了每日复习数量时由设置面板批量触发。
-  Future<void> finish({
-    required bool perfect,
-    int? cursor,
-    int? elapsed,
-  }) {
+  Future<void> finish({required bool perfect, int? cursor, int? elapsed}) {
     // 重复收尾会把已经判定的成败改掉，一律忽略。
     if (_finished) return Future<void>.value();
     _finished = true;

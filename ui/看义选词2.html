@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>看义选词 · 与听音辨义/拼写巩固同源</title>
+<!-- Tabler 图标字体：与 App 内 tabler_icons_plus 是同一套图标 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+<style>
+/* =====================================================================
+ * 设计基准不是 ui/ 里的旧原型，而是 my_english 中已经落地的两个 Flutter
+ * 页面：pages/listening_meaning（听音辨义）与 pages/spelling_reinforcement
+ * （拼写巩固）。
+ *   - 颜色全部取自 lib/common/theme.dart 的 AppTokens.light；
+ *   - 尺寸全部取自 ListeningMeaningLayout / SpellingLayout /
+ *     PosMeaningPanelLayout 三张尺寸表；
+ *   - 顶栏、题目卡、候选词、结算页四块直接复刻那两个页面的构件。
+ *
+ * 玩法与 lib/pages/meaning_word_choice 完全一致，只换表现层：
+ *   - 一题 = 一条去重后的中文释义，可能对应多个单词，必须全部选出；
+ *   - 候选词 = 全部匹配词 + 会话内干扰词补到 4 个，按拼写字母升序；
+ *   - 选错只禁用该候选并累计一次失误，本题继续；
+ *   - 右上角是累计用时（正计时），不是倒计时。
+ * ===================================================================== */
+:root{
+  /* AppTokens.light */
+  --page:#F6F8FB; --card:#FFFFFF; --sub:#F1F4F7; --expand:#F8FAFC;
+  --border:#E6E7E9; --row-border:#EEF0F3; --input-border:#DCE1E7;
+  --text:#182433; --text-medium:#3F4A58; --text-secondary:#667382;
+  --muted:#9AA3AF; --check:#C6CCD3;
+  /* 语义色：AppTokens.accent / danger / warning + 页面里的成功绿 */
+  --accent:#206BC4; --danger:#D63939; --success:#2FB344; --warning:#F76707;
+  /* PosMeaningPanel 组件内写死的四个浅色 */
+  --inner-card:#FAFBFC; --inner-border:#F1F5F9; --badge-border:#E2E8F0; --definition:#334155;
+  --page-inset:20px; --card-shadow:0 1px 2px rgba(35,46,60,.04);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;display:flex;align-items:center;justify-content:center;background:#E8ECF1;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  font-size:14px;color:var(--text);-webkit-font-smoothing:antialiased;
+}
+/* 手机外框：沿用 ui/ 既有原型的 414×844 画布 */
+.phone{
+  position:relative;width:100%;max-width:414px;height:100vh;max-height:844px;
+  background:var(--page);display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 12px 32px rgba(0,0,0,.08);
+}
+@media (min-width:576px){.phone{height:820px;border-radius:28px}}
+.view{flex:1;min-height:0;display:flex;flex-direction:column}
+.view.hidden{display:none}
+
+/* ============ 顶栏：四个模块像素级一致（_buildHeader） ============ */
+.topbar{position:relative;flex:none;height:34px;margin:18px var(--page-inset) 0}
+.topbar .back{
+  position:absolute;left:0;top:0;width:34px;height:34px;padding:0;border:0;background:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:flex-start;color:var(--text-medium);
+}
+.topbar .back i{font-size:21px;line-height:1}
+.topbar .counter{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;
+}
+.topbar .timer{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  font-size:15px;font-weight:500;color:var(--text-medium);font-variant-numeric:tabular-nums;
+}
+.progress-track{
+  flex:none;height:4px;margin:10px var(--page-inset) 0;border-radius:2px;
+  background:var(--sub);overflow:hidden;
+}
+.progress-bar{height:100%;width:0;border-radius:2px;background:var(--accent);transition:width .45s cubic-bezier(.4,0,.2,1)}
+
+/* ============ 题目卡：复刻 ListeningMeaningQuestionContent ============ */
+.main{flex:1;min-height:0;display:flex;padding:20px var(--page-inset);overflow-y:auto}
+.qcard{
+  flex:1;display:flex;flex-direction:column;background:var(--card);
+  border:1px solid var(--border);border-radius:8px;box-shadow:var(--card-shadow);
+  animation:cardIn .35s ease both;
+}
+@keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.qcard-status{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px 0;font-size:12px;
+}
+.qcard-status .title{font-weight:600;color:var(--text)}
+.qcard-status .count b{font-weight:600;color:var(--text)}
+.qcard-status .count span{color:var(--muted)}
+.steps{display:flex;gap:4px;padding:8px 18px 0}
+.steps i{flex:1;height:4px;border-radius:2px;background:var(--sub);transition:background .3s}
+.steps i.done{background:rgba(32,107,196,.45)}
+.steps i.active{background:var(--accent)}
+.qcard-body{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:16px 20px 24px;text-align:center;
+}
+
+/* ============ 题干：词性徽标 + 中文释义（词性徽标沿用 PosMeaningPanel） ============ */
+.pos-line{display:flex;gap:6px;justify-content:center;margin-bottom:12px}
+.pos{
+  padding:2px 6px;border:1px solid var(--badge-border);border-radius:6px;background:#fff;
+  color:var(--accent);font-size:11px;font-weight:500;font-family:var(--mono);line-height:1.4;
+}
+.prompt-def{max-width:300px;font-size:22px;font-weight:700;line-height:1.4;color:var(--text)}
+.divider{width:36px;height:1px;margin:26px auto 22px;background:var(--border)}
+
+/* ============ 「对应单词」面板：标题 + 横线 + 空位，取自 PosMeaningPanel ============ */
+.panel{width:100%;max-width:300px;text-align:left}
+.panel-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.panel-head span{font-size:11px;font-weight:600;color:var(--muted)}
+.panel-head .rule{flex:1;height:1px;background:var(--inner-border)}
+.slot-list{display:flex;flex-direction:column;gap:10px;align-items:center}
+.slot{display:flex;align-items:flex-end;gap:10px}
+/* 空位宽度刻意写成固定值：听音辨义用“真实含义当尺子”，那边不怕泄题；
+   这里候选词就在下方，一旦下划线按单词真实宽度画，长短一比就能反推答案。 */
+.blank{
+  position:relative;min-width:112px;height:30px;padding:0 6px;
+  display:inline-flex;align-items:flex-end;justify-content:center;
+}
+.blank::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:999px;background:var(--check);
+}
+.blank.active::after{background:var(--accent);box-shadow:0 0 0 3px rgba(32,107,196,.10)}
+.blank.filled::after{background:rgba(24,36,51,.35)}
+.blank .caret{
+  width:2px;height:20px;margin-bottom:6px;border-radius:1px;background:var(--accent);
+  animation:blink 1s steps(1) infinite;
+}
+@keyframes blink{50%{opacity:0}}
+.blank .word{
+  margin-bottom:6px;font-size:17px;font-weight:600;line-height:1;color:var(--text);
+  transform-origin:bottom center;animation:wordIn .1s linear both;
+}
+@keyframes wordIn{0%{opacity:0;transform:scale(0)}70%{opacity:1;transform:scale(1.2)}100%{transform:scale(1)}}
+.mini-speaker{
+  width:24px;height:24px;margin-bottom:4px;flex:none;border:0;border-radius:50%;cursor:pointer;
+  background:rgba(32,107,196,.12);color:var(--accent);
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.mini-speaker i{font-size:13px}
+.mini-speaker.playing{background:var(--accent);color:#fff}
+.hint{margin-top:26px;font-size:13px;color:var(--text-secondary)}
+.hint b{color:var(--text);font-weight:600}
+
+/* ============ 反馈横幅：复刻听音辨义 _buildDifficultyHintBanner ============ */
+.banner-slot{flex:none;padding:0 var(--page-inset)}
+.banner{
+  width:fit-content;margin:12px auto 0;padding:10px 14px;border-radius:10px;
+  display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+}
+.banner i{font-size:16px}
+.banner.bad{color:var(--danger);background:rgba(214,57,57,.10);border:1px solid rgba(214,57,57,.55)}
+.banner.good{color:var(--success);background:rgba(47,179,68,.10);border:1px solid rgba(47,179,68,.55)}
+
+/* ============ 候选词：复刻听音辨义 _OptionCard，一行两个 ============ */
+.options{
+  flex:none;display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  padding:12px var(--page-inset) 20px;
+}
+.opt{
+  position:relative;min-width:0;min-height:48px;padding:6px 10px;border-radius:10px;cursor:pointer;
+  background:var(--card);border:1px solid var(--input-border);
+  display:flex;align-items:center;justify-content:center;
+  font:inherit;color:var(--text);transition:background .2s,border-color .2s,color .2s,transform .12s;
+}
+.opt .key{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  width:28px;height:28px;border-radius:5px;background:var(--sub);border:1px solid var(--row-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:var(--text-secondary);
+}
+/* 左侧让出 28 徽章 + 10 间距，右侧只留 10，省下的宽度全给文字（同听音辨义）；
+   放不下就换行，最多三行，与 optionMaxLines = 3 一致 */
+.opt .txt{
+  min-width:0;padding-left:38px;padding-right:10px;font-size:14px;line-height:1.18;text-align:center;
+  word-break:break-word;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.opt.small .txt{font-size:12px}
+.opt:not(.done):not(.miss):active{transform:scale(.985)}
+.opt.done{background:rgba(47,179,68,.10);border-color:var(--success);color:var(--success);cursor:default}
+.opt.done .key{background:rgba(47,179,68,.14);border-color:var(--success);color:var(--success)}
+.opt.miss{background:rgba(214,57,57,.08);border-color:var(--danger);color:var(--danger);cursor:not-allowed}
+.opt.miss .key{background:rgba(214,57,57,.10);border-color:var(--danger);color:var(--danger)}
+.opt.miss .txt{text-decoration:line-through}
+.opt.shake{animation:shake .3s ease-out}
+@keyframes shake{
+  20%{transform:translateX(-8px)}45%{transform:translateX(6px)}
+  70%{transform:translateX(-4px)}85%{transform:translateX(2px)}100%{transform:none}
+}
+
+/* ============ 结算页：复刻拼写巩固 _buildSummary（2×2 统计卡 + 需加强名单） ============ */
+.summary{justify-content:center;padding:24px 50px;overflow-y:auto;text-align:center}
+.summary-avatar{
+  width:64px;height:64px;margin:0 auto;border-radius:50%;box-shadow:var(--card-shadow);
+  background:rgba(47,179,68,.10);color:var(--success);
+  display:flex;align-items:center;justify-content:center;
+}
+.summary-avatar i{font-size:24px}
+.summary h2{margin:16px 0 4px;font-size:24px;font-weight:700;color:var(--text)}
+.summary .sub{margin:0;font-size:12px;color:var(--text-secondary)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:24px}
+.stat{padding:16px 6px;border-radius:10px;background:var(--sub);border:1px solid var(--border)}
+.stat .label{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--text-secondary)}
+.stat .label i{font-size:13px}
+.stat .value{
+  margin-top:4px;font-family:var(--mono);font-size:40px;font-weight:700;line-height:1.2;
+  font-variant-numeric:tabular-nums;
+}
+.stat .value.time{font-size:24px}
+.stat .unit{margin-top:2px;font-size:10px;color:var(--text-secondary)}
+.weak{margin-top:24px;text-align:left}
+.weak.hidden{display:none}
+.weak p{margin:0 0 6px;font-size:12px;color:var(--text-secondary)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(214,57,57,.10);color:var(--danger)}
+.btn-primary{
+  width:100%;height:46px;margin-top:24px;border:0;border-radius:10px;cursor:pointer;
+  background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-primary i{font-size:18px}
+.btn-primary:active{filter:brightness(.95)}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- ==================== 答题页 ==================== -->
+  <div class="view" id="game-view">
+    <header class="topbar">
+      <button class="back" type="button" title="返回" onclick="restart()"><i class="ti ti-chevron-left"></i></button>
+      <div class="counter"><span id="round-now">1</span> / <span id="round-total">10</span></div>
+      <div class="timer" id="elapsed">00:00</div>
+    </header>
+    <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+    <main class="main"><div class="qcard" id="qcard"></div></main>
+    <div class="banner-slot" id="banner"></div>
+    <footer class="options" id="options"></footer>
+  </div>
+
+  <!-- ==================== 结算页 ==================== -->
+  <div class="view summary hidden" id="summary-view">
+    <div>
+      <div class="summary-avatar"><i class="ti ti-confetti"></i></div>
+      <h2>看义选词完成</h2>
+      <p class="sub" id="summary-sub">本组 10 个含义已全部完成</p>
+      <div class="stats">
+        <div class="stat">
+          <div class="label"><i class="ti ti-flame" style="color:var(--success)"></i>一次选对</div>
+          <div class="value" style="color:var(--success)" id="stat-perfect">0</div>
+          <div class="unit" id="stat-perfect-unit">共 10 题</div>
+        </div>
+        <div class="stat">
+          <div class="label"><i class="ti ti-x" style="color:var(--danger)"></i>失误次数</div>
+          <div class="value" style="color:var(--danger)" id="stat-errors">0</div>
+          <div class="unit">次</div>
+        </div>
+        <div class="stat">
+          <div class="label"><i class="ti ti-bulb" style="color:var(--warning)"></i>需加强</div>
+          <div class="value" style="color:var(--warning)" id="stat-weak">0</div>
+          <div class="unit">个单词</div>
+        </div>
+        <div class="stat">
+          <div class="label"><i class="ti ti-clock" style="color:var(--accent)"></i>用时</div>
+          <div class="value time" style="color:var(--accent)" id="stat-time">00:00</div>
+          <div class="unit">本组训练</div>
+        </div>
+      </div>
+      <div class="weak hidden" id="weak-block">
+        <p>这几个词需要再练</p>
+        <div class="chips" id="weak-chips"></div>
+      </div>
+      <button class="btn-primary" type="button" onclick="restart()">
+        <i class="ti ti-rotate-clockwise"></i>再来一轮
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===================== 会话词表（示例数据） =====================
+ * 结构对齐 lib/models/word.dart：一个单词多条含义，每条含义带词性。
+ * 「获得；购得」与「安静的」刻意由两个单词共享，用来演示真实规则：
+ * 一条释义可能对应多个单词，必须全部选出才算这一题完成。
+ * ============================================================= */
+const WORDS = [
+  { id: 1,  spelling: 'acquire',           meanings: [{ pos: 'v.',   def: '获得；购得' }] },
+  { id: 2,  spelling: 'obtain',            meanings: [{ pos: 'v.',   def: '获得；购得' }] },
+  { id: 3,  spelling: 'brief',             meanings: [{ pos: 'adj.', def: '简短的；短暂的' }, { pos: 'n.', def: '摘要' }] },
+  { id: 4,  spelling: 'quiet',             meanings: [{ pos: 'adj.', def: '安静的' }] },
+  { id: 5,  spelling: 'silent',            meanings: [{ pos: 'adj.', def: '安静的' }] },
+  { id: 6,  spelling: 'yield',             meanings: [{ pos: 'v.',   def: '屈服；让步' }, { pos: 'n.', def: '产量' }] },
+  { id: 7,  spelling: 'distinguish',       meanings: [{ pos: 'v.',   def: '区别；辨别' }] },
+  { id: 8,  spelling: 'unprecedented',     meanings: [{ pos: 'adj.', def: '史无前例的' }] },
+  { id: 9,  spelling: 'simultaneously',    meanings: [{ pos: 'adv.', def: '同时地；一齐' }] },
+  { id: 10, spelling: 'counterproductive', meanings: [{ pos: 'adj.', def: '适得其反的' }] },
+];
+/* MeaningWordChoiceRoundBuilder.defaultCandidateCount */
+const CANDIDATE_COUNT = 4;
+
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(n).padStart(2, '0');
+const fmt = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+const spellOf = (id) => WORDS.find((word) => word.id === id).spelling;
+function shuffle(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* ===== 题序：按释义文本去重，同一句中文下的多个单词合并成一题 ===== */
+function buildRounds() {
+  const byDefinition = new Map();
+  WORDS.forEach((word) => {
+    word.meanings.forEach((meaning) => {
+      const key = meaning.def.trim();
+      if (!key) return;
+      const entry = byDefinition.get(key) || { def: key, pos: new Set(), ids: new Set() };
+      entry.pos.add(meaning.pos);
+      entry.ids.add(word.id);
+      byDefinition.set(key, entry);
+    });
+  });
+  return shuffle([...byDefinition.values()]).map((entry) => ({
+    def: entry.def,
+    posGroup: [...entry.pos].sort(),
+    // 空位顺序按字母升序固定，中途退出再进来时现场完全一致。
+    matchIds: [...entry.ids].sort((a, b) => spellOf(a).localeCompare(spellOf(b))),
+  }));
+}
+
+/* ===== 候选词：匹配词全部上阵，不足 4 个再从会话里抽干扰词，字母升序 ===== */
+function buildCandidates(round) {
+  const chosen = new Set(round.matchIds);
+  if (chosen.size < CANDIDATE_COUNT) {
+    const pool = shuffle(
+      WORDS.filter(
+        (word) => !chosen.has(word.id) && !word.meanings.some((m) => m.def === round.def),
+      ).map((word) => word.id),
+    );
+    pool.forEach((id) => {
+      if (chosen.size < CANDIDATE_COUNT) chosen.add(id);
+    });
+  }
+  return [...chosen]
+    .sort((a, b) => spellOf(a).toLowerCase().localeCompare(spellOf(b).toLowerCase()) || a - b)
+    .map((id) => ({ id, isMatch: round.matchIds.includes(id) }));
+}
+
+/* ========================= 状态 ========================= */
+const S = {
+  rounds: [], index: 0, candidates: [],
+  picked: new Set(), missed: new Set(), justMissed: null,
+  locked: false, errors: 0, roundErrors: [], weak: [],
+  start: Date.now(), done: false,
+};
+
+/* ===== 发音：原型用浏览器 TTS 代替 App 的音频服务 ===== */
+let speakTimer = null;
+function speak(text, buttonId) {
+  const button = buttonId ? $(buttonId) : null;
+  if (button) button.classList.add('playing');
+  clearTimeout(speakTimer);
+  speakTimer = setTimeout(() => {
+    document.querySelectorAll('.mini-speaker.playing').forEach((el) => el.classList.remove('playing'));
+  }, 1200);
+  try {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    speechSynthesis.speak(utterance);
+  } catch (error) {
+    /* 原型环境没有语音合成时静默 */
+  }
+}
+
+/* ========================= 渲染 ========================= */
+function nextBlankIndex(round) {
+  return round.matchIds.findIndex((id) => !S.picked.has(id));
+}
+
+function slotHtml(round) {
+  const next = nextBlankIndex(round);
+  return round.matchIds
+    .map((id, index) => {
+      if (S.picked.has(id)) {
+        const spelling = spellOf(id);
+        return `<div class="slot">
+            <div class="blank filled"><span class="word">${spelling}</span></div>
+            <button class="mini-speaker" type="button" id="spk-${id}" title="播放发音"
+              onclick="speak('${spelling}','spk-${id}')"><i class="ti ti-volume"></i></button>
+          </div>`;
+      }
+      const active = index === next;
+      return `<div class="slot"><div class="blank${active ? ' active' : ''}">${
+        active ? '<span class="caret"></span>' : ''
+      }</div></div>`;
+    })
+    .join('');
+}
+
+function render() {
+  const round = S.rounds[S.index];
+  const total = S.rounds.length;
+  const need = round.matchIds.length;
+  const next = nextBlankIndex(round);
+
+  $('round-now').textContent = S.index + 1;
+  $('round-total').textContent = total;
+  $('progress-bar').style.width = `${(S.index / total) * 100}%`;
+
+  const steps = round.matchIds
+    .map((id, index) => {
+      if (S.picked.has(id)) return '<i class="done"></i>';
+      return index === next ? '<i class="active"></i>' : '<i></i>';
+    })
+    .join('');
+  // 只有一个答案时不画 steps：一整条实心蓝会和顶部进度条重复，反而看不出是“步骤”。
+  const stepsRow = need > 1 ? `<div class="steps">${steps}</div>` : '';
+
+  $('qcard').innerHTML = `
+    <div class="qcard-status">
+      <span class="title">选出对应单词</span>
+      <span class="count"><b>${S.picked.size}</b><span> / ${need}</span></span>
+    </div>
+    ${stepsRow}
+    <div class="qcard-body">
+      <div class="pos-line">${round.posGroup.map((pos) => `<span class="pos">${pos}</span>`).join('')}</div>
+      <div class="prompt-def">${round.def}</div>
+      <div class="divider"></div>
+      <div class="panel">
+        <div class="panel-head"><span>对应单词</span><i class="rule"></i></div>
+        <div class="slot-list">${slotHtml(round)}</div>
+      </div>
+      <div class="hint">${
+        need > 1
+          ? `这条释义对应 <b>${need}</b> 个单词，全部选出才算完成`
+          : '在下方选出这条释义对应的单词'
+      }</div>
+    </div>`;
+
+  $('options').innerHTML = S.candidates
+    .map((candidate, index) => {
+      const spelling = spellOf(candidate.id);
+      const state = S.picked.has(candidate.id)
+        ? ' done'
+        : S.missed.has(candidate.id)
+          ? ' miss'
+          : '';
+      const shake = S.justMissed === candidate.id ? ' shake' : '';
+      // 听音辨义的规则是“一行放不下就把字号降 2 像素”，这里按长度近似。
+      const small = spelling.length > 12 ? ' small' : '';
+      return `<button class="opt${state}${shake}${small}" type="button" onclick="pick(${candidate.id})">
+          <span class="key">${String.fromCharCode(65 + index)}</span>
+          <span class="txt">${spelling}</span>
+        </button>`;
+    })
+    .join('');
+  S.justMissed = null;
+
+  const wrong = S.roundErrors[S.index] || 0;
+  $('banner').innerHTML = wrong > 0
+    ? `<div class="banner bad"><i class="ti ti-alert-triangle"></i>本题已答错 ${wrong} 次</div>`
+    : S.picked.size === need
+      ? '<div class="banner good"><i class="ti ti-circle-check"></i>一气呵成 · 完美通过！</div>'
+      : '';
+}
+
+/* ========================= 交互 ========================= */
+function pick(wordId) {
+  if (S.locked || S.done) return;
+  if (S.picked.has(wordId) || S.missed.has(wordId)) return;
+  const candidate = S.candidates.find((item) => item.id === wordId);
+  if (!candidate) return;
+
+  const spelling = spellOf(wordId);
+  // 点候选立刻朗读一次，对错都读（与 Flutter 页面一致）。
+  speak(spelling);
+
+  if (candidate.isMatch) {
+    S.picked.add(wordId);
+    const finished = S.rounds[S.index].matchIds.every((id) => S.picked.has(id));
+    if (finished) S.locked = true;
+    render();
+    if (finished) setTimeout(nextRound, 850);
+    return;
+  }
+  S.missed.add(wordId);
+  S.justMissed = wordId;
+  S.errors += 1;
+  S.roundErrors[S.index] += 1;
+  if (!S.weak.includes(spelling)) S.weak.push(spelling);
+  render();
+}
+
+function startRound(index) {
+  S.index = index;
+  S.picked = new Set();
+  S.missed = new Set();
+  S.locked = false;
+  S.candidates = buildCandidates(S.rounds[index]);
+  render();
+}
+
+function nextRound() {
+  if (S.index + 1 >= S.rounds.length) {
+    finish();
+    return;
+  }
+  startRound(S.index + 1);
+}
+
+function finish() {
+  S.done = true;
+  const total = S.rounds.length;
+  const perfect = S.roundErrors.filter((count) => count === 0).length;
+  $('progress-bar').style.width = '100%';
+  $('summary-sub').textContent = perfect === total
+    ? `本组 ${total} 个含义全部一次选对`
+    : `本组 ${total} 个含义已全部完成`;
+  $('stat-perfect').textContent = perfect;
+  $('stat-perfect-unit').textContent = `共 ${total} 题`;
+  $('stat-errors').textContent = S.errors;
+  $('stat-weak').textContent = S.weak.length;
+  $('stat-time').textContent = fmt(elapsedSeconds());
+  $('weak-block').classList.toggle('hidden', S.weak.length === 0);
+  $('weak-chips').innerHTML = S.weak.map((spelling) => `<span class="chip">${spelling}</span>`).join('');
+  $('game-view').classList.add('hidden');
+  $('summary-view').classList.remove('hidden');
+}
+
+function restart() {
+  S.rounds = buildRounds();
+  S.roundErrors = new Array(S.rounds.length).fill(0);
+  S.errors = 0;
+  S.weak = [];
+  S.done = false;
+  S.start = Date.now();
+  $('elapsed').textContent = '00:00';
+  $('summary-view').classList.add('hidden');
+  $('game-view').classList.remove('hidden');
+  startRound(0);
+}
+
+/* ===== 右上角累计用时：正计时，与拼写巩固/听音辨义同口径 ===== */
+const elapsedSeconds = () => Math.floor((Date.now() - S.start) / 1000);
+setInterval(() => {
+  if (!S.done) $('elapsed').textContent = fmt(elapsedSeconds());
+}, 500);
+
+/* 桌面端用 A/B/C/D 或 1/2/3/4 直接选，方便评审时快速点完一轮 */
+document.addEventListener('keydown', (event) => {
+  const key = event.key.toLowerCase();
+  const letter = 'abcdefgh'.indexOf(key);
+  const index = letter >= 0 ? letter : Number.parseInt(key, 10) - 1;
+  if (Number.isNaN(index) || index < 0 || index >= S.candidates.length) return;
+  pick(S.candidates[index].id);
+});
+
+restart();
+</script>
+</body>
+</html>
+

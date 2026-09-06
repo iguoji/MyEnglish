@@ -3,13 +3,14 @@ import 'dart:math' as math;
 
 // material.dart 提供手势、动画、布局、文字与图标组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 统一提供勾选框与发音状态图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 公共日期 helper 负责今年与非今年的显示规则。
 import '../../../common/date.dart';
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import 'home_layout.dart';
 // Meaning 和 Word 来自全局 models，其他页面也可复用。
 import '../../../models/meaning.dart';
 import '../../../models/word.dart';
@@ -48,12 +49,15 @@ class WordListTile extends StatelessWidget {
   final DateTime? displayDate;
 
   ///
-  /// 标题行固定为设计稿的 40 像素。
-  static const double headerHeight = 40;
+  /// 标题行行高，取自 [WordListTileLayout.headerHeight]。
+  ///
+  /// 这里留一个转发别名，是因为行高是「这一行有多高」这件外部可观测的事：
+  /// 首页的滚动估算和界面测试都要按它算，从组件上直接取比翻尺寸表更顺手。
+  static const double headerHeight = WordListTileLayout.headerHeight;
 
   ///
-  /// 左滑露出的操作区总宽度：修改 64 + 删除 64。
-  static const double actionWidth = 128;
+  /// 左滑露出的操作区总宽度，取自 [WordListTileLayout.actionWidth]。
+  static const double actionWidth = WordListTileLayout.actionWidth;
 
   ///
   /// 当前 Word 数据。
@@ -113,6 +117,7 @@ class WordListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // displayDate 已由首页按分组模式算好（复习/更新/加入时间其一），直接用它。
     final displayDate = this.displayDate;
     // 是否真的存在可展开内容。
@@ -126,7 +131,7 @@ class WordListTile extends StatelessWidget {
         // 用 cRb（列表行分隔线）对齐原型图的淡边框观感；真机 OLED/高亮屏上 cBd 会偏深。
         border: Border(
           // 固定 1 个逻辑像素；真机会按设备像素比换算，因此线条既清楚又不会过粗。
-          bottom: BorderSide(color: tokens.rowBorder, width: 1),
+          bottom: BorderSide(color: tokens.rowBorder, width: AppStroke.thin),
         ),
       ),
       // Column 先放标题行（含滑动层），再放可变高度释义区。
@@ -149,7 +154,7 @@ class WordListTile extends StatelessWidget {
                       _SwipeAction(
                         key: const Key('swipe-edit'),
                         label: '修改',
-                        color: AppTokens.accent,
+                        color: AppTokens.primary,
                         onTap: onEdit,
                       ),
                       // 删除按钮使用危险色底。
@@ -173,8 +178,8 @@ class WordListTile extends StatelessWidget {
                   onHorizontalDragStart: (details) => _dragDistance = 0,
                   // AnimatedContainer 平移标题行，产生滑开动画。
                   child: AnimatedContainer(
-                    // 与设计稿一致的 180ms 缓动。
-                    duration: const Duration(milliseconds: 180),
+                    // 与设计稿一致的缓动，时长走 AppDuration 的 160 毫秒这一档。
+                    duration: const Duration(milliseconds: AppDuration.ms160),
                     curve: Curves.ease,
                     // 打开时整行左移露出 128 宽操作区。
                     transform: Matrix4.translationValues(
@@ -190,9 +195,11 @@ class WordListTile extends StatelessWidget {
                       // SizedBox 固定 40 高标题行。
                       child: SizedBox(
                         height: headerHeight,
-                        // 与设计稿一致的 20 像素左右边距。
+                        // 左右边距与页面统一那一档（`HomeLayout.pageInset`）对齐。
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.pBase,
+                          ),
                           child: Row(
                             // 整条标题行在 40 高内垂直居中，单词与右侧日期不会上下错位。
                             crossAxisAlignment: CrossAxisAlignment.center,
@@ -212,7 +219,7 @@ class WordListTile extends StatelessWidget {
                                         onTap: onToggleSelect,
                                       ),
                                       // 勾选框与后续内容间距。
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: AppSpace.p2),
                                     ],
                                     // 播放中显示动画喇叭，紧贴单词左侧。
                                     if (isPlaying) ...[
@@ -221,8 +228,8 @@ class WordListTile extends StatelessWidget {
                                           item.id ?? item.spelling,
                                         ),
                                       ),
-                                      // 自绘画布已去掉字体图标留白，因此只需保留 6 像素视觉间距。
-                                      const SizedBox(width: 6),
+                                      // 自绘画布已去掉字体图标留白，因此只需保留一档常规视觉间距（`p2`）。
+                                      const SizedBox(width: AppSpace.p2),
                                     ],
                                     // Flexible 允许极长拼写省略。
                                     Flexible(
@@ -231,29 +238,25 @@ class WordListTile extends StatelessWidget {
                                         // 标题始终保持一行。
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        // 设计稿的 16 号中等字重。
-                                        style: TextStyle(
-                                          color: tokens.text,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
+                                        // 设计稿的 16 号半粗，就是 `fs4Semibold` 这一档。
+                                        style: textTheme.fs4Semibold.copyWith(
                                           // 关键居中方案：把 Text 的 line box 高度直接锁成 40（= 标题行高），
-                                          // height = 40 / 16 = 2.5。外层 Row(center) 把 40 高的 line box 在
+                                          // height = 行高 ÷ 字号。外层 Row(center) 把 40 高的 line box 在
                                           // 40 高的行内完美居中（完全重合），单词的几何中心必然落在 40 像素
                                           // 行的中线上。该做法只依赖 height 锁定的行高，与字体自身的
                                           // ascent/descent 绝对值无关——换任何系统字体都不会再上下漂移。
                                           // even 再把字体的 ascent+descent 盒在 line box 内均分上下，进一步吸收字体偏差。
-                                          height: headerHeight / 16,
+                                          height: headerHeight / AppFont.fs4,
                                           leadingDistribution:
                                               TextLeadingDistribution.even,
-                                          letterSpacing: 0,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              // 左右两块之间至少 12 像素。
-                              const SizedBox(width: 12),
+                              // 左右两块之间至少隔一档基准间距（`p3`）。
+                              const SizedBox(width: AppSpace.p3),
                               // 右半部分：难度徽章与日期。
                               Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -264,11 +267,11 @@ class WordListTile extends StatelessWidget {
                                       when difficulty > 0) ...[
                                     _DifficultyBadge(difficulty: difficulty),
                                     // 徽章与日期之间留白。
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: AppSpace.p2),
                                   ],
                                   // 固定 40 宽右对齐日期列，三个时间全缺时显示占位 00.00。
                                   SizedBox(
-                                    width: 40,
+                                    width: WordListTileLayout.dateColumnWidth,
                                     child: Text(
                                       displayDate == null
                                           ? '00.00'
@@ -278,23 +281,25 @@ class WordListTile extends StatelessWidget {
                                             ),
                                       // 右对齐让日期竖向成列。
                                       textAlign: TextAlign.right,
-                                      style: TextStyle(
+                                      style: textTheme.fs5.copyWith(
                                         // 有日期用 listDate（极淡灰）；
                                         // 无日期占位"00.00"用 listDateEmpty（更淡，几乎不可见）。
                                         color: displayDate == null
                                             ? tokens.listDateEmpty
                                             : tokens.listDate,
-                                        fontSize: 13,
                                         // 等宽数字避免日期跳动。
                                         fontFeatures: const [
                                           FontFeature.tabularFigures(),
                                         ],
-                                        // 与单词一致：把 line box 锁成 40 高（height = 40 / 13），
-                                        // 保证日期与单词在同一个 40 像素行的垂直中线上对齐。
-                                        height: headerHeight / 13,
+                                        // 与单词一致：把 line box 锁成 40 高
+                                        // （height = 行高 ÷ 字号），保证日期与单词
+                                        // 在同一个 40 像素行的垂直中线上对齐。
+                                        // 除数直接引用字号那一档，不写死数字——
+                                        // 这里原来写的是 13，而这行字早就跟着正文
+                                        // 档变成了 14，除错一档字就会偏。
+                                        height: headerHeight / AppFont.fs5,
                                         leadingDistribution:
                                             TextLeadingDistribution.even,
-                                        letterSpacing: 0,
                                       ),
                                     ),
                                   ),
@@ -312,7 +317,7 @@ class WordListTile extends StatelessWidget {
           ),
           // AnimatedSize 只负责展开高度过渡，不保存业务状态。
           AnimatedSize(
-            duration: const Duration(milliseconds: 160),
+            duration: const Duration(milliseconds: AppDuration.ms160),
             // 收起时创建零高度盒子，展开时创建释义列表。
             child: isExpanded && hasMeanings
                 ? _MeaningList(
@@ -373,21 +378,18 @@ class _SwipeAction extends StatelessWidget {
   /// 输出色块按钮。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // GestureDetector 直接响应点击，不需要水波纹。
     return GestureDetector(
       onTap: onTap,
       // 64 宽色块，文字白色居中。
       child: Container(
-        width: 64,
+        width: WordListTileLayout.actionButtonWidth,
         color: color,
         alignment: Alignment.center,
         child: Text(
           label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
+          style: textTheme.fs5Semibold.copyWith(color: Colors.white),
         ),
       ),
     );
@@ -422,21 +424,25 @@ class _CheckBox extends StatelessWidget {
       // 透明命中区域略大于视觉框。
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: 18,
-        height: 18,
+        width: WordListTileLayout.checkboxSize,
+        height: WordListTileLayout.checkboxSize,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           // 选中实心主色，未选中卡片底描边。
-          color: isSelected ? AppTokens.accent : tokens.card,
+          color: isSelected ? AppTokens.primary : tokens.card,
           border: Border.all(
-            color: isSelected ? AppTokens.accent : tokens.check,
-            width: 1.5,
+            color: isSelected ? AppTokens.primary : tokens.check,
+            width: AppStroke.bold,
           ),
-          borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(AppRadius.rounded),
         ),
         // 选中时显示白色 Tabler 对勾，不再用文字字符模拟图标。
         child: isSelected
-            ? const Icon(TablerIcons.check, color: Colors.white, size: 13)
+            ? const Icon(
+                AppGlyph.selected,
+                color: Colors.white,
+                size: AppIcon.i14,
+              )
             : null,
       ),
     );
@@ -472,10 +478,13 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
   void initState() {
     // 保留 State 父类初始化。
     super.initState();
-    // 1000ms 与 HTML 原型 @keyframes wave 的一秒周期一致。
+    // 一秒一个循环，对齐 HTML 原型 @keyframes wave 的周期。
+    //
+    // 这里刻意写成 seconds: 1 而不是收进 AppDuration：它不是「这个动作演多久」
+    // 的过渡时长，而是声纹自己的节拍，改了就跟原型对不上了。
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(seconds: 1),
     );
     // 0 到 1 循环由 Painter 转换成三条错峰透明度动画。
     _controller.repeat();
@@ -499,9 +508,12 @@ class _PlayingSpeakerIconState extends State<_PlayingSpeakerIcon>
     return CustomPaint(
       // 稳定 key 供测试确认播放状态已切换为自绘原型图标。
       key: const Key('playing-speaker-icon'),
-      size: const Size(18, 16),
+      size: const Size(
+        WordListTileLayout.speakerIconWidth,
+        WordListTileLayout.speakerIconHeight,
+      ),
       painter: _SpeakerWavePainter(
-        color: AppTokens.accent,
+        color: AppTokens.primary,
         progress: _controller,
       ),
     );
@@ -586,10 +598,7 @@ class _SpeakerWavePainter extends CustomPainter {
 class _MeaningList extends StatelessWidget {
   ///
   /// 接收模型已经整理好的词性分组。
-  const _MeaningList({
-    required this.groups,
-    required this.definitionSeparator,
-  });
+  const _MeaningList({required this.groups, required this.definitionSeparator});
 
   ///
   /// 当前单词按词性分好的释义分组。
@@ -611,17 +620,20 @@ class _MeaningList extends StatelessWidget {
       // 撑满整行宽度，让底色贴到屏幕两侧。
       child: SizedBox(
         width: double.infinity,
-        // Padding 与设计稿一致：上下 10、左右 20。
+        // Padding 与设计稿一致：上下一档常规间隙（`p2`），左右跟页面边距同档（`pBase`）。
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.pBase,
+            vertical: AppSpace.p2,
+          ),
           // Column 保证一个词性分组对应一个纵向行。
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             // 按模型顺序逐组生成行。
             children: [
               for (var index = 0; index < groups.length; index += 1) ...[
-                // 行与行之间 6 像素间距。
-                if (index > 0) const SizedBox(height: 6),
+                // 行与行之间隔一档常规间隙（`p2`）。
+                if (index > 0) const SizedBox(height: AppSpace.p2),
                 // 单个词性分组一行。
                 _MeaningRow(
                   group: groups[index],
@@ -658,6 +670,7 @@ class _MeaningRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // Row 让词性和释义处于同一 Meaning 行。
     return Row(
       // 顶部对齐保证释义换行时词性仍停在第一行。
@@ -665,34 +678,27 @@ class _MeaningRow extends StatelessWidget {
       children: [
         // 固定 36 宽右对齐词性列，与设计稿一致。
         SizedBox(
-          width: 36,
+          width: WordListTileLayout.posColumnWidth,
           child: Text(
             // 词性小写显示，空词性显示 '*'。
             group.pos,
             textAlign: TextAlign.right,
-            style: TextStyle(
+            style: textTheme.fs5.copyWith(
               color: tokens.textSecondary,
-              fontSize: 13.5,
               // 词性使用正常字体（用户明确不想要斜体）。
               fontStyle: FontStyle.normal,
-              height: 1.5,
-              letterSpacing: 0,
             ),
           ),
         ),
-        // 两列之间保持 12 像素距离。
-        const SizedBox(width: 12),
+        // 两列之间保持一档基准间距（`p3`）。
+        const SizedBox(width: AppSpace.p3),
         // Expanded 让释义使用剩余宽度并自然换行。
         Expanded(
           child: Text(
             // 同词性下的多条释义使用首页设置中的全角标点连接。
             group.joinedDefinitions(definitionSeparator),
-            style: TextStyle(
-              color: tokens.text,
-              fontSize: 13.5,
-              height: 1.5,
-              letterSpacing: 0,
-            ),
+            // 释义直接用正文那一档，行距、颜色都从主题继承，不再自己写一遍。
+            style: textTheme.fs5,
           ),
         ),
       ],
@@ -716,29 +722,29 @@ class _DifficultyBadge extends StatelessWidget {
   /// 输出设计稿的 22 高软色徽章。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // Container 同时提供尺寸、内边距和背景。
     return Container(
       // 设计稿最小 22×22。
-      constraints: const BoxConstraints(minWidth: 22),
-      height: 22,
+      constraints: const BoxConstraints(
+        minWidth: WordListTileLayout.difficultyBadgeMinWidth,
+      ),
+      height: WordListTileLayout.difficultyBadgeHeight,
       // 数字位数增加时允许宽度自然增长。
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.p2),
       // 数字水平、垂直居中。
       alignment: Alignment.center,
       // 危险色 13% 透明底和 6 像素圆角。
       decoration: BoxDecoration(
-        color: AppTokens.danger.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(6),
+        color: AppTokens.danger.withValues(alpha: AppAlpha.a14),
+        borderRadius: BorderRadius.circular(AppRadius.rounded),
       ),
       // 显示真实难度。
       child: Text(
         difficulty.toString(),
-        style: const TextStyle(
+        style: textTheme.fs6Semibold.copyWith(
           color: AppTokens.danger,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          height: 1,
-          letterSpacing: 0,
+          height: AppLine.lh1,
         ),
       ),
     );

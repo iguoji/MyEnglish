@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // flutter_test 提供组件渲染、点击和断言能力。
 import 'package:flutter_test/flutter_test.dart';
+
+// AppTheme 提供全站统一的字号、字重与颜色槽位。
+import 'package:my_english/common/theme.dart';
 // 引入被测试的首页复习总数卡片。
 import 'package:my_english/pages/home/widgets/dashboard/checkin_heatmap_card.dart';
 
@@ -43,11 +46,14 @@ void main() {
 
     // 在真实 Material 页面结构中渲染卡片并等待异步统计刷新一帧。
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Scaffold(
-          // 首页会在复习总数卡片外再留 20 像素，此处复刻真实布局宽度。
+          // 首页会在复习总数卡片外再留一档页面留白，此处复刻真实布局宽度。
           body: Padding(
-            padding: EdgeInsets.all(20),
+            padding: EdgeInsets.all(AppSpace.pBase),
             // refreshToken 是首页发给卡片的“数据变了”通知单号；
             // 单测里只渲染一次，固定给 0 即可。
             child: CheckinHeatmapCard(dailyGoal: 100, refreshToken: 0),

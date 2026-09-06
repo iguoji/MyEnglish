@@ -1,10 +1,11 @@
 // material.dart 提供布局与手势组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 提供复习模式卡片使用的图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import '../home_layout.dart';
 // 复习模块标识与三态进度模型。
 import '../../../../models/session.dart';
 
@@ -45,6 +46,7 @@ class ReviewModeGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -54,11 +56,8 @@ class ReviewModeGrid extends StatelessWidget {
           children: [
             Text(
               '开始复习',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: tokens.text,
-              ),
+              // 16 号粗那一档：和候选项同字号，靠字重把区块标题顶出来。
+              style: textTheme.fs4Bold,
             ),
             Flexible(
               child: Text(
@@ -66,31 +65,31 @@ class ReviewModeGrid extends StatelessWidget {
                 '今日目标 $dailyGoal 个',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: tokens.textSecondary),
+                style: textTheme.fs6.copyWith(color: tokens.textSecondary),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.p3),
         // 2×2 网格：两行「IntrinsicHeight + Row(Expanded)」的手动网格。
         // 卡片高度由内容自然撑开、行内取较高者对齐，任何字体缩放下都不会溢出。
         _buildRow(
           tokens,
           first: ReviewModule.listeningMeaning,
-          firstIcon: TablerIcons.headphones,
+          firstIcon: AppGlyph.moduleListening,
           firstDesc: '听音选词 · 辨别正确含义',
           second: ReviewModule.meaningMatch,
-          secondIcon: TablerIcons.link,
+          secondIcon: AppGlyph.moduleMeaningMatch,
           secondDesc: '释义配对 · 连续匹配',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.p2),
         _buildRow(
           tokens,
           first: ReviewModule.spellingReinforcement,
-          firstIcon: TablerIcons.pencil,
+          firstIcon: AppGlyph.moduleListeningMeaning,
           firstDesc: '拼写训练 · 强化单词记忆',
           second: ReviewModule.meaningWordChoice,
-          secondIcon: TablerIcons.listCheck,
+          secondIcon: AppGlyph.moduleMeaningWordChoice,
           secondDesc: '根据含义 · 选出正确单词',
         ),
       ],
@@ -123,7 +122,7 @@ class ReviewModeGrid extends StatelessWidget {
               tokens: tokens,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpace.p2),
           Expanded(
             child: _ModeCard(
               icon: secondIcon,
@@ -175,12 +174,14 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     final phase = state.barPhase;
     // 底色：今日主线已完成走绿底（巩固的地基），否则灰底。
-    final baseGreen = phase == ReviewBarPhase.dailyDone ||
+    final baseGreen =
+        phase == ReviewBarPhase.dailyDone ||
         phase == ReviewBarPhase.reinforceActive ||
         phase == ReviewBarPhase.reinforceDone;
-    final baseColor = baseGreen ? const Color(0xFF2FB344) : tokens.sub;
+    final baseColor = baseGreen ? AppTokens.success : tokens.sub;
     // 前景叠加层：主线进行中用绿色，巩固用蓝色，按本局已完成单词数比例填充。
     final Color? fillColor;
     final double fillRatio;
@@ -190,48 +191,50 @@ class _ModeCard extends StatelessWidget {
         fillColor = null;
         fillRatio = 0;
       case ReviewBarPhase.dailyActive:
-        fillColor = const Color(0xFF2FB344);
+        fillColor = AppTokens.success;
         fillRatio = state.totalCount > 0
-            ? (state.doneCount / state.totalCount)
-                .clamp(0.0, 1.0)
+            ? (state.doneCount / state.totalCount).clamp(0.0, 1.0)
             : 0.0;
       case ReviewBarPhase.reinforceActive:
-        fillColor = AppTokens.accent;
+        fillColor = AppTokens.primary;
         fillRatio = state.totalCount > 0
-            ? (state.doneCount / state.totalCount)
-                .clamp(0.0, 1.0)
+            ? (state.doneCount / state.totalCount).clamp(0.0, 1.0)
             : 0.0;
       case ReviewBarPhase.reinforceDone:
-        fillColor = AppTokens.accent;
+        fillColor = AppTokens.primary;
         fillRatio = 1.0;
     }
-    // 三种状态三种颜色：待完成用 Tabler 红制造压力，进行中用主色，完成用成功绿。
-    final badgeColor = switch (state.progress) {
-      ReviewModuleProgress.completed => const Color(0xFF2FB344),
-      ReviewModuleProgress.active => AppTokens.accent,
-      ReviewModuleProgress.pending => Theme.of(context).colorScheme.error,
+    // 徽章文字与颜色：巩固的两种细分状态（巩固中 / 已巩固）直接吃模型聚合好的
+    // 视觉阶段 [ReviewBarPhase]——只有 `fromMap` 会把「会话类型 + 状态」精确合成
+    // 这两个阶段，普通构造默认落不到这里；其余状态按 [state.progress] 三态显示
+    // （待完成用 Tabler 红制造压力 / 进行中用主色蓝 / 已完成用成功绿）。
+    // 每种状态只显示一个三字以内的短词，绝不出现「已完成 · 巩固中」式组合文案。
+    final (badgeText, badgeColor) = switch (phase) {
+      ReviewBarPhase.reinforceActive => ('巩固中', AppTokens.primary),
+      ReviewBarPhase.reinforceDone => ('已巩固', AppTokens.primary),
+      _ => switch (state.progress) {
+        ReviewModuleProgress.pending => ('待完成', AppTokens.danger),
+        ReviewModuleProgress.active => ('进行中', AppTokens.primary),
+        ReviewModuleProgress.completed => ('已完成', AppTokens.success),
+      },
     };
-    // 主线过关之后再进模块就是加练，徽章补一个小尾巴让用户知道自己在做什么。
-    final badgeText = state.isReinforcing
-        ? '${state.progress.label} · 巩固中'
-        : state.progress.label;
     return Material(
       color: tokens.card,
-      borderRadius: BorderRadius.circular(8),
-      elevation: 0,
+      borderRadius: BorderRadius.circular(AppRadius.roundedLg),
+      elevation: HomeDashboardLayout.cardElevation,
       shadowColor: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpace.p3),
           decoration: BoxDecoration(
             // 显式填上白色卡片底色（深色主题下自动是对应的深色表面）。
             color: tokens.card,
             // 描边代替阴影：用分隔线色勾出轮廓，不再使用投影。
             border: Border.all(color: tokens.border),
             // 只保留一点点圆角。
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadius.roundedLg),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,25 +245,23 @@ class _ModeCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(icon, size: 20, color: tokens.text),
+                  Icon(icon, size: AppIcon.i20, color: tokens.text),
                   Flexible(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+                        horizontal: AppSpace.p2,
+                        vertical: AppSpace.p1,
                       ),
                       decoration: BoxDecoration(
-                        color: badgeColor.withValues(alpha: 0.13),
-                        borderRadius: BorderRadius.circular(6),
+                        color: badgeColor.withValues(alpha: AppAlpha.a14),
+                        borderRadius: BorderRadius.circular(AppRadius.rounded),
                       ),
                       child: Text(
                         badgeText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: textTheme.fs6Bold.copyWith(
                           fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
                           color: badgeColor,
                         ),
                       ),
@@ -269,20 +270,16 @@ class _ModeCard extends StatelessWidget {
                 ],
               ),
               // 图标行与名称之间留出固定间距，避免过于紧凑也避免被拉散。
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpace.p2),
               // 模块名称。
               Text(
                 module.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: tokens.text,
-                ),
+                style: textTheme.fs4Bold,
               ),
               // 名称与描述之间紧凑一点。
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.p1),
               // 描述固定为单行；屏幕特别窄或系统字体较大时整体缩小，
               // 不允许换行改变同一行两张卡片的内容高度。
               SizedBox(
@@ -293,22 +290,21 @@ class _ModeCard extends StatelessWidget {
                   child: Text(
                     desc,
                     maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 11,
+                    style: textTheme.fs6.copyWith(
                       color: tokens.textSecondary,
-                      height: 1.3,
+                      height: AppLine.lhSm,
                     ),
                   ),
                 ),
               ),
               // 描述与底部指示条之间留出间距。
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpace.p2),
               // 底部进度条双层叠加：底色=今日主线完成度（灰/绿），
               // 前景=当前这一局进度（绿=主线，蓝=巩固），按已完成单词比例填充。
               ClipRRect(
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(AppRadius.roundedSm),
                 child: SizedBox(
-                  height: 4,
+                  height: HomeDashboardLayout.modeProgressHeight,
                   child: Stack(
                     children: [
                       Container(color: baseColor),

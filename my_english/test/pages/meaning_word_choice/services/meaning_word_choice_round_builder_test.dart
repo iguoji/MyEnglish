@@ -14,12 +14,17 @@ import 'package:my_english/pages/meaning_word_choice/services/meaning_word_choic
 ///
 /// [id] 单词主键；[meaningId] 该释义在 SQLite 里的主键（看义选词按它出题）。
 ///
-Word _word(int id, int meaningId, String spelling, String definition, {String pos = 'n.'}) =>
-    Word(
-      id: id,
-      spelling: spelling,
-      meanings: <Meaning>[Meaning(id: meaningId, pos: pos, definition: definition)],
-    );
+Word _word(
+  int id,
+  int meaningId,
+  String spelling,
+  String definition, {
+  String pos = 'n.',
+}) => Word(
+  id: id,
+  spelling: spelling,
+  meanings: <Meaning>[Meaning(id: meaningId, pos: pos, definition: definition)],
+);
 
 void main() {
   group('buildRoundsFromMeaningIds', () {
@@ -130,12 +135,17 @@ void main() {
       expect(candidates, hasLength(4));
       // 两个匹配词都必须是正确答案。
       expect(
-        candidates.where((candidate) => candidate.isMatch).map((candidate) => candidate.wordId).toSet(),
+        candidates
+            .where((candidate) => candidate.isMatch)
+            .map((candidate) => candidate.wordId)
+            .toSet(),
         <int>{4, 5},
       );
       // 干扰词不能是含「吃」含义的单词。
       for (final candidate in candidates.where((item) => !item.isMatch)) {
-        final spelling = words.firstWhere((word) => word.id == candidate.wordId).spelling;
+        final spelling = words
+            .firstWhere((word) => word.id == candidate.wordId)
+            .spelling;
         expect(<String>{'apple', 'banana', 'cat'}, contains(spelling));
       }
     });
@@ -159,10 +169,13 @@ void main() {
 
       // 全部匹配词都必须出现，哪怕超过默认的 4 个。
       expect(candidates, hasLength(5));
-      expect(
-        candidates.map((candidate) => candidate.wordId).toSet(),
-        <int>{1, 2, 3, 4, 5},
-      );
+      expect(candidates.map((candidate) => candidate.wordId).toSet(), <int>{
+        1,
+        2,
+        3,
+        4,
+        5,
+      });
     });
 
     test('候选按字母升序排列，同一拼写用主键兜底', () {
@@ -188,7 +201,10 @@ void main() {
       expect(candidates, hasLength(4));
       // 匹配词永远在场。
       expect(
-        candidates.where((candidate) => candidate.isMatch).map((candidate) => candidate.wordId).toList(),
+        candidates
+            .where((candidate) => candidate.isMatch)
+            .map((candidate) => candidate.wordId)
+            .toList(),
         <int>[1],
       );
       // 候选拼写严格按字母升序（选哪几个干扰词随机，但顺序永远确定）。
@@ -220,10 +236,10 @@ void main() {
 
       // 只有 2 个候选：apple + banana，不会凭空多出第三个词。
       expect(candidates, hasLength(2));
-      expect(
-        candidates.map((candidate) => candidate.wordId).toSet(),
-        <int>{1, 2},
-      );
+      expect(candidates.map((candidate) => candidate.wordId).toSet(), <int>{
+        1,
+        2,
+      });
     });
   });
 }

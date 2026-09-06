@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// AppTheme 提供全站统一的字号、字重与颜色槽位。
+import 'package:my_english/common/theme.dart';
+
 // 引入数据模型。
 import 'package:my_english/models/session.dart';
 import 'package:my_english/models/session_record.dart';
@@ -9,7 +12,7 @@ import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 被测页面与其布局尺寸表。
 import 'package:my_english/pages/spelling_reinforcement/spelling_reinforcement_page.dart';
-import 'package:my_english/pages/spelling_reinforcement/widgets/spelling_layout.dart';
+import 'package:my_english/widgets/letter_slot.dart';
 import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/services/word_audio.dart';
 import 'package:my_english/store/settings.dart';
@@ -18,17 +21,19 @@ import 'package:my_english/store/settings.dart';
 import '../../support/memory_session_store.dart';
 
 ///
-/// 造一个带单条中文释义的单词；[syllables] 直接给出切分方案，测试完全可控。
+/// 造一个带单条中文释义的单词；保留 [syllables] 用于确认页面会忽略该字段。
 ///
-Word _word(int id, String spelling, String definition, {List<String> syllables = const <String>[]}) =>
-    Word(
-      id: id,
-      spelling: spelling,
-      meanings: <Meaning>[
-        Meaning(id: id * 100, pos: 'n.', definition: definition),
-      ],
-      syllables: syllables,
-    );
+Word _word(
+  int id,
+  String spelling,
+  String definition, {
+  List<String> syllables = const <String>[],
+}) => Word(
+  id: id,
+  spelling: spelling,
+  meanings: <Meaning>[Meaning(id: id * 100, pos: 'n.', definition: definition)],
+  syllables: syllables,
+);
 
 ///
 /// 把页面装进 MaterialApp 并完成准备阶段。
@@ -59,9 +64,16 @@ Future<MemorySessionStore> _pumpPage(
     date: '2026-08-25',
     createdAt: DateTime.now(),
   );
-  final progress = SessionProgress(store: store, session: session, records: records);
+  final progress = SessionProgress(
+    store: store,
+    session: session,
+    records: records,
+  );
   await tester.pumpWidget(
     MaterialApp(
+      // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+      // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+      theme: AppTheme.light,
       home: SpellingReinforcementPage(
         words: wordList,
         title: '拼写巩固',
@@ -71,44 +83,14 @@ Future<MemorySessionStore> _pumpPage(
       ),
     ),
   );
-  // 准备当前词是异步的，多泵几帧让切分方案与候选池就绪。
+  // 准备当前词是异步的，多泵几帧让键盘与正文就绪。
   await tester.pump();
   await tester.pump();
   return store;
 }
 
 void main() {
-  testWidgets('候选片段与占位格按内容定宽，同一行能并排放下', (tester) async {
-    await _pumpPage(tester);
-
-    final screenWidth = tester.getSize(find.byType(MaterialApp)).width;
-
-    // 占位格：3 格，每格宽度不该接近整行宽（曾因内部用撑满的居中导致一格一行）。
-    final slotRects = <Rect>[
-      for (var i = 0; i < 3; i += 1)
-        tester.getRect(find.byKey(Key('spelling-slot-$i'))),
-    ];
-    for (final rect in slotRects) {
-      expect(
-        rect.width,
-        lessThan(screenWidth / 2),
-        reason: '占位格被撑满会导致每格独占一行',
-      );
-      expect(rect.width, greaterThanOrEqualTo(SpellingLayout.slotMinWidth));
-    }
-    // 三个占位格必须在同一行。
-    expect(slotRects[1].top, slotRects[0].top);
-    expect(slotRects[2].top, slotRects[0].top);
-
-    // 候选片段同理：至少前两个在同一行且各自远窄于整行。
-    final chunk0 = tester.getRect(find.byKey(const Key('spelling-chunk-0')));
-    final chunk1 = tester.getRect(find.byKey(const Key('spelling-chunk-1')));
-    expect(chunk0.width, lessThan(screenWidth / 2));
-    expect(chunk0.width, greaterThanOrEqualTo(SpellingLayout.chunkMinWidth));
-    expect(chunk1.top, chunk0.top, reason: '候选片段被撑满会导致每个独占一行');
-  });
-
-  testWidgets('逐字母模式的字母格保持 40×40 并排列在同一行', (tester) async {
+  testWidgets('26 键键盘模式的字母格保持固定宽度并排列在同一行', (tester) async {
     await _pumpPage(
       tester,
       words: <Word>[
@@ -121,11 +103,11 @@ void main() {
         tester.getRect(find.byKey(Key('spelling-slot-$i'))),
     ];
     for (final rect in rects) {
-      expect(rect.width, SpellingLayout.letterSlotSize);
+      expect(rect.width, LetterSlotLayout.letterWidth);
       expect(rect.top, rects[0].top);
     }
-    // 逐字母模式才有键盘。
-    expect(find.byKey(const Key('spelling-key-a')), findsOneWidget);
+    // 拼写页固定使用键盘（通用组件 QwertyKeyboard 的字母键自带 qwerty-key-*）。
+    expect(find.byKey(const Key('qwerty-key-a')), findsOneWidget);
 
     // 键盘每一行都要真正居中：行尾多挂一个间隔会让整行左偏。
     final screenWidth = tester.getSize(find.byType(MaterialApp)).width;
@@ -133,8 +115,8 @@ void main() {
       <String>['q', 'p'],
       <String>['a', 'l'],
     ]) {
-      final left = tester.getRect(find.byKey(Key('spelling-key-${row[0]}')));
-      final right = tester.getRect(find.byKey(Key('spelling-key-${row[1]}')));
+      final left = tester.getRect(find.byKey(Key('qwerty-key-${row[0]}')));
+      final right = tester.getRect(find.byKey(Key('qwerty-key-${row[1]}')));
       expect(
         (left.left + right.right) / 2,
         moreOrLessEquals(screenWidth / 2, epsilon: 0.5),
@@ -153,13 +135,19 @@ void main() {
       ],
       cursor: 1,
       records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'tradition', isCorrect: true),
+        SessionRecord(
+          id: 1,
+          wordId: 1,
+          meaningId: null,
+          input: 'tradition',
+          isCorrect: true,
+        ),
       ],
     );
 
     // 当前词是 bowl：4 个逐字母占位格。
     expect(find.byKey(const Key('spelling-slot-3')), findsOneWidget);
-    // 已答对的 tradition 不会重复出题（tra 片段不在候选池里）。
+    // 已答对的 tradition 不会重复出题。
     expect(find.text('tra'), findsNothing);
     // 页面没有异常。
     expect(tester.takeException(), isNull);
@@ -173,21 +161,23 @@ void main() {
       tester,
       cursor: 0,
       records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'tra', isCorrect: false),
+        SessionRecord(
+          id: 1,
+          wordId: 1,
+          meaningId: null,
+          input: 'tra',
+          isCorrect: false,
+        ),
       ],
     );
 
     // 占位格从空白重新开始（v2.0 不恢复「拼了一半」的现场）。
+    // 空槽不渲染文字节点，直接读字母格组件自身的 text 字段确认是空位。
     expect(
       tester
-          .widget<Text>(
-            find.descendant(
-              of: find.byKey(const Key('spelling-slot-0')),
-              matching: find.byType(Text),
-            ),
-          )
-          .data,
-      '',
+          .widget<LetterSlot>(find.byKey(const Key('spelling-slot-0')))
+          .text,
+      isNull,
       reason: '续玩应从当前词的开头重新拼',
     );
     // 页面仍可正常作答，不抛异常。

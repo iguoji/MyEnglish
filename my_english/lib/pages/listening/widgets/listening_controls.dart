@@ -1,7 +1,6 @@
 // material.dart 提供输入框、按钮、布局和主题组件。
 import 'package:flutter/material.dart';
 // Tabler 图标包提供页面全部可见图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局设计令牌。
 import '../../../common/theme.dart';
@@ -37,6 +36,7 @@ class ListeningPlaylistSearchField extends StatelessWidget {
   /// Flutter 每次绘制搜索区域时调用此方法。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // SizedBox 把输入框高度固定为 32，与左右两个图标按钮完全相等。
     return SizedBox(
       height: ListeningLayout.compactControlSize,
@@ -47,7 +47,7 @@ class ListeningPlaylistSearchField extends StatelessWidget {
         // 明确要求文字在固定高度中垂直居中。
         textAlignVertical: TextAlignVertical.center,
         // 用户输入文字和 placeholder 使用相同字号与行高，切换时不会抖动。
-        style: TextStyle(color: tokens.text, fontSize: 13, height: 1.2),
+        style: textTheme.fs5.copyWith(height: AppLine.lhSm),
         // InputDecoration 统一管理搜索图标、提示文字、边框和内部留白。
         decoration: InputDecoration(
           // 紧凑模式移除 Material 默认的大块垂直留白。
@@ -55,25 +55,32 @@ class ListeningPlaylistSearchField extends StatelessWidget {
           // 输入为空时显示简短提示。
           hintText: '搜索',
           // 提示文字与输入文字共用相同行高。
-          hintStyle: TextStyle(color: tokens.muted, fontSize: 13, height: 1.2),
+          hintStyle: textTheme.fs5.copyWith(
+            color: tokens.muted,
+            height: AppLine.lhSm,
+          ),
           // 搜索图标属于输入框内容，不额外占用独立按钮位置。
-          prefixIcon: Icon(TablerIcons.search, size: 16, color: tokens.muted),
+          prefixIcon: Icon(
+            AppGlyph.search,
+            size: AppIcon.i16,
+            color: tokens.muted,
+          ),
           // 图标占位高度与输入框一致，从约束层保证上下居中。
           prefixIconConstraints: const BoxConstraints(
             minWidth: ListeningLayout.compactControlSize,
             minHeight: ListeningLayout.compactControlSize,
           ),
           // 左侧宽度已由 prefixIconConstraints 提供，只给文字右侧保留 8 像素。
-          contentPadding: const EdgeInsets.only(right: 8),
+          contentPadding: const EdgeInsets.only(right: AppSpace.p2),
           // 未聚焦时使用普通输入框边框。
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
             borderSide: BorderSide(color: tokens.inputBorder),
           ),
           // 聚焦后只改变边框颜色，不改变宽度、高度或内边距。
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: AppTokens.accent),
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
+            borderSide: const BorderSide(color: AppTokens.primary),
           ),
         ),
       ),
@@ -117,10 +124,11 @@ class ListeningSettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前主题颜色。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // Container 固定行高并绘制底部分隔线。
     return Container(
       height: ListeningLayout.settingsRowHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.pBase),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: tokens.rowBorder)),
       ),
@@ -128,27 +136,23 @@ class ListeningSettingRow extends StatelessWidget {
       child: Row(
         children: [
           // 左侧标签。
-          Text(label, style: TextStyle(color: tokens.text, fontSize: 14.5)),
+          Text(label, style: textTheme.fs5),
           // Spacer 把右侧控件推到行尾。
           const Spacer(),
           // 减号按钮。
-          _StepButton(icon: TablerIcons.minus, onTap: onMinus),
+          _StepButton(icon: AppGlyph.stepDown, onTap: onMinus),
           // 固定 44 像素数值区，位数变化时两侧按钮不会移动。
           SizedBox(
-            width: 44,
+            width: ListeningLayout.stepperValueWidth,
             // 当前值水平居中。
             child: Text(
               '$value',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: tokens.text,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: textTheme.fs5Semibold,
             ),
           ),
           // 加号按钮。
-          _StepButton(icon: TablerIcons.plus, onTap: onPlus),
+          _StepButton(icon: AppGlyph.stepUp, onTap: onPlus),
         ],
       ),
     );
@@ -179,26 +183,26 @@ class _StepButton extends StatelessWidget {
     final tokens = AppTokens.of(context);
     // 固定 28×28 点击画布。
     return SizedBox(
-      width: 28,
-      height: 28,
+      width: ListeningLayout.stepButtonSize,
+      height: ListeningLayout.stepButtonSize,
       // Material 提供 InkWell 绘制点击反馈所需的材质层。
       child: Material(
         color: tokens.card,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         // InkWell 在 onTap=null 时自动禁用交互。
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.roundedLg),
           // Container 绘制按钮的一像素边框。
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: tokens.inputBorder),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             // 禁用状态使用更浅颜色，但图标和画布尺寸保持不变。
             child: Icon(
               icon,
-              size: 15,
+              size: AppIcon.i16,
               color: onTap == null ? tokens.muted : tokens.textMedium,
             ),
           ),
@@ -208,62 +212,11 @@ class _StepButton extends StatelessWidget {
   }
 }
 
-///
-/// 固定画布图标按钮，只允许约束对齐，不提供任何人工位移参数。
-///
-class ListeningIconButton extends StatelessWidget {
-  ///
-  /// 图标按钮只接收图标、点击回调和画布内对齐方式。
-  const ListeningIconButton({
-    required this.icon,
-    required this.onTap,
-    this.color,
-    this.alignment = Alignment.center,
-    super.key,
-  });
-
-  ///
-  /// Tabler 图标数据。
-  final IconData icon;
-
-  ///
-  /// 点击后执行的业务回调。
-  final VoidCallback onTap;
-
-  ///
-  /// 可选图标颜色，不传时使用主题中的中等文字颜色。
-  final Color? color;
-
-  ///
-  /// 图标画布在固定点击区域内的合法对齐方式，例如左中、右中或右上。
-  final AlignmentGeometry alignment;
-
-  ///
-  /// Flutter 每次需要绘制按钮时都会调用 build。
-  @override
-  Widget build(BuildContext context) {
-    // 从当前主题读取默认图标颜色。
-    final tokens = AppTokens.of(context);
-    // SizedBox 明确声明完整点击画布，不依赖图标自身透明区域计算尺寸。
-    return SizedBox(
-      width: ListeningLayout.headerButtonSize,
-      height: ListeningLayout.headerButtonSize,
-      // InkWell 负责点击命中和圆形触摸反馈。
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(
-          ListeningLayout.headerButtonSize / 2,
-        ),
-        // Align 使用父级约束做确定性对齐，不修改坐标也不允许子组件越界。
-        child: Align(
-          alignment: alignment,
-          // Icon 画布固定为 21；更换图标时无需重新计算任何偏移值。
-          child: Icon(icon, size: 21, color: color ?? tokens.textMedium),
-        ),
-      ),
-    );
-  }
-}
+// 原来这里有一个公开的 `ListeningIconButton`（固定 34 像素画布的无背景图标按钮），
+// 已经并进模块模板 `lib/widgets/module_scaffold.dart` 的 `ModuleIconButton`。
+// 它是全站五份同样实现里最早的一份：听音辨义、看义选词各有一个私有
+// `_PlainIconButton`，词义连连和拼写巩固直接把 `SizedBox + InkWell + Align + Icon`
+// 内联在顶栏里。五份做的是同一件事，改一处必然漏另外四处，所以只留模板那一份。
 
 ///
 /// 播放列表工具栏按钮，尺寸必须与搜索框高度一致。
@@ -298,17 +251,17 @@ class ListeningSmallIconButton extends StatelessWidget {
       // InkWell 提供点击反馈。
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(AppRadius.rounded),
         // Container 绘制按钮背景边框。
         child: Container(
           decoration: BoxDecoration(
             // 边框颜色跟随主题。
             border: Border.all(color: tokens.inputBorder),
             // 圆角与搜索框一致。
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
           ),
           // 图标由按钮画布自然居中，不使用任何 Transform 或负数位置。
-          child: Icon(icon, size: 14, color: tokens.textMedium),
+          child: Icon(icon, size: AppIcon.i14, color: tokens.textMedium),
         ),
       ),
     );
@@ -351,13 +304,14 @@ class ListeningPlayerMoveButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前主题颜色。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // TextButton 负责可访问点击区域和文字按钮反馈。
     return TextButton(
       onPressed: onTap,
       // 两个按钮共享前景色和字号字重。
       style: TextButton.styleFrom(
         foregroundColor: tokens.textMedium,
-        textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+        textStyle: textTheme.fs5Semibold,
       ),
       // 手工排列后，下一个按钮的图标可以放到文字右侧。
       child: Row(
@@ -366,15 +320,15 @@ class ListeningPlayerMoveButton extends StatelessWidget {
         children: [
           // 上一个按钮先显示方向图标。
           if (!iconAfterLabel) ...[
-            Icon(icon, size: 16),
-            const SizedBox(width: 6),
+            Icon(icon, size: AppIcon.i16),
+            const SizedBox(width: AppSpace.p2),
           ],
           // 两个按钮共用相同文字样式。
           Text(label),
           // 下一个按钮在文字后显示方向图标。
           if (iconAfterLabel) ...[
-            const SizedBox(width: 6),
-            Icon(icon, size: 16),
+            const SizedBox(width: AppSpace.p2),
+            Icon(icon, size: AppIcon.i16),
           ],
         ],
       ),

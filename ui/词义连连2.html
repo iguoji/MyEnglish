@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>词义连连 · 与听音辨义/拼写巩固同源</title>
+<!-- Tabler 图标字体：与 App 内 tabler_icons_plus 是同一套图标 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+<style>
+/* =====================================================================
+ * 设计基准不是 ui/ 里的旧原型，而是 my_english 中已经落地的两个 Flutter
+ * 页面：pages/listening_meaning（听音辨义）与 pages/spelling_reinforcement
+ * （拼写巩固）。
+ *   - 颜色全部取自 lib/common/theme.dart 的 AppTokens.light；
+ *   - 顶栏、进度条、卡片描边、结算页直接复刻那两个页面的构件；
+ *   - 原来那套「20px 大投影 + 蓝色外发光 + 13px 灰字」的独立风格全部退掉，
+ *     改用听音辨义候选卡同一套：白底 + 1px #DCE1E7 描边 + 极轻投影。
+ *
+ * 玩法与 lib/pages/meaning_match 完全一致，只换表现层：
+ *   - 每组 5 对，左列英文、右列中文（右列顺序打乱）；
+ *   - 一次只选中一张，点另一侧即判定：连对画绿线，连错红框抖动；
+ *   - 右上角是倒计时（四个模块里唯一的倒计时），点一下 +30 秒；
+ *   - 时间进度条表示剩余时间占比，最后 10 秒整条转红 + 数字呼吸。
+ * ===================================================================== */
+:root{
+  /* AppTokens.light */
+  --page:#F6F8FB; --card:#FFFFFF; --sub:#F1F4F7; --expand:#F8FAFC;
+  --border:#E6E7E9; --row-border:#EEF0F3; --input-border:#DCE1E7;
+  --text:#182433; --text-medium:#3F4A58; --text-secondary:#667382;
+  --muted:#9AA3AF; --check:#C6CCD3;
+  /* 语义色：AppTokens.accent / danger / warning + 页面里的成功绿 */
+  --accent:#206BC4; --danger:#D63939; --success:#2FB344; --warning:#F76707;
+  --page-inset:20px; --card-shadow:0 1px 2px rgba(35,46,60,.04);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;display:flex;align-items:center;justify-content:center;background:#E8ECF1;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  font-size:14px;color:var(--text);-webkit-font-smoothing:antialiased;
+}
+/* 手机外框：沿用 ui/ 既有原型的 414×844 画布 */
+.phone{
+  position:relative;width:100%;max-width:414px;height:100vh;max-height:844px;
+  background:var(--page);display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 12px 32px rgba(0,0,0,.08);
+}
+@media (min-width:576px){.phone{height:820px;border-radius:28px}}
+.view{flex:1;min-height:0;display:flex;flex-direction:column}
+.view.hidden{display:none}
+
+/* ============ 顶栏：四个模块像素级一致（_buildHeader） ============ */
+.topbar{position:relative;flex:none;height:34px;margin:18px var(--page-inset) 0}
+.topbar .back{
+  position:absolute;left:0;top:0;width:34px;height:34px;padding:0;border:0;background:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:flex-start;color:var(--text-medium);
+}
+.topbar .back i{font-size:21px;line-height:1}
+.topbar .counter{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;
+}
+/* 倒计时是按钮：点一下 +30 秒（并同步写进设置里的本模块时长） */
+.topbar .timer{
+  position:absolute;right:-4px;top:50%;transform:translateY(-50%);
+  padding:4px;border:0;border-radius:6px;background:none;cursor:pointer;
+  font:inherit;font-size:15px;font-weight:400;color:var(--text-medium);
+  font-variant-numeric:tabular-nums;
+}
+.topbar .timer.warn{color:var(--warning)}
+.topbar .timer.danger{color:var(--danger)}
+/* 呼吸动画只在最后 10 秒播放；颜色分档由 warn/danger 负责，两件事互不牵连 */
+.topbar .timer.pulse{animation:pulse .8s infinite}
+@keyframes pulse{
+  0%,100%{transform:translateY(-50%) scale(1);opacity:1}
+  50%{transform:translateY(-50%) scale(1.06);opacity:.8}
+}
+.toast{
+  position:absolute;right:6px;top:38px;padding:2px 8px;border-radius:999px;
+  background:rgba(32,107,196,.10);color:var(--accent);font-size:11px;font-weight:600;
+  opacity:0;transform:translateY(-4px);transition:opacity .2s,transform .2s;pointer-events:none;
+}
+.toast.show{opacity:1;transform:none}
+.progress-track{
+  flex:none;height:4px;margin:10px var(--page-inset) 0;border-radius:2px;
+  background:var(--sub);overflow:hidden;
+}
+.progress-bar{height:100%;width:100%;border-radius:2px;background:var(--accent);transition:width .3s linear,background .3s}
+.progress-bar.danger{background:var(--danger)}
+
+/* ============ 组进度：复刻听音辨义卡片顶部的状态行 + 横向 steps ============ */
+.group-strip{
+  flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:14px var(--page-inset) 0;font-size:12px;
+}
+.group-strip .title{font-weight:600;color:var(--text)}
+.group-strip .count b{font-weight:600;color:var(--text)}
+.group-strip .count span{color:var(--muted)}
+/* steps 直接铺在页面底色上（不像听音辨义那样躺在白卡里），
+   未完成段用 --border 而不是 --sub，否则和 #F6F8FB 几乎分不出来 */
+.steps{display:flex;gap:4px;padding:8px var(--page-inset) 0}
+.steps i{flex:1;height:4px;border-radius:2px;background:var(--border);transition:background .3s}
+.steps i.done{background:rgba(32,107,196,.45)}
+
+/* ============ 棋盘：两列 + 中间 40px 空档，连线从空档穿过 ============ */
+.board{position:relative;flex:1;min-height:0;margin:12px var(--page-inset);display:flex;align-items:center}
+#lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.grid{position:relative;z-index:2;display:flex;gap:40px;width:100%;animation:fadeIn .25s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+
+/* 卡片：与听音辨义候选卡同一套描边与投影，只是高度按棋盘密度收到 52～62 */
+.pair{
+  position:relative;min-height:52px;max-height:62px;padding:6px 12px;border-radius:10px;cursor:pointer;
+  background:var(--card);border:1px solid var(--input-border);box-shadow:var(--card-shadow);
+  display:flex;align-items:center;
+  transition:background .25s,border-color .25s,color .25s,box-shadow .35s,transform .35s,opacity .35s;
+}
+.pair .label{
+  width:100%;font-size:13px;line-height:1.28;word-break:break-word;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.col-left .label{text-align:left;font-weight:600;color:var(--text)}
+.col-right .label{text-align:right;font-weight:500;color:var(--text-secondary)}
+/* 锚点：8px 实心圆点骑在卡片内侧边线上，连线正好从圆心出发 */
+.anchor{
+  position:absolute;top:50%;width:8px;height:8px;border-radius:50%;transform:translateY(-50%);
+  background:var(--check);border:1.5px solid var(--card);box-shadow:0 0 0 1px var(--border);
+  transition:background .25s,box-shadow .25s,transform .35s;
+}
+.col-left .anchor{right:-4.5px}
+.col-right .anchor{left:-4.5px}
+
+/* 选中：蓝描边 + 淡蓝底 + 蓝字，1px 描边光代替原来的 20px 外发光 */
+.pair.sel{border-color:var(--accent);background:rgba(32,107,196,.08);box-shadow:0 0 0 1px var(--accent);transform:scale(1.02)}
+.pair.sel .label{color:var(--accent)}
+.pair.sel .anchor{background:var(--accent);box-shadow:0 0 0 2px rgba(32,107,196,.30);transform:translateY(-50%) scale(1.3)}
+/* 连对：淡绿底 + 绿字划线，整卡缩到 0.97 并淡到 45%，退居二线 */
+.pair.ok{
+  border-color:rgba(47,179,68,.45);background:rgba(47,179,68,.10);box-shadow:none;
+  opacity:.45;transform:scale(.97);pointer-events:none;
+}
+.pair.ok .label{color:var(--success);text-decoration:line-through}
+.pair.ok .anchor{background:var(--success);box-shadow:0 0 0 1px var(--success)}
+/* 连错：红描边 + 淡红底 + 左右甩一下 */
+.pair.err{border-color:var(--danger);background:rgba(214,57,57,.08);animation:jolt .4s}
+.pair.err .label{color:var(--danger)}
+.pair.err .anchor{background:var(--danger);box-shadow:0 0 0 3px rgba(214,57,57,.25)}
+@keyframes jolt{
+  20%{transform:translateX(-6px) rotate(-.5deg)}40%{transform:translateX(5px) rotate(.5deg)}
+  60%{transform:translateX(-3px)}80%{transform:translateX(2px)}100%{transform:none}
+}
+
+/* 连线：0.35s 生长动画，与卡片变形动画同时收尾，端点不会脱离锚点 */
+.divider-line{stroke:var(--check);stroke-width:1.5;stroke-dasharray:8 8}
+.line{fill:none;stroke:var(--success);stroke-width:2.5;stroke-linecap:round}
+.line.grow{stroke-dasharray:400;stroke-dashoffset:400;animation:draw .35s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* ============ 结算页：复刻拼写巩固 _buildSummary（2×2 统计卡） ============ */
+.summary{justify-content:center;padding:24px 50px;overflow-y:auto;text-align:center}
+.summary-avatar{
+  width:64px;height:64px;margin:0 auto;border-radius:50%;box-shadow:var(--card-shadow);
+  display:flex;align-items:center;justify-content:center;
+}
+.summary-avatar i{font-size:24px}
+.summary h2{margin:16px 0 4px;font-size:24px;font-weight:700;color:var(--text)}
+.summary .sub{margin:0;font-size:12px;color:var(--text-secondary)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:24px}
+/* 统计卡底色取拼写巩固的 tokens.sub（原来词义连连用的是更淡的 tokens.expand，
+   两个模块并排看会有色差），四个模块的结算页从此完全同底 */
+.stat{padding:16px 6px;border-radius:10px;background:var(--sub);border:1px solid var(--border)}
+.stat .label{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--text-secondary)}
+.stat .label i{font-size:13px}
+.stat .value{
+  margin-top:4px;font-family:var(--mono);font-size:40px;font-weight:700;line-height:1.2;
+  font-variant-numeric:tabular-nums;
+}
+.stat .value.time{font-size:24px}
+.stat .unit{margin-top:2px;font-size:10px;color:var(--text-secondary)}
+.btn-primary{
+  width:100%;height:46px;margin-top:24px;border:0;border-radius:10px;cursor:pointer;
+  background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:600;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-primary i{font-size:18px}
+.btn-primary:active{filter:brightness(.95)}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- ==================== 棋盘页 ==================== -->
+  <div class="view" id="game-view">
+    <header class="topbar">
+      <button class="back" type="button" title="返回" onclick="restart()"><i class="ti ti-chevron-left"></i></button>
+      <div class="counter"><span id="matched-count">0</span> / <span id="total-count">20</span></div>
+      <button class="timer" id="timer" type="button" title="点一下 +30 秒">01:00</button>
+      <div class="toast" id="toast">+30 秒</div>
+    </header>
+    <div class="progress-track"><div class="progress-bar" id="time-bar"></div></div>
+
+    <div class="group-strip">
+      <span class="title">连一连：单词 ↔ 释义</span>
+      <span class="count">第 <b id="group-now">1</b><span> / <span id="group-total">4</span> 组</span></span>
+    </div>
+    <div class="steps" id="steps"></div>
+
+    <main class="board" id="board">
+      <svg id="lines">
+        <line class="divider-line" x1="50%" y1="0" x2="50%" y2="100%"></line>
+      </svg>
+      <div class="grid" id="grid">
+        <div class="col col-left" id="col-left"></div>
+        <div class="col col-right" id="col-right"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== 结算页 ==================== -->
+  <div class="view summary hidden" id="summary-view">
+    <div>
+      <div class="summary-avatar" id="summary-avatar"><i class="ti ti-trophy" id="summary-icon"></i></div>
+      <h2 id="summary-title">大获全胜！</h2>
+      <p class="sub" id="summary-sub">太棒了！你在规定时间内完成了全部 20 个单词配对！</p>
+      <div class="stats">
+        <div class="stat">
+          <div class="label"><i class="ti ti-flame" style="color:var(--warning)"></i>最高连对</div>
+          <div class="value" style="color:var(--warning)" id="stat-streak">0</div>
+          <div class="unit">次</div>
+        </div>
+        <div class="stat">
+          <div class="label"><i class="ti ti-x" style="color:var(--danger)"></i>配对失误</div>
+          <div class="value" style="color:var(--danger)" id="stat-errors">0</div>
+          <div class="unit">次</div>
+        </div>
+        <div class="stat">
+          <div class="label"><i class="ti ti-clock" style="color:var(--accent)"></i>剩余时间</div>
+          <div class="value time" style="color:var(--accent)" id="stat-remaining">00:00</div>
+          <div class="unit" id="stat-limit">限时 60 秒</div>
+        </div>
+        <div class="stat">
+          <div class="label"><i class="ti ti-check" style="color:var(--success)"></i>完成词汇</div>
+          <div class="value" style="color:var(--success)" id="stat-matched">0</div>
+          <div class="unit" id="stat-total">总词量 20</div>
+        </div>
+      </div>
+      <button class="btn-primary" type="button" onclick="restart()">
+        <i class="ti ti-rotate-clockwise"></i>再挑战一次
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===================== 本局词表（示例数据） =====================
+ * 结构对齐 MatchPair：一对 = 一个单词 + 它的一条中文释义。
+ * 每 5 对一组，与 _MeaningMatchPageState._groupSize = 5 一致。
+ * ============================================================= */
+const PAIRS = [
+  { spelling: 'incomprehensibility', definition: '不可理解性；极度晦涩难懂' },
+  { spelling: 'electrocardiogram',   definition: '心电图' },
+  { spelling: 'counterproductive',   definition: '适得其反的' },
+  { spelling: 'distinguish',         definition: '区别；辨别' },
+  { spelling: 'yield',               definition: '产生；屈服' },
+  { spelling: 'disproportionate',    definition: '不成比例的' },
+  { spelling: 'simultaneously',      definition: '同时地；一齐' },
+  { spelling: 'unprecedented',       definition: '史无前例的' },
+  { spelling: 'acquire',             definition: '获得；购得' },
+  { spelling: 'brief',               definition: '简短的；短暂的' },
+  { spelling: 'tradition',           definition: '传统；惯例' },
+  { spelling: 'beautiful',           definition: '美丽的；漂亮的' },
+  { spelling: 'important',           definition: '重要的；重大的' },
+  { spelling: 'garden',              definition: '花园；菜园' },
+  { spelling: 'weather',             definition: '天气' },
+  { spelling: 'borrow',              definition: '借入' },
+  { spelling: 'strange',             definition: '奇怪的；陌生的' },
+  { spelling: 'silver',              definition: '银；银色的' },
+  { spelling: 'wonder',              definition: '想知道；奇迹' },
+  { spelling: 'present',             definition: '礼物；赠送' },
+];
+const GROUP_SIZE = 5;
+/* 原型固定 60 秒；App 里这个值来自 settings.meaningMatchDuration */
+const TOTAL_SECONDS = 60;
+/* MeaningMatchLayout.countdownDangerSeconds */
+const DANGER_SECONDS = 10;
+
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(n).padStart(2, '0');
+const fmt = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+function shuffle(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+const S = {
+  groups: [], groupIndex: 0, order: [],
+  selected: null,            // { side:'left'|'right', index:number }
+  matchedLeft: new Set(), matchedRight: new Set(), links: [],
+  errors: 0, streak: 0, bestStreak: 0,
+  totalMs: TOTAL_SECONDS * 1000, remainingMs: TOTAL_SECONDS * 1000,
+  lastTick: 0, locked: false, done: false,
+};
+
+const totalPairs = () => S.groups.length * GROUP_SIZE;
+const matchedPairs = () => S.groupIndex * GROUP_SIZE + S.matchedLeft.size;
+
+/* ===== 发音：选中单词卡时朗读，原型用浏览器 TTS 代替 App 的音频服务 ===== */
+function speak(text) {
+  try {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    speechSynthesis.speak(utterance);
+  } catch (error) {
+    /* 原型环境没有语音合成时静默 */
+  }
+}
+
+/* ========================= 渲染 ========================= */
+function renderBoard() {
+  const group = S.groups[S.groupIndex];
+  $('col-left').innerHTML = group
+    .map(
+      (pair, index) => `<div class="pair" data-side="left" data-index="${index}">
+        <span class="label">${pair.spelling}</span><span class="anchor"></span>
+      </div>`,
+    )
+    .join('');
+  $('col-right').innerHTML = S.order
+    .map(
+      (pairIndex, index) => `<div class="pair" data-side="right" data-index="${index}">
+        <span class="anchor"></span><span class="label">${group[pairIndex].definition}</span>
+      </div>`,
+    )
+    .join('');
+  document.querySelectorAll('.pair').forEach((card) => {
+    card.addEventListener('click', () => onCardTap(card.dataset.side, Number(card.dataset.index)));
+  });
+  // 换组时整块棋盘重放淡入（原型 .fade-switch）
+  const grid = $('grid');
+  grid.style.animation = 'none';
+  void grid.offsetWidth;
+  grid.style.animation = '';
+  renderStatus();
+}
+
+function renderStatus() {
+  $('matched-count').textContent = matchedPairs();
+  $('total-count').textContent = totalPairs();
+  $('group-now').textContent = S.groupIndex + 1;
+  $('group-total').textContent = S.groups.length;
+  $('steps').innerHTML = Array.from({ length: GROUP_SIZE })
+    .map((_, index) => `<i class="${index < S.matchedLeft.size ? 'done' : ''}"></i>`)
+    .join('');
+}
+
+const cardEl = (side, index) => document.querySelector(`.pair[data-side="${side}"][data-index="${index}"]`);
+
+/* ========================= 交互 ========================= */
+function onCardTap(side, index) {
+  if (S.locked || S.done) return;
+  const alreadyMatched = side === 'left' ? S.matchedLeft.has(index) : S.matchedRight.has(index);
+  if (alreadyMatched) return;
+  // 选中单词卡时朗读一次（与 App 一致，右列释义不发声）
+  if (side === 'left') speak(S.groups[S.groupIndex][index].spelling);
+
+  const current = S.selected;
+  // 再点同一张：取消选中
+  if (current && current.side === side && current.index === index) {
+    cardEl(side, index).classList.remove('sel');
+    S.selected = null;
+    return;
+  }
+  // 同一侧：把选中挪过来（一次只选中一张，与 _selectedSide/_selectedIndex 一致）
+  if (!current || current.side === side) {
+    if (current) cardEl(current.side, current.index).classList.remove('sel');
+    cardEl(side, index).classList.add('sel');
+    S.selected = { side, index };
+    return;
+  }
+  // 另一侧：立即判定
+  const left = side === 'left' ? index : current.index;
+  const right = side === 'left' ? current.index : index;
+  check(left, right);
+}
+
+function check(left, right) {
+  const leftCard = cardEl('left', left);
+  const rightCard = cardEl('right', right);
+  S.selected = null;
+
+  if (S.order[right] === left) {
+    leftCard.className = 'pair ok';
+    rightCard.className = 'pair ok';
+    S.matchedLeft.add(left);
+    S.matchedRight.add(right);
+    S.links.push([left, right]);
+    drawLink(left, right, true);
+    S.streak += 1;
+    if (S.streak > S.bestStreak) S.bestStreak = S.streak;
+    renderStatus();
+    if (S.matchedLeft.size >= GROUP_SIZE) {
+      S.locked = true;
+      setTimeout(nextGroup, 600);
+    }
+    return;
+  }
+
+  S.errors += 1;
+  S.streak = 0;
+  S.locked = true;
+  [leftCard, rightCard].forEach((card) => {
+    card.classList.remove('sel');
+    card.classList.add('err');
+  });
+  setTimeout(() => {
+    [leftCard, rightCard].forEach((card) => card.classList.remove('err'));
+    S.locked = false;
+  }, 400);
+}
+
+/* ===== 连线：从两颗锚点圆心出发的三次贝塞尔曲线 ===== */
+function resetLines() {
+  $('lines').innerHTML = '<line class="divider-line" x1="50%" y1="0" x2="50%" y2="100%"></line>';
+}
+
+function drawLink(left, right, animate) {
+  const board = $('board').getBoundingClientRect();
+  const from = cardEl('left', left).querySelector('.anchor').getBoundingClientRect();
+  const to = cardEl('right', right).querySelector('.anchor').getBoundingClientRect();
+  const x1 = from.left + from.width / 2 - board.left;
+  const y1 = from.top + from.height / 2 - board.top;
+  const x2 = to.left + to.width / 2 - board.left;
+  const y2 = to.top + to.height / 2 - board.top;
+  const bend = (x2 - x1) * 0.5;
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`);
+  path.setAttribute('class', animate ? 'line grow' : 'line');
+  $('lines').appendChild(path);
+}
+
+window.addEventListener('resize', () => {
+  if (S.done) return;
+  resetLines();
+  S.links.forEach(([left, right]) => drawLink(left, right, false));
+});
+
+/* ========================= 组与结算 ========================= */
+function nextGroup() {
+  if (S.groupIndex + 1 >= S.groups.length) {
+    finish(true);
+    return;
+  }
+  S.groupIndex += 1;
+  S.matchedLeft = new Set();
+  S.matchedRight = new Set();
+  S.links = [];
+  S.order = shuffle(Array.from({ length: GROUP_SIZE }, (_, index) => index));
+  resetLines();
+  renderBoard();
+  S.locked = false;
+}
+
+function finish(isWin) {
+  S.done = true;
+  const total = totalPairs();
+  const matched = matchedPairs();
+  const avatar = $('summary-avatar');
+  avatar.style.background = isWin ? 'rgba(47,179,68,.10)' : 'rgba(214,57,57,.10)';
+  avatar.style.color = isWin ? 'var(--success)' : 'var(--danger)';
+  $('summary-icon').className = isWin ? 'ti ti-trophy' : 'ti ti-alarm-off';
+  $('summary-title').textContent = isWin ? '大获全胜！' : '挑战结束';
+  $('summary-sub').textContent = isWin
+    ? `太棒了！你在规定时间内完成了全部 ${total} 个单词配对！`
+    : '倒计时已结束，已为你结算本次训练战绩！';
+  $('stat-streak').textContent = S.bestStreak;
+  $('stat-errors').textContent = S.errors;
+  $('stat-remaining').textContent = isWin ? fmt(Math.ceil(S.remainingMs / 1000)) : '00:00';
+  $('stat-limit').textContent = `限时 ${Math.round(S.totalMs / 1000)} 秒`;
+  $('stat-matched').textContent = matched;
+  $('stat-total').textContent = `总词量 ${total}`;
+  $('game-view').classList.add('hidden');
+  $('summary-view').classList.remove('hidden');
+}
+
+/* ========================= 倒计时 ========================= */
+function updateTimer() {
+  const seconds = Math.ceil(S.remainingMs / 1000);
+  const ratio = S.totalMs > 0 ? Math.max(0, S.remainingMs / S.totalMs) : 0;
+  const isDanger = S.remainingMs > 0 && seconds <= DANGER_SECONDS;
+  const timer = $('timer');
+  timer.textContent = fmt(seconds);
+  // 文字颜色按「剩余占比」分三档；呼吸动画只在最后 10 秒播放。
+  timer.className = `timer${ratio <= 1 / 3 ? ' danger' : ratio <= 2 / 3 ? ' warn' : ''}${
+    isDanger ? ' pulse' : ''
+  }`;
+  $('time-bar').style.width = `${ratio * 100}%`;
+  $('time-bar').classList.toggle('danger', isDanger);
+}
+
+function addThirtySeconds() {
+  if (S.done) return;
+  S.totalMs += 30000;
+  S.remainingMs += 30000;
+  updateTimer();
+  const toast = $('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 900);
+}
+
+setInterval(() => {
+  const now = Date.now();
+  const delta = now - S.lastTick;
+  S.lastTick = now;
+  if (S.done) return;
+  S.remainingMs = Math.max(0, S.remainingMs - delta);
+  updateTimer();
+  if (S.remainingMs <= 0) finish(false);
+}, 250);
+
+/* ========================= 开局 / 重开 ========================= */
+function restart() {
+  const pairs = shuffle(PAIRS);
+  S.groups = [];
+  for (let i = 0; i + GROUP_SIZE <= pairs.length; i += GROUP_SIZE) {
+    S.groups.push(pairs.slice(i, i + GROUP_SIZE));
+  }
+  S.groupIndex = 0;
+  S.matchedLeft = new Set();
+  S.matchedRight = new Set();
+  S.links = [];
+  S.selected = null;
+  S.order = shuffle(Array.from({ length: GROUP_SIZE }, (_, index) => index));
+  S.errors = 0;
+  S.streak = 0;
+  S.bestStreak = 0;
+  S.totalMs = TOTAL_SECONDS * 1000;
+  S.remainingMs = S.totalMs;
+  S.lastTick = Date.now();
+  S.locked = false;
+  S.done = false;
+  resetLines();
+  renderBoard();
+  updateTimer();
+  $('summary-view').classList.add('hidden');
+  $('game-view').classList.remove('hidden');
+}
+
+$('timer').addEventListener('click', addThirtySeconds);
+restart();
+</script>
+</body>
+</html>
+

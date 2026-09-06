@@ -67,14 +67,22 @@ void main() {
       calls[1],
       isMethodCall(
         'setSetting',
-        arguments: <String, Object?>{'key': 'accent', 'value': 'american', 'type': 'string'},
+        arguments: <String, Object?>{
+          'key': 'accent',
+          'value': 'american',
+          'type': 'string',
+        },
       ),
     );
     expect(
       calls[2],
       isMethodCall(
         'setSetting',
-        arguments: <String, Object?>{'key': 'theme', 'value': 'light', 'type': 'string'},
+        arguments: <String, Object?>{
+          'key': 'theme',
+          'value': 'light',
+          'type': 'string',
+        },
       ),
     );
     expect(
@@ -92,7 +100,11 @@ void main() {
       calls[4],
       isMethodCall(
         'setSetting',
-        arguments: <String, Object?>{'key': 'dailyGoal', 'value': '40', 'type': 'int'},
+        arguments: <String, Object?>{
+          'key': 'dailyGoal',
+          'value': '40',
+          'type': 'int',
+        },
       ),
     );
     // Store 内存同步更新。
@@ -113,7 +125,9 @@ void main() {
           (call) async => <String, Object?>{
             'accent': <String, Object?>{'value': 'unknown'},
             'theme': <String, Object?>{'value': 'system'},
-            'definitionSeparator': <String, Object?>{'value': 'half_width_comma'},
+            'definitionSeparator': <String, Object?>{
+              'value': 'half_width_comma',
+            },
             'dailyGoal': <String, Object?>{'value': '-1'},
           },
         );
@@ -125,7 +139,10 @@ void main() {
     // 产品默认主题是 Light，不跟随系统。
     expect(settings.theme, AppThemePreference.light);
     // 未知或旧版本缺失值回退首次安装的默认分隔符（全角分号）。
-    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthSemicolon);
+    expect(
+      settings.definitionSeparator,
+      DefinitionSeparator.fullWidthSemicolon,
+    );
     // 损坏的负数目标回退产品默认值。
     expect(settings.dailyGoal, 50);
     // 释放资源。

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="W4QUsjRmCDGIvTRa83APZJ">
+<head data-page-node-id="DCXMSP8Zq22lVrWB3Kcy3j">
+<meta charset="UTF-8" data-page-node-id="HQM7CBx6ouVqD8uiChz8eI" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-page-node-id="VB2Lp4GJWINH1wXmzK4X6w" />
+<title>听音拼写 · 设计稿</title>
+
+<!-- Tailwind Play CDN：让单文件即可运行原设计里的 Tailwind 类名 -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // 把原项目 @theme 里的 Tabler 调色板搬进来，保证类名可直接用
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          'tb-blue': '#206bc4',
+          'tb-blue-soft': '#4299e1',
+          'tb-green': '#2fb344',
+          'tb-red': '#d63939',
+          'tb-orange': '#f76707',
+          'tb-ink': '#182433',
+          'tb-body': '#4a5468',
+          'tb-muted': '#8a94a6',
+          'tb-line': '#e8eaee',
+          'tb-surface': '#f6f8fb',
+          'tb-key': '#ffffff',
+          'tb-keybg': '#e9edf2',
+        },
+        fontFamily: {
+          sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+
+<!-- 原项目自定义的动画与少量类（CDN 不生成这些，手动补上） -->
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #eef1f6;
+    color: #182433;
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+  }
+
+  /* 滚动条隐藏 */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+
+  /* 发音声波 */
+  @keyframes wave-bar { 0%,100% { transform: scaleY(0.22); } 50% { transform: scaleY(1); } }
+  .wave-bar { transform-origin: center; transform: scaleY(0.22); transition: transform 0.35s ease; }
+  .is-playing .wave-bar { animation: wave-bar 0.72s ease-in-out infinite; }
+
+  /* 播放键涟漪 */
+  @keyframes ripple { 0% { transform: scale(0.9); opacity: 0.45; } 100% { transform: scale(2); opacity: 0; } }
+  .ripple-ring { animation: ripple 1.5s cubic-bezier(0.2,0.6,0.4,1) infinite; }
+
+  /* 字母弹入 */
+  @keyframes slot-pop {
+    0% { transform: translateY(6px) scale(0.72); opacity: 0; }
+    60% { transform: translateY(-1px) scale(1.06); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  .slot-pop { animation: slot-pop 0.22s cubic-bezier(0.2,0.9,0.3,1.2) both; }
+
+  /* 光标闪烁 */
+  @keyframes caret-blink { 0%,45% { opacity: 1; } 55%,100% { opacity: 0; } }
+  .caret { animation: caret-blink 1.05s steps(1,end) infinite; }
+
+  /* 抖动（拼错） */
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    15% { transform: translateX(-7px); } 30% { transform: translateX(6px); }
+    45% { transform: translateX(-4px); } 60% { transform: translateX(3px); }
+    80% { transform: translateX(-1px); }
+  }
+  .shake { animation: shake 0.42s cubic-bezier(0.36,0.07,0.19,0.97) both; }
+
+  /* 正确光晕 */
+  @keyframes success-glow { 0% { box-shadow: 0 0 0 0 rgba(47,179,68,0.35); } 100% { box-shadow: 0 0 0 22px rgba(47,179,68,0); } }
+  .success-glow { animation: success-glow 0.7s ease-out both; }
+
+  /* Toast 入場 */
+  @keyframes toast-in { 0% { transform: translate(-50%,-10px) scale(0.94); opacity: 0; } 100% { transform: translate(-50%,0) scale(1); opacity: 1; } }
+  .toast-in { animation: toast-in 0.24s cubic-bezier(0.2,0.9,0.3,1.1) both; }
+
+  /* 键位按下 */
+  .key { box-shadow: 0 1px 0 rgba(24,36,51,0.18); transition: transform 0.08s ease, background-color 0.12s ease; }
+  .key:active, .key.key-active { transform: translateY(1px) scale(0.96); background-color: #d7dee7; box-shadow: none; }
+
+  /* 卡片渐入 */
+  @keyframes card-in { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+  .card-in { animation: card-in 0.35s cubic-bezier(0.2,0.8,0.3,1) both; }
+</style>
+</head>
+
+<body data-page-node-id="IsIhX4ir0L6TJf46EPJle6">
+<div id="root" class="flex min-h-dvh items-center justify-center bg-[#eef1f6] sm:p-6" data-page-node-id="DNxYSTIGi1Kj9MnwoNNvoE">
+  <!-- 手机外框：桌面端显示为带圆角与阴影的卡片，移动端铺满 -->
+  <div class="relative flex h-dvh w-full max-w-[400px] flex-col overflow-hidden bg-white sm:h-[820px] sm:max-h-[92vh] sm:rounded-[36px] sm:shadow-[0_36px_70px_-30px_rgba(24,36,51,0.5)] sm:ring-1 sm:ring-black/5" data-page-node-id="8yPZZ9PzjA7tcI9YgUskUS">
+
+    <!-- 顶部栏 -->
+    <header id="topbar" class="relative z-20 shrink-0 bg-white/90 backdrop-blur" data-page-node-id="CUqPvub91Fp7jCObD5bSTr">
+      <div class="flex items-center justify-between px-3 pb-2.5" style="padding-top: max(12px, env(safe-area-inset-top));" data-page-node-id="FkCyHXyUfTf0JIcy6GWVpZ">
+        <button id="backBtn" type="button" aria-label="返回"
+          class="grid h-9 w-9 place-items-center rounded-xl text-tb-body transition active:scale-95 active:bg-tb-surface" data-page-node-id="SrMGkOWvFSmrGNkrcRTqAp">
+          <span id="ic-arrow-left" data-page-node-id="uIpQcAOanpeSBhGKWfbXVW"></span>
+        </button>
+        <div class="flex items-baseline gap-0.5 tabular-nums" data-page-node-id="wNhJkooQ0mqtHP9BW3tiFy">
+          <span id="curNum" class="text-[19px] leading-none font-semibold tracking-tight text-tb-ink" data-page-node-id="3CZWz4uBBqZzGoY9yYWSko">1</span>
+          <span class="text-[13px] leading-none font-medium text-tb-muted" data-page-node-id="v5ddXq9ux6O29JIyKXBp9J">/50</span>
+          <span class="ml-1.5 text-[11px] leading-none text-tb-muted" data-page-node-id="yXQywX5O27K3v1Iodzu83n">词</span>
+        </div>
+        <div class="flex h-8 items-center gap-1 rounded-xl bg-tb-surface pr-2.5 pl-2" data-page-node-id="3n4DPpCDd0k97LymRnKTQB">
+          <span id="ic-clock" class="text-tb-muted" data-page-node-id="thYA52HsuffT79yITAbGjF"></span>
+          <span class="text-[11px] leading-none text-tb-muted" data-page-node-id="s3uFEUr50kv2iKv32qqptH">用时</span>
+          <span id="timer" class="text-[13px] leading-none font-medium tabular-nums text-tb-body" data-page-node-id="OLrBPAA8oemOLcyt6zC1EV">00:00</span>
+        </div>
+      </div>
+      <!-- 进度条 -->
+      <div class="relative h-[3px] w-full bg-tb-line/70" data-page-node-id="ktiRZGEgHnlX8RKZTjmsnc">
+        <div id="progressBar" class="absolute inset-y-0 left-0 rounded-r-full bg-gradient-to-r from-tb-blue to-tb-blue-soft transition-[width,background] duration-500 ease-out" style="width:2%;" data-page-node-id="qoFKvieTMxlYO27wFr8V5f">
+          <span id="progressDot" class="absolute top-1/2 right-0 h-[9px] w-[9px] -translate-y-1/2 translate-x-1/2 rounded-full bg-white ring-[2.5px] ring-tb-blue-soft transition-colors" data-page-node-id="MztOqZ1IKiMKx8VufTJILW"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Toast 浮层 -->
+    <div id="toast" class="pointer-events-none absolute top-[72px] left-1/2 z-30 hidden" data-page-node-id="11HqZUQKtBTA7htef2RwcQ"></div>
+
+    <!-- 正文 -->
+    <main id="main" class="no-scrollbar relative flex-1 overflow-x-hidden overflow-y-auto bg-[radial-gradient(120%_55%_at_50%_-8%,rgba(66,153,225,0.10),transparent_62%)]" data-page-node-id="tfGsMPdxXOQljNsbvMN5HU">
+      <div id="card" class="card-in px-4 pt-5 pb-5" data-page-node-id="G40ACrZVo49iDM0fWZNccE">
+        <!-- 发音区 -->
+        <section id="soundStage" class="px-1" data-page-node-id="Auz1renuWceSizTAsAo6bx">
+          <div class="mb-3 flex items-center justify-between" data-page-node-id="gyqeVoH94F8ey0VZvYlkAc">
+            <div class="flex items-center gap-2" data-page-node-id="yEZSHIuQnYM7GpWBxRpfvl">
+              <span class="h-[13px] w-[3px] rounded-full bg-tb-blue" data-page-node-id="VHYlAJm0FaV1OcFe74zpDt"></span>
+              <span class="text-[12.5px] font-semibold tracking-[0.02em] text-tb-ink" data-page-node-id="wIibuaDH9gp4wsLDAnTm9q">发音</span>
+              <span class="text-[11px] text-tb-muted" data-page-node-id="qYJSPuPAOvusK86Gl5TbFd">轻触屏幕重听</span>
+            </div>
+            <button id="slowBtn" type="button"
+              class="flex h-7 items-center gap-1 rounded-lg bg-tb-surface px-2 text-[11.5px] font-medium text-tb-body transition active:scale-95 active:bg-tb-line" data-page-node-id="5AMeFUyxh1oZI34KvHqNAK">
+              <span id="ic-turtle" class="text-tb-muted" data-page-node-id="wdolJ97F5V8qHi9uFSFCEz"></span>慢速
+            </button>
+          </div>
+          <div class="flex items-center gap-3" data-page-node-id="y3TN7zURMtMvAsCKMvT8FQ">
+            <div id="waveLeft" class="flex flex-1 items-center justify-end gap-[5px] overflow-hidden" data-page-node-id="W3Sr4a6Z3M00rJ4voy8kjK"></div>
+            <button id="playBtn" type="button" aria-label="播放单词发音"
+              class="relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-tb-blue-soft to-tb-blue text-white shadow-[0_8px_20px_-6px_rgba(32,107,196,0.65)] transition active:scale-95" data-page-node-id="WAj6aSQKDQetO6jySa8ar4">
+              <span id="ic-volume" data-page-node-id="3Bwm9FleY9W613ZsC1VktX"></span>
+            </button>
+            <div id="waveRight" class="flex flex-1 items-center justify-start gap-[5px] overflow-hidden" data-page-node-id="Ftw7ND3YbHnlwyAyZ0lzP8"></div>
+          </div>
+        </section>
+
+        <div class="my-4 h-px bg-tb-line/70" data-page-node-id="AXrBiTmSBXr246f8bxdw81"></div>
+
+        <!-- 拼写区 -->
+        <section class="px-1" data-page-node-id="776MxOVliI9Flp3VdBjmt9">
+          <div class="mb-3 flex items-center justify-between" data-page-node-id="ZNdQTNXvUxC7EVxcKvfNfr">
+            <div class="flex items-center gap-2" data-page-node-id="KCpjlcqw5Ki4XBsuxDFgsB">
+              <span class="h-[13px] w-[3px] rounded-full bg-tb-blue" data-page-node-id="aqw8zkfdjeFYqR97260aSG"></span>
+              <span class="text-[12.5px] font-semibold tracking-[0.02em] text-tb-ink" data-page-node-id="2iC8CUlywKeqVR3zYKVm47">拼写</span>
+              <span class="text-[11px] text-tb-muted" data-page-node-id="9rLkkWZ7bbEuh7SPJ1oX2X">点击键盘输入</span>
+            </div>
+            <span class="text-[11.5px] tabular-nums text-tb-muted" data-page-node-id="zDzQ779HAmfgoec49a2GDU">
+              <span id="typedCount" data-page-node-id="DrMMq2PfZHIxJjOvB1FIH0">0</span><span class="mx-px" data-page-node-id="WV5jxbWSLh079vagfNFqWA">/</span><span id="letterTotal" data-page-node-id="QQ4xRGMexaKJyJo6d36AXq">0</span> 个字母
+            </span>
+          </div>
+          <div id="slots" class="flex flex-wrap items-end justify-center" style="column-gap:7px; row-gap:10px;" data-page-node-id="adAdrERbxNrqHzcxgXs5Bs"></div>
+          <div class="mt-3 flex h-5 items-center justify-center" data-page-node-id="83X0k3VAaxkPwvdTF0Rypy">
+            <span id="statusText" class="text-[11.5px] text-tb-muted" data-page-node-id="KCofhk7fXfS3zXuHSVyNAh">根据发音与释义写出单词</span>
+          </div>
+        </section>
+
+        <div class="my-4 h-px bg-tb-line/70" data-page-node-id="yGbhqMj8YDKgP0atJxKTwZ"></div>
+
+        <!-- 释义区 -->
+        <section class="px-1 pb-2" data-page-node-id="v9Sx2mW4ES05PAYghWOWPB">
+          <div class="mb-2.5 flex items-center justify-between" data-page-node-id="tZKxMPKCiNGCRXHfVlIQez">
+            <div class="flex items-center gap-2" data-page-node-id="0GMyS0LhaWdTzjxcS4VoIF">
+              <span class="h-[13px] w-[3px] rounded-full bg-tb-blue" data-page-node-id="4S6uhbV8kkS6narnPoa6Vx"></span>
+              <span class="text-[12.5px] font-semibold tracking-[0.02em] text-tb-ink" data-page-node-id="zEiGTsQZ1V2rw98uC3DU0a">释义</span>
+            </div>
+            <span id="senseCount" class="text-[11.5px] tabular-nums text-tb-muted" data-page-node-id="xChZpjm5C5b2iZXAtH6bSw">0 条</span>
+          </div>
+          <ul id="senseList" class="rounded-2xl bg-tb-surface/80 px-3" data-page-node-id="sdgrD0vyd84XaIpgeK3Yuq"></ul>
+        </section>
+      </div>
+    </main>
+
+    <!-- 键盘 -->
+    <div id="keyboard" class="shrink-0 border-t border-black/[0.06] bg-tb-keybg pt-1.5 select-none" style="padding-bottom: max(10px, env(safe-area-inset-bottom));" data-page-node-id="Lub6SZTbeYfLhzm79ZoEAx">
+      <div class="mb-1.5 flex items-center px-2" data-page-node-id="mX5BgBAptj94Knk2P49WYM">
+        <button id="kPlay" type="button" class="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-[12px] font-medium text-tb-body transition active:scale-95 active:bg-black/5" data-page-node-id="xEuTDszYE14WfQCwKC4V5q">
+          <span id="ic-volume2" class="text-tb-muted" data-page-node-id="BZXLEd3b03ZrAXJaFRGtfC"></span>重听
+        </button>
+        <span class="h-3.5 w-px bg-black/10" data-page-node-id="NPR1W1lUWvYg1X8ajQNWjS"></span>
+        <button id="kHint" type="button" class="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-[12px] font-medium text-tb-body transition active:scale-95 active:bg-black/5" data-page-node-id="wxa26647B98e2uEe5s6AY7">
+          <span id="ic-bulb" class="text-tb-muted" data-page-node-id="dx8iNyzWGvLbqA9We3Vu7L"></span>提示
+        </button>
+        <span class="h-3.5 w-px bg-black/10" data-page-node-id="WkaDSokoKGqMQaSA1qI4QN"></span>
+        <button id="kSkip" type="button" class="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-[12px] font-medium text-tb-body transition active:scale-95 active:bg-black/5" data-page-node-id="SJbd6QtGacaCqrWtx8eKVV">
+          <span id="ic-skip" class="text-tb-muted" data-page-node-id="cwz7SoEmGRxdgC5olKSoPq"></span>跳过
+        </button>
+      </div>
+      <div id="keyRows" class="space-y-[7px] px-1.5" data-page-node-id="DhTTupIjy9rADXulz5wwqC"></div>
+    </div>
+
+    <!-- 退出确认 -->
+    <div id="confirmSheet" class="absolute inset-0 z-40 hidden items-end bg-tb-ink/30 backdrop-blur-[2px]" data-page-node-id="dq1iMRSY85HdHT7oPWEovK">
+      <div class="card-in w-full rounded-t-3xl bg-white p-5 pb-7" id="confirmCard" data-page-node-id="NPK0hZEAVUjF7NKFsIDJlQ">
+        <span class="mx-auto mb-4 block h-1 w-9 rounded-full bg-tb-line" data-page-node-id="n6WTptLusCxPBGE07ldb5w"></span>
+        <h3 class="text-[16px] font-semibold text-tb-ink" data-page-node-id="GPZbGWREub5hd7Sbyvn5C4">结束本次默写？</h3>
+        <p class="mt-1.5 text-[13px] leading-relaxed text-tb-muted" data-page-node-id="6px0P74s9HNKSfSUWhfGO0">
+          本组已完成 <b id="cfDone" class="font-semibold text-tb-body" data-page-node-id="wQRjCTMOmSUxWU65U2YP7m">0</b> / 50 词，
+          用时 <b id="cfTime" class="font-semibold text-tb-body tabular-nums" data-page-node-id="FszQcVn6BZ6RCjnYuaUQJl">00:00</b>。退出后进度会自动保存。
+        </p>
+        <div class="mt-5 flex gap-2.5" data-page-node-id="V9nUm9KtDXMLVejEHY9KIY">
+          <button id="cfCancel" type="button" class="h-11 flex-1 rounded-xl bg-tb-surface text-[14px] font-medium text-tb-body transition active:scale-[0.98]" data-page-node-id="TSchk7gHFkOmsBDo9Yj0OI">继续默写</button>
+          <button id="cfConfirm" type="button" class="h-11 flex-1 rounded-xl bg-tb-blue text-[14px] font-medium text-white shadow-[0_8px_18px_-8px_rgba(32,107,196,0.9)] transition active:scale-[0.98]" data-page-node-id="ouIxfwj2BEHV0DlVC4CVcW">退出并保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结束小结 -->
+    <div id="summary" class="absolute inset-0 z-50 hidden items-center justify-center bg-white/85 px-6 backdrop-blur-md" data-page-node-id="ZkZ2selsFuKwl6toQZbB5p">
+      <div class="card-in w-full rounded-3xl border border-tb-line bg-white p-6 shadow-[0_24px_50px_-24px_rgba(24,36,51,0.4)]" data-page-node-id="auRGjGutmAvQRGlwiaqtpm">
+        <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-tb-blue-soft to-tb-blue text-white shadow-[0_10px_22px_-10px_rgba(32,107,196,0.9)]" data-page-node-id="yjLg3Y0SF8QKQfA5h4VMbR">
+          <span id="ic-check-big" data-page-node-id="Uab7Zq4mnhINx5nXpHjx8j"></span>
+        </div>
+        <h3 class="mt-4 text-center text-[17px] font-semibold text-tb-ink" data-page-node-id="6nabiu6yfClYAD4zEWH2lN">本组默写结束</h3>
+        <p class="mt-1 text-center text-[12.5px] text-tb-muted" data-page-node-id="xODMqNlEzvDkqFYG8GN2Vj">完成 <span id="smDone" data-page-node-id="ZnTAVZBljU7jWjIOtgTwsp">0</span> / 50 词 · 用时 <span id="smTime" data-page-node-id="0MnVhWzKcWWHK3X3Govuto">00:00</span></p>
+        <div class="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-tb-surface py-4" data-page-node-id="P16sM8Pabk8gQmyuEfsS4y">
+          <span id="ic-target" class="text-tb-blue" data-page-node-id="8uY4AAZY0dprA4E1ZyEQn4"></span>
+          <span id="smRate" class="text-[26px] leading-none font-semibold tabular-nums text-tb-ink" data-page-node-id="LkMxCOsxBdNQxqGEzkXmdM">0%</span>
+          <span class="self-end pb-0.5 text-[12px] text-tb-muted" data-page-node-id="SYzMVUxx84sjIfh3nJoYAC">一次写对率</span>
+        </div>
+        <div class="mt-3 grid grid-cols-4 gap-2 text-center" data-page-node-id="CH2TU9JPkI7RHBG6Z5eDmp">
+          <div class="rounded-xl border border-tb-line py-2.5" data-page-node-id="OmRooLA7E7qDAEYyn2DrQF"><div id="smCorrect" class="text-[17px] leading-none font-semibold tabular-nums text-tb-green" data-page-node-id="ZiBEKzXe1rpE7yVDNZqYvf">0</div><div class="mt-1 text-[11px] text-tb-muted" data-page-node-id="O7LUj6Ootmq2BA7sv6loAk">正确</div></div>
+          <div class="rounded-xl border border-tb-line py-2.5" data-page-node-id="39JHFaHslNN8HV4DnC8N86"><div id="smWrong" class="text-[17px] leading-none font-semibold tabular-nums text-tb-red" data-page-node-id="f3IMCRmwhR8SMi1QnBZoKK">0</div><div class="mt-1 text-[11px] text-tb-muted" data-page-node-id="KlnJ9dLD86K0JrLW86AQy3">出错</div></div>
+          <div class="rounded-xl border border-tb-line py-2.5" data-page-node-id="fXdxVC0T9bOBPh4K1sRulY"><div id="smHint" class="text-[17px] leading-none font-semibold tabular-nums text-tb-orange" data-page-node-id="VgR90OK7bCs4QFqP8SciKz">0</div><div class="mt-1 text-[11px] text-tb-muted" data-page-node-id="wUFRzHxvcjBTEYy2j658kw">提示</div></div>
+          <div class="rounded-xl border border-tb-line py-2.5" data-page-node-id="AjcWCJcFfUtCEWkhfRB38P"><div id="smSkip" class="text-[17px] leading-none font-semibold tabular-nums text-tb-muted" data-page-node-id="O5DgBqUtItGRKdHHbT4W8l">0</div><div class="mt-1 text-[11px] text-tb-muted" data-page-node-id="3ykghuXGvNJqaTZINM7vYf">跳过</div></div>
+        </div>
+        <button id="smRestart" type="button" class="mt-6 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-tb-blue text-[14px] font-medium text-white shadow-[0_10px_22px_-10px_rgba(32,107,196,0.9)] transition active:scale-[0.98]" data-page-node-id="Y486jmBtlajp1BZSZlagiP">
+          <span id="ic-refresh" data-page-node-id="hwopgasjFcBjBzABlb4qbC"></span>再来一组
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============ Tabler 风格内联图标 ============ */
+const SVG = (p, inner) => `<svg xmlns="http://www.w3.org/2000/svg" width="${p.size||24}" height="${p.size||24}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const icons = {
+  arrowLeft: (s={}) => SVG(s,'<path d="M5 12l14 0"/><path d="M5 12l6 6"/><path d="M5 12l6 -6"/>'),
+  clock: (s={}) => SVG(s,'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  volume: (s={}) => SVG(s,'<path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15h-2a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h2l3.5 -4.5a.8 .8 0 0 1 1.5 .5v14a.8 .8 0 0 1 -1.5 .5l-3.5 -4.5"/>'),
+  turtle: (s={}) => SVG(s,'<path d="M14.5 4.5c1.5 0 2.5 1 3 2.5c.5 1.5 .5 3 .5 4c0 3 -2.5 6 -6 6s-6 -3 -6 -6c0 -1 0 -2.5 .5 -4c.5 -1.5 1.5 -2.5 3 -2.5z"/><path d="M6 12h-2.5a1.5 1.5 0 0 1 0 -3h1.5"/><path d="M18 12h2.5a1.5 1.5 0 0 0 0 -3h-1.5"/><path d="M9 17l-1 2.5"/><path d="M15 17l1 2.5"/>'),
+  bulb: (s={}) => SVG(s,'<path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/>'),
+  skip: (s={}) => SVG(s,'<path d="M4 5v14l12 -7z"/><path d="M20 5l0 14"/>'),
+  backspace: (s={}) => SVG(s,'<path d="M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -6l5 -6z"/><path d="M12 10l4 4m0 -4l-4 4"/>'),
+  check: (s={}) => SVG(s,'<path d="M5 12l5 5l9 -9"/>'),
+  x: (s={}) => SVG(s,'<path d="M18 6l-12 12"/><path d="M6 6l12 12"/>'),
+  refresh: (s={}) => SVG(s,'<path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>'),
+  target: (s={}) => SVG(s,'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>'),
+};
+// 注入静态图标
+document.getElementById('ic-arrow-left').innerHTML = icons.arrowLeft({size:21});
+document.getElementById('ic-clock').innerHTML = icons.clock({size:14});
+document.getElementById('ic-turtle').innerHTML = icons.turtle({size:14});
+document.getElementById('ic-volume').innerHTML = icons.volume({size:24});
+document.getElementById('ic-volume2').innerHTML = icons.volume({size:15});
+document.getElementById('ic-bulb').innerHTML = icons.bulb({size:15});
+document.getElementById('ic-skip').innerHTML = icons.skip({size:14});
+document.getElementById('ic-check-big').innerHTML = icons.check({size:26});
+document.getElementById('ic-target').innerHTML = icons.target({size:18});
+document.getElementById('ic-refresh').innerHTML = icons.refresh({size:17});
+
+/* ============ 词库（原 WORDS，循环成 50 词一组） ============ */
+const WORDS = [
+  { word:"vow", senses:[{pos:"n.",zh:"誓言；誓约"},{pos:"v.",zh:"发誓；立誓要"}] },
+  { word:"gadget", senses:[{pos:"n.",zh:"小巧的机械装置；小玩意儿"}] },
+  { word:"spring", senses:[{pos:"n.",zh:"春天；春季"},{pos:"n.",zh:"泉；泉水"},{pos:"n.",zh:"弹簧；发条"},{pos:"v.",zh:"跳跃；蹦"},{pos:"v.",zh:"突然出现；涌现"},{pos:"adj.",zh:"春天的；有弹性的"}] },
+  { word:"harvest", senses:[{pos:"n.",zh:"收获；收成"},{pos:"v.",zh:"收割；收获"},{pos:"v.",zh:"采集；采收（数据、资源）"}] },
+  { word:"o'clock", senses:[{pos:"adv.",zh:"……点钟（整点时刻）"}] },
+  { word:"well-being", senses:[{pos:"n.",zh:"健康；安康；幸福"}] },
+  { word:"responsibility", senses:[{pos:"n.",zh:"责任；职责"},{pos:"n.",zh:"责任心；可靠"},{pos:"n.",zh:"义务；分内之事"}] },
+  { word:"bird's-eye", senses:[{pos:"adj.",zh:"鸟瞰的；俯视的"},{pos:"adj.",zh:"概观的；总览的"}] },
+  { word:"characteristic", senses:[{pos:"n.",zh:"特征；特性；特色"},{pos:"adj.",zh:"典型的；独特的"},{pos:"adj.",zh:"表示特性的"},{pos:"n.",zh:"【数】对数的首数"}] },
+  { word:"ice", senses:[{pos:"n.",zh:"冰；冰块"}] },
+  { word:"state-of-the-art", senses:[{pos:"adj.",zh:"最先进的；使用最新技术的"},{pos:"n.",zh:"（技术的）最新水平"}] },
+  { word:"extraordinary", senses:[{pos:"adj.",zh:"非凡的；杰出的"},{pos:"adj.",zh:"特别的；额外的"}] },
+];
+const DECK_SIZE = 50;
+const DECK = Array.from({length:DECK_SIZE}, (_,i)=>WORDS[i%WORDS.length]);
+const isTypable = (ch)=>/[a-z]/i.test(ch);
+
+/* ============ 工具 ============ */
+const $ = (id)=>document.getElementById(id);
+const fmt = (t)=>{const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(Math.floor(t%60)).padStart(2,'0');return `${m}:${s}`;};
+const buzz = (p)=>{ try{ navigator.vibrate?.(p); }catch(e){} };
+
+/* ============ 语音合成 ============ */
+let voiceRef = null;
+(function initVoice(){
+  const synth = window.speechSynthesis; if(!synth) return;
+  const pick = ()=>{
+    const vs = synth.getVoices();
+    voiceRef = vs.find(v=>/en[-_]US/i.test(v.lang)&&/google|samantha|natural/i.test(v.name))
+      || vs.find(v=>/en[-_]US/i.test(v.lang)) || vs.find(v=>/^en/i.test(v.lang)) || null;
+  };
+  pick(); synth.addEventListener?.('voiceschanged', pick);
+})();
+let playTimer = null;
+const stopSpeech = ()=>{ if(playTimer) clearTimeout(playTimer); playTimer=null; try{ window.speechSynthesis?.cancel(); }catch(e){} setPlaying(false); };
+function speak(text, rate=0.92){
+  if(playTimer) clearTimeout(playTimer);
+  const clean = text.replace(/-/g,' ');
+  const fallbackMs = Math.min(2600, 620 + clean.length*95)/rate;
+  setPlaying(true);
+  const synth = window.speechSynthesis;
+  if(synth && typeof SpeechSynthesisUtterance!=='undefined'){
+    try{
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(clean);
+      u.lang='en-US'; u.rate=rate; u.pitch=1;
+      if(voiceRef) u.voice=voiceRef;
+      u.onend=()=>setPlaying(false); u.onerror=()=>setPlaying(false);
+      synth.speak(u);
+    }catch(e){}
+  }
+  playTimer = setTimeout(()=>setPlaying(false), fallbackMs);
+}
+function setPlaying(on){
+  state.playing = on;
+  $('playBtn').parentElement; // noop
+  const ss = $('soundStage');
+  if(on){ ss.classList.add('is-playing'); renderWaves(); }
+  else { ss.classList.remove('is-playing'); renderWaves(); }
+  // 涟漪
+  const btn = $('playBtn');
+  btn.querySelectorAll('.ripple-ring').forEach(e=>e.remove());
+  if(on){
+    [0,500].forEach(d=>{
+      const r=document.createElement('span');
+      r.className='ripple-ring absolute inset-0 rounded-full border border-tb-blue/40';
+      if(d) r.style.animationDelay=d+'ms';
+      btn.appendChild(r);
+    });
+  }
+}
+
+/* ============ 声波（10 根，左右镜像） ============ */
+const HEIGHTS = [10,18,30,14,24,34,16,26,12,20];
+function renderWaves(){
+  const make=(align)=>{
+    const bars = align==='left' ? [...HEIGHTS].reverse() : HEIGHTS;
+    return bars.map((h,i)=>{
+      const delay=(align==='left'?bars.length-i:i)*0.062;
+      const cls = state.playing ? 'bg-tb-blue' : 'bg-tb-line';
+      return `<span class="wave-bar w-[3px] rounded-full ${cls} transition-colors duration-300" style="height:${h+6}px;animation-delay:${delay}s;opacity:${state.playing?1:0.9}"></span>`;
+    }).join('');
+  };
+  $('waveLeft').innerHTML = make('left');
+  $('waveRight').innerHTML = make('right');
+}
+
+/* ============ 状态 ============ */
+const state = {
+  index:0, typed:[], hinted:[], status:'typing',
+  activeKey:null, toast:null, confirmOpen:false, finished:false,
+  playing:false,
+  seconds:0, startTime:Date.now(),
+  stats:{correct:0,wrong:0,hint:0,skipped:0},
+};
+const timers=[];
+const later=(fn,ms)=>timers.push(setTimeout(fn,ms));
+const clearTimers=()=>{ timers.forEach(clearTimeout); timers.length=0; };
+
+function entry(){ return DECK[Math.min(state.index, DECK.length-1)]; }
+function letters(){ return entry().word.split('').filter(isTypable).map(c=>c.toLowerCase()); }
+
+/* ============ 计时 ============ */
+setInterval(()=>{
+  if(state.finished) return;
+  state.seconds = Math.floor((Date.now()-state.startTime)/1000);
+  $('timer').textContent = fmt(state.seconds);
+}, 250);
+
+/* ============ 渲染：顶部 + 释义 + 字母槽 ============ */
+function renderTop(){
+  $('curNum').textContent = state.index+1;
+  const ratio=(state.index + (state.status==='correct'?1:0))/DECK_SIZE;
+  const bar=$('progressBar'); const dot=$('progressDot');
+  bar.style.width = Math.max(2, ratio*100)+'%';
+  if(state.status==='correct'){ bar.className='absolute inset-y-0 left-0 rounded-r-full bg-gradient-to-r from-tb-green to-emerald-400 transition-[width,background] duration-500 ease-out'; dot.className='absolute top-1/2 right-0 h-[9px] w-[9px] -translate-y-1/2 translate-x-1/2 rounded-full bg-white ring-[2.5px] ring-tb-green transition-colors'; }
+  else if(state.status==='wrong'){ bar.className='absolute inset-y-0 left-0 rounded-r-full bg-gradient-to-r from-tb-red to-rose-400 transition-[width,background] duration-500 ease-out'; dot.className='absolute top-1/2 right-0 h-[9px] w-[9px] -translate-y-1/2 translate-x-1/2 rounded-full bg-white ring-[2.5px] ring-tb-red transition-colors'; }
+  else { bar.className='absolute inset-y-0 left-0 rounded-r-full bg-gradient-to-r from-tb-blue to-tb-blue-soft transition-[width,background] duration-500 ease-out'; dot.className='absolute top-1/2 right-0 h-[9px] w-[9px] -translate-y-1/2 translate-x-1/2 rounded-full bg-white ring-[2.5px] ring-tb-blue-soft transition-colors'; }
+}
+
+function renderSenses(){
+  const e=entry();
+  $('senseCount').textContent = e.senses.length+' 条';
+  const groups=[];
+  e.senses.forEach(s=>{ const last=groups.find(g=>g.pos===s.pos); if(last) last.items.push(s.zh); else groups.push({pos:s.pos,items:[s.zh]}); });
+  $('senseList').innerHTML = groups.map(g=>`
+    <li class="flex gap-3 border-b border-tb-line/80 py-2.5 last:border-b-0">
+      <span class="mt-[2px] inline-flex h-[20px] shrink-0 items-center justify-center rounded-md bg-white px-1.5 font-serif text-[11.5px] font-semibold text-tb-blue italic shadow-[0_1px_2px_rgba(24,36,51,0.06)]">${g.pos}</span>
+      <div class="flex-1 space-y-1">
+        ${g.items.map((zh,i)=>`<p class="flex gap-1.5 text-[14.5px] leading-[1.5] text-tb-body">${g.items.length>1?`<span class="mt-[1px] text-[11px] tabular-nums text-tb-muted">${i+1}</span>`:''}<span>${zh}</span></p>`).join('')}
+      </div>
+    </li>`).join('');
+}
+
+/* 字母槽：进入新词时整体重建；拼字时逐个更新，避免动画重放 */
+let slotEls=[]; // {typable, el, valueEl, lineEl}
+function buildSlots(){
+  const e=entry(); const chars=e.word.split('');
+  const row=$('slots'); row.innerHTML=''; slotEls=[];
+  const font=layoutFont(chars.length);
+  const h=Math.round(font*1.62);
+  let li=-1;
+  chars.forEach(ch=>{
+    const wrap=document.createElement('span');
+    wrap.className='relative flex items-end justify-center';
+    if(!isTypable(ch)){
+      wrap.style.width=(ch==="'"?(font*0.5):(font*0.62))+'px';
+      wrap.style.height=h+'px'; wrap.style.fontSize=(font*0.86)+'px'; wrap.style.lineHeight='1'; wrap.style.paddingBottom=(h*0.16)+'px';
+      wrap.className+=' font-medium text-tb-muted/70 select-none';
+      wrap.textContent=ch;
+      row.appendChild(wrap);
+      slotEls.push({typable:false,el:wrap});
+      return;
+    }
+    li++;
+    wrap.style.width=font+'px'; wrap.style.height=h+'px';
+    const value=document.createElement('span');
+    value.className='relative font-semibold';
+    value.style.fontSize=font+'px'; value.style.lineHeight='1'; value.style.paddingBottom=(h*0.16)+'px';
+    const line=document.createElement('span');
+    line.className='absolute bottom-0 left-0 h-[2.5px] w-full rounded-full bg-tb-line transition-colors duration-200';
+    wrap.appendChild(value); wrap.appendChild(line);
+    row.appendChild(wrap);
+    slotEls.push({typable:true,li,el:wrap,valueEl:value,lineEl:line,font,h});
+  });
+  $('letterTotal').textContent = chars.filter(isTypable).length;
+  $('typedCount').textContent = state.typed.length;
+}
+// 依据词长估算字母格字号（短词大气、长词单行）
+function layoutFont(L){
+  const w=Math.min(34, Math.max(15, 336/L));
+  return Math.max(14, Math.min(30, w*0.96));
+}
+
+/* 更新单个字母格的视觉 */
+function paintSlot(idx, {animate=false}={}){
+  const s=slotEls[idx]; if(!s||!s.typable) return;
+  const li=s.li; const isActive = li===state.typed.length && state.status==='typing';
+  const isHint = state.hinted.includes(li);
+  const val = state.typed[li];
+  // 颜色
+  const textColor = state.status==='correct'?'text-tb-green':state.status==='wrong'?'text-tb-red':isHint?'text-tb-blue':'text-tb-ink';
+  const lineColor = state.status==='correct'?'bg-tb-green':state.status==='wrong'?'bg-tb-red':val?'bg-tb-ink/35':isActive?'bg-tb-blue':'bg-tb-line';
+  s.valueEl.className = `relative font-semibold ${textColor}`;
+  if(animate && val){ s.valueEl.classList.add('slot-pop'); }
+  else { s.valueEl.classList.remove('slot-pop'); }
+  s.valueEl.textContent = val || '';
+  s.lineEl.className = `absolute bottom-0 left-0 h-[2.5px] w-full rounded-full ${lineColor} ${isActive?'shadow-[0_0_0_3px_rgba(32,107,196,0.10)]':''}`;
+  // 光标：显式设定尺寸与颜色，避免依赖 Tailwind 动态类导致竖线过短/发虚
+  let caret=s.el.querySelector('.caret');
+  if(isActive && !val){
+    if(!caret){
+      caret=document.createElement('span');
+      caret.className='caret absolute rounded-full';
+      s.el.appendChild(caret);
+    }
+    caret.style.width='2px';
+    caret.style.height=(s.font*0.78)+'px';   // 与原版 React 设计保持一致：约等于字母字高的 0.78
+    caret.style.bottom=(s.h*0.18)+'px';
+    caret.style.backgroundColor='#206bc4';
+  } else if(caret){ caret.remove(); }
+}
+
+function paintAllSlots(animateLast=-1){
+  slotEls.forEach((s,i)=>{ if(s.typable) paintSlot(i,{animate:(i===animateLast)}); });
+}
+
+function renderStatusText(){
+  const el=$('statusText');
+  if(state.status==='correct'){ el.className='flex items-center gap-1 text-[12px] font-medium text-tb-green'; el.innerHTML=icons.check({size:14})+' 拼写正确'; }
+  else if(state.status==='wrong'){ el.className='flex items-center gap-1 text-[12px] font-medium text-tb-red'; el.innerHTML=icons.x({size:14})+' 拼写有误，再来一次'; }
+  else { el.className='text-[11.5px] text-tb-muted'; el.textContent = entry().word.includes("'")||entry().word.includes('-') ? '连字符与撇号已自动补全' : '根据发音与释义写出单词'; }
+}
+
+/* ============ Toast ============ */
+function flashToast(tone, text, ms=1200){
+  const el=$('toast');
+  const style = tone==='ok'?'bg-tb-green/95 shadow-[0_10px_20px_-10px_rgba(47,179,68,0.9)]':tone==='bad'?'bg-tb-red/95 shadow-[0_10px_20px_-10px_rgba(214,57,57,0.9)]':'bg-tb-ink/90 shadow-[0_10px_20px_-10px_rgba(24,36,51,0.9)]';
+  el.className=`toast-in pointer-events-none absolute top-[72px] left-1/2 z-30 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-medium text-white ${style}`;
+  const ic = tone==='ok'?icons.check({size:14}):tone==='bad'?icons.x({size:14}):'';
+  el.innerHTML = `${ic}${text}`;
+  later(()=>{ el.className='pointer-events-none absolute top-[72px] left-1/2 z-30 hidden'; }, ms);
+}
+
+/* ============ 流转逻辑 ============ */
+function goNext(){
+  clearTimers(); stopSpeech();
+  $('toast').className='pointer-events-none absolute top-[72px] left-1/2 z-30 hidden';
+  state.activeKey=null;
+  if(state.index+1>=DECK.length){ state.finished=true; showSummary(); return; }
+  state.typed=[]; state.hinted=[]; state.status='typing';
+  state.index++;
+  renderTop(); buildSlots(); paintAllSlots(); renderStatusText(); renderSenses();
+  autoPlay();
+}
+function autoPlay(){
+  clearTimeout(autoPlay._t);
+  autoPlay._t = setTimeout(()=>speak(entry().word,0.92), 280);
+  $('main').scrollTo({top:0,behavior:'smooth'});
+}
+
+function evaluate(next, usedHint){
+  const ok = next.join('')===letters().join('');
+  if(ok){
+    state.status='correct';
+    state.stats.correct = usedHint ? state.stats.correct : state.stats.correct+1;
+    buzz(12);
+    flashToast('ok', usedHint?'已完成（用过提示）':'拼写正确', 900);
+    paintAllSlots();
+    $('slots').classList.add('success-glow'); setTimeout(()=>$('slots').classList.remove('success-glow'),700);
+    renderTop(); renderStatusText();
+    later(goNext, 900);
+  } else {
+    state.status='wrong';
+    state.stats.wrong++;
+    buzz([14,60,14]);
+    flashToast('bad','拼写有误',900);
+    $('slots').classList.add('shake'); setTimeout(()=>$('slots').classList.remove('shake'),420);
+    paintAllSlots(); renderTop(); renderStatusText();
+    later(()=>{
+      const keep = state.hinted.length ? Math.max(...state.hinted)+1 : 0;
+      state.typed = letters().slice(0,keep);
+      state.status='typing';
+      paintAllSlots(); renderStatusText(); $('typedCount').textContent=state.typed.length;
+    },620);
+  }
+}
+
+function handleLetter(letter){
+  if(state.finished||state.confirmOpen) return;
+  flashKey(letter);
+  if(state.status!=='typing'||state.typed.length>=letters().length) return;
+  buzz(6);
+  const next=[...state.typed, letter];
+  const idx=next.length-1;
+  state.typed=next;
+  $('typedCount').textContent=state.typed.length;
+  paintAllSlots(idx);   // 重绘全部，让"当前字母"高亮正确移动到下一格
+  if(next.length===letters().length) evaluate(next, state.hinted.length>0);
+}
+function handleDelete(){
+  if(state.finished||state.confirmOpen) return;
+  flashKey('Backspace');
+  if(state.status!=='typing'||state.typed.length===0) return;
+  buzz(6);
+  state.typed=state.typed.slice(0,-1);
+  state.hinted=state.hinted.filter(i=>i<state.typed.length);
+  $('typedCount').textContent=state.typed.length;
+  paintAllSlots();
+}
+function handleHint(){
+  if(state.finished||state.status!=='typing'||state.typed.length>=letters().length) return;
+  const li=state.typed.length;
+  const next=[...state.typed, letters()[li]];
+  state.hinted=[...state.hinted, li];
+  state.stats.hint++;
+  state.typed=next;
+  $('typedCount').textContent=state.typed.length;
+  flashToast('info', `已提示第 ${li+1} 个字母`, 1000);
+  paintAllSlots(li);   // 重绘全部，让"当前字母"高亮正确移动到下一格
+  if(next.length===letters().length) evaluate(next, true);
+}
+function handleSkip(){
+  if(state.finished||state.status!=='typing') return;
+  state.stats.skipped++;
+  state.typed=letters();
+  state.hinted=letters().map((_,i)=>i);
+  flashToast('info', `正确拼写：${entry().word}`, 1000);
+  paintAllSlots();
+  later(goNext, 1050);
+}
+
+function flashKey(k){
+  state.activeKey=k;
+  document.querySelectorAll('.key').forEach(b=>{ if(b.dataset.key===k) b.classList.add('key-active'); });
+  later(()=>{ document.querySelectorAll('.key').forEach(b=>b.classList.remove('key-active')); state.activeKey=null; }, 130);
+}
+
+/* ============ 键盘构建 ============ */
+function buildKeyboard(){
+  const rows=['qwertyuiop','asdfghjkl','zxcvbnm'];
+  const box=$('keyRows'); box.innerHTML='';
+  rows.forEach((row,r)=>{
+    const div=document.createElement('div');
+    div.className='flex justify-center gap-[5px]';
+    if(r===1) div.style.paddingInline='5%';
+    if(r===2){ const sp=document.createElement('span'); sp.className='flex-[1.45]'; sp.setAttribute('aria-hidden',''); div.appendChild(sp); }
+    row.split('').forEach(k=>{
+      const b=document.createElement('button');
+      b.type='button'; b.dataset.key=k; b.className='key h-[46px] flex-1 rounded-[9px] bg-tb-key text-[17px] font-medium text-tb-ink uppercase';
+      b.textContent=k;
+      b.onclick=()=>handleLetter(k);
+      div.appendChild(b);
+    });
+    if(r===2){
+      const del=document.createElement('button');
+      del.type='button'; del.dataset.key='Backspace'; del.setAttribute('aria-label','删除');
+      del.className='key grid h-[46px] flex-[1.45] place-items-center rounded-[9px] bg-[#ccd4de] text-tb-body';
+      del.innerHTML=icons.backspace({size:21});
+      let holdT, holdI;
+      const start=()=>{ clearTimeout(holdT); clearInterval(holdI); holdT=setTimeout(()=>{ holdI=setInterval(handleDelete,90); },420); };
+      const stop=()=>{ clearTimeout(holdT); clearInterval(holdI); };
+      del.onpointerdown=start; del.onpointerup=stop; del.onpointerleave=stop; del.onpointercancel=stop;
+      del.onclick=handleDelete;
+      div.appendChild(del);
+    }
+    box.appendChild(div);
+  });
+}
+
+/* ============ 退出确认 / 小结 ============ */
+function openConfirm(){ state.confirmOpen=true; $('cfDone').textContent = state.finished?DECK_SIZE:state.index; $('cfTime').textContent=fmt(state.seconds); $('confirmSheet').classList.remove('hidden'); $('confirmSheet').classList.add('flex'); }
+function closeConfirm(){ state.confirmOpen=false; $('confirmSheet').classList.add('hidden'); $('confirmSheet').classList.remove('flex'); }
+$('backBtn').onclick=openConfirm;
+$('cfCancel').onclick=closeConfirm;
+$('confirmSheet').onclick=(e)=>{ if(e.target===$('confirmSheet')) closeConfirm(); };
+$('cfConfirm').onclick=()=>{ closeConfirm(); stopSpeech(); state.finished=true; showSummary(); };
+
+function showSummary(){
+  const s=state.stats;
+  const attempts=s.correct+s.wrong+s.skipped;
+  const rate=attempts?Math.round(s.correct/attempts*100):0;
+  $('smDone').textContent=state.index+(state.status==='correct'?1:0);
+  $('smTime').textContent=fmt(state.seconds);
+  $('smRate').textContent=rate+'%';
+  $('smCorrect').textContent=s.correct; $('smWrong').textContent=s.wrong; $('smHint').textContent=s.hint; $('smSkip').textContent=s.skipped;
+  $('summary').classList.remove('hidden'); $('summary').classList.add('flex');
+}
+$('smRestart').onclick=()=>{
+  state.index=0; state.typed=[]; state.hinted=[]; state.status='typing'; state.finished=false;
+  state.seconds=0; state.startTime=Date.now();
+  state.stats={correct:0,wrong:0,hint:0,skipped:0};
+  $('summary').classList.add('hidden'); $('summary').classList.remove('flex');
+  renderTop(); buildSlots(); paintAllSlots(); renderStatusText(); renderSenses(); autoPlay();
+};
+
+/* ============ 交互绑定 ============ */
+$('playBtn').onclick=(e)=>{ e.stopPropagation(); speak(entry().word,0.92); };
+$('slowBtn').onclick=(e)=>{ e.stopPropagation(); speak(entry().word,0.55); };
+$('main').onclick=()=>speak(entry().word,0.92);
+$('kPlay').onclick=(e)=>{ e.stopPropagation(); speak(entry().word,0.92); };
+$('kHint').onclick=(e)=>{ e.stopPropagation(); handleHint(); };
+$('kSkip').onclick=(e)=>{ e.stopPropagation(); handleSkip(); };
+
+// 物理键盘
+window.addEventListener('keydown',(e)=>{
+  if(e.metaKey||e.ctrlKey||e.altKey) return;
+  if(/^[a-zA-Z]$/.test(e.key)){ e.preventDefault(); handleLetter(e.key.toLowerCase()); }
+  else if(e.key==='Backspace'){ e.preventDefault(); handleDelete(); }
+  else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); speak(entry().word,0.92); }
+});
+
+/* ============ 初始化 ============ */
+renderWaves();
+renderTop();
+buildKeyboard();
+buildSlots();
+paintAllSlots();
+renderSenses();
+renderStatusText();
+autoPlay();
+</script>
+</body>
+</html>

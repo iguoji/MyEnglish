@@ -36,6 +36,11 @@ migrate_working_dir/
 # Symbolication related
 app.*.symbols
 
+# golden 截图测试的失败产物。
+# 截图测试对不上时，Flutter 会把「基准图 / 实拍图 / 差异图」四件套倒进这里，
+# 只用于当场排查，属于可再生的临时文件，不进版本库（基准图本身在 test/goldens/ 里，要提交）。
+/test/failures/
+
 # Obfuscation related
 app.*.map.json
 

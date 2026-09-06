@@ -2,11 +2,12 @@
 import 'package:flutter/material.dart';
 // dart:async 提供 unawaited，用于显式声明“这个异步任务不需要等它”。
 import 'dart:async';
-// tabler_icons_plus 提供火焰与左右箭头图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import '../home_layout.dart';
 // 引入听音辨义记录 Store：按天的复习量聚合查询走这里。
 import '../../../../store/session.dart';
 
@@ -81,6 +82,7 @@ class CheckinHeatmapCard extends StatefulWidget {
   const CheckinHeatmapCard({
     required this.dailyGoal,
     required this.refreshToken,
+    this.clock = DateTime.now,
     super.key,
   });
 
@@ -94,6 +96,16 @@ class CheckinHeatmapCard extends StatefulWidget {
   /// 就把这个数字 +1，日历看到号变了才会重查，今天的色块因此能立刻变深。
   final int refreshToken;
 
+  ///
+  /// 「今天是哪天」的取法；不传就去问系统。
+  ///
+  /// 生活化解释：日历里有三处要知道今天——默认打开哪个月、今天之后的格子
+  /// 画成灰色占位、右上角「连续几天」从今天往回数。这三处以前各自去问一次
+  /// 系统，于是首页的基准截图每过一天就差一格、测试跟着红一次。
+  /// 现在时间由外面传进来，测试固定住它，截图就稳定了；
+  /// 正式 App 不传，行为和以前完全一样。
+  final DateTime Function() clock;
+
   @override
   State<CheckinHeatmapCard> createState() => _CheckinHeatmapCardState();
 }
@@ -103,7 +115,7 @@ class CheckinHeatmapCard extends StatefulWidget {
 ///
 class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
   /// 当前选中的月份（统一取该月 1 号）；默认本月。
-  late DateTime _month = _firstDayOfMonth(DateTime.now());
+  late DateTime _month = _firstDayOfMonth(widget.clock());
 
   /// 选中月份每天的打卡数据；初始为全"未复习"骨架，色块永不消失。
   List<CheckinDay> _days = const [];
@@ -143,7 +155,8 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
       // since 取该月 1 号；原生会把该日期之后的所有天都返回，
       // 下面在 Dart 侧再按"属于该月"过滤一遍。
       // 「复习总数」口径：不论对错都算，只要这天练过的去重单词数。
-      final counts = await LocalSessionStore.instance.getDailyCounts(correctOnly: false, 
+      final counts = await LocalSessionStore.instance.getDailyCounts(
+        correctOnly: false,
         since: _dateKey(month),
       );
       // 异步期间卡片可能已移除或切换了月份。
@@ -234,19 +247,30 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
     return CheckinLevel.one;
   }
 
+  ///
+  /// 今天（只留年月日，时分秒抹掉）。
+  ///
+  /// 卡片里三处要「和今天比」——连续天数从今天往回数、下个月按钮到本月为止、
+  /// 日历把今天之后的格子灰掉。三处都从这一个口子拿，就不会出现
+  /// 「一处按注入的时间算、另一处偷偷去问系统」这种半新半旧的情况。
+  DateTime get _today {
+    final now = widget.clock();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   /// 计算连续打卡天数：从"今天"在选中月内倒推非零档。
   ///
   /// 仅当选中月是本月时有意义（连续打卡以今天为终点）；翻看历史月份时
   /// 显示 0。注意：跨月的长连续在本月内只能数到月初，属于已知口径限制。
   int get _streak {
-    final now = DateTime.now();
+    final today = _today;
     // 翻看历史月份时今天不在范围内，直接返回 0。
-    if (_month.year != now.year || _month.month != now.month) return 0;
+    if (_month.year != today.year || _month.month != today.month) return 0;
     var streak = 0;
     // 从今天（月内最后一天往后不会超过今天）倒推。
     for (final day in _days.reversed) {
       // 超过今天的格子不参与（日历中今天的未来格是灰色占位）。
-      if (day.date.isAfter(DateTime(now.year, now.month, now.day))) continue;
+      if (day.date.isAfter(today)) continue;
       if (day.level == CheckinLevel.zero) break;
       streak++;
     }
@@ -266,13 +290,14 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
 
   /// 选中月是否为本月（用于禁用"下个月"按钮）。
   bool get _isCurrentMonth {
-    final now = DateTime.now();
-    return _month.year == now.year && _month.month == now.month;
+    final today = _today;
+    return _month.year == today.year && _month.month == today.month;
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     final counts = _counts;
 
     // 分布条各段宽度：四档一一对应（未复习/少量/达标/超额）。
@@ -284,210 +309,202 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
     return MediaQuery.withClampedTextScaling(
       // 日历卡片是紧凑型组件：超大字体下钳制放大上限（与曲线图头部同策略），
       // 防止月份行与图例把固定网格撑出横向溢出；常规 1.0 倍字体不受影响。
-      maxScaleFactor: 1.15,
+      maxScaleFactor: HomeDashboardLayout.maxTextScale,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpace.pBase),
         decoration: BoxDecoration(
           color: tokens.card,
           // 描边代替阴影：浅浅一圈分隔线让卡片在灰底上有轮廓。
           border: Border.all(color: tokens.border),
           // 只保留一点点圆角。
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 头部：左"复习总数"、中年月选择器（整行居中）、右连续天数。
-          // 两侧 Expanded 平分剩余宽度，中间选择器按自然宽度布局，
-          // 因此年月选择器恰好落在整行正中；两侧文字带省略号，
-          // 极端窄屏/大字体下收缩截断而不会溢出。
-          Row(
-            children: [
-              // 左：卡片标题（占位可收缩）。
-              Expanded(
-                child: Text(
-                  '复习总数',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.text,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 头部：左"复习总数"、中年月选择器（整行居中）、右连续天数。
+            // 两侧 Expanded 平分剩余宽度，中间选择器按自然宽度布局，
+            // 因此年月选择器恰好落在整行正中；两侧文字带省略号，
+            // 极端窄屏/大字体下收缩截断而不会溢出。
+            Row(
+              children: [
+                // 左：卡片标题（占位可收缩）。
+                Expanded(
+                  child: Text(
+                    '复习总数',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.fs5Semibold,
                   ),
                 ),
-              ),
-              // 中：月份选择器（上一个月 ‹ / 年月 / › 下一个月）。
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _MonthArrow(
-                    icon: TablerIcons.chevronLeft,
-                    onTap: () => _selectMonth(
-                      _month.month == 1
-                          ? DateTime(_month.year - 1, 12)
-                          : DateTime(_month.year, _month.month - 1),
+                // 中：月份选择器（上一个月 ‹ / 年月 / › 下一个月）。
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _MonthArrow(
+                      icon: AppGlyph.previousMonth,
+                      onTap: () => _selectMonth(
+                        _month.month == 1
+                            ? DateTime(_month.year - 1, 12)
+                            : DateTime(_month.year, _month.month - 1),
+                      ),
+                      tokens: tokens,
                     ),
-                    tokens: tokens,
-                  ),
-                  Flexible(
-                    child: Text(
-                      '${_month.year}年${_month.month}月',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: tokens.text,
+                    Flexible(
+                      child: Text(
+                        '${_month.year}年${_month.month}月',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.fs5Semibold,
                       ),
                     ),
-                  ),
-                  _MonthArrow(
-                    icon: TablerIcons.chevronRight,
-                    onTap: _isCurrentMonth
-                        ? null
-                        : () => _selectMonth(
-                            _month.month == 12
-                                ? DateTime(_month.year + 1, 1)
-                                : DateTime(_month.year, _month.month + 1),
-                          ),
-                    tokens: tokens,
-                  ),
-                ],
-              ),
-              // 右：连续打卡天数（占位可收缩）。
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        TablerIcons.flame,
-                        size: 14,
-                        color: const Color(0xFFE8590C),
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          '连续$_streak天',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: tokens.textSecondary,
+                    _MonthArrow(
+                      icon: AppGlyph.nextMonth,
+                      onTap: _isCurrentMonth
+                          ? null
+                          : () => _selectMonth(
+                              _month.month == 12
+                                  ? DateTime(_month.year + 1, 1)
+                                  : DateTime(_month.year, _month.month + 1),
+                            ),
+                      tokens: tokens,
+                    ),
+                  ],
+                ),
+                // 右：连续打卡天数（占位可收缩）。
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          AppGlyph.streak,
+                          size: AppIcon.i14,
+                          color: AppTokens.warningDeep,
+                        ),
+                        const SizedBox(width: AppSpace.p1),
+                        Flexible(
+                          child: Text(
+                            '连续$_streak天',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.fs5.copyWith(
+                              color: tokens.textSecondary,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // 星期表头：固定日~六七列。
-          Row(
-            children: [
-              for (final weekLabel in const [
-                '日',
-                '一',
-                '二',
-                '三',
-                '四',
-                '五',
-                '六',
-              ])
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      weekLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: tokens.textSecondary,
-                      ),
+                      ],
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // 日历主体：按周分行，每格一个色块，色块中间是几号。
-          _CalendarGrid(
-            days: _days,
-            selectedDate: _selectedDate,
-            onDateTap: _selectDate,
-            tokens: tokens,
-          ),
-          const SizedBox(height: 14),
-          // 统计分布条：超额 → 达标 → 少量 → 未复习，从左到右四段。
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: SizedBox(
-              height: 6,
-              child: Row(
-                children: [
-                  if (threeCount > 0)
-                    Expanded(
-                      flex: threeCount,
-                      child: Container(color: tokens.checkinLevel4),
-                    ),
-                  if (twoCount > 0)
-                    Expanded(
-                      flex: twoCount,
-                      child: Container(color: tokens.checkinLevel2),
-                    ),
-                  if (oneCount > 0)
-                    Expanded(
-                      flex: oneCount,
-                      child: Container(color: tokens.checkinLevel1),
-                    ),
-                  if (zeroCount > 0)
-                    Expanded(
-                      flex: zeroCount,
-                      child: Container(color: tokens.checkinLevel0),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // 图例：四个条目与四档色块一一对应；固定宽度，
-          // 大字体下可能超宽，允许横向滚动兜底。
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _LegendItem(
-                  color: tokens.checkinLevel4,
-                  label: '超额',
-                  count: threeCount,
-                  tokens: tokens,
-                ),
-                const SizedBox(width: 16),
-                _LegendItem(
-                  color: tokens.checkinLevel2,
-                  label: '达标',
-                  count: twoCount,
-                  tokens: tokens,
-                ),
-                const SizedBox(width: 16),
-                _LegendItem(
-                  color: tokens.checkinLevel1,
-                  label: '少量',
-                  count: oneCount,
-                  tokens: tokens,
-                ),
-                const SizedBox(width: 16),
-                _LegendItem(
-                  color: tokens.checkinLevel0,
-                  label: '未复习',
-                  count: zeroCount,
-                  tokens: tokens,
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: AppSpace.p3),
+            // 星期表头：固定日~六七列。
+            Row(
+              children: [
+                for (final weekLabel in const [
+                  '日',
+                  '一',
+                  '二',
+                  '三',
+                  '四',
+                  '五',
+                  '六',
+                ])
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        weekLabel,
+                        style: textTheme.fs6.copyWith(
+                          color: tokens.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpace.p2),
+            // 日历主体：按周分行，每格一个色块，色块中间是几号。
+            _CalendarGrid(
+              days: _days,
+              selectedDate: _selectedDate,
+              onDateTap: _selectDate,
+              tokens: tokens,
+              // 「今天」由卡片这一层算好再传下去，网格自己不再问系统时间。
+              today: _today,
+            ),
+            const SizedBox(height: AppSpace.p3),
+            // 统计分布条：超额 → 达标 → 少量 → 未复习，从左到右四段。
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.roundedSm),
+              child: SizedBox(
+                height: HomeDashboardLayout.heatmapLegendSize,
+                child: Row(
+                  children: [
+                    if (threeCount > 0)
+                      Expanded(
+                        flex: threeCount,
+                        child: Container(color: tokens.checkinLevel4),
+                      ),
+                    if (twoCount > 0)
+                      Expanded(
+                        flex: twoCount,
+                        child: Container(color: tokens.checkinLevel2),
+                      ),
+                    if (oneCount > 0)
+                      Expanded(
+                        flex: oneCount,
+                        child: Container(color: tokens.checkinLevel1),
+                      ),
+                    if (zeroCount > 0)
+                      Expanded(
+                        flex: zeroCount,
+                        child: Container(color: tokens.checkinLevel0),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpace.p3),
+            // 图例：四个条目与四档色块一一对应；固定宽度，
+            // 大字体下可能超宽，允许横向滚动兜底。
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _LegendItem(
+                    color: tokens.checkinLevel4,
+                    label: '超额',
+                    count: threeCount,
+                    tokens: tokens,
+                  ),
+                  const SizedBox(width: AppSpace.p3),
+                  _LegendItem(
+                    color: tokens.checkinLevel2,
+                    label: '达标',
+                    count: twoCount,
+                    tokens: tokens,
+                  ),
+                  const SizedBox(width: AppSpace.p3),
+                  _LegendItem(
+                    color: tokens.checkinLevel1,
+                    label: '少量',
+                    count: oneCount,
+                    tokens: tokens,
+                  ),
+                  const SizedBox(width: AppSpace.p3),
+                  _LegendItem(
+                    color: tokens.checkinLevel0,
+                    label: '未复习',
+                    count: zeroCount,
+                    tokens: tokens,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -505,10 +522,11 @@ class _CalendarGrid extends StatelessWidget {
     required this.selectedDate,
     required this.onDateTap,
     required this.tokens,
+    required this.today,
   });
 
   /// 色块边长：接近上一版 16px 色块的紧凑观感，略放大以容纳两位日期数字。
-  static const double _cellSize = 20;
+  static const double _cellSize = HomeDashboardLayout.heatmapCellSize;
 
   /// 当月每天的数据（1 日..月末，连续无空洞）。
   final List<CheckinDay> days;
@@ -522,6 +540,13 @@ class _CalendarGrid extends StatelessWidget {
   /// 色板令牌。
   final AppTokens tokens;
 
+  ///
+  /// 今天（只留年月日）：今天之后的格子只画淡数字、不铺复习色。
+  ///
+  /// 由外层卡片算好传进来，网格自己不去问系统时间——这样整块日历
+  /// 「今天是哪天」只有一个来源。
+  final DateTime today;
+
   @override
   Widget build(BuildContext context) {
     // 没有数据（异常兜底）时整块不渲染，保持卡片其余部分完整。
@@ -529,9 +554,6 @@ class _CalendarGrid extends StatelessWidget {
     // 当月 1 号是星期几：DateTime.weekday 周一=1..周日=7，
     // 日历从周日开始，所以对 7 取余正好落在 0(日)..6(六) 列。
     final firstWeekday = days.first.date.weekday % 7;
-    // 今天（去掉时分秒，只留日期），用于把未来的格子灰掉。
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
 
     // 组装一周一行的小组：先补 firstWeekday 个空位，再逐天入列。
     // 空位用 null、日期用 CheckinDay，所以元素类型是 Object?。
@@ -543,11 +565,14 @@ class _CalendarGrid extends StatelessWidget {
     ];
     // 行数 = 向上取整（格子总数 / 7）。
     final rowCount = (cells.length + 6) ~/ 7;
+    // 日期数字的文字样式在这里取一次，再传给每一格：_buildCell 是普通方法，
+    // 没有自己的 context，逐格再取一遍反而更绕。
+    final textTheme = Theme.of(context).textTheme;
 
     return Column(
       children: [
         for (var row = 0; row < rowCount; row++) ...[
-          if (row > 0) const SizedBox(height: 6),
+          if (row > 0) const SizedBox(height: AppSpace.p2),
           Row(
             children: [
               for (var col = 0; col < 7; col++)
@@ -555,7 +580,7 @@ class _CalendarGrid extends StatelessWidget {
                   // 色块固定小尺寸、在所在列内居中；行高由色块决定，
                   // 整体接近上一版横排色块的紧凑密度。
                   child: Center(
-                    child: _buildCell(cells, row * 7 + col, today),
+                    child: _buildCell(textTheme, cells, row * 7 + col, today),
                   ),
                 ),
             ],
@@ -567,7 +592,12 @@ class _CalendarGrid extends StatelessWidget {
 
   ///
   /// 渲染单个日历格。
-  Widget _buildCell(List<Object?> cells, int index, DateTime today) {
+  Widget _buildCell(
+    TextTheme textTheme,
+    List<Object?> cells,
+    int index,
+    DateTime today,
+  ) {
     // 越界或月首空位：透明占位，撑住网格结构。
     if (index >= cells.length || cells[index] == null) {
       return const SizedBox.shrink();
@@ -594,7 +624,7 @@ class _CalendarGrid extends StatelessWidget {
         child: Center(
           child: Text(
             '${day.date.day}',
-            style: TextStyle(fontSize: 11, color: tokens.listDateEmpty),
+            style: textTheme.fs6.copyWith(color: tokens.listDateEmpty),
           ),
         ),
       );
@@ -606,16 +636,15 @@ class _CalendarGrid extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: day.level.color(tokens),
-            borderRadius: BorderRadius.circular(5),
+            borderRadius: BorderRadius.circular(AppRadius.rounded),
           ),
           child: Center(
             child: Text(
               '${day.date.day}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+              style: textTheme.fs6Semibold.copyWith(
                 // 深蓝底（达标 + 超额）用白字，浅蓝/灰底用次文字色，保证可读。
-                color: day.level == CheckinLevel.three ||
+                color:
+                    day.level == CheckinLevel.three ||
                         day.level == CheckinLevel.two
                     ? Colors.white
                     : day.level == CheckinLevel.zero
@@ -646,7 +675,7 @@ class _CalendarGrid extends StatelessWidget {
             children: [
               dateNumber,
               if (isSelected) ...[
-                const SizedBox(width: 3),
+                const SizedBox(width: AppSpace.p1),
                 Flexible(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
@@ -654,11 +683,7 @@ class _CalendarGrid extends StatelessWidget {
                       '${day.reviewCount}',
                       key: Key('checkin-count-$dateKey'),
                       maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: tokens.text,
-                      ),
+                      style: textTheme.fs6Semibold,
                     ),
                   ),
                 ),
@@ -675,7 +700,11 @@ class _CalendarGrid extends StatelessWidget {
 /// 月份切换箭头按钮。
 ///
 class _MonthArrow extends StatelessWidget {
-  const _MonthArrow({required this.icon, required this.onTap, required this.tokens});
+  const _MonthArrow({
+    required this.icon,
+    required this.onTap,
+    required this.tokens,
+  });
 
   /// Tabler 箭头图标。
   final IconData icon;
@@ -693,10 +722,13 @@ class _MonthArrow extends StatelessWidget {
       // opaque 让整块区域可点（禁用时 onTap 为 null 自然不响应）。
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.p2,
+          vertical: AppSpace.p1,
+        ),
         child: Icon(
           icon,
-          size: 18,
+          size: AppIcon.i16,
           // 禁用时降到极淡灰，可用时用次要文字色。
           color: onTap == null ? tokens.listDateEmpty : tokens.textSecondary,
         ),
@@ -723,31 +755,22 @@ class _LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 7,
-          height: 7,
+          width: HomeDashboardLayout.heatmapSwatchSize,
+          height: HomeDashboardLayout.heatmapSwatchSize,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(AppRadius.roundedSm),
           ),
         ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: tokens.textSecondary),
-        ),
-        const SizedBox(width: 3),
-        Text(
-          count.toString(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: tokens.text,
-          ),
-        ),
+        const SizedBox(width: AppSpace.p2),
+        Text(label, style: textTheme.fs6.copyWith(color: tokens.textSecondary)),
+        const SizedBox(width: AppSpace.p1),
+        Text(count.toString(), style: textTheme.fs6Semibold),
       ],
     );
   }

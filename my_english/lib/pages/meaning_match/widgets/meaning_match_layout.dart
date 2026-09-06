@@ -1,3 +1,9 @@
+// 引入设计令牌总表：本表只负责给页面里的元素起业务名字，
+// 具体数值一律引用总表的台阶（相当于页面专属 CSS 继承基础 CSS）。
+import '../../../common/design/design.dart';
+// 引入模块页面模板：顶栏与结算页那两套共用版式已经搬进模板，本表不再重复声明。
+import '../../../widgets/module_scaffold.dart';
+
 ///
 /// 词义连连页面的布局尺寸表。
 ///
@@ -5,66 +11,33 @@
 /// 后续改样式不用到多层 Widget 里翻找。
 ///
 /// 数值来源分三类，改动时请勿混淆：
-/// 1. 顶栏返回图标与中间「已配对 / 总数」——刻意复刻听音辨义（ListeningMeaningLayout），
-///    让两个复习模块切换时顶部完全不跳动，用户感觉是同一套产品；
+/// 1. 顶栏返回图标与中间「已配对 / 总数」——现在整块由模块模板
+///    `lib/widgets/module_scaffold.dart` 的 [ModuleHeader] 提供，本表因此不再有
+///    `headerTop` / `headerButtonSize` / `progressTop` 这一族档位；
 /// 2. 候选词卡片的三种状态（选中 / 连对 / 连错）——复刻
 ///    `ui/词义连连_部分效果.html` 补充稿里的 `.is-selected / .is-matched / .is-error`；
 /// 3. 其余全部——复刻 `ui/词义连连.html` 原型，注释中标注了对应的 CSS 值。
 ///
+/// 结算页那一套（`summary*`）同理，已并入 [ModuleSummaryLayout]。
+///
+/// 本表里**不再有字号**。字号连同字重、文字色一起搬进了主题的文字档位
+/// （见 `lib/common/theme.dart`），页面直接写 `textTheme.fs4Semibold`
+/// 这样的档名。原因是字号从来不是「这一页专属」的东西：结算页标题和另外
+/// 两个模块的结算页标题必须一样大，以前靠三张表各写一遍 `AppFont.fs1`
+/// 来维持，现在三处读同一档，想不一致都难。行高、最大行数这类和具体
+/// 文案相关的排版参数仍留在本表。
+///
 abstract final class MeaningMatchLayout {
   ///
-  /// 页面左右统一留白（原型 `--app-px: 20px`，同时也是听音辨义的 pageInset）。
+  /// 页面左右统一留白（原型写的是 `--app-px: 20px`，贴 Tabler 档后落到 24）。
   ///
-  /// 生活化解释：屏幕左右两边各空出 20 像素，内容不贴边，看起来更透气。
-  static const double pageInset = 20;
-
-  ///
-  /// 顶栏距离安全区（刘海/状态栏）顶部的距离。
-  ///
-  /// 取听音辨义的 18 而不是原型的 16，两个模块顶栏才能严丝合缝对齐。
-  static const double headerTop = 18;
-
-  ///
-  /// 顶栏图标按钮（返回键）的点击画布大小。
-  ///
-  /// 生活化解释：这是一个 34×34 的不可见方块，手指点在里面任意位置都能触发按钮。
-  static const double headerButtonSize = 34;
-
-  ///
-  /// 顶栏返回图标的字号（与听音辨义 `_PlainIconButton` 完全一致）。
-  static const double headerIconSize = 21;
-
-  ///
-  /// 中间「已配对 / 总数」的字号（与听音辨义题号一致）。
-  static const double headerProgressTextSize = 16;
-
-  ///
-  /// 顶栏与下方进度条之间的纵向间距（与听音辨义一致）。
-  static const double progressTop = 10;
-
-  ///
-  /// 时间进度条高度（原型 `height: 3px`）。
-  static const double progressHeight = 3;
-
-  ///
-  /// 时间进度条圆角（原型 `border-radius: 2px`）。
-  static const double progressRadius = 2;
+  /// 生活化解释：屏幕左右两边各空出一档页面留白，内容不贴边，看起来更透气。
+  /// 指到模板那一档：顶栏、进度条与棋盘共用同一条左右边界。
+  static const double pageInset = ModuleScaffoldLayout.pageInset;
 
   ///
   /// 进度条与下方棋盘之间的距离（原型 `main` 的 `py-3`）。
-  static const double boardVerticalInset = 12;
-
-  ///
-  /// 右上角倒计时文本字号，同时是四个练习模块右上角时间的统一基准。
-  ///
-  /// 比中间「已配对 / 总数」数字进度（16px）小 1px，且不加粗，弱化为次要信息，
-  /// 避免和主进度抢视觉权重。听音辨义、看义选词、拼写巩固三处的
-  /// `headerTimerTextSize` 都跟随这个数值。
-  static const double countdownTextSize = 15;
-
-  ///
-  /// 结算页「再挑战一次」按钮的文字字号，保持原来的 14 像素不随倒计时变动。
-  static const double summaryButtonTextSize = 14;
+  static const double boardVerticalInset = AppSpace.p3;
 
   ///
   /// 倒计时进入“危险色 + 呼吸动画”的阈值秒数（原型 `timeLeft <= 10`）。
@@ -72,7 +45,7 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 倒计时呼吸动画一个来回的时长（原型 `pulseDanger 0.8s infinite`）。
-  static const int pulseDurationMs = 800;
+  static const int pulseDurationMs = AppDuration.ms800;
 
   ///
   /// 呼吸动画放大到的最大倍数（原型 `scale(1.06)`）。
@@ -80,19 +53,23 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 呼吸动画最淡时的不透明度（原型 `opacity: 0.8`）。
-  static const double pulseMinOpacity = 0.8;
+  static const double pulseMinOpacity = AppAlpha.a80;
 
   ///
   /// 相邻候选词卡片之间的纵向距离（原型 `.left-col { gap: 12px }`）。
-  static const double sectionGap = 12;
+  static const double sectionGap = AppSpace.p3;
 
   ///
   /// 左右两列候选词之间的横向间隔（原型 `.matching-grid { gap: 40px }`）。
-  static const double boardGap = 40;
+  static const double boardGap = AppSpace.p6;
 
   ///
   /// 候选词卡片圆角（原型 `.pair-btn { border-radius: 10px }`）。
-  static const double cardRadius = 10;
+  ///
+  /// 名字带 `option` 前缀是刻意的：全站有三种「卡」，正文白卡（r8）、候选卡（r10）、
+  /// 含义卡（r12），以前三种都叫 `cardRadius`，跨表一比就分不清哪个是哪个，
+  /// 注释里还出现过「与听音辨义题目卡一致」却指向候选卡的误记。
+  static const double optionCardRadius = AppRadius.roundedLg;
 
   ///
   /// 候选词卡片最小高度（原型 `min-height: 52px`）。
@@ -104,19 +81,11 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 候选词卡片左右内边距（原型 `padding: 6px 12px` 的横向部分）。
-  static const double cardPaddingHorizontal = 12;
+  static const double optionCardPaddingHorizontal = AppSpace.p3;
 
   ///
   /// 候选词卡片上下内边距（原型 `padding: 6px 12px` 的纵向部分）。
-  static const double cardPaddingVertical = 6;
-
-  ///
-  /// 候选词文字字号（原型 `.card-label { font-size: 0.8125rem }` = 13px）。
-  static const double cardLabelSize = 13;
-
-  ///
-  /// 候选词文字行高倍数（原型 `line-height: 1.28`）。
-  static const double cardLabelLineHeight = 1.28;
+  static const double optionCardPaddingVertical = AppSpace.p2;
 
   ///
   /// 候选词文字最多显示的行数（原型 `-webkit-line-clamp: 2`）。
@@ -127,8 +96,8 @@ abstract final class MeaningMatchLayout {
   static const double anchorSize = 8;
 
   ///
-  /// 锚点外圈白边宽度（原型 `border: 1.5px solid #ffffff`）。
-  static const double anchorRingWidth = 1.5;
+  /// 锚点外圈白边宽度（原型 `border: 1.5px solid #ffffff`），取发丝线档。
+  static const double anchorRingWidth = AppStroke.bold;
 
   ///
   /// 锚点相对卡片内侧边缘外移的距离（原型 `right/left: -4.5px`）。
@@ -139,11 +108,11 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 匹配成功后绘制的贝塞尔连线宽度（原型 `stroke-width: 2.5`）。
-  static const double connectionLineWidth = 2.5;
+  static const double connectionLineWidth = AppStroke.mark;
 
   ///
   /// 棋盘正中那条竖直虚线的宽度（原型 `stroke-width="1.5"`）。
-  static const double dividerWidth = 1.5;
+  static const double dividerWidth = AppStroke.bold;
 
   ///
   /// 竖直虚线每一段实线的长度（原型 `stroke-dasharray="8,8"` 的前一个 8）。
@@ -151,20 +120,20 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 竖直虚线每两段之间的空白长度（原型 `stroke-dasharray="8,8"` 的后一个 8）。
-  static const double dividerDashGap = 8;
+  static const double dividerDashGap = AppSpace.p2;
 
   ///
   /// 卡片状态切换时“变色”的过渡时长（补充稿 `border-color/background-color 0.25s`）。
   ///
   /// 生活化解释：从灰底变蓝底、从蓝底变绿底，都不是一瞬间跳过去，而是用
   /// 四分之一秒慢慢染过去，眼睛才跟得上。
-  static const int cardColorTransitionMs = 250;
+  static const int cardColorTransitionMs = AppDuration.ms250;
 
   ///
   /// 卡片状态切换时“变形”的过渡时长（补充稿 `transform/box-shadow/opacity 0.35s`）。
   ///
   /// 与连线生长动画同为 350 毫秒，二者同时收尾，连线端点不会脱离锚点。
-  static const int cardTransformTransitionMs = 350;
+  static const int cardTransformTransitionMs = AppDuration.ms350;
 
   ///
   /// 选中卡片的放大倍数（补充稿 `.is-selected { transform: scale(1.02) }`）。
@@ -192,7 +161,9 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 已连上卡片的整体不透明度（补充稿 `.is-matched { opacity: 0.45 }`）。
-  static const double matchedOpacity = 0.45;
+  ///
+  /// 收敛前写 0.45，现在与连错描边、听音辨义步骤条一起读总表同一档。
+  static const double matchedOpacity = AppAlpha.a44;
 
   ///
   /// 选中时锚点圆点的放大倍数（补充稿 `.is-selected .node-anchor { scale(1.3) }`）。
@@ -207,8 +178,8 @@ abstract final class MeaningMatchLayout {
   static const double anchorErrorHalo = 3;
 
   ///
-  /// 错误抖动动画时长（补充稿 `animation: errorJolt 0.4s`）。
-  static const int shakeDurationMs = 400;
+  /// 错误抖动动画时长（补充稿 `animation: errorJolt 0.4s`，0.4 秒并入 350 毫秒）。
+  static const int shakeDurationMs = AppDuration.ms350;
 
   ///
   /// 错误抖动各关键帧的左右位移（补充稿 `errorJolt` 的 0/20/40/60/80/100%）。
@@ -223,69 +194,36 @@ abstract final class MeaningMatchLayout {
 
   ///
   /// 匹配成功连线绘制动画时长（原型 `drawLine 0.35s`）。
-  static const int connectDurationMs = 350;
+  static const int connectDurationMs = AppDuration.ms350;
 
   ///
-  /// 一组全部匹配后切换到下一组的延迟（原型 `setTimeout(..., 600)`）。
-  static const int groupAdvanceDelayMs = 600;
+  /// 一组全部匹配后切换到下一组的延迟（原型 `setTimeout(..., 600)`，600 并入 800）。
+  static const int groupAdvanceDelayMs = AppDuration.ms800;
 
   ///
   /// 切换到下一组时整块棋盘的淡入时长（原型 `fadeIn 0.25s`）。
-  static const int fadeDurationMs = 250;
+  static const int fadeDurationMs = AppDuration.ms250;
 
   ///
   /// 淡入时棋盘从下方上移的距离（原型 `translateY(4px)` → `translateY(0)`）。
   static const double fadeSlideOffset = 4;
 
   ///
-  /// 结算页左右留白（原型 `padding-left/right: 50px`）。
-  static const double summaryInset = 50;
+  /// 结算页那一整块（`summary*` 九档）已经搬进模块模板的 [ModuleSummaryLayout]。
+  /// 三个模块练完都会走到同一屏收尾画面，以前靠三张页面表各写一份、再靠
+  /// `README.md` 里一句「改其中一个，另外两个要一起改」维持一致；现在只有
+  /// 一处可改，页面直接写 `ModuleSummaryLayout.inset`。
+  ///
+  /// 有一处原来记在本表里的取舍要跟着搬走：`summaryStatRadius` 与候选卡的
+  /// [optionCardRadius] 数值相同、语义不同——一个跟着结算页调，一个跟着配对
+  /// 卡片调，所以并表之后它仍然是 [ModuleSummaryLayout.statRadius] 一档，
+  /// 没有和候选卡合并。
 
   ///
-  /// 结算页三大块（头部、统计、按钮）之间的间距（原型 `gap-4` = 1.5rem）。
-  static const double summarySectionGap = 24;
-
+  /// 卡片用「投影」描出来的那一圈边，往外扩多宽。
   ///
-  /// 结算页顶部圆形图标底盘直径（原型 `avatar avatar-xl` = 4rem）。
-  static const double summaryAvatarSize = 64;
-
-  ///
-  /// 结算页圆形底盘内的 Tabler 图标字号（原型 `fs-1` = 1.5rem）。
-  static const double summaryAvatarIconSize = 24;
-
-  ///
-  /// 结算页主标题字号（原型 `fs-1` = 1.5rem）。
-  static const double summaryTitleSize = 24;
-
-  ///
-  /// 结算页副标题字号（原型 `small`）。
-  static const double summarySubtitleSize = 12;
-
-  ///
-  /// 结算页 2×2 统计卡之间的间距（原型 `row g-2` = 0.5rem）。
-  static const double summaryStatGap = 8;
-
-  ///
-  /// 结算页统计卡上下内边距（原型 `py-3` = 1rem）。
-  static const double summaryStatPaddingVertical = 16;
-
-  ///
-  /// 结算页统计卡标题字号（原型 `small`）。
-  static const double summaryStatLabelSize = 12;
-
-  ///
-  /// 结算页统计卡主数值字号（原型 `display-6`）。
-  static const double summaryStatValueSize = 40;
-
-  ///
-  /// 结算页“剩余时间”这一格的数值字号（原型 `fs-1`，因为 00:00 比纯数字长）。
-  static const double summaryStatTimeSize = 24;
-
-  ///
-  /// 结算页统计卡底部单位说明字号（原型 `text-xs`）。
-  static const double summaryStatUnitSize = 10;
-
-  ///
-  /// 结算页底部“再挑战一次”按钮高度（原型 `btn py-2 fs-3` 的实际渲染高度）。
-  static const double summaryButtonHeight = 46;
+  /// 生活化解释：这不是真的影子，而是拿一层完全不模糊的同色投影当描边使——
+  /// 好处是它画在边框之外，不占卡片内部的宽度，所以描粗一圈也不会把里面的文字
+  /// 挤得换行。默认、连对和选中三种状态都用这一圈，只是换个颜色。
+  static const double cardBorderSpread = 1;
 }

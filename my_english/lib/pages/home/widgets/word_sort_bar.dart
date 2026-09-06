@@ -1,7 +1,5 @@
 // material.dart 提供横向布局与文字按钮。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 提供升序、降序和可排序状态图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
@@ -79,7 +77,7 @@ class WordSortBar extends StatelessWidget {
   /// 输出从左到右固定顺序的排序项与右侧动作。
   @override
   Widget build(BuildContext context) {
-    // Row 按设计稿从左到右排列，排序项之间 18 像素间距。
+    // Row 按设计稿从左到右排列，排序项之间隔一档基准间距（`p3`）。
     return Row(
       children: [
         // 排序项区域允许横向滚动，窄屏大字体时不会挤坏右侧动作。
@@ -96,7 +94,7 @@ class WordSortBar extends StatelessWidget {
                   isAscending: directions[WordSortField.original] ?? true,
                   onPressed: onSelected,
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: AppSpace.p3),
                 // 含义排序，永远升序，因此选中后显示向上箭头。
                 _SortChip(
                   field: WordSortField.meaning,
@@ -105,7 +103,7 @@ class WordSortBar extends StatelessWidget {
                   isAscending: directions[WordSortField.meaning] ?? true,
                   onPressed: onSelected,
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: AppSpace.p3),
                 // 难度排序。
                 _SortChip(
                   field: WordSortField.difficulty,
@@ -114,7 +112,7 @@ class WordSortBar extends StatelessWidget {
                   isAscending: directions[WordSortField.difficulty] ?? false,
                   onPressed: onSelected,
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: AppSpace.p3),
                 // 日期排序。
                 _SortChip(
                   field: WordSortField.date,
@@ -128,21 +126,21 @@ class WordSortBar extends StatelessWidget {
           ),
         ),
         // 排序区与右侧动作之间的间距。
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.p3),
         // 折叠/展开全部分组。
         _ActionText(
           key: const Key('toggle-collapse-all'),
           label: collapseLabel,
-          color: AppTokens.accent,
+          color: AppTokens.primary,
           onTap: onToggleCollapseAll,
         ),
         // 两个动作之间的间距。
-        const SizedBox(width: 18),
+        const SizedBox(width: AppSpace.p3),
         // 进入/退出选择模式。
         _ActionText(
           key: const Key('toggle-select-mode'),
           label: selectLabel,
-          color: AppTokens.accent,
+          color: AppTokens.primary,
           onTap: onToggleSelectMode,
         ),
       ],
@@ -190,16 +188,17 @@ class _SortChip extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // 选中项用主色，其余用中等文字色。
-    final labelColor = isSelected ? AppTokens.accent : tokens.textMedium;
+    final labelColor = isSelected ? AppTokens.primary : tokens.textMedium;
     // 默认项没有图标；未选中显示可排序，选中后显示当前升降方向。
     final IconData? sortIcon = isAscending == null
         ? null
         : isSelected
-        ? (isAscending! ? TablerIcons.arrowUp : TablerIcons.arrowDown)
-        : TablerIcons.arrowsSort;
+        ? (isAscending! ? AppGlyph.sortAscending : AppGlyph.sortDescending)
+        : AppGlyph.sort;
     // 图标颜色：选中用主色，未选中用弱化色。
-    final iconColor = isSelected ? AppTokens.accent : tokens.muted;
+    final iconColor = isSelected ? AppTokens.primary : tokens.muted;
 
     // GestureDetector 只响应点击，不绘制 Material 水波纹或选中背景色。
     return GestureDetector(
@@ -211,7 +210,7 @@ class _SortChip extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       // 上下 4 像素让触控区域略大于文字。
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.p1),
         // Row 排列文字与箭头。
         child: Row(
           // 行宽只包住内容。
@@ -220,16 +219,15 @@ class _SortChip extends StatelessWidget {
             // 字段名文字；选中加粗。
             Text(
               label,
-              style: TextStyle(
+              style: textTheme.fs5.copyWith(
                 color: labelColor,
-                fontSize: 13.5,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: isSelected ? AppWeight.semibold : AppWeight.normal,
               ),
             ),
             // 有排序状态时紧贴文字右侧放置 Tabler 图标。
             if (sortIcon != null) ...[
-              const SizedBox(width: 3),
-              Icon(sortIcon, color: iconColor, size: 13),
+              const SizedBox(width: AppSpace.p1),
+              Icon(sortIcon, color: iconColor, size: AppIcon.i14),
             ],
           ],
         ),
@@ -248,7 +246,7 @@ class _ActionText extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
-    this.fontWeight = FontWeight.w600,
+    this.fontWeight = AppWeight.semibold,
     super.key,
   });
 
@@ -272,24 +270,21 @@ class _ActionText extends StatelessWidget {
   /// 输出不带背景反馈的纯文字按钮。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // InkWell 保留按钮语义、键盘操作与触控能力，但关闭会形成背景色的视觉反馈。
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(AppRadius.rounded),
       // pressed、hovered、focused 状态都不绘制半透明背景。
       overlayColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
       // 关闭 Material 水波纹，确保点击前后只有文字颜色，不出现背景块。
       splashFactory: NoSplash.splashFactory,
       child: Padding(
         // 与排序项相同的纵向触控内边距。
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.p1),
         child: Text(
           label,
-          style: TextStyle(
-            color: color,
-            fontSize: 13.5,
-            fontWeight: fontWeight,
-          ),
+          style: textTheme.fs5.copyWith(color: color, fontWeight: fontWeight),
         ),
       ),
     );
@@ -327,6 +322,7 @@ class WordSelectionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     // Row 排列计数与两个动作。
     return Row(
       children: [
@@ -339,24 +335,24 @@ class WordSelectionBar extends StatelessWidget {
                 // 已选计数使用次要文字色。
                 Text(
                   '已选 $selectedCount',
-                  style: TextStyle(color: tokens.textSecondary, fontSize: 13.5),
+                  style: textTheme.fs5.copyWith(color: tokens.textSecondary),
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: AppSpace.p3),
                 // 全选当前可见单词。
                 _ActionText(
                   key: const Key('select-all'),
                   label: '全选',
                   color: tokens.textMedium,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: AppWeight.semibold,
                   onTap: onSelectAll,
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: AppSpace.p3),
                 // 反选当前可见单词。
                 _ActionText(
                   key: const Key('invert-selection'),
                   label: '反选',
                   color: tokens.textMedium,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: AppWeight.semibold,
                   onTap: onInvertSelection,
                 ),
               ],

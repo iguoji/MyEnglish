@@ -3,12 +3,16 @@ import 'package:flutter/material.dart';
 // flutter_test 提供 WidgetTester 与断言工具，用于驱动页面交互。
 import 'package:flutter_test/flutter_test.dart';
 
+// AppTheme 提供全站统一的字号、字重与颜色槽位。
+import 'package:my_english/common/theme.dart';
+
 // 被测页面、进度出口与依赖模型。
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/session.dart';
 import 'package:my_english/models/session_record.dart';
 import 'package:my_english/models/word.dart';
 import 'package:my_english/pages/meaning_word_choice/meaning_word_choice_page.dart';
+import 'package:my_english/pages/meaning_word_choice/widgets/meaning_word_choice_layout.dart';
 import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/services/word_audio.dart';
 import 'package:my_english/store/settings.dart';
@@ -21,12 +25,17 @@ import '../../support/memory_session_store.dart';
 ///
 /// [id] 单词主键；[meaningId] 该释义在 SQLite 里的主键（看义选词按它出题）。
 ///
-Word _word(int id, int meaningId, String spelling, String definition, {String pos = 'n.'}) =>
-    Word(
-      id: id,
-      spelling: spelling,
-      meanings: <Meaning>[Meaning(id: meaningId, pos: pos, definition: definition)],
-    );
+Word _word(
+  int id,
+  int meaningId,
+  String spelling,
+  String definition, {
+  String pos = 'n.',
+}) => Word(
+  id: id,
+  spelling: spelling,
+  meanings: <Meaning>[Meaning(id: meaningId, pos: pos, definition: definition)],
+);
 
 ///
 /// 主词表：群落、战争、苹果三道题，另配两个干扰词。
@@ -64,18 +73,19 @@ List<Word> _eatWords() => <Word>[
 ///
 /// [items] 是含义主键列表（答题顺序）；[cursor] / [elapsed] 来自上次保存的进度。
 ///
-Session _session({required List<int> items, int cursor = 0, int elapsed = 0}) => Session(
-  id: 1,
-  module: ReviewModule.meaningWordChoice,
-  kind: SessionKind.daily,
-  status: SessionStatus.active,
-  wordSetId: 1,
-  items: items,
-  cursor: cursor,
-  elapsed: elapsed,
-  date: '2026-08-29',
-  createdAt: DateTime.now(),
-);
+Session _session({required List<int> items, int cursor = 0, int elapsed = 0}) =>
+    Session(
+      id: 1,
+      module: ReviewModule.meaningWordChoice,
+      kind: SessionKind.daily,
+      status: SessionStatus.active,
+      wordSetId: 1,
+      items: items,
+      cursor: cursor,
+      elapsed: elapsed,
+      date: '2026-08-29',
+      createdAt: DateTime.now(),
+    );
 
 ///
 /// 音频测试替身：只实现 play / stop，其余媒体控制方法用默认空实现。
@@ -101,6 +111,9 @@ Future<void> _pumpPage(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+      // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+      theme: AppTheme.light,
       home: MeaningWordChoicePage(
         words: words,
         title: '看义选词',
@@ -144,8 +157,33 @@ InkWell _inkWellOf(WidgetTester tester, String key) => tester.widget<InkWell>(
   find.ancestor(of: find.byKey(Key(key)), matching: find.byType(InkWell)),
 );
 
+///
+/// 读出某个答案单词第 [index] 个字符那一格里显示的字母；空格返回 null。
+///
+/// 白卡版把答案画成「一个字母一条下划线」，所以断言要落到单格上，
+/// 而不是找一整个单词的 Text。
+///
+String? _slotLetter(
+  WidgetTester tester, {
+  required int wordId,
+  required int index,
+}) {
+  final finder = find.descendant(
+    of: find.byKey(Key('meaning-word-choice-slot-$wordId-$index')),
+    matching: find.byType(Text),
+  );
+  if (finder.evaluate().isEmpty) return null;
+  return tester.widget<Text>(finder).data;
+}
+
+///
+/// 本轮答完后到切题之间的停顿，与页面用的是同一个常量。
+const Duration _advanceDelay = Duration(
+  milliseconds: MeaningWordChoiceLayout.roundAdvanceDelayMs,
+);
+
 void main() {
-  testWidgets('新局：先三点动画再出含义，答对进入下一题，答错候选置灰', (WidgetTester tester) async {
+  testWidgets('新局：白卡直接出释义，答对整词填入字母格再进入下一题', (WidgetTester tester) async {
     final store = MemorySessionStore();
     final progress = SessionProgress(
       store: store,
@@ -154,28 +192,35 @@ void main() {
     );
     await _pumpPage(tester, words: _threeWords(), progress: progress);
 
-    // 第一帧还在「正在输入」动画中，含义气泡还没出。
-    expect(find.text('苹果'), findsNothing);
-    // 900ms 假输入结束后含义气泡出现。
-    await tester.pump(const Duration(milliseconds: 900));
+    // 白卡与释义大字第一帧就在：白卡版没有「正在输入」这一段假动画。
+    expect(
+      find.byKey(const Key('meaning-word-choice-question-card')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('meaning-word-choice-tag')), findsOneWidget);
     expect(find.text('苹果'), findsOneWidget);
+    // 答对之前字母格全是空的（apple 的第一格还没有字母）。
+    expect(_slotLetter(tester, wordId: 3, index: 0), isNull);
 
     // 点错一个非匹配候选：按钮置灰不可再点，并记一条答错。
-    final wrongKey = _candidateKeys(tester).firstWhere(
-      (key) => key != 'meaning-word-choice-option-3',
-    );
+    final wrongKey = _candidateKeys(
+      tester,
+    ).firstWhere((key) => key != 'meaning-word-choice-option-3');
     await tester.tap(find.byKey(Key(wrongKey)));
     await tester.pump();
     expect(_inkWellOf(tester, wrongKey).onTap, isNull);
     expect(store.recordWrites.where((write) => !write.isCorrect), hasLength(1));
 
-    // 点对 apple：选中即直接弹出单词气泡并进入下一题（正确词不再有右侧三点动画）。
+    // 点对 apple：整词一次填进字母格，题目还停在「苹果」这一屏。
     await tester.tap(find.text('apple'));
     await tester.pump();
-    // 下一轮开局的「正在输入」假输入结束，「香蕉」气泡出现。
-    await tester.pump(const Duration(milliseconds: 900));
-    expect(find.byKey(const Key('meaning-word-choice-bubble-word-3')), findsOneWidget);
+    expect(_slotLetter(tester, wordId: 3, index: 0), 'a');
+    expect(_slotLetter(tester, wordId: 3, index: 4), 'e');
+    expect(find.text('苹果'), findsOneWidget);
+    // 停顿结束后才切到下一题「香蕉」。
+    await tester.pump(_advanceDelay);
     expect(find.text('香蕉'), findsOneWidget);
+    expect(find.text('苹果'), findsNothing);
     // 记了一条答对记录，且 apple 被结算。
     expect(store.recordWrites.where((write) => write.isCorrect), hasLength(1));
     expect(store.settles.where((settle) => settle.wordId == 3), hasLength(1));
@@ -184,34 +229,40 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('续玩：历史气泡随消息一起重建，当前轮含义只出现一次', (WidgetTester tester) async {
+  testWidgets('续玩：直接落在当前轮，历史题目不再堆在页面上', (WidgetTester tester) async {
     // 用户此前答对了「群落」和「战争」，退出时停在「苹果」这题。
     final store = MemorySessionStore();
     final progress = SessionProgress(
       store: store,
       session: _session(items: <int>[101, 102, 103], cursor: 2, elapsed: 5),
       records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 1, meaningId: 101, input: 'community', isCorrect: true),
-        SessionRecord(id: 2, wordId: 2, meaningId: 102, input: 'war', isCorrect: true),
+        SessionRecord(
+          id: 1,
+          wordId: 1,
+          meaningId: 101,
+          input: 'community',
+          isCorrect: true,
+        ),
+        SessionRecord(
+          id: 2,
+          wordId: 2,
+          meaningId: 102,
+          input: 'war',
+          isCorrect: true,
+        ),
       ],
     );
     await _pumpPage(tester, words: _fiveWords(), progress: progress);
 
-    // 历史两轮的气泡完整重建：含义 + 答对的单词。
-    expect(find.text('群落'), findsOneWidget);
-    expect(find.text('战争'), findsOneWidget);
-    expect(find.byKey(const Key('meaning-word-choice-bubble-word-1')), findsOneWidget);
-    expect(find.byKey(const Key('meaning-word-choice-bubble-word-2')), findsOneWidget);
+    // 白卡只显示当前这一题，答过的「群落」「战争」不再堆在页面上。
+    expect(find.text('群落'), findsNothing);
+    expect(find.text('战争'), findsNothing);
     // 顶栏显示第 3 题。
     expect(find.text('3 / 3'), findsOneWidget);
-
-    // 当前轮「苹果」的含义气泡只出现一次——修复前它会先随历史一起重建，
-    // 再在「正在输入」动画结束后被多插一次。
+    // 当前轮「苹果」只出现一次，且再等一会儿也不会冒出第二份。
     expect(find.text('苹果'), findsOneWidget);
-    // 等一个完整的假输入周期，确认没有第二个气泡冒出来。
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.text('苹果'), findsOneWidget);
-    // 续玩恢复不播放「正在输入」动画，含义气泡是立即出现的。
 
     await tester.pumpWidget(const SizedBox());
   });
@@ -223,7 +274,13 @@ void main() {
       store: store,
       session: _session(items: <int>[201, 203], cursor: 0, elapsed: 3),
       records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 1, meaningId: 201, input: 'eat', isCorrect: true),
+        SessionRecord(
+          id: 1,
+          wordId: 1,
+          meaningId: 201,
+          input: 'eat',
+          isCorrect: true,
+        ),
       ],
     );
     await _pumpPage(tester, words: _eatWords(), progress: progress);
@@ -232,19 +289,25 @@ void main() {
     expect(find.text('1 / 2'), findsOneWidget);
     // 当前轮含义气泡「吃」只出现一次。
     expect(find.text('吃'), findsOneWidget);
-    // 已答对的 eat 恢复成聊天区气泡，候选区按钮恢复绿色禁用态（不可再点）。
-    expect(find.byKey(const Key('meaning-word-choice-bubble-word-1')), findsOneWidget);
+    // 已答对的 eat 恢复成填好的字母格（e-a-t），候选按钮恢复绿色禁用态。
+    expect(_slotLetter(tester, wordId: 1, index: 0), 'e');
+    expect(_slotLetter(tester, wordId: 1, index: 2), 't');
+    // 还没答出的 feed 那组仍是空格子。
+    expect(_slotLetter(tester, wordId: 2, index: 0), isNull);
     expect(_inkWellOf(tester, 'meaning-word-choice-option-1').onTap, isNull);
 
-    // 补答 feed：本轮两个匹配词都选出后进入「苹果」轮。
+    // 补答 feed：本轮两个匹配词都选出后，停顿结束再进入「苹果」轮。
     await tester.tap(find.byKey(const Key('meaning-word-choice-option-2')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 900));
-    await tester.pump(const Duration(milliseconds: 900));
+    expect(_slotLetter(tester, wordId: 2, index: 0), 'f');
+    await tester.pump(_advanceDelay);
     expect(find.text('2 / 2'), findsOneWidget);
     expect(find.text('苹果'), findsOneWidget);
     // eat 与 feed 都在这一轮被结算。
-    expect(store.settles.map((settle) => settle.wordId).toSet(), containsAll(<int>{1, 2}));
+    expect(
+      store.settles.map((settle) => settle.wordId).toSet(),
+      containsAll(<int>{1, 2}),
+    );
 
     await tester.pumpWidget(const SizedBox());
   });
@@ -256,7 +319,13 @@ void main() {
       store: store,
       session: _session(items: <int>[201, 203], cursor: 0, elapsed: 2),
       records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 3, meaningId: 201, input: 'apple', isCorrect: false),
+        SessionRecord(
+          id: 1,
+          wordId: 3,
+          meaningId: 201,
+          input: 'apple',
+          isCorrect: false,
+        ),
       ],
     );
     await _pumpPage(tester, words: _eatWords(), progress: progress);
@@ -266,14 +335,12 @@ void main() {
     expect(find.text('吃'), findsOneWidget);
     expect(_inkWellOf(tester, 'meaning-word-choice-option-3').onTap, isNull);
 
-    // 把 eat、feed 都补上，本轮完成进入「苹果」。
+    // 把 eat、feed 都补上，本轮完成、停顿结束后进入「苹果」。
     await tester.tap(find.byKey(const Key('meaning-word-choice-option-1')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 900));
     await tester.tap(find.byKey(const Key('meaning-word-choice-option-2')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 900));
-    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump(_advanceDelay);
     expect(find.text('苹果'), findsOneWidget);
     // 本次补答只新增了两条答对记录（eat、feed），没有新的点错写入；
     // 历史那次点错只影响现场恢复，不重复记账。
@@ -283,7 +350,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('全部答完进入结算页：一次选对 2、失误 0、会话收尾为已完成', (WidgetTester tester) async {
+  testWidgets('全部答完进入结算页：两次一次选对、会话收尾为已完成', (WidgetTester tester) async {
     final store = MemorySessionStore();
     final progress = SessionProgress(
       store: store,
@@ -293,33 +360,19 @@ void main() {
     await _pumpPage(tester, words: _threeWords(), progress: progress);
 
     // 第一题：苹果。
-    await tester.pump(const Duration(milliseconds: 900));
     await tester.tap(find.text('apple'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump(_advanceDelay);
     // 第二题：香蕉。
-    await tester.pump(const Duration(milliseconds: 900));
     await tester.tap(find.text('banana'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump(_advanceDelay);
 
-    // 两题全部答完，进入结算页。
+    // 两题全部答完，进入结算页：标题 + 一行说明 + 返回（统计卡已随
+    // 「结算页统一走简单显示」下线，只断言副标题把两轮全对讲清楚）。
     expect(find.text('看义选词完成'), findsOneWidget);
-    // 一次选对 = 2（两轮都没点错），失误 = 0。
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('meaning-word-choice-stat-perfect')),
-        matching: find.text('2'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('meaning-word-choice-stat-errors')),
-        matching: find.text('0'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('本组 2 个含义全部一次选对'), findsOneWidget);
+    expect(find.text('返回'), findsOneWidget);
     // 会话被判定为已完成。
     expect(store.finishes, hasLength(1));
     expect(store.finishes.single.status, SessionStatus.completed);
