@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>听音辨义 · 模块框架（顶部复刻）</title>
+
+<!-- Tailwind Play CDN：让单文件即可运行原设计里的 Tailwind 类名 -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // 把原项目 @theme 里的 Tabler 调色板搬进来，保证类名可直接用
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          'tb-blue': '#206bc4',
+          'tb-blue-soft': '#4299e1',
+          'tb-green': '#2fb344',
+          'tb-red': '#d63939',
+          'tb-orange': '#f76707',
+          'tb-ink': '#182433',
+          'tb-body': '#4a5468',
+          'tb-muted': '#8a94a6',
+          'tb-line': '#e8eaee',
+          'tb-surface': '#f6f8fb',
+          'tb-key': '#ffffff',
+          'tb-keybg': '#e9edf2',
+        },
+        fontFamily: {
+          sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+
+<!-- 原项目自定义的动画与少量类（CDN 不生成这些，手动补上） -->
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #eef1f6;
+    color: #182433;
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+  }
+
+  /* 卡片渐入 */
+  @keyframes card-in { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+  .card-in { animation: card-in 0.35s cubic-bezier(0.2,0.8,0.3,1) both; }
+
+  /* 键位按下（骨架页无键盘，仅为统一视觉预留） */
+  .key { box-shadow: 0 1px 0 rgba(24,36,51,0.18); transition: transform 0.08s ease, background-color 0.12s ease; }
+  .key:active, .key.key-active { transform: translateY(1px) scale(0.96); background-color: #d7dee7; box-shadow: none; }
+</style>
+</head>
+
+<body>
+<div id="root" class="flex min-h-dvh items-center justify-center bg-[#eef1f6] sm:p-6">
+  <!-- 手机外框：桌面端显示为带圆角与阴影的卡片，移动端铺满 -->
+  <div class="relative flex h-dvh w-full max-w-[400px] flex-col overflow-hidden bg-white sm:h-[820px] sm:max-h-[92vh] sm:rounded-[36px] sm:shadow-[0_36px_70px_-30px_rgba(24,36,51,0.5)] sm:ring-1 sm:ring-black/5">
+
+    <!-- ============================================================
+         顶部栏：完美复刻「听音辨义」Flutter 源码 _buildHeader
+         - 左右 20px 留白（pageInset）
+         - 按钮行高 34px（headerButtonSize），距顶 18px（headerTop）
+         - 用「绝对定位」保证中央题号严格居中（对应 Flutter 的 Stack/Center/Align）
+         - 中央：1 / 50  （16px / w600 / 深墨色 / 等宽数字）
+         - 左：chevron-left 返回
+         - 右：mm:ss 计时（15px / w500 / 中灰 / 等宽数字）
+         - 进度条高 4px，蓝色实心（AppTokens.accent），浅灰底，2px 圆角
+         ============================================================ -->
+    <header id="topbar" class="relative z-20 shrink-0 bg-white">
+      <!-- 按钮行：relative 容器 + 三块绝对定位，确保中央严格居中 -->
+      <div class="relative px-5" style="padding-top: max(18px, env(safe-area-inset-top)); height:34px;">
+        <!-- 左：返回 -->
+        <button id="backBtn" type="button" aria-label="返回"
+          class="absolute left-5 top-1/2 grid h-[34px] w-[34px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-xl text-tb-body transition active:scale-95 active:bg-tb-surface">
+          <span id="ic-back"></span>
+        </button>
+        <!-- 中：题号 -->
+        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center">
+          <span id="progressLabel" class="text-[16px] leading-none font-semibold tracking-tight text-tb-ink tabular-nums">1 / 50</span>
+        </div>
+        <!-- 右：计时 -->
+        <span id="timer" class="absolute right-5 top-1/2 -translate-y-1/2 text-[15px] leading-none font-medium tabular-nums text-tb-muted">00:00</span>
+      </div>
+      <!-- 进度条：距按钮行 10px（progressTop），高 4px（progressHeight） -->
+      <div class="px-5 mt-[10px]">
+        <div class="h-[4px] w-full overflow-hidden rounded-[2px] bg-tb-line">
+          <div id="progressBar" class="h-full rounded-[2px] bg-tb-blue transition-[width] duration-500 ease-out" style="width:2%;"></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 正文区（框架占位，供后续接入题目内容） -->
+    <main class="relative flex flex-1 flex-col items-center justify-center bg-[radial-gradient(120%_55%_at_50%_-8%,rgba(66,153,225,0.08),transparent_62%)] px-6 text-center">
+      <div class="card-in rounded-2xl border border-dashed border-tb-line bg-white/60 px-6 py-8">
+        <div class="text-[13px] font-medium text-tb-muted">正文区（框架占位）</div>
+        <div class="mt-1.5 text-[12px] leading-relaxed text-tb-muted/80">此处接入听音辨义的题目内容<br/>——顶部 Header 已按 Flutter 源码 1:1 复刻</div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script>
+/* ============ Tabler 风格内联图标 ============ */
+const SVG = (p, inner) => `<svg xmlns="http://www.w3.org/2000/svg" width="${p.size||24}" height="${p.size||24}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const icons = {
+  // 听音辨义返回键用的是 Tabler chevron-left（单尖括号 ‹），与看义选词.html 一致
+  chevronLeft: (s={}) => SVG(s,'<path d="M13 6l-6 6l6 6"/>'),
+};
+document.getElementById('ic-back').innerHTML = icons.chevronLeft({size:22});
+
+/* ============ 计时（仅用于演示顶部 Header 的实时位置） ============ */
+const $ = (id)=>document.getElementById(id);
+const fmt = (t)=>{const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(Math.floor(t%60)).padStart(2,'0');return `${m}:${s}`;};
+const state = { seconds:0 };
+setInterval(()=>{
+  state.seconds++;
+  $('timer').textContent = fmt(state.seconds);
+}, 1000);
+
+/* ============ 返回按钮（框架演示） ============ */
+$('backBtn').onclick = ()=>{ /* 框架页：此处接入退出确认 */ };
+</script>
+</body>
+</html>

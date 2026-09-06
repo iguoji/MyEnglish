@@ -4,7 +4,6 @@ import 'dart:async';
 // material.dart 提供页面、列表、底部面板和动画等基础组件。
 import 'package:flutter/material.dart';
 // 所有可见图标统一来自 Tabler，禁止使用 Flutter 内置 Icons。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入全局设计令牌。
 import '../../common/theme.dart';
@@ -24,6 +23,8 @@ import 'widgets/listening_answer_content.dart';
 import 'widgets/listening_controls.dart';
 // 引入集中管理的页面布局尺寸。
 import 'widgets/listening_layout.dart';
+// 引入模块页面模板：上（顶栏）、中（正文）、下（操作区）三段骨架与顶栏图标按钮。
+import '../../widgets/module_scaffold.dart';
 
 ///
 /// 随身听全屏页面。
@@ -243,7 +244,10 @@ class _ListeningPageState extends State<ListeningPage>
       // 音频调用可能被用户中断或因网络失败抛出异常。
       try {
         // 播放当前拼写；Future 在原生音频结束后完成。
-        await widget.audioPlayer.play(_currentWord.spelling, widget.settings.accent);
+        await widget.audioPlayer.play(
+          _currentWord.spelling,
+          widget.settings.accent,
+        );
         // TTS 是成功播放后的来源提示，同一页面只提示一次。
         if (!_hasShownTtsNotice &&
             await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
@@ -568,6 +572,8 @@ class _ListeningPageState extends State<ListeningPage>
         builder: (sheetContext, setSheetState) {
           // 设置面板也必须读取当前亮色或深色主题。
           final tokens = AppTokens.of(sheetContext);
+          // 面板里的文字同样读主题的文字档位，和页面其余部分是同一套。
+          final textTheme = Theme.of(sheetContext).textTheme;
 
           ///
           /// 同时更新播放页状态、恢复缓存和当前设置面板。
@@ -594,7 +600,7 @@ class _ListeningPageState extends State<ListeningPage>
             decoration: BoxDecoration(
               color: tokens.card,
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
+                top: Radius.circular(AppRadius.roundedXl),
               ),
             ),
             // Column 依次放置标题、播放次数、间隔和循环设置。
@@ -602,21 +608,19 @@ class _ListeningPageState extends State<ListeningPage>
               // 面板高度只包住实际内容。
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 标题行使用与页面一致的 20 像素左右边距。
+                // 标题行的左右边距与页面正文同指一档，标题不会比正文更靠边。
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.pBase,
+                    AppSpace.p0,
+                    AppSpace.pBase,
+                    AppSpace.p2,
+                  ),
                   // Row 让“设置”和“完成”分列左右两端。
                   child: Row(
                     children: [
                       // 左侧面板标题。
-                      Text(
-                        '设置',
-                        style: TextStyle(
-                          color: tokens.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      Text('设置', style: textTheme.fs4Semibold),
                       // Spacer 占满中间空间，把完成按钮推到右侧。
                       const Spacer(),
                       // InkWell 只包住可见文字，不像 TextButton 默认在文字左右添加内边距。
@@ -630,13 +634,11 @@ class _ListeningPageState extends State<ListeningPage>
                         ),
                         // 关闭水波纹，让交互样式与首页设置面板保持一致。
                         splashFactory: NoSplash.splashFactory,
-                        // 文字右边缘会直接落在标题行的 20 像素右边距上。
-                        child: const Text(
+                        // 文字右边缘直接落在标题行的右边距上（同上面那一档）。
+                        child: Text(
                           '完成',
-                          style: TextStyle(
-                            color: AppTokens.accent,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
+                          style: textTheme.fs5Semibold.copyWith(
+                            color: AppTokens.primary,
                           ),
                         ),
                       ),
@@ -676,15 +678,14 @@ class _ListeningPageState extends State<ListeningPage>
                   height: ListeningLayout.settingsRowHeight,
                   // 左右留白与上面两行一致。
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.pBase,
+                    ),
                     // Row 将标签和 Switch 放在两侧。
                     child: Row(
                       children: [
                         // 开关标签。
-                        Text(
-                          '列表循环',
-                          style: TextStyle(color: tokens.text, fontSize: 14.5),
-                        ),
+                        Text('列表循环', style: textTheme.fs5),
                         // 占满中间区域。
                         const Spacer(),
                         Switch(
@@ -775,100 +776,56 @@ class _ListeningPageState extends State<ListeningPage>
     // “常显”或“手指正在按住”任一条件成立时都展示真实答案。
     final showAnswer = _revealAll || _isPeeking;
 
-    return Scaffold(
-      // 页面背景跟随亮色或深色主题。
-      backgroundColor: tokens.page,
-      // SafeArea 自动避开刘海、状态栏和系统手势区。
-      body: SafeArea(
-        // 页面从上到下依次排列顶栏、播放列表、答案卡和播放控制区。
-        child: Column(
-          children: [
-            // 顶栏和进度条属于同一信息区，由独立方法维护其布局约束。
-            _buildHeader(tokens, progress),
-            // 播放列表卡片负责搜索、快速滚动和单词跳转。
-            _buildPlaylistCard(tokens, filtered),
-            // Expanded 让答案卡占用除固定区域外的剩余高度。
-            Expanded(child: _buildAnswerCard(tokens, showAnswer)),
-            // 底部控制区负责上一个、播放暂停和下一个。
-            _buildPlaybackControls(tokens),
-            // 给系统底部手势区域上方保留固定呼吸空间。
-            const SizedBox(height: 28),
-          ],
+    // 页面骨架交给模块模板：上段顶栏、中段正文、下段播放控制区。
+    return ModuleScaffold(
+      // 上：五个模块共用的顶栏。随身听右上角放的不是时间而是设置键。
+      header: ModuleHeader(
+        // 返回键的点击画布直接贴在页面左右留白那一档上，不做任何负偏移。
+        leading: ModuleIconButton(
+          key: const Key('close-listening'),
+          icon: AppGlyph.back,
+          alignment: Alignment.centerLeft,
+          onTap: () => Navigator.pop(context),
         ),
+        // 中间的「第几个 / 总数」与四个复习模块读同一份组件，格式与字号必然一致。
+        title: ModuleProgressLabel(
+          current: _index + 1,
+          total: widget.words.length,
+        ),
+        // 设置键与返回键共用同一块 34 像素画布，图标贴右边界。
+        trailing: ModuleIconButton(
+          key: const Key('open-listening-settings'),
+          icon: AppGlyph.settings,
+          alignment: Alignment.centerRight,
+          onTap: _openSettings,
+        ),
+        progress: progress,
+      ),
+      // 中：播放列表卡片固定高度，答案卡吃掉剩下的全部高度。
+      body: Column(
+        children: [
+          // 播放列表卡片负责搜索、快速滚动和单词跳转。
+          _buildPlaylistCard(tokens, filtered),
+          // Expanded 让答案卡占用除固定区域外的剩余高度。
+          Expanded(child: _buildAnswerCard(tokens, showAnswer)),
+        ],
+      ),
+      // 下：上一个、播放暂停、下一个三颗按钮，末尾那段留白给系统手势区让位。
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPlaybackControls(tokens),
+          // 给系统底部手势区域上方保留固定呼吸空间。
+          const SizedBox(height: AppSpace.pBase),
+        ],
       ),
     );
   }
 
-  ///
-  /// 构建顶栏和播放进度。
-  Widget _buildHeader(AppTokens tokens, double progress) {
-    // Column 让按钮标题行与进度条垂直排列。
-    return Column(
-      // mainAxisSize.min 表示只占自身内容高度，不抢答案卡的剩余空间。
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 顶栏左右边距由统一布局常量控制。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            ListeningLayout.pageInset,
-            ListeningLayout.headerTop,
-            ListeningLayout.pageInset,
-            0,
-          ),
-          child: Row(
-            children: [
-              // 返回按钮的点击画布直接贴在 20 像素页面边界，不做任何负偏移。
-              ListeningIconButton(
-                key: const Key('close-listening'),
-                icon: TablerIcons.chevronLeft,
-                alignment: Alignment.centerLeft,
-                onTap: () => Navigator.pop(context),
-              ),
-              // Expanded 吃掉中间空间，让标题相对两个等宽按钮保持绝对居中。
-              Expanded(
-                child: Text(
-                  '${_index + 1} / ${widget.words.length}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              // 设置按钮使用与返回按钮相同画布，并把图标画布对齐右边界。
-              ListeningIconButton(
-                key: const Key('open-listening-settings'),
-                icon: TablerIcons.settings,
-                alignment: Alignment.centerRight,
-                onTap: _openSettings,
-              ),
-            ],
-          ),
-        ),
-        // 进度条与顶栏共享相同左右边界。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            ListeningLayout.pageInset,
-            ListeningLayout.progressTop,
-            ListeningLayout.pageInset,
-            0,
-          ),
-          // ClipRRect 只负责把进度条两端裁成轻微圆角。
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: ListeningLayout.progressHeight,
-              backgroundColor: tokens.sub,
-              color: AppTokens.accent,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  // 顶栏（返回键 + 中间「第几个 / 总数」+ 右上角设置键 + 进度条）原来由本页的
+  // `_buildHeader` 亲手拼装，现在整块交给模块模板 `lib/widgets/module_scaffold.dart`
+  // 的 [ModuleHeader]。随身听是这套顶栏的「原版」，四个复习模块当初是照它抄的，
+  // 抄件与原件从此读同一份代码，切换模块时顶部再不会跳。
 
   ///
   /// 构建搜索工具栏与播放列表。
@@ -884,7 +841,7 @@ class _ListeningPageState extends State<ListeningPage>
         ListeningLayout.pageInset,
         ListeningLayout.sectionGap,
         ListeningLayout.pageInset,
-        0,
+        AppSpace.p0,
       ),
       decoration: BoxDecoration(
         color: tokens.card,
@@ -910,19 +867,19 @@ class _ListeningPageState extends State<ListeningPage>
                   ),
                 ),
                 // 统一使用 8 像素控件间距。
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.p2),
                 // 上按钮滚动到列表起点。
                 ListeningSmallIconButton(
                   key: const Key('listening-scroll-top'),
-                  icon: TablerIcons.arrowUp,
+                  icon: AppGlyph.scrollUp,
                   onTap: () => _scrollPlaylistTo(0),
                 ),
                 // 两个按钮之间继续保持相同间距。
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.p2),
                 // 下按钮滚动到当前列表的最大可滚动位置。
                 ListeningSmallIconButton(
                   key: const Key('listening-scroll-bottom'),
-                  icon: TablerIcons.arrowDown,
+                  icon: AppGlyph.scrollDown,
                   onTap: () {
                     // 未挂载列表时最大滚动距离不存在，因此先检查控制器状态。
                     if (!_listController.hasClients) return;
@@ -934,7 +891,10 @@ class _ListeningPageState extends State<ListeningPage>
             ),
           ),
           // 分隔线把搜索工具栏和单词列表明确分区。
-          Divider(height: 1, color: tokens.rowBorder),
+          Divider(
+            height: ListeningLayout.playlistDividerHeight,
+            color: tokens.rowBorder,
+          ),
           // Expanded 让列表只使用卡片工具栏以下的剩余高度。
           Expanded(
             child: ListView.builder(
@@ -961,7 +921,7 @@ class _ListeningPageState extends State<ListeningPage>
     if (!_listController.hasClients) return;
     _listController.animateTo(
       target,
-      duration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: AppDuration.ms250),
       curve: Curves.easeOut,
     );
   }
@@ -969,6 +929,7 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// 构建播放列表中的单个固定高度行。
   Widget _buildPlaylistRow(AppTokens tokens, ({int index, Word word}) entry) {
+    final textTheme = Theme.of(context).textTheme;
     // 真实下标相同表示这一行是当前正在播放的单词。
     final current = entry.index == _index;
     // 只有常显模式会同步公开上方列表拼写，临时按住只影响答案卡。
@@ -988,8 +949,10 @@ class _ListeningPageState extends State<ListeningPage>
       onTap: () => _jumpTo(entry.index),
       child: Container(
         // 当前行使用浅强调色，其他行沿用卡片背景。
-        color: current ? AppTokens.accent.withValues(alpha: 0.08) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        color: current
+            ? AppTokens.primary.withValues(alpha: AppAlpha.a8)
+            : null,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.p3),
         child: Row(
           children: [
             // 单词区域占满右侧状态之外的剩余宽度。
@@ -997,24 +960,22 @@ class _ListeningPageState extends State<ListeningPage>
               child: Text(
                 spelling,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: current ? AppTokens.accent : tokens.text,
-                  fontSize: 13.5,
-                  fontWeight: current ? FontWeight.w600 : FontWeight.w400,
-                  letterSpacing: 0.5,
+                style: textTheme.fs5.copyWith(
+                  color: current ? AppTokens.primary : tokens.text,
+                  fontWeight: current ? AppWeight.semibold : AppWeight.normal,
                 ),
               ),
             ),
             // 右侧播放信息只属于当前行。
             if (current) ...[
-              Text(status, style: TextStyle(color: tokens.muted, fontSize: 11)),
+              Text(status, style: textTheme.fs6.copyWith(color: tokens.muted)),
               // 播放中额外显示音量图标，暂停和结束状态不显示。
               if (_isPlaying) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: AppSpace.p2),
                 const Icon(
-                  TablerIcons.volume2,
-                  size: 14,
-                  color: AppTokens.accent,
+                  AppGlyph.nowPlaying,
+                  size: AppIcon.i14,
+                  color: AppTokens.primary,
                 ),
               ],
             ],
@@ -1033,7 +994,7 @@ class _ListeningPageState extends State<ListeningPage>
         ListeningLayout.pageInset,
         ListeningLayout.sectionGap,
         ListeningLayout.pageInset,
-        0,
+        AppSpace.p0,
       ),
       child: Listener(
         key: const Key('listening-answer-card'),
@@ -1071,7 +1032,8 @@ class _ListeningPageState extends State<ListeningPage>
                     child: ListeningAnswerContent(
                       word: _currentWord,
                       tokens: tokens,
-                      definitionSeparator: widget.settings.definitionSeparator.symbol,
+                      definitionSeparator:
+                          widget.settings.definitionSeparator.symbol,
                       revealed: showAnswer,
                     ),
                   ),
@@ -1081,9 +1043,9 @@ class _ListeningPageState extends State<ListeningPage>
               Positioned(
                 top: ListeningLayout.answerActionInset,
                 right: ListeningLayout.answerActionInset,
-                child: ListeningIconButton(
+                child: ModuleIconButton(
                   key: const Key('toggle-listening-answer'),
-                  icon: _revealAll ? TablerIcons.eye : TablerIcons.eyeOff,
+                  icon: _revealAll ? AppGlyph.revealed : AppGlyph.hidden,
                   color: tokens.muted,
                   // 图标画布在按钮内部贴右上角，不再依赖任何负数偏移。
                   alignment: Alignment.topRight,
@@ -1091,7 +1053,9 @@ class _ListeningPageState extends State<ListeningPage>
                     // 切换长期显示答案。
                     setState(() => _revealAll = !_revealAll);
                     // 「是否展开释义」同样属于长期偏好，写进设置表。
-                    unawaited(widget.settings.setListeningRevealAll(_revealAll));
+                    unawaited(
+                      widget.settings.setListeningRevealAll(_revealAll),
+                    );
                     // 下次继续时保持用户当前的答案显示偏好。
                     unawaited(_persistSession());
                   },
@@ -1111,44 +1075,44 @@ class _ListeningPageState extends State<ListeningPage>
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         ListeningLayout.pageInset,
-        14,
+        AppSpace.p3,
         ListeningLayout.pageInset,
-        2,
+        AppSpace.p1,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // 上一个按钮会在第一页自动通过 _jumpTo 的 clamp 保持下标为 0。
           ListeningPlayerMoveButton(
-            icon: TablerIcons.playerTrackPrev,
+            icon: AppGlyph.previousTrack,
             label: '上一个',
             onTap: () => _jumpTo(_index - 1),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: AppSpace.pBase),
           // Material 提供圆形背景和真实阴影。
           Material(
-            color: AppTokens.accent,
+            color: AppTokens.primary,
             shape: const CircleBorder(),
-            elevation: 7,
+            elevation: ListeningLayout.playButtonElevation,
             child: InkWell(
               key: const Key('toggle-listening-playback'),
               onTap: _togglePlayback,
               customBorder: const CircleBorder(),
               child: SizedBox(
-                width: 54,
-                height: 54,
+                width: ListeningLayout.playButtonSize,
+                height: ListeningLayout.playButtonSize,
                 child: Icon(
-                  _isPlaying ? TablerIcons.playerPause : TablerIcons.playerPlay,
+                  _isPlaying ? AppGlyph.pause : AppGlyph.play,
                   color: Colors.white,
-                  size: 24,
+                  size: AppIcon.i24,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: AppSpace.pBase),
           // 下一个按钮把图标放在文字右侧，末页同样由 _jumpTo 限制范围。
           ListeningPlayerMoveButton(
-            icon: TablerIcons.playerTrackNext,
+            icon: AppGlyph.nextTrack,
             label: '下一个',
             iconAfterLabel: true,
             onTap: () => _jumpTo(_index + 1),

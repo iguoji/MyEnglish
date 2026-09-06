@@ -1,7 +1,5 @@
 // Word 是排序服务处理的业务模型。
 import '../../../models/word.dart';
-// GroupMode 决定“日期”字段具体使用复习、更新还是加入时间。
-import '../widgets/group_filter_bar.dart';
 // WordSortField 定义首页可选的四种排序入口。
 import '../widgets/word_sort_bar.dart';
 
@@ -15,15 +13,10 @@ class HomeWordSorter {
   ///
   /// 保存本次过滤与排序需要的全部只读参数。
   const HomeWordSorter({
-    required this.mode,
     required this.field,
     required this.directions,
     required this.query,
   });
-
-  ///
-  /// 当前分组视角，用来决定日期字段的来源。
-  final GroupMode mode;
 
   ///
   /// 当前选中的排序字段。
@@ -38,10 +31,11 @@ class HomeWordSorter {
   final String query;
 
   ///
-  /// 按当前分组模式返回列表行显示和日期排序共同使用的时间。
+  /// 返回列表行显示和日期排序共同使用的时间。
   ///
-  /// 2.0 起日期一律看复习时间：它才是决定「这个词该不该再练」的字段，
-  /// 「更新时间 / 加入时间」两个视角已经下线。
+  /// 日期一律看复习时间：它才是决定「这个词该不该再练」的字段，
+  /// 「更新时间 / 加入时间」两个视角已经下线（4.4.0 起分组视角仅剩难度，
+  /// 日期字段只负责行内展示与「日期」排序入口）。
   DateTime? dateOf(Word word) => word.reviewedAt;
 
   ///

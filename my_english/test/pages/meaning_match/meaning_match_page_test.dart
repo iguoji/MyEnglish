@@ -11,6 +11,8 @@ import 'package:my_english/models/word.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/store/settings.dart';
 import 'package:my_english/pages/meaning_match/meaning_match_page.dart';
+// 页面尺寸表：连对后的淡化比例现在从这里读，不再在测试里写死数字。
+import 'package:my_english/pages/meaning_match/widgets/meaning_match_layout.dart';
 import 'package:my_english/pages/review/services/session_progress.dart';
 
 // 测试用内存 Store，避免触碰 MethodChannel。
@@ -24,9 +26,7 @@ import '../../support/memory_session_store.dart';
 Word _word(int id, int meaningId, String spelling, String definition) => Word(
   id: id,
   spelling: spelling,
-  meanings: [
-    Meaning(id: meaningId, pos: 'n.', definition: definition),
-  ],
+  meanings: [Meaning(id: meaningId, pos: 'n.', definition: definition)],
 );
 
 ///
@@ -45,21 +45,21 @@ List<Word> _fiveWords() => [
 ///
 /// 数据列表元素是 [单词id, 含义id] 数对；词表只有一组（5 对）时就是单组棋盘。
 ///
-Session _session(List<Word> words, {int cursor = 0, int elapsed = 0}) => Session(
-  id: 1,
-  module: ReviewModule.meaningMatch,
-  kind: SessionKind.daily,
-  status: SessionStatus.active,
-  wordSetId: 1,
-  items: <List<int>>[
-    for (final word in words)
-      <int>[word.id!, word.allMeanings.single.id!],
-  ],
-  cursor: cursor,
-  elapsed: elapsed,
-  date: '2026-08-29',
-  createdAt: DateTime.now(),
-);
+Session _session(List<Word> words, {int cursor = 0, int elapsed = 0}) =>
+    Session(
+      id: 1,
+      module: ReviewModule.meaningMatch,
+      kind: SessionKind.daily,
+      status: SessionStatus.active,
+      wordSetId: 1,
+      items: <List<int>>[
+        for (final word in words) <int>[word.id!, word.allMeanings.single.id!],
+      ],
+      cursor: cursor,
+      elapsed: elapsed,
+      date: '2026-08-29',
+      createdAt: DateTime.now(),
+    );
 
 ///
 /// 把页面装进 MaterialApp 并首次泵一帧。
@@ -80,6 +80,9 @@ Future<void> _pumpPage(
   );
   await tester.pumpWidget(
     MaterialApp(
+      // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+      // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+      theme: AppTheme.light,
       home: MeaningMatchPage(
         words: words,
         title: '词义连连',
@@ -154,9 +157,7 @@ void main() {
     expect(settings.meaningMatchDuration, 180);
   });
 
-  testWidgets('倒计时按剩余比例分三档颜色：默认灰 → 警告橙 → 危险红', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('倒计时按剩余比例分三档颜色：默认灰 → 警告橙 → 危险红', (WidgetTester tester) async {
     await _pumpPage(tester, words: _fiveWords());
     // 起步 150 秒，剩余 100%：与其他三个模块右上角计时同一个默认灰。
     expect(_countdownColor(tester), AppTokens.light.textMedium);
@@ -208,7 +209,7 @@ void main() {
     expect(selected.b, greaterThan(selected.r));
   });
 
-  testWidgets('连对态：两张卡变绿并淡出到 45%', (WidgetTester tester) async {
+  testWidgets('连对态：两张卡变绿并整体淡出', (WidgetTester tester) async {
     await _pumpPage(tester, words: _fiveWords());
     await tester.tap(find.byKey(const Key('mm-left-0')));
     await tester.pump();
@@ -221,7 +222,11 @@ void main() {
     expect(matched.g, greaterThan(matched.r));
     expect(matched.g, greaterThan(matched.b));
 
-    // 整卡淡到补充稿规定的 45%。
+    // 整卡淡出到尺寸表规定的那一档。
+    //
+    // 这里比对的是常量本身而不是写死的 0.45：透明度现在统一由设计令牌总表
+    // 的台阶说话（`AppAlpha.a44`），断言跟着常量走，改总表时不用再回头改测试，
+    // 同时仍然能验证「连对之后这张卡确实被调淡了」。
     final opacity = tester.widget<AnimatedOpacity>(
       find
           .descendant(
@@ -230,7 +235,9 @@ void main() {
           )
           .first,
     );
-    expect(opacity.opacity, closeTo(0.45, 0.001));
+    expect(opacity.opacity, closeTo(MeaningMatchLayout.matchedOpacity, 0.001));
+    // 顺带守住「确实变淡了」这个前提：台阶被误改成 1 时上面那句会失去意义。
+    expect(MeaningMatchLayout.matchedOpacity, lessThan(1));
   });
 
   testWidgets('连错态：两张卡转红并抖动，抖完自动恢复', (WidgetTester tester) async {
@@ -294,7 +301,13 @@ void main() {
       words: _fiveWords(),
       elapsed: 60,
       records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 1, meaningId: 101, input: '苹果', isCorrect: true),
+        SessionRecord(
+          id: 1,
+          wordId: 1,
+          meaningId: 101,
+          input: '苹果',
+          isCorrect: true,
+        ),
       ],
     );
     // 续玩恢复计数 1/5。

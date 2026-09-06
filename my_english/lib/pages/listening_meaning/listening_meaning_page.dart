@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 // services.dart 提供 HapticFeedback，为每次选择添加触觉反馈。
 import 'package:flutter/services.dart';
 // 所有可见图标继续统一使用 Tabler。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入应用设计令牌。
 import '../../common/theme.dart';
@@ -29,6 +28,10 @@ import '../../store/word.dart';
 import 'services/listening_meaning_option_generator.dart';
 import '../review/services/session_progress.dart';
 // 引入听音辨义页面集中管理的布局尺寸。
+// 引入全站统一的二次确认对话框：长按刷新候选词时弹的就是它。
+import '../../widgets/app_confirm_dialog.dart';
+// 引入模块页面模板：上中下三段骨架、顶栏三个插槽与结算页共用版式。
+import '../../widgets/module_scaffold.dart';
 import 'widgets/listening_meaning_layout.dart';
 // 引入中部三个只读子模块，页面文件只保留答题状态与事件流程。
 import 'widgets/listening_meaning_question_content.dart';
@@ -187,14 +190,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   Timer? _elapsedTimer;
 
   ///
-  /// 中间信息面板当前展示的反馈文案。
-  String _feedback = '';
-
-  ///
-  /// 反馈语义颜色，null 表示使用普通次要文字色。
-  Color? _feedbackColor;
-
-  ///
   /// 当前拼写或释义步骤展示的四个候选项。
   List<ListeningMeaningOption> _options = const [];
 
@@ -301,8 +296,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       if (nextIndex < 0) {
         // 全部释义都答对了 = 这个词已经完成，等用户点「下一题」。
         _isCurrentWordComplete = true;
-        _feedback = '本词完成！';
-        _feedbackColor = const Color(0xFF2FB344);
         return;
       }
       _meaningIndex = nextIndex;
@@ -318,10 +311,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
               const <String>{};
     _wrongOptions.addAll(wrong);
     _currentWrong = wrong.length;
-    if (_wrongOptions.isNotEmpty) {
-      _feedback = '答错 · 难度将 +1';
-      _feedbackColor = AppTokens.danger;
-    }
   }
 
   ///
@@ -505,12 +494,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _currentWord.spelling,
         widget.accent,
       );
-      // 只有非随机渠道且真正由离线 TTS 兜底朗读时才显示一次来源提示；
-      // 随机渠道模式下 TTS 可能是被故意选中，不再提示“网络不可用”。
+      // 智能轮转下 TTS 只会作为“网络全部不可用”的最后兜底出现（不再被点名），
+      // 因此只要本次确由 TTS 完成，就值得在同一页面首次提示一次网络音频不可用。
       final playback = widget.audioPlayer.consumeLastPlayback();
-      if (!_hasShownTtsNotice &&
-          playback.usedTts &&
-          !playback.isRandomChannel) {
+      if (!_hasShownTtsNotice && playback.usedTts) {
         _hasShownTtsNotice = true;
         if (mounted) {
           Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
@@ -525,11 +512,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             _currentWord.spelling,
             widget.accent,
           );
-          // 解码失败重试成功后，同样检查真实播放来源（不含随机渠道）。
+          // 解码失败重试成功后，同样检查真实播放来源并只在首次提示一次。
           final retryPlayback = widget.audioPlayer.consumeLastPlayback();
-          if (!_hasShownTtsNotice &&
-              retryPlayback.usedTts &&
-              !retryPlayback.isRandomChannel) {
+          if (!_hasShownTtsNotice && retryPlayback.usedTts) {
             _hasShownTtsNotice = true;
             if (mounted) {
               Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
@@ -620,9 +605,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _errors++;
         // 当前单词的选错次数同步累加，用于落 record。
         _currentWrong++;
-        // 选错即预告难度会后 +1，与候选区上方的危险色横幅口径一致。
-        _feedback = '答错 · 难度将 +1';
-        _feedbackColor = AppTokens.danger;
       });
       // 记一条「点错了」：现场恢复靠它把候选置灰，结算也靠它判定这一轮答错。
       unawaited(_recordAnswer(input: option.text, isCorrect: false));
@@ -647,8 +629,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _stage = ListeningMeaningStage.definition;
         _meaningIndex = 0;
         _wrongOptions.clear();
-        _feedback = '正确！';
-        _feedbackColor = const Color(0xFF2FB344);
         _options = _buildOptions();
       });
       // 拼写答对并进入释义阶段后立即保存新的小题下标和候选顺序。
@@ -668,8 +648,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     setState(() {
       _meaningIndex = nextMeaning;
       _wrongOptions.clear();
-      _feedback = '正确！';
-      _feedbackColor = const Color(0xFF2FB344);
       _options = _buildOptions();
     });
     // 每推进一条释义都更新恢复点。
@@ -805,97 +783,23 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 显示刷新确认框；返回 true 表示用户确认替换当前候选词。
-  Future<bool> _showOptionRefreshDialog(String optionText) async {
-    // showDialog 的 null 表示点遮罩或系统返回，统一按取消处理。
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        // 对话框跟随当前明暗主题。
-        final tokens = AppTokens.of(dialogContext);
-        return Dialog(
-          backgroundColor: tokens.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 标题用 Tabler 刷新图标，不使用文字字符代替图标。
-                Row(
-                  children: [
-                    const Icon(
-                      TablerIcons.refresh,
-                      size: 20,
-                      color: AppTokens.accent,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '刷新候选词',
-                      style: TextStyle(
-                        color: tokens.text,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // 明确指出用户刚才长按的文本，避免误操作。
-                Text(
-                  '是否将“$optionText”更换为新的候选词？',
-                  style: TextStyle(
-                    color: tokens.textSecondary,
-                    fontSize: 13.5,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    // 取消是次要命令，使用 Tabler X 图标和描边按钮。
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        key: const Key('cancel-option-refresh'),
-                        onPressed: () => Navigator.of(dialogContext).pop(false),
-                        icon: const Icon(TablerIcons.x, size: 16),
-                        label: const Text('取消'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: tokens.textMedium,
-                          side: BorderSide(color: tokens.inputBorder),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // 确认是主命令，使用品牌蓝与 Tabler 刷新图标。
-                    Expanded(
-                      child: FilledButton.icon(
-                        key: const Key('confirm-option-refresh'),
-                        onPressed: () => Navigator.of(dialogContext).pop(true),
-                        icon: const Icon(TablerIcons.refresh, size: 16),
-                        label: const Text('刷新'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppTokens.accent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  ///
+  /// 骨架交给公共组件 [AppConfirmDialog]，这里只填这一处特有的文案与图标。
+  Future<bool> _showOptionRefreshDialog(String optionText) {
+    return AppConfirmDialog.show(
+      context,
+      AppConfirmDialog(
+        titleIcon: AppGlyph.retry,
+        title: '刷新候选词',
+        // 明确指出用户刚才长按的文本，避免误操作。
+        message: '是否将“$optionText”更换为新的候选词？',
+        cancelKey: const Key('cancel-option-refresh'),
+        cancelIcon: AppGlyph.dismiss,
+        confirmKey: const Key('confirm-option-refresh'),
+        confirmIcon: AppGlyph.retry,
+        confirmLabel: '刷新',
+      ),
     );
-    // 只有显式点“刷新”才返回 true。
-    return confirmed ?? false;
   }
 
   ///
@@ -943,11 +847,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       _wrongOptions.clear();
       // 完成后不再保留可点击选项数据。
       _options = const <ListeningMeaningOption>[];
-      // 中间信息面板告知用户当前单词已经完成。
-      // 全程零错选才是“一气呵成”，与候选区上方的成功横幅口径一致。
-      _feedback = _currentWrong == 0 ? '一气呵成 · 完美通过！' : '本词完成！';
-      // 绿色只用于正确完成反馈。
-      _feedbackColor = const Color(0xFF2FB344);
     });
     // “本词完成、等待下一题”是重要恢复点；此时仍不能提前写听音辨义记录。
     unawaited(_persistSession());
@@ -1039,7 +938,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _isSavingCompletion = false;
         // 完成页不显示播放中图标与当前单词反馈。
         _isPlaying = false;
-        _feedback = '';
       });
       // 整局已经结束，彻底停表，避免完成页期间定时器继续空转。
       _stopElapsedTimer();
@@ -1065,10 +963,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       _isCurrentWordComplete = false;
       // 上一题事务已结束，新题允许正常交互。
       _isSavingCompletion = false;
-      // 清除上一题的完成反馈。
-      _feedback = '';
-      // 反馈颜色恢复主题默认值。
-      _feedbackColor = null;
       // 根据新的 _wordIndex 生成四个拼写候选项。
       _options = _buildOptions();
     });
@@ -1106,10 +1000,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       _currentWrong = 0;
       // 退出完成态，底部重新显示四选一与提示/播放按钮。
       _isCurrentWordComplete = false;
-      // 清除"本词完成！"反馈。
-      _feedback = '';
-      // 反馈颜色恢复主题默认值。
-      _feedbackColor = null;
       // 重新生成当前单词的四个拼写候选项。
       _options = _buildOptions();
     });
@@ -1122,7 +1012,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   }
 
   ///
-  /// 构建当前单词的完整步骤清单：先“听音选词”，再逐条词性释义。
+  /// 构建当前单词的完整步骤清单：先“听音选词”，再逐条选择释义。
   ///
   /// 每个步骤都从一开始列出，状态随答题进度在 未开始/进行中/已完成 之间变化。
   /// 组件只负责按状态渲染，不关心答题下标。
@@ -1131,7 +1021,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     final steps = <ListeningMeaningStep>[
       ListeningMeaningStep(
         kind: ListeningMeaningStepKind.word,
-        title: '听音选词',
+        title: '听音辨词',
         // 完成后把正确单词带进步骤，便于在步骤下方直接回显。
         word: _currentWord.spelling,
         // 拼写阶段结束后，单词步骤即视为完成；否则当前就是进行中的那一步。
@@ -1143,77 +1033,45 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                   : ListeningMeaningStepStatus.pending),
       ),
     ];
-    // **一个词性一个步骤**，不是一条释义一个步骤。
-    //
-    // protect 在词库里是「* 保护；防护；扶持」——一个词性下三条释义，
-    // 步骤条就该只有一格「释义」，格子里逐条填满，而不是并排三格都叫「释义」。
-    // 答题仍然按单条释义推进（_meaningIndex 走的是摊平后的下标），
-    // 这里只负责把它换算回「第几个词性分组、组内答到第几条」。
+    // steps 需要和实际操作次数一一对应，而不是按词性分组。
+    // 例如 hard 有 1 个单词选择和 6 个释义选择，所以这里必须生成 7 格。
+    // 正文仍会在 _MeaningStage 中按词性重新聚合，避免同一词性重复显示多个标签。
     var flatIndex = 0;
     for (final group in _currentWord.meaningGroups) {
-      // 这一组在摊平列表里的区间是 [flatIndex, groupEnd)。
-      final groupStart = flatIndex;
-      final groupEnd = groupStart + group.meanings.length;
-      flatIndex = groupEnd;
+      for (final meaning in group.meanings) {
+        // _meaningIndex 是所有释义合并后的下标，因此每一条释义都能直接对应
+        // steps 中的一格，顶部进度条就会真实反映用户还需要完成几次选择。
+        final isDone = _isCurrentWordComplete || _meaningIndex > flatIndex;
+        final isActive =
+            !_isCurrentWordComplete &&
+            _stage == ListeningMeaningStage.definition &&
+            _meaningIndex == flatIndex;
 
-      // 整词完成，或答题下标已经走过这一组，说明这组全部答对了。
-      final isGroupDone = _isCurrentWordComplete || _meaningIndex >= groupEnd;
-      // 释义阶段且当前下标落在这一组区间内，这组正在进行中。
-      final isGroupActive =
-          !_isCurrentWordComplete &&
-          _stage == ListeningMeaningStage.definition &&
-          _meaningIndex >= groupStart &&
-          _meaningIndex < groupEnd;
-
-      // 已答出的释义：整组答完显示全部，进行中只显示已经答对的那几条。
-      final answeredCount = isGroupDone
-          ? group.meanings.length
-          : (isGroupActive ? _meaningIndex - groupStart : 0);
-      final definitions = answeredCount > 0
-          ? List<String>.unmodifiable(<String>[
-              for (final meaning in group.meanings.take(answeredCount))
-                meaning.definition,
-            ])
-          : null;
-
-      steps.add(
-        ListeningMeaningStep(
-          kind: ListeningMeaningStepKind.meaning,
-          title: '释义',
-          status: isGroupDone
-              ? ListeningMeaningStepStatus.done
-              : (isGroupActive
-                    ? ListeningMeaningStepStatus.active
-                    : ListeningMeaningStepStatus.pending),
-          // 未选词性显示成星号，与词库里的「*」占位口径一致。
-          pos: group.pos == '*' ? '*' : group.pos,
-          definitions: definitions,
-        ),
-      );
+        steps.add(
+          ListeningMeaningStep(
+            kind: ListeningMeaningStepKind.meaning,
+            title: '选择释义',
+            status: isDone
+                ? ListeningMeaningStepStatus.done
+                : (isActive
+                      ? ListeningMeaningStepStatus.active
+                      : ListeningMeaningStepStatus.pending),
+            // 未选词性显示成星号，与词库里的「*」占位口径一致。
+            pos: group.pos == '*' ? '*' : group.pos,
+            // 每一条释义独立占一格；正文稍后会按词性聚合这些数据。
+            definitionTexts: List<String>.unmodifiable(<String>[
+              meaning.definition,
+            ]),
+            definitions: isDone
+                ? List<String>.unmodifiable(<String>[meaning.definition])
+                : null,
+          ),
+        );
+        flatIndex += 1;
+      }
     }
     // 冻结列表，展示组件只读取，不修改步骤状态。
     return List<ListeningMeaningStep>.unmodifiable(steps);
-  }
-
-  ///
-  /// 返回当前答题阶段的用户可见名称。
-  String get _stageLabel {
-    // 完成后的提示不再要求选择，只说明当前单词已完成。
-    if (_isCurrentWordComplete) return '当前单词已完成';
-    // 拼写阶段引导用户通过发音选出单词。
-    if (_stage == ListeningMeaningStage.word) return '听音，选出正确的单词';
-    // 找到当前这条释义属于哪个词性分组，进度按「组内第几条 / 组内共几条」显示。
-    var flatIndex = 0;
-    for (final group in _currentWord.meaningGroups) {
-      final groupEnd = flatIndex + group.meanings.length;
-      if (_meaningIndex < groupEnd) {
-        final pos = group.pos == '*' ? '*' : group.pos;
-        return '$pos · 选择释义 ${_meaningIndex - flatIndex + 1}/${group.meanings.length}';
-      }
-      flatIndex = groupEnd;
-    }
-    // 理论上走不到这里；真走到了说明下标越界，给一句不会误导的兜底。
-    return '选择释义';
   }
 
   ///
@@ -1263,134 +1121,58 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建听音辨义页、题目页或整轮完成页。
+  ///
+  /// 骨架整块交给模块模板 [ModuleScaffold]：上段顶栏、中段题目、下段操作区。
+  /// 下段这里塞的是「难度横幅 + 候选词（或下一题按钮）」两件叠在一起的东西，
+  /// 所以先用一个 Column 打包再交给 `footer` 插槽。
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
-    final progress =
-        (_isDone ? widget.words.length : _wordIndex + 1) / widget.words.length;
+    // 完成后题号停在总数上，不再继续加，否则会显示成「6 / 5」。
+    final current = _isDone ? widget.words.length : _wordIndex + 1;
 
-    // 保存中禁止系统返回手势，避免事务成功后首页却收不到需要回刷的单词 id。
-    return PopScope<Object?>(
+    return ModuleScaffold(
+      // 保存中禁止系统返回手势，避免事务成功后首页却收不到需要回刷的单词 id。
       canPop: !_isSavingCompletion,
-      child: Scaffold(
-        backgroundColor: tokens.page,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // 顶栏和进度条与随身听共用相同的位置、尺寸和对齐逻辑。
-              _buildHeader(tokens, progress),
-              if (_isDone)
-                Expanded(child: _buildDone(tokens))
-              else ...[
-                // 可滚动题目区占满候选词以上的空间，轻点其中任意位置都能重播。
-                Expanded(child: _buildQuestion(tokens)),
-                // 难度横幅在文档流中贴着底部候选区正上方，不再悬浮遮挡内容。
-                _buildDifficultyHintBanner(tokens),
-                // 底部候选词位于文档流底部：一行两个，与看义选词一致。
-                _isCurrentWordComplete
-                    ? _buildNextQuestionButton(tokens)
-                    : _buildBottomControls(tokens),
-              ],
-            ],
-          ),
+      header: ModuleHeader(
+        leading: ModuleIconButton(
+          key: const Key('close-listeningMeaning'),
+          icon: AppGlyph.back,
+          alignment: Alignment.centerLeft,
+          onTap: _exitListeningMeaning,
         ),
+        title: ModuleProgressLabel(
+          textKey: const Key('listening-meaning-progress-label'),
+          current: current,
+          total: widget.words.length,
+        ),
+        trailing: ModuleTimeLabel(
+          textKey: const Key('listening-meaning-elapsed'),
+          text: _formatElapsed(),
+        ),
+        progress: current / widget.words.length,
+        progressBarKey: const Key('listening-meaning-progress-bar'),
       ),
+      // 可滚动题目区占满候选词以上的空间，轻点其中任意位置都能重播。
+      body: _isDone ? _buildDone() : _buildQuestion(tokens),
+      // 结果提示已移入白卡底部，下段只剩候选词 / 操作区，不再需要外层 Column 包裹。
+      footer: _isDone
+          ? null
+          : _isCurrentWordComplete
+              ? _buildNextQuestionButton(tokens)
+              : _buildBottomControls(tokens),
     );
   }
 
-  ///
-  /// 构建顶栏与进度条，布局结构和随身听页面保持一致。
-  Widget _buildHeader(AppTokens tokens, double progress) {
-    // Column 让顶栏按钮行和进度条从上到下排列。
-    return Column(
-      // 顶部区域只占自身实际高度，不抢占中间题目区的空间。
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Padding 统一管理顶栏与屏幕边界的距离。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            ListeningMeaningLayout.pageInset,
-            ListeningMeaningLayout.headerTop,
-            ListeningMeaningLayout.pageInset,
-            0,
-          ),
-          // 用 Stack 而不是 Row：左右两侧宽度不一定相等，
-          // 只有绝对定位才能保证中央题号严格居中，右上角挂 mm:ss 计时。
-          child: SizedBox(
-            height: ListeningMeaningLayout.headerButtonSize,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Center(
-                    child: Text(
-                      '${_isDone ? widget.words.length : _wordIndex + 1} / ${widget.words.length}',
-                      key: const Key('listening-meaning-progress-label'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: tokens.text,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        // tabularFigures 让每个数字占用相同宽度，题号变化时视觉中心不抖动。
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _PlainIconButton(
-                    key: const Key('close-listeningMeaning'),
-                    icon: TablerIcons.chevronLeft,
-                    alignment: Alignment.centerLeft,
-                    onTap: _exitListeningMeaning,
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    _formatElapsed(),
-                    key: const Key('listening-meaning-elapsed'),
-                    style: TextStyle(
-                      color: tokens.textMedium,
-                      // 与看义选词、拼写巩固、词义连连右上角时间保持同一字号。
-                      fontSize: ListeningMeaningLayout.headerTimerTextSize,
-                      fontWeight: FontWeight.w500,
-                      // 等宽数字让秒数变化时整体宽度稳定，右侧不抖动。
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // 进度条的左右边界与顶栏严格对齐。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            ListeningMeaningLayout.pageInset,
-            ListeningMeaningLayout.progressTop,
-            ListeningMeaningLayout.pageInset,
-            0,
-          ),
-          // ClipRRect 只把线性进度条的两端裁成轻微圆角。
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              key: const Key('listening-meaning-progress-bar'),
-              value: progress,
-              minHeight: ListeningMeaningLayout.progressHeight,
-              color: AppTokens.accent,
-              backgroundColor: tokens.sub,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  // 顶栏那一行（返回键、中间题号、右上角用时、进度条）已经整块交给模块模板的
+  // ModuleHeader，本页不再自己拼一遍。
 
   ///
   /// 构建可滚动题目区与透明播放热区；底部候选词在文档流中（见页面 body）。
   Widget _buildQuestion(AppTokens tokens) {
+    // 结果提示（错误次数 / 全对）先在这里算好，再交给正文白卡贴到底部展示，
+    // 不再作为独立横幅插入白卡与候选区之间。
+    final hint = _difficultyHintVisual();
     // Stack 底部候选区不再与滚动内容重叠（已移出到文档流），
     // 但透明播放层仍需覆盖整个可滚动区域，轻点任意位置都能重播。
     return Stack(
@@ -1409,38 +1191,53 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             child: Semantics(
               button: true,
               label: '播放当前单词发音',
-              child: SingleChildScrollView(
-                key: const Key('listening-meaning-question-scroll'),
-                padding: EdgeInsets.fromLTRB(
-                  ListeningMeaningLayout.pageInset,
-                  ListeningMeaningLayout.questionVerticalInset,
-                  ListeningMeaningLayout.pageInset,
-                  ListeningMeaningLayout.questionVerticalInset,
-                ),
-                // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: ListeningMeaningLayout.questionMaxWidth,
+              child: LayoutBuilder(
+                builder: (context, viewportConstraints) {
+                  // ScrollView 在纵向会放开子项高度，因此先用视口高度算出卡片
+                  // 的最小高度，才能实现 HTML flex: 1 的“剩余空间占满”效果。
+                  final minCardHeight = max(
+                    0.0,
+                    viewportConstraints.maxHeight -
+                        ListeningMeaningLayout.questionVerticalInset * 2,
+                  );
+                  return SingleChildScrollView(
+                    key: const Key('listening-meaning-question-scroll'),
+                    padding: EdgeInsets.fromLTRB(
+                      ListeningMeaningLayout.pageInset,
+                      ListeningMeaningLayout.questionVerticalInset,
+                      ListeningMeaningLayout.pageInset,
+                      ListeningMeaningLayout.questionVerticalInset,
                     ),
-                    // 独立组件按“单词卡、提示横幅、全量步骤”从上到下输出。
-                    child: ListeningMeaningQuestionContent(
-                      spelling: _currentWord.spelling,
-                      revealWholeWord:
-                          _stage == ListeningMeaningStage.definition ||
-                          _isCurrentWordComplete,
-                      // 单词卡上的发音按钮同样允许打断重播。
-                      onSpeakerTap: () => _playAudio(interrupt: true),
-                      isPlaying: _isPlaying,
-                      prompt: _stageLabel,
-                      feedback: _feedback,
-                      feedbackColor: _feedbackColor,
-                      steps: _buildSteps(),
-                      definitionSeparator: widget.definitionSeparator,
+                    // Align 让窄屏占满可用宽度，宽屏限制宽度后仍保持水平居中。
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: minCardHeight,
+                          maxWidth: ListeningMeaningLayout.questionMaxWidth,
+                        ),
+                        // 独立组件按“正文 + 底部结果提示”从上到下输出。
+                        child: ListeningMeaningQuestionContent(
+                          spelling: _currentWord.spelling,
+                          revealWholeWord:
+                              _stage == ListeningMeaningStage.definition ||
+                              _isCurrentWordComplete,
+                          // 单词卡上的发音按钮同样允许打断重播。
+                          onSpeakerTap: () => _playAudio(interrupt: true),
+                          isPlaying: _isPlaying,
+                          steps: _buildSteps(),
+                          definitionSeparator: widget.definitionSeparator,
+                          // 播音胶囊沿用拼写巩固模块的口音文案，确保设置和实际发音一致。
+                          accentLabel: widget.accent.label,
+                          // 结果提示（错误次数 / 全对）贴在白卡底部；不展示时 text 为 null。
+                          hintText: hint.text,
+                          hintColor: hint.color,
+                          hintIcon: hint.icon,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),
@@ -1449,97 +1246,50 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     );
   }
 
-  ///
-  /// 在底部操作区正上方显示结果提示横幅（纯界面提示，完全不经过数据库）。
-  /// 它根据当前单词状态在「错误提示」与「正确提示」之间切换：
-  ///
-  /// - 错误提示（[ _currentWrong ] > 0）：本题选错过即展示，文案表达“当前单词错了几次”。
-  ///   作答中途横幅位于候选区正上方；完成后若仍有错，则位于「再试一次 / 下一题」上方。
-  /// - 正确提示（[ _isCurrentWordComplete ] 且全程零错选）：成功色横幅“一气呵成 · 完美通过！”。
-  /// 其余状态（正在作答且尚未出错）返回零尺寸占位。
-  ///
-  /// 生活化解释：这道横幅是给用户看的即时反馈，不碰数据库。
-  /// “难度 +1”真正发生是在点“下一题”写库那一刻；这里只告诉用户本题到底错了几次，
-  /// 让他离场前心里有数，而不是等到下一轮才发现刚才选错过。
-  Widget _buildDifficultyHintBanner(AppTokens tokens) {
-    // 取出当前状态对应的语义色、图标与文案；text 为 null 表示无需提示。
-    final visual = _difficultyHintVisual();
-    // 没有任何需要提示的状态时，不渲染横幅，避免占用布局与误导用户。
-    if (visual.text == null) return const SizedBox.shrink();
-
-    // Container 复用单词卡同款圆角与描边，让横幅与界面其余卡片视觉一致。
-    return Container(
-      key: const Key('listening-meaning-difficulty-hint'),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        // 危险用极淡红底，成功用极淡绿底，颜色再淡也不会丢失语义。
-        color: visual.color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
-        // 同色描边强化边框，呼应 Tabler 的告警/成功徽章视觉。
-        border: Border.all(color: visual.color.withValues(alpha: 0.55)),
-      ),
-      // Row 让图标与文案水平排列，整体按内容宽度收缩并居中。
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(visual.icon, size: 16, color: visual.color),
-          const SizedBox(width: 8),
-          Text(
-            visual.text!,
-            style: TextStyle(
-              color: visual.color,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   ///
-  /// 返回难度提示横幅的视觉三要素：语义色、Tabler 图标、文案。
+  /// 返回结果提示（错误次数 / 全对）的视觉三要素：语义色、Tabler 图标、文案。
   ///
-  /// 文案为 null 表示当前不需要展示任何提示。
+  /// 这组值交给正文白卡，由白卡贴在自己底部渲染（见
+  /// [ListeningMeaningQuestionContent] 的 `hintText` / `hintColor` / `hintIcon`）；
+  /// 文案为 null 表示当前不需要展示提示。
   ({Color color, IconData icon, String? text}) _difficultyHintVisual() {
-    // 错误提示：只要本题选错过（无论是否已完成），都展示累计错误次数。
-    // - 作答中途：横幅位于候选区正上方，实时告诉用户已经错了几下；
-    // - 完成后仍有错：横幅位于「再试一次 / 下一题」上方，让用户离场前看到总错次。
+    // 错误提示：只要本题选错过（无论是否已完成），都在白卡底部展示累计错误次数，
     // 文案表达“当前单词错了几次”，不再强调“难度 +1”（难度真正变化在点下一题写库时）。
     if (_currentWrong > 0) {
       return (
         color: AppTokens.danger,
-        icon: TablerIcons.alertTriangle,
+        icon: AppGlyph.warning,
         text: '本题已答错 $_currentWrong 次',
       );
     }
     // 正确提示：完成且全程零错选，给出“一气呵成”的正向反馈（用户要求保持不变）。
     if (_isCurrentWordComplete) {
       return (
-        color: const Color(0xFF2FB344),
-        icon: TablerIcons.circleCheck,
+        color: AppTokens.success,
+        icon: AppGlyph.allCorrect,
         text: '一气呵成 · 完美通过！',
       );
     }
     // 其余状态（正在作答且尚未出错）不提示。
-    return (
-      color: AppTokens.danger,
-      icon: TablerIcons.alertTriangle,
-      text: null,
-    );
+    return (color: AppTokens.danger, icon: AppGlyph.warning, text: null);
   }
 
   ///
   /// 构建贴近底部安全区的候选与操作区。
   Widget _buildBottomControls(AppTokens tokens) {
-    // Padding 在 SafeArea 已避开系统手势条后，再提供 20 像素底部留白。
-    return Padding(
+      // Padding 在 SafeArea 已避开系统手势条后，再按 `bottomActionInset`
+      // 那一档补一段底部留白，手指不会顶着屏幕最下沿去点候选词。
+      //
+      // 顶部不再留白：结果提示已移入白卡底部，白卡与候选区之间只剩正文滚动区
+      // 底部那一段留白，避免两段留白叠加成“双倍间距”。
+      return Padding(
       key: const Key('listening-meaning-bottom-controls'),
       padding: const EdgeInsets.fromLTRB(
         ListeningMeaningLayout.pageInset,
-        ListeningMeaningLayout.bottomSectionTop,
+        AppSpace.p0,
         ListeningMeaningLayout.pageInset,
-        ListeningMeaningLayout.bottomInset,
+        ListeningMeaningLayout.bottomActionInset,
       ),
       // 候选词位于文档流底部：与看义选词一致，一行两个、底边对齐，
       // 不再有悬浮右侧的播放按钮（重播交给单词卡听音钮与透明播放层）。
@@ -1551,8 +1301,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
           // 候选组外包一层 AnimatedSwitcher：进入下一小题 / 下一词 / 刷新候选时，
           // 旧候选组淡出、新候选组淡入，整组切换不整体下沉回弹（仿 Duolingo / Quizlet）。
           return AnimatedSwitcher(
-            // 整组过渡时长，210ms 让切换更利落。
-            duration: const Duration(milliseconds: 210),
+            // 整组过渡时长走 AppDuration 的 250 毫秒这一档，切换利落又不突兀。
+            duration: const Duration(milliseconds: AppDuration.ms250),
             transitionBuilder: (child, animation) =>
                 FadeTransition(opacity: animation, child: child),
             // 用当前四个候选文本拼接成唯一 Key；文本变化即触发整组过渡。
@@ -1595,16 +1345,18 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 留出间距。
   /// 左侧是次要操作（描边样式），右侧是主操作（蓝色实心）。
   Widget _buildNextQuestionButton(AppTokens tokens) {
+    final textTheme = Theme.of(context).textTheme;
     // 最后一题提交后会进入完成状态页，因此主操作使用“完成”语义。
     final isLastWord = _wordIndex + 1 >= widget.words.length;
-    // Padding 与普通候选区共用相同的左右、顶部和安全区留白。
-    return Padding(
+      // Padding 与普通候选区共用相同的左右、顶部和安全区留白（顶部同为 0，
+      // 间距只由正文滚动区底部那一段承担）。
+      return Padding(
       key: const Key('listening-meaning-next-area'),
       padding: const EdgeInsets.fromLTRB(
         ListeningMeaningLayout.pageInset,
-        ListeningMeaningLayout.bottomSectionTop,
+        AppSpace.p0,
         ListeningMeaningLayout.pageInset,
-        ListeningMeaningLayout.bottomInset,
+        ListeningMeaningLayout.bottomActionInset,
       ),
       // SizedBox 固定整行高度，两个按钮上下边界完全一致。
       child: SizedBox(
@@ -1618,26 +1370,17 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                 key: const Key('retry-listening-meaning-word'),
                 onPressed: _isSavingCompletion ? null : _retryCurrentWord,
                 // Tabler 的刷新图标表达"重来一遍"。
-                icon: const Icon(TablerIcons.refresh, size: 17),
+                icon: const Icon(AppGlyph.retry, size: AppIcon.i16),
                 label: const Text('再试一次'),
                 style: OutlinedButton.styleFrom(
-                  // 描边样式使用卡片底色，视觉权重低于右侧主操作。
-                  backgroundColor: tokens.card,
-                  foregroundColor: tokens.textMedium,
-                  side: BorderSide(color: tokens.inputBorder),
-                  // 高度由外层 SizedBox 决定，这里去掉按钮自带的最小宽高限制。
+                  // 底色、文字色、描边与圆角都继承主题里的次要按钮样式，
+                  // 这里只写这一颗按钮特有的「贴满外层高度」。
                   minimumSize: const Size(
                     0,
                     ListeningMeaningLayout.actionHeight,
                   ),
                   padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  textStyle: textTheme.fs5Semibold,
                 ),
               ),
             ),
@@ -1651,27 +1394,20 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                 onPressed: _isSavingCompletion ? null : _goToNextWord,
                 // 最后一题使用 Tabler 勾选图标，其余题使用向右箭头。
                 icon: Icon(
-                  isLastWord ? TablerIcons.check : TablerIcons.arrowRight,
-                  size: 17,
+                  isLastWord ? AppGlyph.finish : AppGlyph.nextQuestion,
+                  size: AppIcon.i16,
                 ),
                 // 文案明确区分“继续答题”和“提交整轮”。
                 label: Text(isLastWord ? '完成' : '下一题'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppTokens.accent,
-                  foregroundColor: Colors.white,
-                  // 与左侧按钮保持同样的高度基准和无额外内边距。
+                  // 蓝底白字与圆角来自主题里的主按钮样式，这里只写
+                  // 「与左侧按钮保持同样的高度基准和无额外内边距」。
                   minimumSize: const Size(
                     0,
                     ListeningMeaningLayout.actionHeight,
                   ),
                   padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  textStyle: textTheme.fs5Semibold,
                 ),
               ),
             ),
@@ -1683,119 +1419,34 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
 
   ///
   /// 构建整轮听音辨义完成状态页，展示题量、累计错选次数和返回入口。
-  Widget _buildDone(AppTokens tokens) {
-    // Center 让完成反馈在剩余页面区域中保持视觉居中。
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 绿色圆形图标作为整轮完成的主要视觉反馈。
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                color: Color(0x222FB344),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                TablerIcons.check,
-                size: 32,
-                color: Color(0xFF2FB344),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 状态标题说明本轮流程已经结束。
-            Text(
-              '听音辨义完成',
-              style: TextStyle(
-                color: tokens.text,
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 统计本轮总单词数与所有错选次数，重做不会抹去已经发生的错误。
-            Text(
-              '共 ${widget.words.length} 个单词 · 答错 $_errors 次',
-              style: TextStyle(color: tokens.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            // 返回按钮把成功提交的单词 id 一并交回首页进行定向回刷。
-            FilledButton(
-              key: const Key('finish-listeningMeaning'),
-              onPressed: _exitListeningMeaning,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTokens.accent,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(112, 40),
-                shape: const StadiumBorder(),
-              ),
-              child: const Text('返回'),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildDone() {
+    // 完成屏版式已收进公共组件 ModuleSummaryView（四个模块同一套简单收尾：
+    // 圆形图标 + 标题 + 一行说明 + 返回按钮），这里只填内容。
+    return ModuleSummaryView(
+      icon: AppGlyph.correct,
+      color: AppTokens.success,
+      title: '听音辨义完成',
+      // 统计本轮总单词数与所有错选次数，重做不会抹去已经发生的错误。
+      subtitle: '共 ${widget.words.length} 个单词 · 答错 $_errors 次',
+      // 返回按钮把成功提交的单词 id 一并交回首页进行定向回刷。
+      actionLabel: '返回',
+      actionKey: const Key('finish-listeningMeaning'),
+      onAction: _exitListeningMeaning,
     );
   }
 }
 
 ///
-/// 听音辨义顶栏使用的无文字 Tabler 图标按钮。
+/// 顶栏那个无文字图标按钮已经收进公共组件
+/// `lib/widgets/module_scaffold.dart` 的 `ModuleIconButton`：原来本页和看义选词
+/// 各有一个同名的私有 `_PlainIconButton`，随身听还有一个公开的
+/// `ListeningIconButton`，三份实现做的是同一件事。
 ///
-class _PlainIconButton extends StatelessWidget {
-  ///
-  /// 构建固定画布的顶栏图标按钮。
-  const _PlainIconButton({
-    required this.icon,
-    required this.onTap,
-    this.alignment = Alignment.center,
-    super.key,
-  });
-
-  ///
-  /// 需要显示的 Tabler 图标。
-  final IconData icon;
-
-  ///
-  /// 用户点击图标画布时执行的回调。
-  final VoidCallback onTap;
-
-  ///
-  /// 图标在 34 像素画布中的对齐方式。
-  final AlignmentGeometry alignment;
-
-  ///
-  /// Flutter 每次需要绘制顶栏按钮时调用此方法。
-  @override
-  Widget build(BuildContext context) {
-    // 读取当前亮色或深色主题中的文字颜色。
-    final tokens = AppTokens.of(context);
-    // SizedBox 明确约束点击画布，不让图标自身的透明空间影响顶栏对齐。
-    return SizedBox(
-      width: ListeningMeaningLayout.headerButtonSize,
-      height: ListeningMeaningLayout.headerButtonSize,
-      // InkWell 提供点击命中与圆形按压反馈。
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(
-          ListeningMeaningLayout.headerButtonSize / 2,
-        ),
-        // Align 使用正常布局约束对齐图标，不需要负数偏移。
-        child: Align(
-          alignment: alignment,
-          child: Icon(icon, size: 21, color: tokens.textMedium),
-        ),
-      ),
-    );
-  }
-}
-
 ///
 /// 候选词卡片：错选时触发左右抖动动画，配合触觉反馈传达错误感。
 ///
-/// 动画时长 300ms，振幅从 ±8px 衰减到 0，类似微信摇一摇的阻尼抖动。
+/// 动画时长走 AppDuration 的 250 毫秒这一档（收敛前写死 300），振幅从 ±8px
+/// 衰减到 0，类似微信摇一摇的阻尼抖动。
 /// 正确选项不做动画——页面立即切换为新题，视觉变化本身就是反馈。
 ///
 class _OptionCard extends StatefulWidget {
@@ -1847,7 +1498,7 @@ class _OptionCard extends StatefulWidget {
 class _OptionCardState extends State<_OptionCard>
     with SingleTickerProviderStateMixin {
   ///
-  /// 驱动一次 300ms 抖动过程的动画控制器。
+  /// 驱动一次抖动过程的动画控制器。
   late final AnimationController _shakeController;
 
   ///
@@ -1859,9 +1510,9 @@ class _OptionCardState extends State<_OptionCard>
   @override
   void initState() {
     super.initState();
-    // 300ms 衰减抖动，类似物理阻尼效果。
+    // 衰减抖动，类似物理阻尼效果。
     _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: AppDuration.ms250),
       vsync: this,
     );
     // Tween 序列模拟阻尼振荡：8 → -6 → 4 → -2 → 0。
@@ -1905,6 +1556,7 @@ class _OptionCardState extends State<_OptionCard>
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     final wrong = widget.wrong;
     // 两列网格中每张卡固定一半宽度，卡片内部文字随宽度自适应。
     return SizedBox(
@@ -1920,16 +1572,18 @@ class _OptionCardState extends State<_OptionCard>
         },
         child: Material(
           key: Key('listening-meaning-option-${widget.index}'),
-          color: wrong ? AppTokens.danger.withValues(alpha: 0.08) : tokens.card,
+          color: wrong
+              ? AppTokens.danger.withValues(alpha: AppAlpha.a8)
+              : tokens.card,
           borderRadius: BorderRadius.circular(
-            ListeningMeaningLayout.cardRadius,
+            ListeningMeaningLayout.optionCardRadius,
           ),
           child: InkWell(
             onTap: wrong ? null : widget.onTap,
             // 长按不参与答题判定，只打开刷新候选词确认框。
             onLongPress: widget.onLongPress,
             borderRadius: BorderRadius.circular(
-              ListeningMeaningLayout.cardRadius,
+              ListeningMeaningLayout.optionCardRadius,
             ),
             child: Container(
               // 高度只给下限：短候选词是 48 像素，长候选词换行后自动长高，
@@ -1939,11 +1593,11 @@ class _OptionCardState extends State<_OptionCard>
               ),
               padding: const EdgeInsets.symmetric(
                 horizontal: ListeningMeaningLayout.optionHorizontalInset,
-                vertical: 6,
+                vertical: AppSpace.p2,
               ),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(
-                  ListeningMeaningLayout.cardRadius,
+                  ListeningMeaningLayout.optionCardRadius,
                 ),
                 border: Border.all(
                   color: wrong ? AppTokens.danger : tokens.inputBorder,
@@ -1963,21 +1617,21 @@ class _OptionCardState extends State<_OptionCard>
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: wrong
-                            ? AppTokens.danger.withValues(alpha: 0.10)
+                            ? AppTokens.danger.withValues(alpha: AppAlpha.a10)
                             : tokens.sub,
                         border: Border.all(
                           color: wrong ? AppTokens.danger : tokens.rowBorder,
                         ),
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius: BorderRadius.circular(AppRadius.rounded),
                       ),
                       child: Text(
                         String.fromCharCode('A'.codeUnitAt(0) + widget.index),
-                        style: TextStyle(
+                        // 序号取 12 号粗那一档：和候选词标签同字号，
+                        // 但方块小，得靠字重压住。
+                        style: textTheme.fs6Bold.copyWith(
                           color: wrong
                               ? AppTokens.danger
                               : tokens.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -2041,9 +1695,9 @@ class _OptionLabel extends StatelessWidget {
   TextStyle _style(double fontSize) => TextStyle(
     color: color,
     fontSize: fontSize,
-    // 行高收紧到 1.18：两行仍装得进 48 像素的卡片，
-    // 多行之间也不会因为行距过大把字挤出可视范围。
-    height: ListeningMeaningLayout.optionTextLineHeight,
+    // 读总表「紧凑单行」那一档：候选卡高度有限，行距收紧后两行仍装得进去，
+    // 也不会因为行距过大把第三行挤出可视范围。
+    height: AppLine.lhSm,
   );
 
   ///

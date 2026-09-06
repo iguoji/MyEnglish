@@ -662,6 +662,34 @@ class WordsDatabase(
         readableDatabase.rawQuery(sql, args).use { cursor ->
             while (cursor.moveToNext()) ids.add(cursor.getLong(0))
         }
+        // 把命中主键补齐拼写写进单日日志：复查时直接看到「当时按规则选出了哪几个词」。
+        // 排序规则属于静态逻辑，这里连同层名一起记下，配 Dart 侧 ReviewFlow 的
+        // 「为什么调这一层」上下文日志，就能完整还原当时的选词现场。
+        if (ids.isNotEmpty()) {
+            // 第二次小查询只为拿拼写；词量通常只有几十个，代价可以忽略。
+            val placeholders = ids.joinToString(",") { "?" }
+            val spellingById = HashMap<Long, String>()
+            readableDatabase.rawQuery(
+                "SELECT id, spelling FROM words WHERE deleted_at IS NULL AND id IN ($placeholders)",
+                ids.map { it.toString() }.toTypedArray(),
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    spellingById[cursor.getLong(0)] = cursor.getString(1)
+                }
+            }
+            // 两层规则的差异只在「难度」与「复习时间」谁先，日志把完整规则也写全。
+            val layerName = if (layer == LAYER_HARD) "hard(难度优先)" else "stale(久未复习优先)"
+            val rule = if (layer == LAYER_HARD) {
+                "难度降序→复习时间升序→含义条数升序→含义字数升序→字母序→编号序"
+            } else {
+                "复习时间升序→难度降序→含义条数升序→含义字数升序→字母序→编号序"
+            }
+            val picked = ids.joinToString(",") { id -> "${spellingById[id] ?: "?"}($id)" }
+            AppLog.i(
+                "review",
+                "选词 层=$layerName limit=$limit exclude=${exclude.size} 规则=$rule 命中=[$picked]",
+            )
+        }
         return ids
     }
 
@@ -698,7 +726,7 @@ class WordsDatabase(
         date: String,
     ): Long {
         val now = System.currentTimeMillis()
-        return writableDatabase.insertOrThrow(
+        val id = writableDatabase.insertOrThrow(
             "word_sets",
             null,
             ContentValues().apply {
@@ -710,6 +738,12 @@ class WordsDatabase(
                 put("updated_at", now)
             },
         )
+        // 建库落成记录汇总：今天/明天各几个；明细由上面的 pickWords 按层逐条记下。
+        AppLog.i(
+            "review",
+            "建词库 date=$date wordCount=$wordCount today=${todayWordIds.size} 个 tomorrow=${tomorrowWordIds.size} 个",
+        )
+        return id
     }
 
     // -----------------------------------------------------------------------

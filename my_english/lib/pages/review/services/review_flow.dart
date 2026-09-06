@@ -6,6 +6,8 @@ import '../../../models/word.dart';
 import '../../../models/word_set.dart';
 import '../../../store/session.dart';
 import '../../../store/word.dart';
+// 运行日志：选词与开局的业务理由统一留痕，方便日后复查「当时为什么这么选」。
+import '../../../services/app_log.dart';
 
 ///
 /// 打开一个复习模块时需要的全部东西。
@@ -74,10 +76,6 @@ class ReviewFlow {
   static const double primaryRatio = 0.4;
 
   ///
-  /// 词义连连的棋盘固定几张一组；数据列表要补齐成它的整数倍。
-  static const int _matchGroupSize = 5;
-
-  ///
   /// 按两层规则挑单词。
   ///
   /// - 第一层占 `ceil(数量 × 0.4)`：难度降序打头，专挑最难的；
@@ -106,6 +104,11 @@ class ReviewFlow {
       // 必须排除第一层已选中的，否则同一个词会在词库里出现两次。
       exclude: <int>[...exclude, ...hard],
       layer: PickLayer.stale,
+    );
+    // 留痕：配额怎么分、两层各拿到几个，复查「这轮为什么是这些词」先看这一行。
+    AppLog.i(
+      'review',
+      '两层选词 limit=$limit 一层配额=ceil($limit×0.4)=$primaryCount 实得=${hard.length} 二层配额=limit-一层=$secondaryCount 实得=${stale.length} 传入排除=${exclude.length}个',
     );
     return List<int>.unmodifiable(<int>[...hard, ...stale]);
   }
@@ -141,6 +144,11 @@ class ReviewFlow {
 
     // 今天第一次进复习模块：按两层规则选出前 target 个。
     if (existing == null) {
+      // 记录建库原因：首次建库时「目标」取每日设置与词库实际数的较小值。
+      AppLog.i(
+        'review',
+        '词库状态=首次建库 date=$date target=$target（每日设置=$dailyGoal 词库=$libraryCount 取较小）',
+      );
       final today = await pickTwoLayer(limit: target);
       return _createWordSet(today: today, target: target, date: date);
     }
@@ -159,11 +167,19 @@ class ReviewFlow {
     if (kept.length > target) {
       // 目标调小了：从前面截取。会话已经在改设置时被中断，
       // 所以「截掉后面那截」不会丢掉用户正在做的进度。
+      AppLog.i(
+        'review',
+        '词库状态=截取 原保留=${kept.length}个 目标调小/有删词 target=$target 只留前 $target 个',
+      );
       return _createWordSet(today: kept.sublist(0, target), target: target, date: date);
     }
     if (kept.length < target) {
       // 目标调大了或有词被删了：排除已有的，再按两层规则补足差额。
       // 40/60 是按**这次补的差额**分的，不是回过头去重算整份词库的比例。
+      AppLog.i(
+        'review',
+        '词库状态=补足 已有=${kept.length}个 差=$target 排除已有避免刚练过的词再被选入 补选 limit=${target - kept.length}',
+      );
       final supplement = await pickTwoLayer(
         limit: target - kept.length,
         exclude: kept,
@@ -176,15 +192,19 @@ class ReviewFlow {
     }
     // 数量正好：只有真的剔除过删除词才需要重写，否则原样复用。
     if (wasRepaired) {
+      // 剔除过已删除的单词，即使数量凑巧没变也要重新落库清掉坏主键。
       return _createWordSet(today: kept, target: target, date: date);
     }
+    // 词库没有变化：原样复用今天的词库，不重复建库。
+    AppLog.i('review', '词库状态=原样复用 date=$date target=$target');
     return existing;
   }
 
   ///
   /// 落库一份新词库，同时算好今天的「明日单词列表」。
   ///
-  /// 明日列表 = 同一套两层规则、排除今天这批之后排在最前面的一半（向上取整）。
+  /// 明日列表 = 同一套两层规则、排除今天这批之后排在最前面的一半（向下取整，
+  /// 与巩固局「今日随机一半」的向上取整咬合，保证巩固局总题量不超过每日复习）。
   /// 它只服务于今天的巩固局：主线过关后再进模块，抽的是「今天一半 + 明天一半」。
   /// 明天会重新建库，不会复用这份列表。
   Future<WordSet> _createWordSet({
@@ -192,12 +212,19 @@ class ReviewFlow {
     required int target,
     required String date,
   }) async {
-    // 一半向上取整：与第一层配额 ceil(limit × 0.4) 统一，
-    // 文档里的「取整」在本项目一律按向上取整实现。
-    final halfTarget = (target * 0.5).ceil();
+    // 一半**向下**取整：巩固局由「今日随机一半（向上）」+「明日预选」拼成，
+    // 若两边都向上取整，奇数目标会多出 1 个（每日 5 → 3 + 3 = 6，超过每日复习）。
+    // 今日向上、明日向下正好咬合：每日 5 → 今日 3 + 明日 2 = 5，总题量不超额。
+    // 明日预选只服务今天巩固局的预习，明天会重新建库，少预选一个不影响明天。
+    final halfTarget = (target * 0.5).floor();
     // 明天的词有多少拿多少，凑不满一半也不用今天的词去补——
     // 巩固局本来就是加练，用今天的词填满反而会让同一批词被反复问到。
     final tomorrow = await pickTwoLayer(limit: halfTarget, exclude: today);
+    // 记录明日预选的一半口径（向下取整），配巩固局今日侧「向上取整」互相咬合。
+    AppLog.i(
+      'review',
+      '明日预选 half=floor($target×0.5)=$halfTarget 排除今天=$today.length 选出=${tomorrow.length}个 只服务今天巩固局，明天会重新建库',
+    );
     final id = await sessionStore.createWordSet(
       wordCount: target,
       todayWordIds: today,
@@ -253,6 +280,11 @@ class ReviewFlow {
     // 第三步：今天主线过关了没有，决定开主线还是开巩固。
     final completedDaily = await sessionStore.getCompletedDailySession(module, date);
     final kind = completedDaily == null ? SessionKind.daily : SessionKind.reinforce;
+    // 记录这一局开「主线」还是「巩固」：今天主线没过关开主线，过关后开巩固。
+    AppLog.i(
+      'review',
+      '开局决定 模块=${module.label} 类型=${kind == SessionKind.daily ? "主线" : "巩固"} date=$date 词数=${wordSet.todayWordIds.length}/${wordSet.tomorrowWordIds.length} wordSetId=${wordSet.id}',
+    );
     final wordIds = kind == SessionKind.daily
         ? wordSet.todayWordIds
         : _buildReinforceWordIds(wordSet);
@@ -412,7 +444,9 @@ class ReviewFlow {
   /// 明天的词在建库时就按同一套两层规则算好并存进了词库表，这里直接取用。
   /// 明天的词不够一半时就少拿几个，不用今天的词补足——这一局的题量允许缩水。
   List<int> _buildReinforceWordIds(WordSet wordSet) {
-    // 一半向上取整，两边都宁可多一个，不会少题。
+    // 今日这边向上取整：宁可多练一个今天的词，巩固局不该让今日复习缩水。
+    // 明日那边建库时向下取整（见 _createWordSet），两边咬合后总题量
+    // = 每日复习数量（每日 5 → 今日 3 + 明日 2），不会超额。
     final halfTarget = (wordSet.todayWordIds.length * 0.5).ceil();
     final todayPicked = _pickRandom(wordSet.todayWordIds, halfTarget);
     // 两批混在一起再整体打乱，避免前半局全是今天、后半局全是明天。
@@ -441,38 +475,16 @@ class ReviewFlow {
       case ReviewModule.meaningMatch:
         // 每个词随机挑一条释义，配成 [单词id, 含义id]。
         // 没有释义的词出不了题，直接跳过。
-        final pairs = <List<int>>[
+        //
+        // 数据列表**不补位**：棋盘每组最多 5 对，最后一组不足 5 对就少显示
+        // （页面按实际张数铺开、整块垂直居中）。过去为了凑满一组会把前面的
+        // 词复制进末组，词太少时同一张卡会在棋盘里出现两次，而连对记录只认
+        // 「单词+含义」——重进恢复现场时会把重复的卡认错格子、少恢复一条线。
+        return List<Object?>.unmodifiable(<List<int>>[
           for (final word in words)
             if (word.allMeanings.isNotEmpty)
               _randomPairFor(word),
-        ];
-        // 棋盘固定 5 张一组，末组不足 5 个时从前面随机补齐——
-        // 补位放在这里而不是页面里，`cursor` 才是数据列表真正的外层索引。
-        // 同一组内不重复，避免左右出现同一个单词造成歧义。
-        if (pairs.isNotEmpty && pairs.length % _matchGroupSize != 0) {
-          // 已经落在末组里的那几个，补位时要避开。
-          final tailStart = pairs.length - (pairs.length % _matchGroupSize);
-          final usedWordIds = <int>{
-            for (var i = tailStart; i < pairs.length; i += 1) pairs[i][0],
-          };
-          // 词太少、前面连一个「已满组」都没有时（如每日目标 4 个），
-          // 没有可借用的补位池，直接走下面的重复兜底，绝不越界取下标。
-          if (tailStart > 0) {
-            final pool = List<List<int>>.of(pairs.sublist(0, tailStart))
-              ..shuffle(_random);
-            for (final candidate in pool) {
-              if (pairs.length % _matchGroupSize == 0) break;
-              if (!usedWordIds.add(candidate[0])) continue;
-              pairs.add(candidate);
-            }
-          }
-          // 词太少凑不出不重复的一组时允许重复兜底，保证每组仍是 5 张。
-          // 下标必须从「当前列表」里取：列表在增长，但永远非空。
-          while (pairs.length % _matchGroupSize != 0) {
-            pairs.add(pairs[_random.nextInt(pairs.length)]);
-          }
-        }
-        return List<Object?>.unmodifiable(pairs);
+        ]);
 
       case ReviewModule.meaningWordChoice:
         // 按释义文本去重：同一句中文可能同时属于多个单词（eat 的「吃」和

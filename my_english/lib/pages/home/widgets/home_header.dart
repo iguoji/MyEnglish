@@ -1,10 +1,11 @@
 // material.dart 提供 Text、Row 等界面组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 提供统一的 Tabler 图标字形，禁止回退到 Flutter 内置 Icons。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import 'home_layout.dart';
 
 ///
 /// 首页顶部：左侧问候语与收录统计，右侧汉堡菜单按钮。
@@ -47,6 +48,7 @@ class HomeHeader extends StatelessWidget {
   /// `@override` 表示这里重写 Flutter 父类规定的 build 方法，类似实现框架约定的入口。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
 
@@ -66,33 +68,26 @@ class HomeHeader extends StatelessWidget {
               Text(
                 // 调用本文件私有方法生成问候语。
                 _greeting(now),
-                // 24 号半粗与设计稿标题一致。
-                style: TextStyle(
-                  color: tokens.text,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  // 设计稿标题带 -0.2 的字距。
-                  letterSpacing: -0.2,
-                ),
+                // 24 号半粗与设计稿标题一致：字号到位，但不必像页面主标题
+                // 那么重，问候语要的是「大而不吼」。
+                style: textTheme.fs1Semibold,
               ),
               // 标题与副标题之间 4 像素间距。
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpace.p1),
               // 第二行按设计稿显示收录统计与今日复习进度。
               Text(
                 // 今日复习数来自真实记录：今天已听音辨义（按词去重）的单词数 / 每日目标。
                 '已收录 $wordCount 个单词 · 今日复习 $reviewCount/$dailyGoal',
-                // 13 号次要文字。
-                style: TextStyle(
-                  color: tokens.textSecondary,
-                  fontSize: 13,
-                  letterSpacing: 0,
-                ),
+                // 副标题走正文档（14），只把颜色降到次要灰。
+                // 字号、字重、行距全部继承主题，这里不重复设置。
+                style: textTheme.fs5.copyWith(color: tokens.textSecondary),
               ),
             ],
           ),
         ),
-        // 与左侧标题保留 8 像素间距。
-        const SizedBox(width: 8),
+        // 这里不再额外留间距：右边那个 40 宽的点击方块里，20 的汉堡图标是靠右放的，
+        // 方块左半边天生就是 20 像素空白，比手工加的 8 像素还宽。加了看不出变化，
+        // 删了也看不出变化——那就不该留着。
         // Semantics 为读屏工具提供按钮语义。
         Semantics(
           button: true,
@@ -104,11 +99,11 @@ class HomeHeader extends StatelessWidget {
             // 点击由首页打开右侧抽屉。
             onTap: onMenuPressed,
             // 圆角反馈与按钮尺寸贴合。
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             // SizedBox 固定触控区域为 40×40，图标贴右对齐右侧分界线。
             child: SizedBox(
-              width: 40,
-              height: 40,
+              width: HomeHeaderLayout.menuButtonSize,
+              height: HomeHeaderLayout.menuButtonSize,
               // Align(centerRight) 让 20px 图标在 40×40 触控区内靠右、垂直居中，
               // 使其右边缘对齐右侧分界线；SizedBox 的紧约束会把字形挤到左上角，
               // 必须显式对齐才能贴右。
@@ -116,8 +111,8 @@ class HomeHeader extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: Icon(
                   // menu2 是 Tabler 的三横线菜单图标，不再用 Container 手工模拟图标。
-                  TablerIcons.menu2,
-                  size: 20,
+                  AppGlyph.menu,
+                  size: AppIcon.i20,
                   color: tokens.text,
                 ),
               ),

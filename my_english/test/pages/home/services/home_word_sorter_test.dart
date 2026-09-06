@@ -6,8 +6,6 @@ import 'package:my_english/models/word.dart';
 import 'package:my_english/models/meaning.dart';
 // 引入待测试的纯首页排序服务。
 import 'package:my_english/pages/home/services/home_word_sorter.dart';
-// GroupMode 决定日期排序使用哪个时间字段。
-import 'package:my_english/pages/home/widgets/group_filter_bar.dart';
 // WordSortField 定义主排序字段。
 import 'package:my_english/pages/home/widgets/word_sort_bar.dart';
 
@@ -21,7 +19,6 @@ void main() {
     final second = Word(spelling: 'same', difficulty: 2);
     // 默认规则最终会落到原始下标兜底。
     const sorter = HomeWordSorter(
-      mode: GroupMode.difficulty,
       field: WordSortField.original,
       directions: <WordSortField, bool>{WordSortField.original: true},
       query: '',
@@ -42,7 +39,6 @@ void main() {
     ];
     // 查询词使用大写转小写后的页面口径。
     const sorter = HomeWordSorter(
-      mode: GroupMode.difficulty,
       field: WordSortField.original,
       directions: <WordSortField, bool>{WordSortField.original: true},
       query: 'a',
@@ -68,13 +64,12 @@ void main() {
     );
 
     const sorter = HomeWordSorter(
-      mode: GroupMode.reviewed,
       field: WordSortField.date,
       directions: <WordSortField, bool>{WordSortField.date: false},
       query: '',
     );
 
-    // 无论哪个分组视角，日期都只看复习时间。
+    // 日期固定只看复习时间（4.4 起词库仅剩按难度分组，无分组视角参数可传）。
     expect(sorter.dateOf(word), DateTime(2026, 1, 1));
   });
 
@@ -98,7 +93,6 @@ void main() {
     );
 
     const sorter = HomeWordSorter(
-      mode: GroupMode.difficulty,
       field: WordSortField.meaning,
       directions: <WordSortField, bool>{WordSortField.meaning: true},
       query: '',
@@ -122,12 +116,9 @@ void main() {
     final longMeaning = Word(
       id: 2,
       spelling: 'verbose',
-      meanings: const <Meaning>[
-        Meaning(pos: 'n.', definition: '完成某件事情的能力'),
-      ],
+      meanings: const <Meaning>[Meaning(pos: 'n.', definition: '完成某件事情的能力')],
     );
     const sorter = HomeWordSorter(
-      mode: GroupMode.difficulty,
       field: WordSortField.meaning,
       directions: <WordSortField, bool>{WordSortField.meaning: true},
       query: '',
@@ -162,7 +153,6 @@ void main() {
     );
 
     const sorter = HomeWordSorter(
-      mode: GroupMode.difficulty,
       field: WordSortField.difficulty,
       directions: <WordSortField, bool>{WordSortField.difficulty: false},
       query: '',

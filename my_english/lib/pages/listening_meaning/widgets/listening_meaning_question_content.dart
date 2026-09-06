@@ -1,52 +1,21 @@
-import 'package:flutter/material.dart';
-// Tabler 图标让提示信息与应用中的其他功能图标保持同一套视觉语言。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
+import 'dart:async';
 
-// 引入全局颜色令牌，亮色和深色模式会自动选择对应颜色。
+import 'package:flutter/material.dart';
+
 import '../../../common/theme.dart';
-// 引入听音辨义页面统一维护的尺寸，避免组件内部散落魔法数字。
+import '../../../widgets/audio_speaker_button.dart';
+import '../../../widgets/letter_slot.dart';
+import '../../../widgets/pos_meaning_panel.dart';
+import '../../spelling_reinforcement/widgets/spelling_layout.dart';
 import 'listening_meaning_layout.dart';
 
 ///
-/// 单个步骤的类型，决定左侧节点使用哪种 Tabler 图标。
+/// 听音辨义单词的某一学习步骤。
 ///
-/// 页面传入步骤类型，组件据此选择对应的 Tabler 图标。
-///
-enum ListeningMeaningStepKind {
-  ///
-  /// 第一步：听音并从四个候选里选出正确单词。
-  word,
-
-  ///
-  /// 后续步骤：辨认某个词性下的中文释义。
-  meaning,
-}
-
-///
-/// 步骤的三种状态，对应 Tabler Steps 的 已完成 / 进行中 / 未开始。
-///
-enum ListeningMeaningStepStatus {
-  ///
-  /// 该步骤已经答对，节点用品牌蓝实心加勾选图标。
-  done,
-
-  ///
-  /// 用户当前正在作答的步骤，节点用品牌蓝描边加对应图标。
-  active,
-
-  ///
-  /// 尚未轮到的步骤，节点用灰色描边加淡化图标。
-  pending,
-}
-
-///
-/// 听音辨义单词的某一学习步骤，例如“听音选词”或某个词性释义。
-///
-/// 这是一道题的“计划清单”里的一项，页面在进入新词时就一次性把
-/// 全部步骤构建出来，组件只负责按状态渲染，不关心答题进度。
+/// 页面仍然按“先选单词、再选释义”的业务顺序生成步骤；正文只读取这些状态，
+/// 并把它们排成 `ui/听音辨义1.html` 中的“单词 + 释义槽位”版式。
 ///
 class ListeningMeaningStep {
-  ///
   /// 创建一条步骤；业务状态仍由父页面管理。
   const ListeningMeaningStep({
     required this.kind,
@@ -54,935 +23,625 @@ class ListeningMeaningStep {
     required this.status,
     this.pos,
     this.definitions,
+    this.definitionTexts,
     this.word,
   });
 
-  ///
-  /// 步骤类型，决定左侧节点的图标。
+  /// 步骤类型：听音选词，或选择中文释义。
   final ListeningMeaningStepKind kind;
 
-  ///
-  /// 步骤主标题，例如“听音选词”或“释义”。
+  /// 步骤主标题，显示在白色正文卡片顶部。
   final String title;
 
-  ///
-  /// 步骤当前状态，决定节点的配色与图标。
+  /// 步骤当前状态。
   final ListeningMeaningStepStatus status;
 
-  ///
-  /// 释义步骤的词性（n. / vt. 等），听音步骤为 null。
+  /// 释义步骤的词性，例如 `n.` / `vt.`。
   final String? pos;
 
+  /// 这一词性下的全部释义，仅用于让未揭示的占位符按真实含义计算宽度。
   ///
-  /// 已经公开给用户的释义列表；未开始或尚未答出时为空。
+  /// 占位符仍然不会显示这些文字；它们只像量尺一样提供对应的长度，避免
+  /// 所有未答释义都退化成同一个固定宽度，或错误地撑满整行。
+  final List<String>? definitionTexts;
+
+  /// 这一词性下已经答对、可以公开的释义。
   final List<String>? definitions;
 
-  ///
-  /// 听音步骤完成后展示的正确单词；仅听音步骤使用，其余步骤为 null。
+  /// 听音步骤完成后展示的正确单词。
   final String? word;
 }
 
+/// 听音辨义的两个答题阶段。
+enum ListeningMeaningStepKind {
+  /// 根据发音选择正确英文拼写。
+  word,
+
+  /// 选择当前词性的中文释义。
+  meaning,
+}
+
+/// 步骤的三种展示状态。
+enum ListeningMeaningStepStatus {
+  /// 已经答对。
+  done,
+
+  /// 正在作答。
+  active,
+
+  /// 尚未开始。
+  pending,
+}
+
 ///
-/// 听音辨义页中部内容：上方单词卡，中间独立提示横幅，下方全量纵向步骤。
+/// 听音辨义页面的正文区域。
+///
+/// 版式对齐 `ui/听音辨义1.html`：
+///
+/// - 听音阶段显示圆形播放入口、标题、副标题和字母遮罩；
+/// - 释义阶段显示大号单词、释义槽位和底部操作提示；
+/// - 原型中“音标 + 小播音按钮”的位置替换成拼写巩固同款播音胶囊。
+///
+/// 候选答案仍由页面底部负责，本组件只负责正文展示，不改变答题和记录逻辑。
 ///
 class ListeningMeaningQuestionContent extends StatelessWidget {
-  ///
-  /// 创建题目内容组件；页面状态只传数据，不把答题业务塞进展示组件。
+  /// 创建听音辨义正文。
   const ListeningMeaningQuestionContent({
     required this.spelling,
     required this.revealWholeWord,
     required this.onSpeakerTap,
     required this.isPlaying,
-    required this.prompt,
-    required this.feedback,
-    required this.feedbackColor,
     required this.steps,
     required this.definitionSeparator,
+    required this.accentLabel,
+    // 底部结果提示三件套由页面算好传进来，不传即不展示提示。
+    this.hintText,
+    this.hintColor,
+    this.hintIcon,
     super.key,
   });
 
-  ///
-  /// 当前题目的完整拼写；未答对前只用它计算占位瓷砖数量。
+  /// 当前单词的完整拼写；听音阶段只用于计算遮罩线数量。
   final String spelling;
 
-  ///
-  /// true 表示拼写阶段已经完成，此时所有字母瓷砖都填入真实字母。
+  /// 释义阶段或完成态时显示完整单词。
   final bool revealWholeWord;
 
-  ///
-  /// 点击单词卡上的听音按钮时执行的回调，复用页面已有的发音逻辑。
+  /// 点击正文中的播放入口时执行父页面的真实发音逻辑。
   final VoidCallback onSpeakerTap;
 
-  ///
-  /// 当前是否正在播放发音，用于切换听音按钮的图标。
+  /// 当前单词是否正在播放。
   final bool isPlaying;
 
-  ///
-  /// 独立的当前操作要求，不再作为 Steps 的一项。
-  final String prompt;
-
-  ///
-  /// 正确、错误或提示操作产生的即时反馈。
-  final String feedback;
-
-  ///
-  /// 反馈的可选语义色；为空时使用普通次要文字颜色。
-  final Color? feedbackColor;
-
-  ///
-  /// 进入新词时一次性列出的全部步骤，包含 听音选词 + 每个词性释义。
+  /// 当前单词的完整步骤状态。
   final List<ListeningMeaningStep> steps;
 
-  ///
-  /// 无障碍朗读多个释义时使用的分隔符，与首页设置保持一致。
+  /// 多条释义的无障碍朗读分隔符。
   final String definitionSeparator;
 
+  /// 当前口音的中文名称，显示在播音胶囊第二行。
+  final String accentLabel;
+
+  /// 卡片底部的结果提示文案（错误次数 / 全对），为 null 表示当前不展示提示。
   ///
-  /// 先输出单词卡，再输出独立提示横幅，最后输出全部步骤轨道。
+  /// 提示原本悬浮在白卡与候选区之间，现在改为贴到白卡内部底部，因此这个值
+  /// 由页面按「是否出错 / 是否全对」算好后传进来。
+  final String? hintText;
+
+  /// 提示的语义色（危险红 / 成功绿），与 [hintText] 同时为 null 时不渲染。
+  final Color? hintColor;
+
+  /// 提示前的 Tabler 图标，与 [hintText] 同时为 null 时不渲染。
+  final IconData? hintIcon;
+
   @override
   Widget build(BuildContext context) {
-    // 按当前主题读取卡片、文字和边框颜色。
     final tokens = AppTokens.of(context);
-    // Column 让三个模块从顶部依次纵向排列。
-    return Column(
-      key: const Key('listening-meaning-question-content'),
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 第一个模块：重新设计的单词卡，把听音与字母瓷砖收进同一张卡。
-        _WordCard(
-          spelling: spelling,
-          revealWholeWord: revealWholeWord,
-          isPlaying: isPlaying,
-          onSpeakerTap: onSpeakerTap,
-          tokens: tokens,
+    // 正文白卡不再绘制顶部状态条 / 步骤条：题目进度已由页面顶栏的总进度条统一
+    // 承载，白卡内只保留「听音 / 释义」正文与底部的结果提示，信息更聚焦。
+
+    return Container(
+      key: const Key('listening-meaning-question-card'),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: tokens.card,
+        border: Border.all(color: tokens.border),
+        // 正文白卡的圆角走本页尺寸表：拼写巩固与看义选词的注释都写着「与听音辨义
+        // 题目卡一致」，现在这句话真的指着同一个常量了。
+        borderRadius: BorderRadius.circular(
+          ListeningMeaningLayout.bodyCardRadius,
         ),
-        // 单词卡和提示横幅之间使用正常间距，不通过位移调整视觉位置。
-        const SizedBox(height: ListeningMeaningLayout.questionModuleGap),
-        // 提示与 Steps 只负责展示；整块下方区域的透明播放事件由父页面 Stack 统一管理。
-        Column(
-          mainAxisSize: MainAxisSize.min,
+        boxShadow: [
+          BoxShadow(
+            color: tokens.cardShadow,
+            offset: const Offset(0, AppShadow.cardOffsetY),
+            blurRadius: AppShadow.cardBlur,
+          ),
+        ],
+      ),
+      // IntrinsicHeight 会把父级提供的最小卡片高度传给内容列；
+      // 内容较少时正文区吃掉剩余空间，内容较多时仍会自然增高并允许外层滚动。
+      child: IntrinsicHeight(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 提示单独成卡，不再占用 Steps 的第一步。
-            _PromptBanner(
-              prompt: prompt,
-              feedback: feedback,
-              feedbackColor: feedbackColor,
-              tokens: tokens,
+            Expanded(
+              child: Padding(
+                key: const Key('listening-meaning-card-body'),
+                // 正文内容到白卡四边的距离统一为 pBase：以前这里四边都是 0，
+                // 词性及含义会直接贴到卡片边缘，看起来不像“装在卡片里”。
+                // 四边同值，用 `EdgeInsets.all` 简写。
+                padding: const EdgeInsets.all(AppSpace.pBase),
+                child: Center(
+                  child: revealWholeWord
+                      ? _MeaningStage(
+                          spelling: spelling,
+                          isPlaying: isPlaying,
+                          onSpeakerTap: onSpeakerTap,
+                          steps: steps,
+                          definitionSeparator: definitionSeparator,
+                          accentLabel: accentLabel,
+                          tokens: tokens,
+                        )
+                      : _ListenStage(
+                          spelling: spelling,
+                          isPlaying: isPlaying,
+                          onSpeakerTap: onSpeakerTap,
+                          tokens: tokens,
+                        ),
+                ),
+              ),
             ),
-            // 提示横幅与步骤轨道之间同样使用统一间距。
-            const SizedBox(height: ListeningMeaningLayout.questionModuleGap),
-            // Tabler 风格 Steps 把全部步骤（听音选词 + 每条释义）一次性列出。
-            _QuestionSteps(
-              steps: steps,
-              definitionSeparator: definitionSeparator,
-              tokens: tokens,
-            ),
+            // 结果提示（错误次数 / 全对）贴在白卡底部：比原本悬浮在白卡与候选区
+            // 之间更紧凑，也避免正文与候选区之间再额外留一道间距。
+            if (hintText != null && hintColor != null && hintIcon != null)
+              _CardBottomHint(
+                key: const Key('listening-meaning-difficulty-hint'),
+                text: hintText!,
+                color: hintColor!,
+                icon: hintIcon!,
+              ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
 
 ///
-/// 展示单词拼写进度与发音入口。
+/// 正文白卡底部的结果提示（错误次数 / 全对）。
 ///
-/// 未公开的字母槽保持空白，提示公开后填入大写字母并使用强调色。
-///
-class _WordCard extends StatelessWidget {
-  ///
-  /// 接收完整拼写、提示公开数量、播放状态与主题色。
-  const _WordCard({
+/// 就是一行「图标 + 文案」，语义全靠图标与文字颜色表达（危险红 / 成功绿）：
+/// 它已经身在白卡内部，白卡本身就是一张卡片，所以不再额外包圆角胶囊，
+/// 免得变成“卡中卡”。
+class _CardBottomHint extends StatelessWidget {
+  const _CardBottomHint({
+    required this.text,
+    required this.color,
+    required this.icon,
+    super.key,
+  });
+
+  /// 提示文案，例如「本题已答错 2 次」「一气呵成 · 完美通过！」。
+  final String text;
+
+  /// 语义色：危险红（出错）或成功绿（全对）。
+  final Color color;
+
+  /// 提示前的 Tabler 图标（告警 / 全对）。
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      // 四边同为 p3 时用 `EdgeInsets.all` 这一档简写（相当于 CSS 的 padding: p3），
+      // 比 fromLTRB 写四个一样的数更短，也不会出现“改了三边漏一边”。
+      padding: const EdgeInsets.all(AppSpace.p3),
+      // Center 让这行「图标 + 文案」在白卡内水平居中。
+      child: Center(
+        // 刻意不再包一层圆角胶囊：提示就在白卡内部，白卡本身已经是卡片，
+        // 再叠一层带底色和描边的胶囊等于“卡中卡”，反而显得啰嗦。
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: AppIcon.i16, color: color),
+            const SizedBox(width: AppSpace.p2),
+            Text(text, style: textTheme.fs5Semibold.copyWith(color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 听音阶段：对应原型中“圆形播音按钮 + 这个单词是？”正文。
+class _ListenStage extends StatelessWidget {
+  const _ListenStage({
     required this.spelling,
-    required this.revealWholeWord,
     required this.isPlaying,
     required this.onSpeakerTap,
     required this.tokens,
   });
 
-  ///
-  /// 当前单词完整拼写。
   final String spelling;
-
-  ///
-  /// 是否公开全部字母。
-  final bool revealWholeWord;
-
-  ///
-  /// 是否正在播放发音。
   final bool isPlaying;
-
-  ///
-  /// 点击听音按钮时执行父页面的发音逻辑。
   final VoidCallback onSpeakerTap;
-
-  ///
-  /// 父组件已经读取的主题令牌。
   final AppTokens tokens;
 
-  ///
-  /// 绘制带边框的单词卡，左侧听音按钮 + 右侧居中字母瓷砖。
   @override
   Widget build(BuildContext context) {
-    // runes 按字符读取拼写，避免直接按 UTF-16 单元拆分造成字符数量错误。
+    final textTheme = Theme.of(context).textTheme;
     final characters = spelling.runes
-        .map((codePoint) => String.fromCharCode(codePoint))
+        .map(String.fromCharCode)
+        .where(_isEnglishLetter)
         .toList(growable: false);
-    // 只统计 A-Z 字母；空格或连字符会显示间隔，但不会虚增占位瓷砖。
-    final letterCount = characters.where(_isEnglishLetter).length;
-    // 未公开答案时，无障碍工具只朗读字母数，不能提前泄露正确拼写。
-    final semanticLabel = revealWholeWord ? '单词 $spelling' : '$letterCount 个字母';
-    // Material 同时绘制背景、圆角与完整边框，圆角处不会因裁剪丢失边线。
-    return Material(
-      key: const Key('listening-meaning-word-card'),
-      // 用极淡的品牌色铺底，让单词卡成为页面视觉焦点。
-      color: AppTokens.accent.withValues(alpha: 0.04),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
-        side: BorderSide(color: tokens.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      // Semantics 为读屏保留“字母数量/完整单词”信息，子瓷砖本身不重复朗读。
-      child: Semantics(
-        label: semanticLabel,
-        container: true,
-        // 固定卡高度，让中部区域不随单词长短跳动。
-        child: SizedBox(
-          key: const Key('listening-meaning-word-slot'),
-          height: ListeningMeaningLayout.wordCardHeight,
-          // Padding 防止较长单词直接贴到卡片左右边框。
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: ListeningMeaningLayout.wordCardHorizontalInset,
-            ),
-            // Row 让听音按钮占据左侧固定宽度，字母瓷砖在剩余空间居中。
-            child: Row(
-              children: [
-                // 左上角的听音按钮，点击即重听当前单词。
-                _CardSpeakerButton(
-                  isPlaying: isPlaying,
-                  onTap: onSpeakerTap,
-                  tokens: tokens,
-                ),
-                // 听音按钮与瓷砖之间保留紧凑间距。
-                const SizedBox(width: ListeningMeaningLayout.wordCardInnerGap),
-                // Expanded 让瓷砖在去掉听音按钮后的区域里水平居中。
-                Expanded(
-                  // Center 保证瓷砖整体在卡片中垂直居中。
-                  child: Center(
-                    // FittedBox 仅在超长单词超过卡片宽度时整体等比缩小。
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      // ExcludeSemantics 防止每个字母与上方合并语义重复朗读。
-                      child: ExcludeSemantics(child: _buildTiles(characters)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  ///
-  /// 把拼写转换为若干字母瓷砖；非字母字符只作为分隔符显示。
-  Widget _buildTiles(List<String> characters) {
-    // letterIndex 只计算英文字母，因此连字符不会消耗提示公开数量。
-    var letterIndex = 0;
-    // Row 的宽度由全部瓷砖决定，再由外层 Center 整体居中。
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 使用普通 for 循环，方便同时维护原字符位置与纯字母位置。
-        for (
-          var characterIndex = 0;
-          characterIndex < characters.length;
-          characterIndex += 1
-        )
-          ..._buildCharacter(
-            character: characters[characterIndex],
-            characterIndex: characterIndex,
-            letterIndex: _isEnglishLetter(characters[characterIndex])
-                ? letterIndex++
-                : null,
-            hasFollowingCharacter: characterIndex < characters.length - 1,
-          ),
-      ],
-    );
-  }
-
-  ///
-  /// 为一个字符生成界面节点；返回 List 是为了同时附加相邻字符间距。
-  List<Widget> _buildCharacter({
-    required String character,
-    required int characterIndex,
-    required int? letterIndex,
-    required bool hasFollowingCharacter,
-  }) {
-    // 空格只形成单词间隔，不显示文字，也不创建字母瓷砖。
-    if (character.trim().isEmpty) {
-      return const <Widget>[SizedBox(width: ListeningMeaningLayout.wordSpaceWidth)];
-    }
-    // 连字符或撇号按原文显示，使复合词仍保持正确结构。
-    if (letterIndex == null) {
-      return <Widget>[
-        SizedBox(
-          height: ListeningMeaningLayout.wordTileHeight,
-          child: Center(
-            child: Text(
-              character,
-              style: TextStyle(
-                color: tokens.textSecondary,
-                // 标点随字母同步放大，避免在瓷砖卡中显得过小。
-                fontSize: 30,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-        if (hasFollowingCharacter)
-          const SizedBox(width: ListeningMeaningLayout.wordTileGap),
-      ];
-    }
-    // 拼写已答对时公开全部字母，否则仅公开提示数量以内的左侧字母。
-    // 提示功能已下线，只有答对后整词揭示这一种情况。
-    final isRevealed = revealWholeWord;
-    // 每个英文字母固定使用一个圆角瓷砖，真实文字出现时不改变任何几何尺寸。
-    return <Widget>[
-      Container(
-        key: Key('listening-meaning-tile-$letterIndex'),
-        width: ListeningMeaningLayout.wordTileWidth,
-        height: ListeningMeaningLayout.wordTileHeight,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          // 已公开的瓷砖使用极淡品牌色底，未公开则使用次级底色。
-          color: isRevealed
-              ? AppTokens.accent.withValues(alpha: 0.08)
-              : tokens.sub,
-          borderRadius: BorderRadius.circular(ListeningMeaningLayout.wordTileRadius),
-          // 已公开瓷砖描品牌色边，未公开使用普通输入边框。
-          border: Border.all(
-            color: isRevealed
-                ? AppTokens.accent.withValues(alpha: 0.5)
-                : tokens.inputBorder,
-          ),
-        ),
-        child: Text(
-          // 公开的字母统一大写，视觉更整齐；未公开时瓷砖留空。
-          isRevealed ? character.toUpperCase() : '',
-          key: Key('listening-meaning-tile-letter-$letterIndex'),
-          style: TextStyle(
-            // 整词完成后用品牌色高亮庆祝，否则用主文字色。
-            color: revealWholeWord ? AppTokens.accent : tokens.text,
-            // 字号跟随布局常量，保证与测试约定一致。
-            fontSize: ListeningMeaningLayout.wordLetterFontSize,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      if (hasFollowingCharacter)
-        const SizedBox(width: ListeningMeaningLayout.wordTileGap),
-    ];
-  }
-}
-
-///
-/// 单词卡左上角的听音按钮：品牌色描边的圆形，点击重听当前单词。
-///
-class _CardSpeakerButton extends StatelessWidget {
-  ///
-  /// 创建听音按钮。
-  const _CardSpeakerButton({
-    required this.isPlaying,
-    required this.onTap,
-    required this.tokens,
-  });
-
-  ///
-  /// 是否正在播放，用于切换音量图标。
-  final bool isPlaying;
-
-  ///
-  /// 点击时执行父页面的发音逻辑。
-  final VoidCallback onTap;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 使用 Material + InkWell 获得按压水波纹与点击命中。
-  @override
-  Widget build(BuildContext context) {
-    // 圆形画布，内部居中显示 Tabler 音量图标。
-    return Material(
-      // 极淡品牌色底，呼应“点击即可听音”的操作意图。
-      color: AppTokens.accent.withValues(alpha: 0.12),
-      shape: const CircleBorder(),
-      // InkWell 提供点击；onTap 来自父页面，复用同一套发音服务。
-      child: InkWell(
-        key: const Key('listening-meaning-word-card-speaker'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        // SizedBox 固定点击画布，不让图标透明空间影响卡片对齐。
-        child: SizedBox(
-          width: ListeningMeaningLayout.wordCardSpeakerSize,
-          height: ListeningMeaningLayout.wordCardSpeakerSize,
-          child: Center(
-            child: Icon(
-              // 播放中显示双声波图标，空闲显示单声波图标。
-              isPlaying ? TablerIcons.volume2 : TablerIcons.volume,
-              size: 20,
-              color: AppTokens.accent,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-///
-/// 展示当前操作要求和即时反馈。
-///
-class _PromptBanner extends StatelessWidget {
-  ///
-  /// 创建提示横幅。
-  const _PromptBanner({
-    required this.prompt,
-    required this.feedback,
-    required this.feedbackColor,
-    required this.tokens,
-  });
-
-  ///
-  /// 当前操作要求。
-  final String prompt;
-
-  ///
-  /// 当前即时反馈。
-  final String feedback;
-
-  ///
-  /// 反馈语义颜色。
-  final Color? feedbackColor;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 从横幅顶部开始排列反馈内容。
-  @override
-  Widget build(BuildContext context) {
-    // Container 绘制与单词卡同款的边框与圆角，保持组件一致性。
-    return Container(
-      key: const Key('listening-meaning-prompt-banner'),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: tokens.card,
-        borderRadius: BorderRadius.circular(ListeningMeaningLayout.cardRadius),
-        border: Border.all(color: tokens.border),
-      ),
-      // 内部列承载“当前要求”标题、要求正文与反馈三行。
-      child: Column(
-        key: const Key('listening-meaning-prompt-information'),
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 顶部小标题：灯泡图标 + “当前要求”，明确这是动态指引。
-          Row(
-            children: [
-              Icon(TablerIcons.bulb, size: 15, color: tokens.textSecondary),
-              const SizedBox(width: 6),
-              Text(
-                '当前要求',
-                style: TextStyle(
-                  color: tokens.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // 当前这一阶段的具体要求，例如“听音，选出正确的单词”。
-          Text(
-            prompt,
-            key: const Key('listening-meaning-stage-label'),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: tokens.text,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // 固定高度反馈区，文案出现时横幅不抖动。
-          SizedBox(
-            key: const Key('listening-meaning-feedback-slot'),
-            height: ListeningMeaningLayout.feedbackHeight,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                feedback,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: feedbackColor ?? tokens.textSecondary,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-///
-/// Tabler 风格纵向 Steps：进入新词时一次性列出全部步骤。
-///
-/// 第一步永远是“听音选词”，后续每个词性释义各占一步，
-/// 步骤状态随答题进度在 未开始 / 进行中 / 已完成 之间切换。
-///
-class _QuestionSteps extends StatelessWidget {
-  ///
-  /// 创建整条步骤轨道；业务状态仍由父页面管理。
-  const _QuestionSteps({
-    required this.steps,
-    required this.definitionSeparator,
-    required this.tokens,
-  });
-
-  ///
-  /// 当前单词的全部步骤，已含各自状态。
-  final List<ListeningMeaningStep> steps;
-
-  ///
-  /// 无障碍朗读多个释义时使用的分隔符。
-  final String definitionSeparator;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 输出一条连续的左侧轨道，所有步骤内容在右侧居上对齐。
-  @override
-  Widget build(BuildContext context) {
     return Column(
-      key: const Key('listening-meaning-vertical-steps'),
+      key: const Key('listening-meaning-question-content'),
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // 每个步骤都从一开始列出，不再等答对后才出现。
-        for (var index = 0; index < steps.length; index += 1)
-          _VerticalStepItem(
-            stepIndex: index,
-            stepKey: Key('listening-meaning-step-$index'),
-            status: steps[index].status,
-            isLast: index == steps.length - 1,
-            icon: _stepIcon(steps[index]),
-            tokens: tokens,
-            // 释义步骤的内容 key 沿用旧命名，便于测试和后续定位。
-            contentKey: steps[index].kind == ListeningMeaningStepKind.word
-                ? const Key('listening-meaning-step-word')
-                : Key('listening-meaning-step-meaning-${index - 1}'),
-            child: _StepContent(
-              step: steps[index],
-              tokens: tokens,
-              definitionSeparator: definitionSeparator,
-            ),
-          ),
-      ],
-    );
-  }
-
-  ///
-  /// 根据步骤类型与状态选择节点图标。
-  IconData _stepIcon(ListeningMeaningStep step) {
-    // 已完成的步骤一律用勾选图标表达“做完了”。
-    if (step.status == ListeningMeaningStepStatus.done) return TablerIcons.check;
-    // 听音步骤用耳机图标，释义步骤用列表详情图标。
-    return step.kind == ListeningMeaningStepKind.word
-        ? TablerIcons.headphones
-        : TablerIcons.listDetails;
-  }
-}
-
-///
-/// 一条纵向 Step：左侧节点和连接线，右侧为当前步骤内容。
-///
-class _VerticalStepItem extends StatelessWidget {
-  ///
-  /// 创建一个稳定的纵向步骤行。
-  const _VerticalStepItem({
-    required this.stepIndex,
-    required this.stepKey,
-    required this.status,
-    required this.isLast,
-    required this.icon,
-    required this.contentKey,
-    required this.tokens,
-    required this.child,
-  });
-
-  ///
-  /// 当前步骤下标，用于生成稳定测试 key。
-  final int stepIndex;
-
-  ///
-  /// 直接挂在 Row 上的 key，几何测试能读取真实步骤边界。
-  final Key stepKey;
-
-  ///
-  /// 当前步骤状态，决定节点配色与图标颜色。
-  final ListeningMeaningStepStatus status;
-
-  ///
-  /// 最后一步不再向下绘制连接线。
-  final bool isLast;
-
-  ///
-  /// 节点内显示的 Tabler 图标。
-  final IconData icon;
-
-  ///
-  /// 右侧内容容器的 key，便于测试按步骤定位。
-  final Key contentKey;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 步骤右侧的具体内容。
-  final Widget child;
-
-  ///
-  /// 使用 IntrinsicHeight 让左侧连接线自动匹配右侧内容高度。
-  @override
-  Widget build(BuildContext context) {
-    // 已完成：品牌蓝实心；进行中：白底品牌蓝描边；未开始：卡片底灰描边。
-    final nodeColor = status == ListeningMeaningStepStatus.done
-        ? AppTokens.accent
-        : status == ListeningMeaningStepStatus.active
-        ? Colors.white
-        : tokens.card;
-    // 未开始使用更淡的 check 灰描边，其余状态都用品牌蓝描边。
-    final nodeBorder = status == ListeningMeaningStepStatus.pending
-        ? tokens.check
-        : AppTokens.accent;
-    // 关键：蓝底节点（已完成）内必须用白色图标，否则蓝图标在蓝底上不可见；
-    // 白底节点（进行中）用品牌蓝图标，卡片底节点（未开始）用弱化灰图标。
-    final iconColor = status == ListeningMeaningStepStatus.done
-        ? Colors.white
-        : status == ListeningMeaningStepStatus.pending
-        ? tokens.muted
-        : AppTokens.accent;
-    return IntrinsicHeight(
-      child: Row(
-        key: stepKey,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 固定宽度的轨道列保证所有步骤节点具有同一个水平中心。
-          SizedBox(
-            width: ListeningMeaningLayout.stepMarkerSize,
-            child: Column(
-              children: [
-                // 圆形节点模拟 Tabler Steps 的状态点。
-                Container(
-                  key: Key('listening-meaning-step-marker-$stepIndex'),
-                  width: ListeningMeaningLayout.stepMarkerSize,
-                  height: ListeningMeaningLayout.stepMarkerSize,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: nodeColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: nodeBorder),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: ListeningMeaningLayout.stepIconSize,
-                    color: iconColor,
-                  ),
-                ),
-                // 非末步从节点下缘向下一步骤绘制连续竖线。
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      key: Key('listening-meaning-step-connector-$stepIndex'),
-                      width: ListeningMeaningLayout.stepConnectorWidth,
-                      color: tokens.inputBorder,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // 左侧轨道与右侧正文保持 Tabler 风格的紧凑间距。
-          const SizedBox(width: ListeningMeaningLayout.stepContentGap),
-          // Expanded 让长提示与释义使用剩余宽度并自然换行。
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                bottom: isLast ? 0 : ListeningMeaningLayout.stepVerticalGap,
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: ListeningMeaningLayout.stepContentMinHeight,
-                ),
-                // 用统一 key 承载右侧内容，便于测试定位这一步骤。
-                child: Container(key: contentKey, child: child),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-///
-/// 单个步骤的右侧内容：标题 + 状态标签，释义步骤额外展示词性与已答释义。
-///
-class _StepContent extends StatelessWidget {
-  ///
-  /// 创建一条步骤内容。
-  const _StepContent({
-    required this.step,
-    required this.tokens,
-    required this.definitionSeparator,
-  });
-
-  ///
-  /// 当前步骤的数据与状态。
-  final ListeningMeaningStep step;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 读屏合并多个释义时使用的分隔符。
-  final String definitionSeparator;
-
-  ///
-  /// 按“标题、状态、释义”的阅读顺序输出步骤正文。
-  @override
-  Widget build(BuildContext context) {
-    // 未开始步骤标题用弱化色，进行中/已完成用主文字色突出。
-    final titleColor = step.status == ListeningMeaningStepStatus.pending
-        ? tokens.textSecondary
-        : tokens.text;
-    // 正文先把标题、可选词性标签与右侧状态标签排成一行。
-    final body = Column(
-      key: const Key('listening-meaning-step-body'),
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+        // 这个大圆对应 HTML 原型的 `.speaker`，直径记在页面表里，仍使用 Tabler 扬声器。
+        AudioSpeakerButton(
+          key: const Key('listening-meaning-word-card-speaker'),
+          isPlaying: isPlaying,
+          onTap: onSpeakerTap,
+          size: ListeningMeaningLayout.questionSpeakerSize,
+          iconSize: AppIcon.i32,
+        ),
+        const SizedBox(height: AppSpace.pBase),
+        Text(
+          '这个单词是？',
+          key: const Key('listening-meaning-stage-title'),
+          style: textTheme.fs3Semibold,
+        ),
+        const SizedBox(height: AppSpace.p2),
+        Text(
+          '仔细听发音，在下方选出正确的单词',
+          key: const Key('listening-meaning-stage-subtitle'),
+          style: textTheme.fs5.copyWith(color: tokens.textSecondary),
+        ),
+        const SizedBox(height: AppSpace.pBase),
+        // 答案字母格：复用看义选词 / 拼写巩固同一套 LetterSlot，三个模块的
+        // 「填空」观感完全一致——不再用一排短横线占位。听音选词阶段答案还没
+        // 揭晓，所有格子都是空位；光标落在第一格，配色与看义选词未答组相同
+        // （第一格蓝下划线 + 光晕 + 闪烁光标，其余格子浅灰下划线）。
+        Wrap(
+          key: const Key('listening-meaning-spelling-mask'),
+          alignment: WrapAlignment.center,
+          spacing: LetterSlotLayout.letterGap,
+          runSpacing: LetterSlotLayout.letterRunGap,
           children: [
-            Text(
-              step.title,
-              style: TextStyle(
-                color: titleColor,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
+            for (var index = 0; index < characters.length; index += 1)
+              LetterSlot(
+                key: Key('listening-meaning-mask-$index'),
+                text: null,
+                isActive: index == 0,
+                lineColor: index == 0 ? AppTokens.primary : tokens.check,
+                textColor: tokens.textSecondary,
+                entryToken: null,
               ),
-            ),
-            // 释义步骤在标题后展示词性小标签。
-            if (step.pos != null) ...[
-              const SizedBox(width: 8),
-              _PosBadge(pos: step.pos!, tokens: tokens),
-            ],
-            // 状态标签推到最右侧，一眼看清进度。
-            const Spacer(),
-            _StatusTag(status: step.status, tokens: tokens),
           ],
         ),
-        // 听音步骤完成后直接回显正确单词；释义步骤展示已答释义 chips。
-        if (step.kind == ListeningMeaningStepKind.word &&
-            step.status == ListeningMeaningStepStatus.done) ...[
-          const SizedBox(height: 6),
-          // 复用释义 chip 的同款浅色标签，展示用户刚刚选对的单词。
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: tokens.sub,
-              borderRadius: BorderRadius.circular(6),
+      ],
+    );
+  }
+}
+
+/// 释义阶段：对应原型中“大号单词 + 播音区域 + 释义槽位”。
+class _MeaningStage extends StatelessWidget {
+  const _MeaningStage({
+    required this.spelling,
+    required this.isPlaying,
+    required this.onSpeakerTap,
+    required this.steps,
+    required this.definitionSeparator,
+    required this.accentLabel,
+    required this.tokens,
+  });
+
+  final String spelling;
+  final bool isPlaying;
+  final VoidCallback onSpeakerTap;
+  final List<ListeningMeaningStep> steps;
+  final String definitionSeparator;
+  final String accentLabel;
+  final AppTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final meaningSteps = steps
+        .where((step) => step.kind == ListeningMeaningStepKind.meaning)
+        .toList(growable: false);
+    // 顶部 steps 按“每条释义一次选择”展示；正文则把相邻的相同词性重新合并，
+    // 这样 hard 的 6 个步骤会完整出现在进度条中，但正文仍只显示一个“*”标签，
+    // 右侧排列这组词性的 6 个含义槽位。
+    final rows = <_MeaningRowBuilder>[];
+    // 已答对的条数与当前正在作答的下标，都按“摊平后的第几条释义”计。
+    // 这个口径与页面里的 _meaningIndex 完全一致，公共面板直接按它决定
+    // 哪几条已经公开、哪一条要显示闪烁光标。
+    var revealedCount = 0;
+    int? activeIndex;
+    for (var index = 0; index < meaningSteps.length; index += 1) {
+      final step = meaningSteps[index];
+      final pos = step.pos ?? '*';
+      if (rows.isEmpty || rows.last.pos != pos) {
+        rows.add(_MeaningRowBuilder(pos: pos));
+      }
+      // 未答释义也要把真实文字交给面板：它要垫在底层当尺子，撑出与答对后
+      // 完全相同的宽度，这样答对时页面一个像素都不会动。
+      rows.last.definitions.add(
+        step.definitionTexts?.isNotEmpty == true
+            ? step.definitionTexts!.first
+            : (step.definitions?.isNotEmpty == true
+                  ? step.definitions!.first
+                  : ''),
+      );
+      if (step.status == ListeningMeaningStepStatus.done) revealedCount += 1;
+      if (step.status == ListeningMeaningStepStatus.active) activeIndex = index;
+    }
+
+    return Column(
+      key: const Key('listening-meaning-question-content'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          spelling,
+          key: const Key('listening-meaning-word'),
+          textAlign: TextAlign.center,
+          // 全站最大号那一档；这里的单词是本页视觉焦点，行距收紧一点，
+          // 让长单词不至于把这一行撑得太高。
+          style: textTheme.display6.copyWith(
+            height: ListeningMeaningLayout.wordLineHeight,
+          ),
+        ),
+        // 这里刻意不显示音标和独立小喇叭，直接替换为拼写巩固的播音胶囊。
+        // 上方间距与下方分割线的 26px 上边距保持一致，让播音胶囊在单词与释义
+        // 之间处于均衡的位置，不会视觉上贴近其中一侧。
+        const SizedBox(height: AppSpace.pBase),
+        _ListeningMeaningPlaybackCapsule(
+          key: const Key('listening-meaning-playback-status'),
+          isPlaying: isPlaying,
+          onTap: onSpeakerTap,
+          accentLabel: accentLabel,
+        ),
+        // 释义区整块交给公共面板，与“拼写巩固”共用同一套版式：
+        // 那边是只读模式，这边是揭示模式——答对一条就原地揭开一条。
+        //
+        // 注意：以前这里包了一层 maxWidth 300 的限宽，面板被卡成窄条，又被
+        // 外层 Center 水平居中，于是面板到白卡左右边缘各空出几十像素
+        // （远超 pBase），怎么调卡片内边距都看不见变化——对称内边距包着
+        // 一块被居中、又比可用区窄的内容，距离天然不变。去掉限宽让面板
+        // 横向铺满卡片内容区后，卡边到面板边正好是正文的 pBase 内边距。
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: AppSpace.pBase),
+            PosMeaningPanel.reveal(
+              rows: [
+                for (final row in rows)
+                  PosMeaningRow(pos: row.pos, definitions: row.definitions),
+              ],
+              separator: definitionSeparator,
+              revealedCount: revealedCount,
+              activeIndex: activeIndex,
+              keyPrefix: 'listening-meaning',
             ),
-            child: Text(
-              // 与单词卡瓷砖保持一致，统一大写展示。
-              step.word != null ? step.word!.toUpperCase() : '',
-              style: TextStyle(
-                color: tokens.textMedium,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// 正文中的一个词性行，只在组装面板数据的过程里临时用一下。
+///
+/// 顶部进度条使用逐条释义的 step；这里仅为视觉排版服务，把同一词性下的
+/// 多个 step 收拢到同一行中。
+class _MeaningRowBuilder {
+  _MeaningRowBuilder({required this.pos});
+
+  final String pos;
+  final List<String> definitions = <String>[];
+}
+
+///
+/// 听音辨义正文复用拼写巩固的播音胶囊视觉。
+///
+/// 播放状态只驱动一组低频声纹，不依赖页面的业务定时器；这样正文滚动、切题
+/// 和系统返回时，胶囊都能自行停止动画，不会把状态更新泄漏到已离场页面。
+///
+class _ListeningMeaningPlaybackCapsule extends StatefulWidget {
+  const _ListeningMeaningPlaybackCapsule({
+    required this.isPlaying,
+    required this.onTap,
+    required this.accentLabel,
+    super.key,
+  });
+
+  final bool isPlaying;
+  final VoidCallback onTap;
+  final String accentLabel;
+
+  @override
+  State<_ListeningMeaningPlaybackCapsule> createState() =>
+      _ListeningMeaningPlaybackCapsuleState();
+}
+
+class _ListeningMeaningPlaybackCapsuleState
+    extends State<_ListeningMeaningPlaybackCapsule> {
+  final ValueNotifier<double> _waveProgress = ValueNotifier<double>(0);
+  Timer? _waveTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isPlaying) _startWaveTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ListeningMeaningPlaybackCapsule oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying == oldWidget.isPlaying) return;
+    if (widget.isPlaying) {
+      _startWaveTimer();
+    } else {
+      _stopWaveTimer();
+    }
+  }
+
+  void _startWaveTimer() {
+    if (_waveTimer != null) return;
+    _waveTimer = Timer.periodic(
+      const Duration(milliseconds: SpellingLayout.waveTickMs),
+      (_) {
+        if (!mounted || !widget.isPlaying) return;
+        _waveProgress.value = (_waveProgress.value + 0.12) % 1;
+      },
+    );
+  }
+
+  void _stopWaveTimer() {
+    _waveTimer?.cancel();
+    _waveTimer = null;
+    _waveProgress.value = 0;
+  }
+
+  @override
+  void dispose() {
+    _waveTimer?.cancel();
+    _waveProgress.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final statusLabel = widget.isPlaying ? '播放中' : '点击播放';
+    final waveColor = widget.isPlaying ? AppTokens.primary : tokens.muted;
+
+    return Semantics(
+      button: true,
+      label: '播放发音',
+      child: SizedBox(
+        width: SpellingLayout.playbackWidth,
+        child: Material(
+          // 胶囊底色用专门的 capsule 令牌，不再借用页面底色 page：
+          // 两者数值相同，但页面底色以后要是变了，胶囊不该跟着变。
+          color: tokens.capsule,
+          borderRadius: BorderRadius.circular(AppRadius.roundedPill),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(AppRadius.roundedPill),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                SpellingLayout.playbackCirclePadding,
+                SpellingLayout.playbackVerticalPadding,
+                SpellingLayout.playbackTextPaddingRight,
+                SpellingLayout.playbackVerticalPadding,
+              ),
+              child: Row(
+                children: [
+                  AudioSpeakerButton(
+                    isPlaying: widget.isPlaying,
+                    onTap: widget.onTap,
+                    size: SpellingLayout.playbackCircleSize,
+                    iconSize: SpellingLayout.playbackIconSize,
+                  ),
+                  const SizedBox(width: SpellingLayout.playbackContentGap),
+                  SizedBox(
+                    width: SpellingLayout.playbackTextWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          height: SpellingLayout.waveHeight,
+                          child: ValueListenableBuilder<double>(
+                            valueListenable: _waveProgress,
+                            builder: (context, progress, _) => Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                for (
+                                  var index = 0;
+                                  index < SpellingLayout.waveBarCount;
+                                  index += 1
+                                )
+                                  _PlaybackWaveBar(
+                                    color: waveColor,
+                                    height: _waveHeight(index, progress),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: SpellingLayout.playbackLabelGap),
+                        AnimatedSwitcher(
+                          duration: const Duration(
+                            milliseconds: AppDuration.ms160,
+                          ),
+                          child: Text(
+                            '${widget.accentLabel} · $statusLabel',
+                            key: ValueKey('${widget.accentLabel}-$statusLabel'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: textTheme.fs6Semibold.copyWith(
+                              color: AppTokens.primary.withValues(
+                                alpha: AppAlpha.a70,
+                              ),
+                              // 这一处刻意比全站字距宽得多，几个字才拉得开。
+                              letterSpacing:
+                                  SpellingLayout.playbackLabelLetterSpacing,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ] else if (step.definitions != null &&
-            step.definitions!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (
-                var definitionIndex = 0;
-                definitionIndex < step.definitions!.length;
-                definitionIndex += 1
-              )
-                Container(
-                  key: Key('listening-meaning-definition-chip-$definitionIndex'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: tokens.sub,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    step.definitions![definitionIndex],
-                    style: TextStyle(color: tokens.textMedium, fontSize: 12.5),
-                  ),
-                ),
-            ],
-          ),
-        ] else if (step.status != ListeningMeaningStepStatus.done) ...[
-          const SizedBox(height: 6),
-          Text('待完成', style: TextStyle(color: tokens.muted, fontSize: 12.5)),
-        ],
-      ],
-    );
-    // 听音步骤完成后回显正确单词，释义步骤合并词性与已答释义，均给读屏一句语义。
-    if ((step.kind == ListeningMeaningStepKind.meaning && step.definitions != null) ||
-        (step.kind == ListeningMeaningStepKind.word &&
-            step.status == ListeningMeaningStepStatus.done)) {
-      final label = step.kind == ListeningMeaningStepKind.word
-          ? '正确单词 ${step.word ?? ''}'
-          : '词性 ${step.pos?.toLowerCase() ?? '释义'}，含义 ${step.definitions!.join(definitionSeparator)}';
-      return Semantics(
-        label: label,
-        container: true,
-        // ExcludeSemantics 避免子 chips 再次被逐条朗读。
-        child: ExcludeSemantics(child: body),
-      );
-    }
-    // 听音步骤未答完、或未公开释义的步骤不需要额外语义合并。
-    return body;
-  }
-}
-
-///
-/// 释义步骤标题后的词性小标签，沿用首页表单的只读 badge 视觉。
-///
-class _PosBadge extends StatelessWidget {
-  ///
-  /// 创建词性标签。
-  const _PosBadge({required this.pos, required this.tokens});
-
-  ///
-  /// 词性文本，例如 n. / vt.。
-  final String pos;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 用无边框的极淡品牌色胶囊承载词性文字，去掉生硬的 1px 方框。
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 22),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        // 极淡品牌色底，轻量不抢眼，呼应 Tabler 的 badge 视觉。
-        color: AppTokens.accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        // 词性统一使用小写显示，兼容历史数据中可能存在的大写内容。
-        pos.toLowerCase(),
-        style: TextStyle(
-          // 文字直接用眼色，不再套边框；保持正体，不斜体。
-          color: AppTokens.accent,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
-}
 
-///
-/// 步骤右侧的状态标签：已完成 / 作答中 / 待完成。
-///
-class _StatusTag extends StatelessWidget {
-  ///
-  /// 创建状态标签。
-  const _StatusTag({required this.status, required this.tokens});
-
-  ///
-  /// 当前步骤状态。
-  final ListeningMeaningStepStatus status;
-
-  ///
-  /// 当前主题令牌。
-  final AppTokens tokens;
-
-  ///
-  /// 根据状态切换文案、底色与文字色。
-  @override
-  Widget build(BuildContext context) {
-    // 已完成与作答中借用品牌色，未开始用中性灰，视觉权重从强到弱。
-    final label = status == ListeningMeaningStepStatus.done
-        ? '已完成'
-        : status == ListeningMeaningStepStatus.active
-        ? '作答中'
-        : '待完成';
-    final backgroundColor = status == ListeningMeaningStepStatus.done
-        ? AppTokens.accent.withValues(alpha: 0.10)
-        : status == ListeningMeaningStepStatus.active
-        ? AppTokens.accent.withValues(alpha: 0.12)
-        : tokens.sub;
-    final foregroundColor = status == ListeningMeaningStepStatus.pending
-        ? tokens.muted
-        : AppTokens.accent;
-    return Container(
-      height: 22,
-      padding: const EdgeInsets.symmetric(horizontal: 9),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        // 胶囊形状让状态标签更轻量。
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foregroundColor,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
+  double _waveHeight(int index, double progress) {
+    if (!widget.isPlaying) return SpellingLayout.waveIdleHeights[index];
+    final phase = (progress + index * 0.17) % 1;
+    final pulse = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+    return SpellingLayout.waveMinHeight +
+        SpellingLayout.waveMaxExtraHeight * (0.35 + pulse * 0.65);
   }
 }
 
-///
-/// 判断单个字符是否为英文 A-Z；听音辨义词库当前以英文单词为业务范围。
-bool _isEnglishLetter(String character) {
-  // 正则只匹配一个 ASCII 英文字母，空格、连字符和撇号都会返回 false。
-  return RegExp(r'^[A-Za-z]$').hasMatch(character);
+/// 播音胶囊中的单根声纹竖条。
+class _PlaybackWaveBar extends StatelessWidget {
+  const _PlaybackWaveBar({required this.color, required this.height});
+
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: SpellingLayout.waveBarWidth,
+    height: height,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.roundedPill),
+      ),
+    ),
+  );
 }
+
+/// 判断是否为 ASCII 英文字母；遮罩只为字母生成短线。
+bool _isEnglishLetter(String character) =>
+    RegExp(r'^[A-Za-z]$').hasMatch(character);

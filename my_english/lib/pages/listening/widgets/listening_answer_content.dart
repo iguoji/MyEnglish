@@ -44,18 +44,13 @@ class ListeningAnswerContent extends StatelessWidget {
   /// Flutter 每次切换单词或显隐状态时都会重新调用 build。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // 单词样式只定义一次，真实文字和隐藏态的高度测量都会使用它。
-    final spellingStyle = TextStyle(
-      color: tokens.text,
-      fontSize: 22,
-      fontWeight: FontWeight.w600,
-    );
+    // 取 24 号半粗那一档：字号够大，但不像页面主标题那么重。
+    final spellingStyle = textTheme.fs1Semibold;
     // 释义样式同样由真实内容和骨架占位共同使用，避免两套参数逐渐不一致。
-    final definitionStyle = TextStyle(
-      color: tokens.text,
-      fontSize: 13.5,
-      height: 1.5,
-    );
+    // 直接用正文那一档：字号、行距、颜色全从主题继承，这里没有要改的东西。
+    final definitionStyle = textTheme.fs5;
     // Column 让所有正文从左侧开始纵向排列。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,8 +72,8 @@ class ListeningAnswerContent extends StatelessWidget {
           skeletonRadius: 6,
           skeletonColor: tokens.sub,
         ),
-        // 单词与第一条词性之间保持固定 12 像素距离。
-        const SizedBox(height: 12),
+        // 单词与第一条词性之间留一档常规间距（`AppSpace.p3`）。
+        const SizedBox(height: AppSpace.p3),
         // 每个词性分组交给独立组件循环渲染；分组由模型统一整理好，
         // 页面不再自己分一遍。
         for (final group in word.meaningGroups)
@@ -99,7 +94,7 @@ class ListeningAnswerContent extends StatelessWidget {
           maintainSize: true,
           child: Text(
             '按住卡片临时查看，点右上角眼睛常显',
-            style: TextStyle(color: tokens.muted, fontSize: 11),
+            style: textTheme.fs6.copyWith(color: tokens.muted),
           ),
         ),
       ],
@@ -145,6 +140,7 @@ class _MeaningAnswerBlock extends StatelessWidget {
   /// Flutter 绘制当前词性块时调用 build。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // 同词性的多条释义先连接成同一段文字，避免不必要的强制换行。
     final joinedDefinitions = group.joinedDefinitions(definitionSeparator);
     // 骨架只估算视觉宽度，真实行高仍由 _StableAnswerSlot 精确测量。
@@ -163,18 +159,17 @@ class _MeaningAnswerBlock extends StatelessWidget {
           group.pos,
           // 稳定 key 让测试可以读取按住前后的绝对坐标。
           key: Key('listening-pos-${group.meanings.first.id}'),
-          style: TextStyle(
+          style: textTheme.fs6.copyWith(
             color: tokens.textSecondary,
-            fontSize: 12.5,
             // 词性使用正常字体（用户明确不想要斜体）。
             fontStyle: FontStyle.normal,
           ),
         ),
         // 词性与释义之间固定保留 7 像素。
-        const SizedBox(height: 7),
+        const SizedBox(height: AppSpace.p2),
         // 底部 7 像素将当前释义和下一条词性分隔开。
         Padding(
-          padding: const EdgeInsets.only(bottom: 7),
+          padding: const EdgeInsets.only(bottom: AppSpace.p2),
           // 释义槽位提前预留真实文字换行高度，显示时不会推动后续内容。
           child: _StableAnswerSlot(
             key: Key('listening-definition-${group.meanings.first.id}'),

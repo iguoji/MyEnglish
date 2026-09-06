@@ -38,8 +38,8 @@ void main() {
     final player = LocalWordAudioPlayer(channel);
     // 播放英式单词。
     await player.play('  ability  ', PronunciationAccent.british);
-    // 方法名必须是 play。
-    expect(receivedCall?.method, 'play');
+    // 4.5.0 起 Dart 与原生约定走 playSmart（渠道挑选与轮转记账在原生完成）。
+    expect(receivedCall?.method, 'playSmart');
     // 参数对应原生 Map。
     expect(receivedCall?.arguments, <String, Object?>{
       'spelling': 'ability',
@@ -47,11 +47,12 @@ void main() {
     });
   });
 
-  // 轮转渠道必须走 playChannel，渠道按三个合法来源顺序循环、口音跟随用户设置。
+  // 智能轮转不再由 Dart 挑选渠道：连续多次重听都发同一个 playSmart 请求，
+  // 具体轮到哪家由原生账本决定，口音始终跟随用户设置。
   test(
-    'playRandomChannel rotates through channels and keeps the selected accent',
+    'playRandomChannel keeps the accent and delegates rotation to native',
     () async {
-      // 保存原生收到的最后一次调用。
+      // 保存原生收到的所有调用。
       final receivedCalls = <MethodCall>[];
       // 假原生立即完成播放。
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -63,41 +64,25 @@ void main() {
           });
       // 通过可注入的测试通道创建播放器。
       final player = LocalWordAudioPlayer(channel);
-      // 连续播放四次，应依次得到不背单词、有道、系统 TTS，然后回到不背单词。
-      for (var i = 0; i < 4; i++) {
+      // 连续播放五次：每次都是同一个智能轮转请求，原生自行推进轮转。
+      for (var i = 0; i < 5; i++) {
         await player.playRandomChannel('ability', PronunciationAccent.british);
       }
-      // 方法名必须始终是 playChannel，且每次都必须携带用户选择的口音。
+      // 方法名必须始终是 playSmart，且不携带渠道参数（渠道由原生挑选）。
       expect(
         receivedCalls.map((call) => call.method),
-        everyElement('playChannel'),
+        everyElement('playSmart'),
       );
-      expect(
-        receivedCalls.map((call) => call.arguments?['spelling']),
-        everyElement('ability'),
-      );
-      expect(
-        receivedCalls.map((call) => call.arguments?['accent']),
-        everyElement('british'),
-      );
-      expect(receivedCalls.map((call) => call.arguments?['channel']), <Object?>[
-        'beingfine',
-        'youdao',
-        'tts',
-        'beingfine',
-      ]);
+      expect(receivedCalls, hasLength(5));
+      // 每次都携带清理后的拼写与用户选择的口音。
+      for (final call in receivedCalls) {
+        expect(call.arguments, <String, Object?>{
+          'spelling': 'ability',
+          'accent': 'british',
+        });
+      }
     },
   );
-
-  // 轮转下标超过最后一个渠道时必须回到第一个，模拟“甲、乙、丙、甲……”。
-  test('pickNextChannel wraps around the defined channels', () {
-    final values = PronunciationChannel.values;
-    expect(pickNextChannel(0), values[0]);
-    expect(pickNextChannel(1), values[1]);
-    expect(pickNextChannel(2), values[2]);
-    expect(pickNextChannel(3), values[0]);
-    expect(pickNextChannel(103), values[103 % values.length]);
-  });
 
   // Android 返回 true 时，Dart 必须识别本次由 TTS 完成，且读取一次后立即消费。
   test('consumes the latest TTS playback source once', () async {

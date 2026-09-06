@@ -16,27 +16,24 @@ Word _word(int id, {DateTime? reviewedAt}) => Word(
   id: id,
   // 拼写按编号补零，保证「拼写升序」与「编号升序」结论一致，断言更直观。
   spelling: 'w${id.toString().padLeft(3, '0')}',
-  meanings: <Meaning>[
-    Meaning(id: id * 100, pos: 'n.', definition: '释义'),
-  ],
+  meanings: <Meaning>[Meaning(id: id * 100, pos: 'n.', definition: '释义')],
   reviewedAt: reviewedAt,
 );
 
 ///
 /// 生成 [count] 个从未复习过的单词，主键从 1 开始连续。
-List<Word> _words(int count) =>
-    <Word>[for (var id = 1; id <= count; id += 1) _word(id)];
+List<Word> _words(int count) => <Word>[
+  for (var id = 1; id <= count; id += 1) _word(id),
+];
 
 ///
 /// 组装一个使用固定随机种子的复习流程，让巩固局抽词结果可复现。
-ReviewFlow _flow(
-  MemoryWordStore wordStore,
-  MemorySessionStore sessionStore,
-) => ReviewFlow(
-  wordStore: wordStore,
-  sessionStore: sessionStore,
-  random: Random(2026),
-);
+ReviewFlow _flow(MemoryWordStore wordStore, MemorySessionStore sessionStore) =>
+    ReviewFlow(
+      wordStore: wordStore,
+      sessionStore: sessionStore,
+      random: Random(2026),
+    );
 
 ///
 /// 验证「创建词库」与「创建会话」两条核心流程（v2.0 会话模型）。
@@ -422,15 +419,15 @@ void main() {
         date: date,
       );
 
-      // 同一批词、同一个顺序。词义连连的棋盘固定 5 张一组，词库只有 4 个词
-      // 时会从前面随机补位一张到末组，因此只比较前 4 个。
+      // 同一批词、同一个顺序。词义连连不再为凑满一组 5 张而补位：
+      // 词库只有 4 个词时数据列表就是这 4 对，棋盘按实际张数铺开。
       expect(
-        matching!.session.pairItems.take(4).map((pair) => pair.wordId).toList(),
+        matching!.session.pairItems.map((pair) => pair.wordId).toList(),
         listening!.session.idItems,
       );
       expect(listening.session.wordSetId, matching.session.wordSetId);
-      // 补位后的棋盘仍是完整一组 5 张。
-      expect(matching.session.pairItems, hasLength(5));
+      // 词太少不再被补成一组 5 张，有多少对就开多少对。
+      expect(matching.session.pairItems, hasLength(4));
       // 但是两局独立，各自都还在进行中。
       expect(listening.session.id, isNot(matching.session.id));
       expect(listening.session.status, SessionStatus.active);

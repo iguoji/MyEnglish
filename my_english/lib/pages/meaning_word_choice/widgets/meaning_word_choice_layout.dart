@@ -1,192 +1,164 @@
+// 引入设计令牌总表：本表只负责给页面里的元素起业务名字，
+// 具体数值一律引用总表的台阶（相当于页面专属 CSS 继承基础 CSS）。
+import '../../../common/design/design.dart';
+// 引入模块页面模板：顶栏与结算页那两套共用版式已经搬进模板，本表不再重复声明。
+import '../../../widgets/module_scaffold.dart';
+
 ///
 /// 看义选词页面的布局尺寸表：集中声明页面用到的间距、圆角等数值常量。
 ///
-/// 顶栏返回图标、中间数字进度与进度条，刻意和听音辨义保持完全一致，
-/// 使四个复习模块切换时顶部严丝合缝、不产生任何跳动。
-/// 其余区域的数值等玩法落地后再补充。
+/// 顶栏那一整块（返回键、中间数字进度、右上角用时、进度条）已经交给模块模板
+/// `lib/widgets/module_scaffold.dart` 的 [ModuleHeader]，本表里因此不再有
+/// `headerTop` / `headerButtonSize` / `progressTop` 这一族档位——它们本来就不是
+/// 「这一页专属」的方寸，五个模块必须一模一样。
+///
+/// 结算页同理：`summary*` 与 `weakChip*` 两族已并入 [ModuleSummaryLayout]，
+/// 三个模块的收尾画面从此只有一处可改。
+///
+/// 正文区对齐听音辨义：一张白卡浮在页面底色上，卡内内容垂直居中，
+/// 从上到下是「标签 → 中文释义大字 → 词性说明 → 下划线字母格 → 底部提示」。
+/// 字母格自身的尺寸不在本表，它由公共组件 `lib/widgets/letter_slot.dart`
+/// 的 `LetterSlotLayout` 维护（与拼写巩固共用同一套）。
+///
+/// 本表里**不再有字号**：字号连同字重、文字色一起搬进了主题的文字档位
+/// （见 `lib/common/theme.dart`），页面直接写 `textTheme.fs4Semibold` 这样的
+/// 档名。留在本表里的只有和这一页版式绑定的东西——留白、圆角、最大行数。
 ///
 abstract final class MeaningWordChoiceLayout {
   ///
-  /// 页面左右的统一留白，与听音辨义一致。
-  static const double pageInset = 20;
+  /// 页面左右的统一留白。
+  ///
+  /// 指到模板那一档：顶栏、进度条和正文白卡共用同一条左右边界，分开写迟早会
+  /// 出现「进度条比白卡宽几像素」。
+  static const double pageInset = ModuleScaffoldLayout.pageInset;
 
   ///
-  /// 顶栏距离安全区（刘海/状态栏）顶部的距离，与听音辨义一致。
-  static const double headerTop = 18;
+  /// 顶栏（进度条）与正文白卡之间的间距，同时也是白卡底部留白。
+  ///
+  /// 取听音辨义 `questionVerticalInset` 的 20：两个模块都是「白卡浮在页面底
+  /// 上，下面接候选区」，留白一致，来回切换时白卡不会上下跳。
+  static const double bodyVerticalInset = AppSpace.pBase;
+
+  /// ===== 正文白卡 =====
 
   ///
-  /// 返回按钮与右侧占位区共用的固定宽高，与听音辨义一致。
+  /// 白卡圆角，直接指向模板表 [ModuleScaffoldLayout.bodyCardRadius]。
   ///
-  /// 生活化解释：这是一个 34×34 的不可见点击方块，手指点在方块内任意
-  /// 位置都能触发返回，比图标本身大一圈，好按很多。
-  static const double headerButtonSize = 34;
+  /// 名字从 `cardRadius` 改成 `bodyCardRadius`，是为了和候选卡那一档
+  /// （`optionCardRadius`，10）彻底分开：两档数值本来就不同，同名只会让人
+  /// 误以为它们该一起调。
+  static const double bodyCardRadius = ModuleScaffoldLayout.bodyCardRadius;
 
   ///
-  /// 顶栏返回图标的字号，与听音辨义一致。
-  static const double headerIconSize = 21;
+  /// 白卡左右内边距。
+  static const double bodyCardPaddingHorizontal = AppSpace.pBase;
 
   ///
-  /// 中间「第几个 / 总数」数字进度的字号，与听音辨义一致。
-  static const double headerProgressTextSize = 16;
+  /// 白卡上下内边距。
+  static const double bodyCardPaddingVertical = AppSpace.pBase;
 
   ///
-  /// 右上角计时文字的字号。
-  ///
-  /// 四个练习模块（听音辨义、看义选词、拼写巩固、词义连连）的右上角时间
-  /// 统一使用这一个数值：以词义连连原来 14 像素为基准 +1，得到 15 像素。
-  /// 统一之后，模块之间来回切换时右上角的数字不会再忽大忽小。
-  static const double headerTimerTextSize = 15;
+  /// 顶部「选择对应的单词」标签的左右内边距。
+  static const double tagPaddingHorizontal = AppSpace.p2;
 
   ///
-  /// 顶栏与下方进度条之间的纵向间距，与听音辨义一致。
-  static const double progressTop = 10;
+  /// 标签上下内边距。
+  static const double tagPaddingVertical = AppSpace.p1;
 
   ///
-  /// 页面进度条的固定高度，与听音辨义一致（4 像素）。
-  static const double progressHeight = 4;
+  /// 标签圆角。
+  static const double tagRadius = AppRadius.rounded;
 
   ///
-  /// 进度条两端的圆角，与听音辨义一致。
-  static const double progressRadius = 2;
+  /// 标签与下方中文释义大字之间的距离。
+  static const double definitionTop = AppSpace.pBase;
 
   ///
-  /// 顶栏与下方气泡区之间的间距。
-  static const double bodyTop = 12;
-
-  /// ===== 气泡聊天区 =====
+  /// 中文释义最多显示的行数，再长才用省略号收尾。
+  static const int definitionMaxLines = 3;
 
   ///
-  /// 气泡区左右留白。
-  static const double chatInset = 16;
+  /// 释义大字与下方「词性 | 释义」说明行之间的距离。
+  static const double posLineTop = AppSpace.p3;
 
   ///
-  /// 气泡最大宽度（相对可用宽度的比例），留出右侧候选词的呼吸空间。
-  static const double bubbleMaxWidthFactor = 0.72;
+  /// 说明行与下方字母格之间的距离。
+  static const double slotsTop = AppSpace.p5;
 
   ///
-  /// 相邻气泡之间的垂直间距。
-  static const double bubbleGap = 10;
+  /// 一条释义对应多个单词时，两组字母格之间的垂直距离。
+  static const double slotRowGap = AppSpace.p3;
 
   ///
-  /// 气泡四角圆角；贴近发送方向的一角用更小的 [bubbleTailRadius] 形成「尾巴」。
-  static const double bubbleRadius = 12;
-  static const double bubbleTailRadius = 4;
+  /// 字母格与底部提示文字之间的距离。
+  static const double hintTop = AppSpace.pBase;
 
   ///
-  /// 气泡内部左右留白与上下留白。
-  static const double bubblePaddingHorizontal = 12;
-  static const double bubblePaddingVertical = 8;
-
+  /// 本轮全部答对后，停留多久再切到下一条释义。
   ///
-  /// 气泡文字字号；中文释义与英文单词统一字号，靠颜色区分两侧。
-  static const double bubbleTextSize = 14;
-
+  /// 白卡版必须留这段停顿：答对的瞬间整个单词才刚填进字母格，立刻切题的话
+  /// 用户根本看不到自己答出来的词是什么样。
   ///
-  /// 气泡内词性标签的文字字号（比正文略小、颜色更轻）。
-  static const double bubblePosTextSize = 11.5;
-
-  ///
-  /// 气泡最低高度；三点动画气泡内容很小时也不至于显得又窄又扁。
-  static const double bubbleMinHeight = 36;
+  /// 取 1200 毫秒：字母填入动画本身要 160 毫秒，剩下一秒左右才够把整个单词
+  /// （最长可能十几个字母）看完。原来的 800 毫秒实测偏急——字母刚显现完就
+  /// 切题，读起来像「一出现就没了」。
+  static const int roundAdvanceDelayMs = AppDuration.ms1200;
 
   /// ===== 候选词区（文档流，一行两个） =====
+  ///
+  /// 候选区与上方正文白卡之间的间距**只由白卡底部的 `bodyVerticalInset`
+  /// 承担**，候选区自己不再在顶部额外留白：本页没有横幅之类的中间元素插在
+  /// 两者之间，若再叠一道顶部留白，两段留白会首尾相接、中间无内容，看起来
+  /// 就是“正文和候选词之间空了一大块”。
 
   ///
-  /// 候选区与上方聊天区之间的间距。
-  static const double candidateTop = 12;
+  /// 单个候选按钮内容的统一内边距。
+  ///
+  /// 生活化解释：ABCD 徽章距按钮左边、上边、下边的距离必须完全相等，
+  /// 视觉才对称不歪。
+  static const double candidateContentInset = AppSpace.p2;
 
   ///
-  /// 候选按钮内容的统一内边距。
+  /// 单个候选按钮的**最小**高度，也就是「手指可点的下限」。
   ///
-  /// 生活化解释：ABCD 徽章距按钮左边、上边、下边的距离必须完全相等
-  /// （28 徽章 + 上下 8×2 = 44 按钮高），视觉才对称不歪。
-  static const double candidateContentInset = 8;
-
+  /// 注意它不等于按钮实际显示的高度。按钮的自然高度是自己算出来的：
+  /// 28 的 ABCD 徽章 + 上下各 8 的内边距 + 上下各 1 的描边 = 46。
+  /// 所以标准字号下看到的按钮是 46 高，这个 44 只是一道底线，
+  /// 保证内容再怎么少也不会缩成一条细窄的、手指难点的横杠。
   ///
-  /// 单个候选按钮的固定高度。
-  static const double candidateHeight = 44;
+  /// 之前这里是写死高度，实测的代价是：多出来的 2 像素从徽章身上抠，
+  /// 本该 28×28 的正方块被压成 28×26 的扁块；而且字号调到「大 / 特大」
+  /// 之后按钮高度不变，放大的单词反被压回原来大小，等于放大失效。
+  ///
+  /// 44 这个数本身不是本页定的，它是全站「手指可点的下限」，见总表
+  /// [AppSize.touchTarget]。
+  static const double candidateHeight = AppSize.touchTarget;
 
   ///
   /// 候选按钮圆角。
-  static const double candidateRadius = 10;
+  static const double candidateRadius = AppRadius.roundedLg;
 
   ///
   /// 相邻候选按钮的间距。
-  static const double candidateGap = 8;
-
-  ///
-  /// 候选按钮文字字号。
-  static const double candidateTextSize = 15;
+  static const double candidateGap = AppSpace.p2;
 
   ///
   /// 候选词左侧 A/B/C/D 序号方块的固定边长。
-  static const double optionBadgeSize = 28;
+  static const double optionBadgeSize = AppSize.optionBadge;
 
   ///
-  /// 序号方块的圆角。
-  static const double optionBadgeRadius = 5;
-
-  ///
-  /// 序号方块内字母的字号。
-  static const double optionBadgeTextSize = 12;
+  /// 序号方块的圆角（与听音辨义的候选序号同一档，收敛前是 5）。
+  static const double optionBadgeRadius = AppRadius.rounded;
 
   ///
   /// 序号方块与候选单词之间的水平间距。
-  static const double optionBadgeGap = 10;
-
-  /// ===== 「正在输入」三点动画 =====
-
-  ///
-  /// 三点动画里每个圆点的直径。
-  static const double typingDotSize = 6;
-
-  ///
-  /// 相邻圆点之间的间距。
-  static const double typingDotGap = 4;
-
-  ///
-  /// 三点动画气泡的固定宽度（容纳三个点 + 间距）。
-  static const double typingBubbleWidth = 58;
-
-  ///
-  /// 假「正在输入」的持续时间。
-  ///
-  /// 900ms 恰好让三个点从左到右完整点亮一遍再出内容，用户能看清整个过程。
-  static const Duration typingDelay = Duration(milliseconds: 900);
+  static const double optionBadgeGap = AppSpace.p2;
 
   /// ===== 结算页 =====
-
   ///
-  /// 结算页横向留白。
-  static const double summaryInset = 24;
-
-  ///
-  /// 结算页各大区块之间的垂直间距。
-  static const double summarySectionGap = 24;
-
-  ///
-  /// 结算页顶部圆形图标底盘的直径与内部图标尺寸。
-  static const double summaryAvatarSize = 64;
-  static const double summaryAvatarIconSize = 32;
-
-  ///
-  /// 结算页标题与副标题字号。
-  static const double summaryTitleSize = 20;
-  static const double summarySubtitleSize = 14;
-
-  ///
-  /// 统计卡之间的间距、标签字号与数值字号。
-  static const double summaryStatGap = 12;
-  static const double summaryStatLabelSize = 13;
-  static const double summaryStatValueSize = 24;
-
-  ///
-  /// 结算页底部按钮高度与文字字号。
-  static const double summaryButtonHeight = 48;
-  static const double summaryButtonTextSize = 16;
-
-  ///
-  /// 「需加强」名单标签字号与词条圆角。
-  static const double weakChipTextSize = 13;
-  static const double weakChipRadius = 8;
+  /// 这一族档位（`summary*` 九档、`weakChip*` 四档）已经整块搬进模块模板的
+  /// [ModuleSummaryLayout]。原因是它们从来就不是「本页专属」：拼写巩固、
+  /// 词义连连、看义选词练完都会走到同一屏收尾画面，以前靠三张页面表各写一份、
+  /// 再靠 `README.md` 里一句「改其中一个，另外两个要一起改」维持一致。
+  /// 现在只有一处可改，页面直接写 `ModuleSummaryLayout.inset` 这样的名字。
 }

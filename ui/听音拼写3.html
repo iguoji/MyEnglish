@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="U5cdbb412bD4UBmQI1JOcE">
+<head data-page-node-id="N9IfEgMBSbivMu2uULvyj9">
+<meta charset="UTF-8" data-page-node-id="5dIQWWHNnVe5zxh90DeDKD" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-page-node-id="X3cRja7Mvuk9Ybpx0mrhD6" />
+<title>听音拼写 · 练习 UI</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // 搬入本设计稿的 Tabler 调色板（组件里用的 tb-* 颜色名）
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          'tb-primary': '#206bc4', 'tb-primary-lt': '#e8f0fb',
+          'tb-body': '#f6f8fb', 'tb-text': '#1d273b', 'tb-muted': '#667382',
+          'tb-border': '#dce1e7', 'tb-border-lt': '#e6e7e9',
+          'tb-success': '#2fb344', 'tb-success-lt': '#e5f5e8',
+          'tb-danger': '#d63939', 'tb-danger-lt': '#fbe9e9',
+          'tb-kb': '#eef0f3', 'tb-key': '#ffffff', 'tb-key-dark': '#d9dde3',
+        },
+        fontFamily: {
+          sans: ['Inter','ui-sans-serif','system-ui','-apple-system','Segoe UI','PingFang SC','Noto Sans SC','sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+
+<!-- 原设计稿里的动画关键帧（CDN 不生成，手动补） -->
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body, #root { height: 100%; }
+  body { margin:0; font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans SC',sans-serif; color:#1d273b; -webkit-font-smoothing:antialiased; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .no-select { user-select:none; -webkit-user-select:none; }
+
+  @keyframes letter-pop { 0%{transform:translateY(6px) scale(0.7);opacity:0;} 100%{transform:translateY(0) scale(1);opacity:1;} }
+  .animate-letter-pop { animation: letter-pop 220ms cubic-bezier(0.2,0.9,0.3,1.3); }
+
+  @keyframes shake { 10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-4px);} 40%,60%{transform:translateX(4px);} }
+  .animate-shake { animation: shake 480ms cubic-bezier(0.36,0.07,0.19,0.97); }
+
+  @keyframes caret { 0%,100%{opacity:1;} 50%{opacity:0;} }
+  .animate-caret { animation: caret 1s steps(2,start) infinite; }
+
+  @keyframes eq { 0%,100%{transform:scaleY(0.35);} 50%{transform:scaleY(1);} }
+  .animate-eq { animation: eq 0.9s ease-in-out infinite; }
+
+  @keyframes ring { 0%{transform:scale(1);opacity:0.6;} 100%{transform:scale(1.9);opacity:0;} }
+  .animate-ring { animation: ring 1.4s ease-out infinite; }
+
+  @keyframes fade-up { 0%{transform:translateY(8px);opacity:0;} 100%{transform:translateY(0);opacity:1;} }
+  .animate-fade-up { animation: fade-up 320ms cubic-bezier(0.2,0.8,0.2,1) both; }
+
+  /* 原稿：悬停整颗发音键时圆形变蓝（用显式色，避免依赖动态 Tailwind 类） */
+  #pronounceBtn:hover #pronCircle { background-color:#206bc4 !important; color:#ffffff !important; }
+</style>
+</head>
+
+<body data-page-node-id="NVylINliIsslq06GSXAIgw">
+<div id="root" class="min-h-dvh bg-[#e9edf2] md:flex md:items-center md:justify-center md:bg-[radial-gradient(ellipse_at_top,#f6f8fb_0%,#dfe5ec_100%)] md:p-8" data-page-node-id="2GY3HkuOXbqozSH1IsFtZi">
+  <div class="relative flex h-dvh w-full flex-col overflow-hidden bg-white md:h-[844px] md:max-h-[calc(100dvh-4rem)] md:w-[390px] md:rounded-[44px] md:shadow-[0_30px_80px_-20px_rgba(29,39,59,0.35),0_0_0_1px_rgba(29,39,59,0.08)]" data-page-node-id="qCPC0ceNGWXuFjLzjh5pZz">
+
+    <!-- 顶部栏 -->
+    <header class="relative shrink-0 bg-white" data-page-node-id="6SPtsIWbE6gJLEPxlEViz8">
+      <div class="flex h-14 items-center justify-between px-2" data-page-node-id="EGAOyva9AjLCQMvn5lOC7J">
+        <button id="backBtn" type="button" aria-label="返回" class="flex h-10 w-10 items-center justify-center rounded-md text-tb-text transition-colors hover:bg-tb-body active:bg-tb-border-lt" data-page-node-id="CgXB5DguFK0d3TNFwLHMdA">
+          <span id="ic-chevron" data-page-node-id="spefGGlQRDIwCsiHXP7hmS"></span>
+        </button>
+        <div class="tnum flex items-baseline gap-1 text-[15px]" data-page-node-id="40Gt6vFnwU2U42R43S7rJj">
+          <span id="curNum" class="font-semibold text-tb-text" data-page-node-id="PqS6r0vX0EqmPUdT6KpZHK">1</span>
+          <span class="text-tb-muted" data-page-node-id="khUWWQcPvRUFOq5hwcBAuy">/</span>
+          <span id="totNum" class="text-tb-muted" data-page-node-id="1Iqa329Z0Fza5aBIC2AC7F">52</span>
+        </div>
+        <div class="tnum mr-2 flex items-center gap-1.5 text-[13px] font-medium text-tb-muted" data-page-node-id="cmGiuinalQ7yEaoLhl12GJ">
+          <span id="ic-clock" data-page-node-id="XHPVAJgb3UnITcH7NC4UI4"></span>
+          <span id="timer" data-page-node-id="iB54l6um6nbIgaCVtUqPTt">00:00</span>
+        </div>
+      </div>
+      <!-- 进度条（顶栏与正文的分割线，带移动圆点） -->
+      <div class="relative h-[3px] w-full bg-tb-border-lt" data-page-node-id="NBuES4vmqsAhEEj5YS2dMm">
+        <div id="progressBar" class="absolute inset-y-0 left-0 rounded-r-full bg-tb-primary transition-[width] duration-500 ease-out" style="width:2%;" data-page-node-id="Wgb0WyHNGXdFrQTWjAIpw2"></div>
+        <div id="progressDot" class="absolute top-1/2 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-tb-primary shadow-[0_0_0_3px_rgba(32,107,196,0.18)] transition-[left] duration-500 ease-out" style="left:2%;" data-page-node-id="jRLBZbJlysQbVQOygzXs8p"></div>
+      </div>
+    </header>
+
+    <!-- 正文 -->
+    <main id="main" class="flex min-h-0 flex-1 flex-col px-6" data-page-node-id="DkGBw3Yf8v0moiLn73ILVf">
+      <!-- 输入区 -->
+      <section class="flex flex-[1.1] flex-col justify-end pb-2" key="input" data-page-node-id="jQoxzVNYCMsmSdGEXXsQNI">
+        <div id="label" class="mb-5 flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-tb-muted" data-page-node-id="HaSQ7E95DfRvPhyCIloV7S">
+          <span id="labelDot" class="h-1.5 w-1.5 rounded-full bg-tb-primary transition-colors" data-page-node-id="CGgPfmUBmHSzpV3eZKJaMl"></span>
+          <span id="labelText" data-page-node-id="d1ni8zzjn16HlyF8jnK2eL">Spell it</span>
+        </div>
+        <div id="slots" data-page-node-id="114HyK08vk5eWg2wrKDkCR"></div>
+      </section>
+
+      <!-- 发音区 -->
+      <section class="flex flex-[0.7] flex-col items-center justify-center" data-page-node-id="3YrloTDpyMb0PaErXGwsHf">
+        <button id="pronounceBtn" type="button" aria-label="播放发音" class="group mx-auto flex items-center gap-3 rounded-full py-1.5 pl-1.5 pr-4 transition-colors hover:bg-tb-body active:bg-tb-border-lt" data-page-node-id="LTvDGHa8sF7OpjlbUeTXDj">
+          <span class="relative flex h-10 w-10 items-center justify-center" data-page-node-id="5JVt0JuEUXMtmIo5EFgqm8">
+            <span id="pronRings" class="absolute inset-0" data-page-node-id="2Pa0NgHDGca82ZLLTBQiG9"></span>
+            <span id="pronCircle" class="relative flex h-10 w-10 items-center justify-center rounded-full bg-tb-primary-lt text-tb-primary transition-all duration-300" data-page-node-id="C2SH0tMUQeUyEVoCBIrJbp">
+              <span id="pronInner" data-page-node-id="cIdTxGIzc88ZDMK9BkHSvr"></span>
+            </span>
+          </span>
+          <span class="flex flex-col items-start leading-none" data-page-node-id="pzH6QzcFDBKDCZvHyQAySf">
+            <span id="phonetic" class="text-[15px] text-tb-muted" style="font-family:Inter,'Segoe UI','Lucida Sans Unicode',sans-serif;" data-page-node-id="AfJlKo1LqriIfYmqkaetW4"></span>
+            <span id="pronUs" class="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-tb-primary/70" data-page-node-id="0OuXiijfBgGJn3tdBdW3Sl">US · Tap to play</span>
+          </span>
+        </button>
+      </section>
+
+      <!-- 释义区 -->
+      <section class="flex flex-[1.2] flex-col justify-start" data-page-node-id="Yx3rBaBUk6QwAdQuSzQdM4">
+        <ul id="senseList" class="mx-auto w-full max-w-[320px] divide-y divide-tb-border-lt" data-page-node-id="Lw1lbLm93cKDSR6ppftiI5"></ul>
+      </section>
+
+      <!-- 提示 -->
+      <div class="flex shrink-0 items-center justify-center pb-3" data-page-node-id="6mwEhcGOO2gtONORPDMTOB">
+        <button id="hintBtn" type="button" class="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-tb-muted transition-colors hover:bg-tb-body hover:text-tb-primary disabled:opacity-40" data-page-node-id="uZftz7qyzzTkKAvEEbrR34">
+          <span id="ic-bulb" data-page-node-id="lBCPUdC51uhkV7H0TWXmkS"></span>看一眼提示
+        </button>
+      </div>
+    </main>
+
+    <!-- 键盘 -->
+    <div id="keyboard" class="shrink-0 border-t border-tb-border-lt bg-tb-kb px-1.5 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]" data-page-node-id="eOy0B5zusRPxSFEGYQjHCw"></div>
+
+    <!-- 完成小结 -->
+    <div id="summary" class="absolute inset-0 z-50 hidden flex-col items-center justify-center bg-white px-8 text-center" data-page-node-id="AARY1pXYAhAAV7kzAf2mRN">
+      <div class="relative mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-tb-success-lt text-tb-success" data-page-node-id="7rQEAd7v4iUUQ4GhS2mWKC">
+        <span class="absolute inset-0 animate-ring rounded-full bg-tb-success/20" data-page-node-id="bvASIXsTmpC6oHZkyJs9yx"></span>
+        <span id="ic-check-big" class="h-8 w-8" data-page-node-id="pNO0LAPwJEyaWjv0oMPmV4"></span>
+      </div>
+      <h1 class="text-2xl font-semibold tracking-tight" data-page-node-id="X3vvhakOentz4RpFRwSD1y">本组默写完成</h1>
+      <p class="mt-2 text-[14px] text-tb-muted" data-page-node-id="ESBrOqbPtwsIZYRa5eXn6I"><span id="smTotal" data-page-node-id="QB0BMfBgaezMoAorfN1IuH">52</span> 个单词已全部拼写正确</p>
+      <dl class="mt-8 grid w-full grid-cols-3 divide-x divide-tb-border-lt rounded-lg border border-tb-border-lt" data-page-node-id="JUTY4FsrPyaZ1jKGtcD6M8">
+        <div class="flex flex-col items-center py-4" data-page-node-id="5xriTJETY4MxDAdGaX321B"><dt class="text-[11px] font-medium uppercase tracking-wider text-tb-muted" data-page-node-id="va3pFy8cBftAjCAqqxuV8A">用时</dt><dd id="smTime" class="tnum mt-1 text-[20px] font-semibold text-tb-text" data-page-node-id="ed4INYEv2oirZkctTVhr4T">00:00</dd></div>
+        <div class="flex flex-col items-center py-4" data-page-node-id="12WOCdMFMQJA0vGvDa8i4m"><dt class="text-[11px] font-medium uppercase tracking-wider text-tb-muted" data-page-node-id="sxYt7p9LGktAnO5c2R690K">一次通过</dt><dd id="smAcc" class="tnum mt-1 text-[20px] font-semibold text-tb-text" data-page-node-id="Kx65u0V94brhOFdNYDNdOD">0%</dd></div>
+        <div class="flex flex-col items-center py-4" data-page-node-id="pDdHR6VLD3D5XofyZJJGs0"><dt class="text-[11px] font-medium uppercase tracking-wider text-tb-muted" data-page-node-id="oD1ID4KMnycOrj9gDaG6uh">错误</dt><dd id="smWrong" class="tnum mt-1 text-[20px] font-semibold text-tb-text" data-page-node-id="BcEfSsIuNtGFWnC68s5Jz7">0</dd></div>
+      </dl>
+      <button id="smRestart" type="button" class="mt-8 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-tb-primary text-[15px] font-medium text-white shadow-[0_6px_16px_-6px_rgba(32,107,196,0.6)] transition-colors hover:bg-[#1a5aa8] active:bg-[#174f94]" data-page-node-id="xmGBFU8PXbQdGCBiT8Hum1">
+        <span id="ic-refresh" data-page-node-id="GyQ2gB9Jr3B2uwFoTWzWf2"></span>再来一遍
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===== 图标（Tabler 风格内联 SVG） ===== */
+const SVG=(inner,cls)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls}">${inner}</svg>`;
+const icChevron=SVG('<path d="M15 6l-6 6l6 6"/>','h-6 w-6');
+const icClock=SVG('<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 7v5l3 3"/>','h-4 w-4');
+const icVolume=SVG('<path d="M15 8a5 5 0 0 1 0 8"/><path d="M17.7 5a9 9 0 0 1 0 14"/><path d="M6 15h-2a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h2l3.5 -4.5a.8 .8 0 0 1 1.5 .5v14a.8 .8 0 0 1 -1.5 .5l-3.5 -4.5"/>','h-5 w-5');
+const icBackspace=SVG('<path d="M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -5a1.5 1.5 0 0 1 0 -2l5 -5z"/><path d="M12 10l4 4m0 -4l-4 4"/>','h-[22px] w-[22px]');
+const icCheck=SVG('<path d="M5 12l5 5l10 -10"/>','h-8 w-8');
+const icBulb=SVG('<path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/>','h-[14px] w-[14px]');
+const icRefresh=SVG('<path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>','h-[18px] w-[18px]');
+document.getElementById('ic-chevron').innerHTML=icChevron;
+document.getElementById('ic-clock').innerHTML=icClock;
+document.getElementById('ic-bulb').innerHTML=icBulb;
+document.getElementById('ic-check-big').innerHTML=icCheck;
+document.getElementById('ic-refresh').innerHTML=icRefresh;
+
+/* ===== 词库 ===== */
+const WORDS=[
+  {text:"abandon",phonetic:"/əˈbæn.dən/",meanings:[{pos:"v.",zh:"放弃；抛弃；遗弃"},{pos:"n.",zh:"放任；纵情"}]},
+  {text:"brilliant",phonetic:"/ˈbrɪl.jənt/",meanings:[{pos:"adj.",zh:"杰出的；聪颖的"},{pos:"adj.",zh:"明亮的；灿烂的"}]},
+  {text:"capture",phonetic:"/ˈkæp.tʃər/",meanings:[{pos:"v.",zh:"俘获；捕捉；夺取"},{pos:"n.",zh:"捕获；战利品"}]},
+  {text:"delicate",phonetic:"/ˈdel.ɪ.kət/",meanings:[{pos:"adj.",zh:"精致的；微妙的"},{pos:"adj.",zh:"脆弱的；易碎的"}]},
+  {text:"elegant",phonetic:"/ˈel.ɪ.ɡənt/",meanings:[{pos:"adj.",zh:"优雅的；简洁的"}]},
+  {text:"fragile",phonetic:"/ˈfrædʒ.aɪl/",meanings:[{pos:"adj.",zh:"易碎的；脆弱的"}]},
+  {text:"genuine",phonetic:"/ˈdʒen.ju.ɪn/",meanings:[{pos:"adj.",zh:"真实的；真诚的"}]},
+  {text:"harvest",phonetic:"/ˈhɑːr.vɪst/",meanings:[{pos:"n.",zh:"收获；收成"},{pos:"v.",zh:"收割；采集"}]},
+  {text:"immense",phonetic:"/ɪˈmens/",meanings:[{pos:"adj.",zh:"巨大的；极好的"}]},
+  {text:"journey",phonetic:"/ˈdʒɜːr.ni/",meanings:[{pos:"n.",zh:"旅行；旅程"},{pos:"v.",zh:"旅行"}]},
+  {text:"keen",phonetic:"/kiːn/",meanings:[{pos:"adj.",zh:"热心的；敏锐的；锋利的"}]},
+  {text:"luminous",phonetic:"/ˈluː.mə.nəs/",meanings:[{pos:"adj.",zh:"发光的；明亮的"}]},
+  {text:"modest",phonetic:"/ˈmɑː.dɪst/",meanings:[{pos:"adj.",zh:"谦虚的；适度的"}]},
+  {text:"nurture",phonetic:"/ˈnɜːr.tʃər/",meanings:[{pos:"v.",zh:"养育；培养"},{pos:"n.",zh:"养育；教养"}]},
+  {text:"obtain",phonetic:"/əbˈteɪn/",meanings:[{pos:"v.",zh:"获得；得到"}]},
+  {text:"persist",phonetic:"/pərˈsɪst/",meanings:[{pos:"v.",zh:"坚持；持续"}]},
+  {text:"quaint",phonetic:"/kweɪnt/",meanings:[{pos:"adj.",zh:"古雅的；离奇有趣的"}]},
+  {text:"resilient",phonetic:"/rɪˈzɪl.jənt/",meanings:[{pos:"adj.",zh:"有弹性的；适应力强的"}]},
+  {text:"subtle",phonetic:"/ˈsʌt.əl/",meanings:[{pos:"adj.",zh:"微妙的；细微的；敏锐的"}]},
+  {text:"tranquil",phonetic:"/ˈtræŋ.kwɪl/",meanings:[{pos:"adj.",zh:"平静的；安宁的"}]},
+  {text:"unique",phonetic:"/juːˈniːk/",meanings:[{pos:"adj.",zh:"独特的；唯一的"}]},
+  {text:"vivid",phonetic:"/ˈvɪv.ɪd/",meanings:[{pos:"adj.",zh:"生动的；鲜艳的"}]},
+  {text:"wander",phonetic:"/ˈwɑːn.dər/",meanings:[{pos:"v.",zh:"漫游；徘徊"},{pos:"n.",zh:"漫步"}]},
+  {text:"yield",phonetic:"/jiːld/",meanings:[{pos:"v.",zh:"产出；屈服；让步"},{pos:"n.",zh:"产量；收益"}]},
+  {text:"zeal",phonetic:"/ziːl/",meanings:[{pos:"n.",zh:"热情；热忱"}]},
+  {text:"ambition",phonetic:"/æmˈbɪʃ.ən/",meanings:[{pos:"n.",zh:"雄心；抱负；野心"}]},
+  {text:"balance",phonetic:"/ˈbæl.əns/",meanings:[{pos:"n.",zh:"平衡；余额"},{pos:"v.",zh:"使平衡；权衡"}]},
+  {text:"curious",phonetic:"/ˈkjʊr.i.əs/",meanings:[{pos:"adj.",zh:"好奇的；奇特的"}]},
+  {text:"distinct",phonetic:"/dɪˈstɪŋkt/",meanings:[{pos:"adj.",zh:"明显的；不同的"}]},
+  {text:"essence",phonetic:"/ˈes.əns/",meanings:[{pos:"n.",zh:"本质；精髓；香精"}]},
+  {text:"flourish",phonetic:"/ˈflɜːr.ɪʃ/",meanings:[{pos:"v.",zh:"繁荣；茁壮成长"},{pos:"n.",zh:"华丽辞藻；炫耀动作"}]},
+  {text:"gratitude",phonetic:"/ˈɡræt.ə.tuːd/",meanings:[{pos:"n.",zh:"感激；感谢"}]},
+  {text:"humble",phonetic:"/ˈhʌm.bəl/",meanings:[{pos:"adj.",zh:"谦逊的；卑微的"},{pos:"v.",zh:"使谦卑"}]},
+  {text:"inspire",phonetic:"/ɪnˈspaɪr/",meanings:[{pos:"v.",zh:"激励；启发；鼓舞"}]},
+  {text:"justice",phonetic:"/ˈdʒʌs.tɪs/",meanings:[{pos:"n.",zh:"正义；公正；司法"}]},
+  {text:"kindle",phonetic:"/ˈkɪn.dəl/",meanings:[{pos:"v.",zh:"点燃；激起"}]},
+  {text:"linger",phonetic:"/ˈlɪŋ.ɡər/",meanings:[{pos:"v.",zh:"逗留；徘徊；流连"}]},
+  {text:"mature",phonetic:"/məˈtʊr/",meanings:[{pos:"adj.",zh:"成熟的"},{pos:"v.",zh:"成熟；到期"}]},
+  {text:"noble",phonetic:"/ˈnoʊ.bəl/",meanings:[{pos:"adj.",zh:"高尚的；贵族的"},{pos:"n.",zh:"贵族"}]},
+  {text:"orbit",phonetic:"/ˈɔːr.bɪt/",meanings:[{pos:"n.",zh:"轨道；势力范围"},{pos:"v.",zh:"环绕运行"}]},
+  {text:"profound",phonetic:"/prəˈfaʊnd/",meanings:[{pos:"adj.",zh:"深刻的；深奥的"}]},
+  {text:"quest",phonetic:"/kwest/",meanings:[{pos:"n.",zh:"探索；追求"},{pos:"v.",zh:"寻求"}]},
+  {text:"radiant",phonetic:"/ˈreɪ.di.ənt/",meanings:[{pos:"adj.",zh:"光芒四射的；容光焕发的"}]},
+  {text:"sincere",phonetic:"/sɪnˈsɪr/",meanings:[{pos:"adj.",zh:"真诚的；诚挚的"}]},
+  {text:"thrive",phonetic:"/θraɪv/",meanings:[{pos:"v.",zh:"茁壮成长；兴旺"}]},
+  {text:"utter",phonetic:"/ˈʌt̬.ɚ/",meanings:[{pos:"v.",zh:"说出；发出"},{pos:"adj.",zh:"完全的；彻底的"}]},
+  {text:"venture",phonetic:"/ˈven.tʃər/",meanings:[{pos:"n.",zh:"冒险；风险投资"},{pos:"v.",zh:"冒险；敢于"}]},
+  {text:"whisper",phonetic:"/ˈwɪs.pər/",meanings:[{pos:"v.",zh:"低语；私语"},{pos:"n.",zh:"耳语；传闻"}]},
+  {text:"youthful",phonetic:"/ˈjuːθ.fəl/",meanings:[{pos:"adj.",zh:"年轻的；朝气蓬勃的"}]},
+  {text:"zenith",phonetic:"/ˈziː.nɪθ/",meanings:[{pos:"n.",zh:"顶点；天顶；全盛期"}]},
+];
+const TOTAL=WORDS.length;
+document.getElementById('totNum').textContent=TOTAL;
+document.getElementById('smTotal').textContent=TOTAL;
+
+/* ===== 状态 ===== */
+let index=0, typed='', status='idle', seconds=0, playing=false, revealed=false;
+let wrongCount=0, correctFirstTry=0, attemptWrong=false, finished=false;
+let playTimer=null, autoTimer=null;
+const $=id=>document.getElementById(id);
+const word=()=>WORDS[Math.min(index,TOTAL-1)];
+const pad=n=>String(n).padStart(2,'0');
+const fmtTime=t=>`${pad(Math.floor(t/60))}:${pad(t%60)}`;
+
+/* ===== 计时 ===== */
+setInterval(()=>{ if(finished) return; seconds++; $('timer').textContent=fmtTime(seconds); },1000);
+
+/* ===== 发音 ===== */
+function setPlaying(on){ playing=on; updatePronounce(); }
+function play(text){
+  text=text||word().text;
+  if(playTimer) clearTimeout(playTimer);
+  setPlaying(true);
+  let ended=false;
+  const stop=()=>{ if(ended) return; ended=true; setPlaying(false); };
+  if('speechSynthesis' in window){
+    try{ window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=0.9; u.onend=stop; u.onerror=stop; window.speechSynthesis.speak(u);}catch(e){}
+  }
+  playTimer=setTimeout(stop,1600);
+}
+function autoPlay(){ if(autoTimer) clearTimeout(autoTimer); autoTimer=setTimeout(()=>play(word().text),350); }
+
+/* ===== 字母格尺寸（随词长自适应，与原稿一致） ===== */
+function slotMetrics(len){
+  const w = len<=7?40:len<=9?34:len<=11?28:24;
+  const f = len<=7?30:len<=9?26:len<=11?22:19;
+  return {w,f};
+}
+
+/* ===== 渲染：字母槽 ===== */
+function renderSlots(){
+  const w=word(); const len=w.text.length; const {w:slotW,f:fontSize}=slotMetrics(len);
+  const box=$('slots');
+  box.className = status==='wrong' ? 'flex items-end justify-center gap-[6px] animate-shake' : 'flex items-end justify-center gap-[6px]';
+  let html='';
+  for(let i=0;i<len;i++){
+    const ch=typed[i];
+    const isCaret = status==='idle' && i===typed.length;
+    const showHint = revealed && !ch;
+    let letterHtml='';
+    if(ch){
+      const col = status==='correct'?'text-tb-success':status==='wrong'?'text-tb-danger':'text-tb-text';
+      letterHtml=`<span class="animate-letter-pop lowercase ${col}">${ch}</span>`;
+    } else if(showHint){
+      letterHtml=`<span class="lowercase text-tb-border">${w.text[i]}</span>`;
+    }
+    let lineCls='h-[3px] w-full rounded-full transition-colors duration-200 ';
+    if(status==='correct') lineCls+='bg-tb-success';
+    else if(status==='wrong') lineCls+='bg-tb-danger';
+    else lineCls += isCaret ? 'bg-tb-primary animate-caret' : (ch?'bg-tb-text':'bg-tb-border');
+    html+=`<div class="relative flex flex-col items-center" style="width:${slotW}px;">
+      <div class="flex h-[46px] items-end justify-center pb-1 font-semibold leading-none tracking-tight lowercase" style="font-size:${fontSize}px;">${letterHtml}</div>
+      <div class="${lineCls}"></div>
+    </div>`;
+  }
+  box.innerHTML=html;
+}
+
+/* ===== 渲染：标签 ===== */
+function renderLabel(){
+  const dot=$('labelDot'), txt=$('labelText');
+  if(status==='correct'){ dot.className='h-1.5 w-1.5 rounded-full bg-tb-success transition-colors'; txt.textContent='Correct'; }
+  else if(status==='wrong'){ dot.className='h-1.5 w-1.5 rounded-full bg-tb-danger transition-colors'; txt.textContent='Try again'; }
+  else { dot.className='h-1.5 w-1.5 rounded-full bg-tb-primary transition-colors'; txt.textContent=`Spell it · ${word().text.length} letters`; }
+}
+
+/* ===== 渲染：释义 ===== */
+function renderMeanings(){
+  const w=word();
+  $('senseList').innerHTML = w.meanings.map((m,i)=>`
+    <li class="flex animate-fade-up items-start gap-3 py-3 first:pt-0 last:pb-0" style="animation-delay:${i*60}ms;animation-fill-mode:both;">
+      <span class="mt-[2px] inline-flex h-5 min-w-[34px] shrink-0 items-center justify-center rounded bg-tb-primary-lt px-1.5 text-[11px] font-semibold italic text-tb-primary">${m.pos}</span>
+      <span class="text-[15px] leading-6 text-tb-text">${m.zh}</span>
+    </li>`).join('');
+}
+
+/* ===== 渲染：发音按钮（仅播放状态变化时更新，避免均衡器动画重放） ===== */
+function updatePronounce(){
+  const circle=$('pronCircle'), inner=$('pronInner'), rings=$('pronRings'), us=$('pronUs');
+  const usColor='rgba(32,107,196,0.7)';
+  if(playing){
+    circle.className='relative flex h-10 w-10 items-center justify-center rounded-full bg-tb-primary text-white shadow-[0_6px_16px_-4px_rgba(32,107,196,0.55)] transition-all duration-300';
+    const BARS=[0.55,0.85,1,0.7,0.45];
+    inner.innerHTML=`<span class="flex h-4 items-center gap-[2.5px]">${BARS.map((h,i)=>`<span class="w-[2.5px] animate-eq rounded-full bg-white" style="height:${h*16}px;transform-origin:center;animation-delay:${i*0.11}s"></span>`).join('')}</span>`;
+    // 涟漪环用显式 rgba，避免动态 Tailwind 透明度类不生效
+    rings.innerHTML=`<span class="absolute inset-0 animate-ring rounded-full" style="background-color:rgba(32,107,196,0.30)"></span><span class="absolute inset-0 animate-ring rounded-full" style="background-color:rgba(32,107,196,0.20);animation-delay:0.45s"></span>`;
+    us.textContent='US · Playing';
+    us.style.color=usColor;
+  } else {
+    circle.className='relative flex h-10 w-10 items-center justify-center rounded-full bg-tb-primary-lt text-tb-primary transition-all duration-300';
+    inner.innerHTML=icVolume;
+    rings.innerHTML='';
+    us.textContent='US · Tap to play';
+    us.style.color=usColor;
+  }
+}
+
+/* ===== 渲染：顶部进度 ===== */
+function renderTop(){
+  $('curNum').textContent=index+1;
+  const percent=Math.min(100,((index+1)/TOTAL)*100);
+  $('progressBar').style.width=Math.max(2,percent)+'%';
+  $('progressDot').style.left=Math.max(2,percent)+'%';
+  $('phonetic').textContent=word().phonetic;
+}
+
+/* ===== 输入逻辑 ===== */
+function handleKey(l){
+  if(status!=='idle'||finished) return;
+  if(typed.length>=word().text.length) return;
+  typed+=l;
+  renderSlots(); renderLabel();
+  if(typed.length===word().text.length) evaluate();
+}
+function handleDelete(){
+  if(status!=='idle'||finished) return;
+  typed=typed.slice(0,-1);
+  renderSlots(); renderLabel();
+}
+function evaluate(){
+  if(typed.length!==word().text.length) return;
+  if(typed===word().text){
+    status='correct';
+    if(!attemptWrong) correctFirstTry++;
+    play(word().text);
+    renderSlots(); renderLabel();
+    setTimeout(()=>{
+      if(index+1>=TOTAL){ finished=true; showSummary(); return; }
+      index++; typed=''; status='idle'; revealed=false; attemptWrong=false;
+      renderTop(); renderSlots(); renderLabel(); renderMeanings(); autoPlay();
+    },900);
+  } else {
+    status='wrong'; wrongCount++; attemptWrong=true;
+    renderSlots(); renderLabel();
+    setTimeout(()=>{ typed=''; status='idle'; renderSlots(); renderLabel(); },650);
+  }
+}
+function reveal(){
+  if(status!=='idle') return;
+  revealed=true; attemptWrong=true; renderSlots();
+  setTimeout(()=>{ revealed=false; renderSlots(); },1800);
+}
+function restart(){
+  index=0; typed=''; status='idle'; seconds=0; revealed=false; wrongCount=0; correctFirstTry=0; attemptWrong=false; finished=false;
+  $('summary').classList.add('hidden'); $('summary').classList.remove('flex');
+  renderTop(); renderSlots(); renderLabel(); renderMeanings(); autoPlay();
+}
+
+/* ===== 完成小结 ===== */
+function showSummary(){
+  const acc=Math.round((correctFirstTry/TOTAL)*100);
+  $('smTime').textContent=fmtTime(seconds);
+  $('smAcc').textContent=acc+'%';
+  $('smWrong').textContent=wrongCount;
+  $('summary').classList.remove('hidden'); $('summary').classList.add('flex');
+}
+
+/* ===== 键盘（20 列网格） ===== */
+function buildKeyboard(){
+  const rows=['qwertyuiop','asdfghjkl','zxcvbnm'];
+  const box=$('keyboard');
+  const keyBase='no-select flex h-[46px] items-center justify-center rounded-[7px] border border-tb-border/70 text-[19px] font-medium text-tb-text shadow-[0_1px_0_0_rgba(29,39,59,0.12)] transition-[transform,background-color] duration-75 active:translate-y-px active:bg-tb-border-lt active:shadow-none';
+  let html=`<div style="display:grid;grid-template-columns:repeat(20,1fr);column-gap:5px;row-gap:8px;">`;
+  rows.forEach((row,r)=>{
+    const offset=r===1?1:r===2?3:0;
+    row.split('').forEach((l,i)=>{
+      const gc=i===0?`grid-column:${offset+1} / span 2;`:'grid-column:span 2;';
+      html+=`<button type="button" data-key="${l}" class="${keyBase} col-span-2 bg-tb-key" style="${gc}">${l}</button>`;
+    });
+  });
+  html+=`<button type="button" aria-label="删除" data-del="1" class="${keyBase} col-span-3 bg-tb-key-dark text-tb-text" style="grid-column:18 / span 3;">${icBackspace}</button>`;
+  html+=`</div>`;
+  box.innerHTML=html;
+
+  // 绑定
+  let repeatT=null, repeatI=null;
+  const stop=()=>{ if(repeatT) clearTimeout(repeatT); if(repeatI) clearInterval(repeatI); repeatT=repeatI=null; };
+  const start=()=>{ handleDelete(); repeatT=setTimeout(()=>{ repeatI=setInterval(handleDelete,70); },420); };
+  box.querySelectorAll('button[data-key]').forEach(b=> b.onclick=()=>handleKey(b.dataset.key));
+  const delBtn=box.querySelector('button[data-del]');
+  delBtn.onpointerdown=(e)=>{ e.preventDefault(); start(); };
+  delBtn.onpointerup=stop; delBtn.onpointerleave=stop; delBtn.onpointercancel=stop;
+}
+
+/* ===== 物理键盘 ===== */
+window.addEventListener('keydown',(e)=>{
+  if(e.metaKey||e.ctrlKey||e.altKey) return;
+  if(/^[a-zA-Z]$/.test(e.key)){ e.preventDefault(); handleKey(e.key.toLowerCase()); }
+  else if(e.key==='Backspace'){ e.preventDefault(); handleDelete(); }
+});
+
+/* ===== 绑定 ===== */
+$('pronounceBtn').onclick=()=>play(word().text);
+$('hintBtn').onclick=reveal;
+$('smRestart').onclick=restart;
+$('backBtn').onclick=()=>{ if(window.history.length>1) history.back(); };
+
+/* ===== 初始化 ===== */
+updatePronounce();
+renderTop();
+renderSlots();
+renderLabel();
+renderMeanings();
+buildKeyboard();
+autoPlay();
+</script>
+</body>
+</html>

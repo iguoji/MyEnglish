@@ -1,10 +1,11 @@
 // material.dart 提供动画、按钮、阴影和布局组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 是项目唯一允许使用的界面图标来源。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿颜色令牌，保证浅色与深色模式一致。
 import '../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import 'home_layout.dart';
 
 ///
 /// 首页右下角“学习”悬浮菜单。
@@ -74,12 +75,11 @@ class LearningFab extends StatefulWidget {
 
 ///
 /// 主按钮文字样式（学习 / 收起 共用，保证切换时宽度一致）。
-const TextStyle _labelStyle = TextStyle(
-  color: Colors.white,
-  fontSize: 14.5,
-  fontWeight: FontWeight.w600,
-  letterSpacing: 0.5,
-);
+///
+/// 写成函数而不是常量，是因为字号、字重现在统一由主题的文字档位说话：
+/// 这里读「按钮文字」那一档，只把蓝底上的白字叠上去。
+TextStyle _labelStyle(BuildContext context) =>
+    Theme.of(context).textTheme.fs5Semibold.copyWith(color: Colors.white);
 
 ///
 /// 管理学习悬浮按钮的展开、旋转、位移和淡入动画。
@@ -90,7 +90,7 @@ class _LearningFabState extends State<LearningFab>
   /// 统一驱动所有展开或收起动画的控制器。
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 300),
+    duration: const Duration(milliseconds: AppDuration.ms250),
   );
 
   ///
@@ -153,85 +153,97 @@ class _LearningFabState extends State<LearningFab>
   Widget build(BuildContext context) {
     // 读取当前主题下的卡片、边框与文字颜色。
     final tokens = AppTokens.of(context);
-    // 设计稿要求所有入口靠右对齐，并保持 10 像素纵向间距。
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // 入口区：随展开进度淡入 + 从下方滑入；SizeTransition 让收起时高度归零、不占空间。
-        // Offstage 仅在“完全收起”时隐藏，既保证收起动画完整播放，又让测试在关闭态找不到入口文字。
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) =>
-              Offstage(offstage: _controller.isDismissed, child: child),
-          child: SizeTransition(
-            sizeFactor: _expand,
-            // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
-            alignment: Alignment.bottomCenter,
-            child: FadeTransition(
-              opacity: _expand,
-              child: SlideTransition(
-                position: _slideUp,
-                child: _buildActions(tokens),
-              ),
-            ),
-          ),
-        ),
-        // 主按钮严格复刻 46 高、23 圆角和右侧 20/左侧 16 的内边距。
-        Material(
-          color: AppTokens.accent,
-          borderRadius: BorderRadius.circular(23),
-          elevation: 8,
-          shadowColor: AppTokens.accent.withValues(alpha: 0.42),
-          child: InkWell(
-            key: const Key('toggle-learning-menu'),
-            onTap: widget.onToggle,
-            borderRadius: BorderRadius.circular(23),
-            child: SizedBox(
-              height: 46,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 16, right: 20),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 图标层：书本淡出 / 叉叉旋转淡入，二者共用计时器，必动。
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // 学习（书本）图标：展开时淡出，不旋转。
-                        FadeTransition(
-                          opacity: ReverseAnimation(_expand),
-                          child: const Icon(
-                            TablerIcons.book,
-                            size: 18,
-                            color: Colors.white,
-                          ),
-                        ),
-                        // 收起（叉叉）图标：展开时旋转 -90°→0° 并淡入。
-                        RotationTransition(
-                          turns: _rotation,
-                          child: FadeTransition(
-                            opacity: _expand,
-                            child: const Icon(
-                              TablerIcons.x,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 9),
-                    // 文字随状态切换；原型动画焦点在“图标淡出/叉叉旋转/入口上滑”，
-                    // 文字不做交叉淡入以免关闭态仍残留“收起”节点（影响测试与可访问性）。
-                    Text(widget.isOpen ? '收起' : '学习', style: _labelStyle),
-                  ],
+    // 设计稿要求所有入口靠右对齐，上下之间隔一档常规间隙（`p2`）。
+    //
+    // 外面套一层 IconTheme：主按钮的书本/叉叉、每个入口的小图标一共 4 个，
+    // 尺寸本来就必须一样，所以在这里写一次，下面各处不再各写 `size:`——
+    // 和 CSS 里在父元素上定一次 `font-size` 是同一个道理。
+    return IconTheme.merge(
+      data: const IconThemeData(size: AppIcon.i16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 入口区：随展开进度淡入 + 从下方滑入；SizeTransition 让收起时高度归零、不占空间。
+          // Offstage 仅在“完全收起”时隐藏，既保证收起动画完整播放，又让测试在关闭态找不到入口文字。
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) =>
+                Offstage(offstage: _controller.isDismissed, child: child),
+            child: SizeTransition(
+              sizeFactor: _expand,
+              // 从底部向上展开，贴合“入口出现在按钮上方”的视觉。
+              alignment: Alignment.bottomCenter,
+              child: FadeTransition(
+                opacity: _expand,
+                child: SlideTransition(
+                  position: _slideUp,
+                  child: _buildActions(tokens),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+          // 主按钮复刻设计稿：46 高、大面板那一档圆角（`roundedXxl`），
+          // 左侧基准内边距、右侧再宽一档，让文字不贴着右边缘。
+          Material(
+            color: AppTokens.primary,
+            borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
+            elevation: LearningFabLayout.mainElevation,
+            shadowColor: AppTokens.primary.withValues(alpha: AppAlpha.a42),
+            child: InkWell(
+              key: const Key('toggle-learning-menu'),
+              onTap: widget.onToggle,
+              borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
+              child: SizedBox(
+                height: LearningFabLayout.mainButtonHeight,
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    left: AppSpace.p3,
+                    right: AppSpace.pBase,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 图标层：书本淡出 / 叉叉旋转淡入，二者共用计时器，必动。
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // 学习（书本）图标：展开时淡出，不旋转。
+                          FadeTransition(
+                            opacity: ReverseAnimation(_expand),
+                            child: const Icon(
+                              AppGlyph.study,
+                              color: Colors.white,
+                            ),
+                          ),
+                          // 收起（叉叉）图标：展开时旋转 -90°→0° 并淡入。
+                          RotationTransition(
+                            turns: _rotation,
+                            child: FadeTransition(
+                              opacity: _expand,
+                              child: const Icon(
+                                AppGlyph.dismiss,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: AppSpace.p2),
+                      // 文字随状态切换；原型动画焦点在“图标淡出/叉叉旋转/入口上滑”，
+                      // 文字不做交叉淡入以免关闭态仍残留“收起”节点（影响测试与可访问性）。
+                      Text(
+                        widget.isOpen ? '收起' : '学习',
+                        style: _labelStyle(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -243,25 +255,25 @@ class _LearningFabState extends State<LearningFab>
       _LearningActionRow(
         actionKey: const Key('open-player'),
         continueKey: const Key('continue-player'),
-        icon: TablerIcons.headphones,
+        icon: AppGlyph.moduleListening,
         label: '随身听 · ${widget.targetCount}',
         onTap: widget.onOpenPlayer,
         showContinue: widget.showPlayerResume,
         onContinue: widget.onContinuePlayer,
         tokens: tokens,
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: AppSpace.p2),
       _LearningActionRow(
         actionKey: const Key('open-dict'),
         continueKey: const Key('continue-listening-meaning'),
-        icon: TablerIcons.pencil,
+        icon: AppGlyph.moduleListeningMeaning,
         label: '听音辨义 · ${widget.targetCount}',
         onTap: widget.onOpenListeningMeaning,
         showContinue: widget.showListeningMeaningResume,
         onContinue: widget.onContinueListeningMeaning,
         tokens: tokens,
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: AppSpace.p2),
     ],
   );
 }
@@ -332,8 +344,8 @@ class _LearningActionRow extends StatelessWidget {
         ),
         // AnimatedSwitcher 同时处理淡入与横向展开；无历史时 child 真正缩成 0 宽。
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          reverseDuration: const Duration(milliseconds: 180),
+          duration: const Duration(milliseconds: AppDuration.ms250),
+          reverseDuration: const Duration(milliseconds: AppDuration.ms160),
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
           transitionBuilder: (child, animation) => FadeTransition(
@@ -351,7 +363,7 @@ class _LearningActionRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // 两个独立按钮之间保留清晰间隔，避免单手点击时误触主入口。
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.p2),
                     _LearningContinueAction(
                       key: continueKey,
                       onTap: onContinue,
@@ -400,34 +412,33 @@ class _LearningAction extends StatelessWidget {
   /// 构建开始新学习的胶囊按钮。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Material(
       color: tokens.card,
-      borderRadius: BorderRadius.circular(20),
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
+      elevation: LearningFabLayout.itemElevation,
+      // 投影颜色读卡片那一档令牌，和词库面板、结算页圆盘同一个出处。
+      //
+      // 原来这里写的是 `Colors.black` 加 20% 透明——全站唯一一处不走令牌的投影，
+      // 深色模式下也不会跟着变淡。「这颗胶囊比旁边浮得高」这件事由上面的
+      // elevation 表达就够了，不需要再单独调一次颜色的深浅。
+      shadowColor: tokens.cardShadow,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
         child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          height: LearningFabLayout.itemHeight,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.p3),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
             border: Border.all(color: tokens.border),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 16, color: AppTokens.accent),
-              const SizedBox(width: 9),
-              Text(
-                label,
-                style: TextStyle(
-                  color: tokens.text,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Icon(icon, color: AppTokens.primary),
+              const SizedBox(width: AppSpace.p2),
+              Text(label, style: textTheme.fs5Semibold),
             ],
           ),
         ),
@@ -460,34 +471,34 @@ class _LearningContinueAction extends StatelessWidget {
   /// 构建轻量的继续按钮。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: AppTokens.accent.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(20),
-      elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
+      color: AppTokens.primary.withValues(alpha: AppAlpha.a10),
+      borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
+      elevation: LearningFabLayout.continueElevation,
+      // 同上：投影颜色统一读令牌，浮得比主入口低由 elevation 说明。
+      shadowColor: tokens.cardShadow,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
         child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 13),
+          height: LearningFabLayout.itemHeight,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.p3),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTokens.accent.withValues(alpha: 0.28)),
+            borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
+            border: Border.all(
+              color: AppTokens.primary.withValues(alpha: AppAlpha.a28),
+            ),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               // 所有图标都来自 Tabler；playerPlay 明确表达“从进度继续”。
-              Icon(TablerIcons.playerPlay, size: 15, color: AppTokens.accent),
-              SizedBox(width: 6),
+              const Icon(AppGlyph.play, color: AppTokens.primary),
+              const SizedBox(width: AppSpace.p2),
               Text(
                 '继续',
-                style: TextStyle(
-                  color: AppTokens.accent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: textTheme.fs5Semibold.copyWith(color: AppTokens.primary),
               ),
             ],
           ),

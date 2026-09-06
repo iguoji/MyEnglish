@@ -113,6 +113,69 @@ extension AppThemePreferenceDetails on AppThemePreference {
 }
 
 ///
+/// 全站文字大小档位，也就是俗称的「老年版」开关。
+///
+/// 它不是「把某几处字号改大」，而是给整个 App 拧一个放大倍数：所有文字
+/// ——标题、正文、按钮、候选词、结算页的大数字——一起按同一比例变大，
+/// 版式比例保持不变。所以这里只有三个档位，没有「单独调某一处」的选项。
+///
+/// 实现上不动 `AppFont` 那张字号表里的任何数值（见 `common/design/fonts.dart`），
+/// 而是在 App 最外层设置一个文字缩放器。这样做的好处很实际：以后新增页面
+/// 不需要为放大做任何额外处理，写 `AppFont.fs5` 就自动跟着一起变大。
+///
+enum AppFontScale {
+  ///
+  /// 标准：不放大，也是第一次安装时的默认值。
+  standard,
+
+  ///
+  /// 大：放大约一成半，适合觉得默认字号偏小但又不想太挤的情况。
+  large,
+
+  ///
+  /// 特大：放大约三成，是本项目做过耐压测试的上限。
+  ///
+  /// 再往上不开放，是因为超过这个倍数后候选按钮、顶栏这类固定高度的地方
+  /// 会开始裁字——与其让用户选到一个会出错的档位，不如把上限画在这里。
+  huge,
+}
+
+///
+/// 为字体大小档位补充持久化值、界面文字和真正的放大倍数。
+///
+extension AppFontScaleDetails on AppFontScale {
+  ///
+  /// settings 表中保存的稳定字符串。
+  ///
+  /// 存英文而不是存倍数：万一以后想把「大」从 1.15 调成 1.2，
+  /// 已经选了「大」的用户会跟着一起变，而不是被永久钉在旧倍数上。
+  String get storageValue => switch (this) {
+    AppFontScale.standard => 'standard',
+    AppFontScale.large => 'large',
+    AppFontScale.huge => 'huge',
+  };
+
+  ///
+  /// 设置面板显示的简短名称。
+  String get label => switch (this) {
+    AppFontScale.standard => '标准',
+    AppFontScale.large => '大',
+    AppFontScale.huge => '特大',
+  };
+
+  ///
+  /// 全站文字的放大倍数。
+  ///
+  /// 1.15 与 1.3 是刻意选的：跨度太小用户看不出区别，跨度太大就会撑破布局。
+  /// 这两个数配合「特大」档跑过一轮耐压测试，六个页面都不裁字。
+  double get multiplier => switch (this) {
+    AppFontScale.standard => 1.0,
+    AppFontScale.large => 1.15,
+    AppFontScale.huge => 1.3,
+  };
+}
+
+///
 /// 全局设置 Store：内存状态 + settings 表持久化。
 ///
 /// settings 表就是一个可持久化的 Redis：一行一个 key，value 永远是文本，
@@ -148,6 +211,9 @@ class SettingsStore extends ChangeNotifier {
   /// 界面主题。
   static const String keyTheme = 'theme';
 
+  /// 全站文字大小档位（老年版开关）。
+  static const String keyFontScale = 'fontScale';
+
   /// 中文释义分隔符。
   static const String keyDefinitionSeparator = 'definitionSeparator';
 
@@ -176,7 +242,9 @@ class SettingsStore extends ChangeNotifier {
   }) async {
     try {
       // 原生返回 { key: {value, type} }；一次读全部，启动只查一次库。
-      final rows = await channel.invokeMapMethod<String, Object?>('getSettings');
+      final rows = await channel.invokeMapMethod<String, Object?>(
+        'getSettings',
+      );
       return SettingsStore._(
         channel,
         _Values.fromRows(rows ?? const <String, Object?>{}),
@@ -202,7 +270,9 @@ class SettingsStore extends ChangeNotifier {
   factory SettingsStore.inMemory({
     PronunciationAccent accent = PronunciationAccent.american,
     AppThemePreference theme = AppThemePreference.light,
-    DefinitionSeparator definitionSeparator = DefinitionSeparator.fullWidthSemicolon,
+    AppFontScale fontScale = AppFontScale.standard,
+    DefinitionSeparator definitionSeparator =
+        DefinitionSeparator.fullWidthSemicolon,
     int dailyGoal = 50,
     int meaningMatchDuration = 150,
     int listeningRepeat = 2,
@@ -216,9 +286,12 @@ class SettingsStore extends ChangeNotifier {
       _Values(
         accent: accent,
         theme: theme,
+        fontScale: fontScale,
         definitionSeparator: definitionSeparator,
         dailyGoal: dailyGoal < 0 ? 0 : dailyGoal,
-        meaningMatchDuration: meaningMatchDuration < 0 ? 0 : meaningMatchDuration,
+        meaningMatchDuration: meaningMatchDuration < 0
+            ? 0
+            : meaningMatchDuration,
         listeningRepeat: listeningRepeat.clamp(1, 9),
         listeningInterval: listeningInterval < 0 ? 0 : listeningInterval,
         listeningLoop: listeningLoop,
@@ -237,6 +310,9 @@ class SettingsStore extends ChangeNotifier {
 
   /// MaterialApp 直接读取的主题模式。
   ThemeMode get themeMode => _values.theme.themeMode;
+
+  /// 当前文字大小档位。
+  AppFontScale get fontScale => _values.fontScale;
 
   /// 当前中文释义分隔符。
   DefinitionSeparator get definitionSeparator => _values.definitionSeparator;
@@ -277,6 +353,18 @@ class SettingsStore extends ChangeNotifier {
     if (_values.theme == value) return;
     await _write(keyTheme, value.storageValue, 'string');
     _values = _values.copyWith(theme: value);
+    notifyListeners();
+  }
+
+  ///
+  /// 修改并持久化文字大小档位；通知后全站文字立即按新倍数重排。
+  ///
+  /// 和主题切换是同一种机制：这里只改一个档位值，页面本身一行都不用动，
+  /// 由 App 最外层的文字缩放器统一放大（见 `lib/app.dart`）。
+  Future<void> setFontScale(AppFontScale value) async {
+    if (_values.fontScale == value) return;
+    await _write(keyFontScale, value.storageValue, 'string');
+    _values = _values.copyWith(fontScale: value);
     notifyListeners();
   }
 
@@ -372,7 +460,9 @@ class SettingsStore extends ChangeNotifier {
     // 内存模式（测试或旧原生壳）没有通道可读，保持现状即可。
     if (_channel == null) return;
     try {
-      final rows = await _channel.invokeMapMethod<String, Object?>('getSettings');
+      final rows = await _channel.invokeMapMethod<String, Object?>(
+        'getSettings',
+      );
       _values = _Values.fromRows(rows ?? const <String, Object?>{});
       notifyListeners();
     } on PlatformException catch (error) {
@@ -406,6 +496,7 @@ class _Values {
   const _Values({
     this.accent = PronunciationAccent.american,
     this.theme = AppThemePreference.light,
+    this.fontScale = AppFontScale.standard,
     this.definitionSeparator = DefinitionSeparator.fullWidthSemicolon,
     this.dailyGoal = 50,
     this.meaningMatchDuration = 150,
@@ -417,6 +508,7 @@ class _Values {
 
   final PronunciationAccent accent;
   final AppThemePreference theme;
+  final AppFontScale fontScale;
   final DefinitionSeparator definitionSeparator;
   final int dailyGoal;
   final int meaningMatchDuration;
@@ -459,6 +551,12 @@ class _Values {
       theme: text(SettingsStore.keyTheme) == 'dark'
           ? AppThemePreference.dark
           : AppThemePreference.light,
+      fontScale: switch (text(SettingsStore.keyFontScale)) {
+        'large' => AppFontScale.large,
+        'huge' => AppFontScale.huge,
+        // 未知值与缺失值都回落标准档：字太大读不下去也好过 App 起不来。
+        _ => AppFontScale.standard,
+      },
       definitionSeparator: switch (text(SettingsStore.keyDefinitionSeparator)) {
         'ideographic_comma' => DefinitionSeparator.ideographicComma,
         'full_width_comma' => DefinitionSeparator.fullWidthComma,
@@ -480,6 +578,7 @@ class _Values {
   _Values copyWith({
     PronunciationAccent? accent,
     AppThemePreference? theme,
+    AppFontScale? fontScale,
     DefinitionSeparator? definitionSeparator,
     int? dailyGoal,
     int? meaningMatchDuration,
@@ -490,6 +589,7 @@ class _Values {
   }) => _Values(
     accent: accent ?? this.accent,
     theme: theme ?? this.theme,
+    fontScale: fontScale ?? this.fontScale,
     definitionSeparator: definitionSeparator ?? this.definitionSeparator,
     dailyGoal: dailyGoal ?? this.dailyGoal,
     meaningMatchDuration: meaningMatchDuration ?? this.meaningMatchDuration,

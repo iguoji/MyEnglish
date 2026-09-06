@@ -1,15 +1,16 @@
 // material.dart 提供布局、滚动与动画组件。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 提供抽屉内部与底部操作栏等图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import 'home_layout.dart';
 // 固定 40 高搜索框组件。
 import 'word_search_field.dart';
 
 ///
-/// 底部词库抽屉：可拖拽展开的搜索 + 筛选 + 单词列表容器。
+/// 底部词库抽屉：可拖拽展开的搜索 + 排序 + 单词列表容器。
 ///
 /// 抽屉内容恒定按屏幕 88% 高度布局；展开时用 TweenAnimationBuilder 从屏幕
 /// 底部滑出进场，收起时瞬间移除、不保留屏幕外的实例以免阴影残留。上滑提示
@@ -22,7 +23,6 @@ class WordLibrarySheet extends StatefulWidget {
     required this.expanded,
     required this.onExpandedChanged,
     required this.onSearchChanged,
-    required this.groupFilterBar,
     required this.wordSortBar,
     required this.selectionBar,
     required this.listContent,
@@ -44,9 +44,6 @@ class WordLibrarySheet extends StatefulWidget {
 
   /// 搜索输入回调。
   final ValueChanged<String> onSearchChanged;
-
-  /// 分组筛选行（模式 + chips + 管理）。
-  final Widget groupFilterBar;
 
   /// 排序与动作行。
   final Widget wordSortBar;
@@ -107,7 +104,7 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
     final tokens = AppTokens.of(context);
     // 展开高度固定为屏幕的 88%；抽屉整体恒定此高度布局，永不溢出。
     final screenHeight = MediaQuery.of(context).size.height;
-    final fullHeight = screenHeight * 0.88;
+    final fullHeight = screenHeight * WordLibraryLayout.heightRatio;
     return Positioned.fill(
       // Stack 把完全隐藏的词库面板与底部提示文字放在同一层管理。
       child: Stack(
@@ -123,26 +120,27 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
               // 屏幕下方；动画结束时归位，看起来就是「从下滑出」的效果。
               child: TweenAnimationBuilder<Offset>(
                 tween: Tween(begin: const Offset(0, 1), end: Offset.zero),
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: AppDuration.ms250),
                 curve: Curves.easeOutCubic,
                 // FractionalTranslation 按自身尺寸比例平移，不改变布局占位。
-                builder: (context, offset, child) => FractionalTranslation(
-                  translation: offset,
-                  child: child,
-                ),
+                builder: (context, offset, child) =>
+                    FractionalTranslation(translation: offset, child: child),
                 child: Container(
                   key: const Key('word-library-surface'),
                   height: fullHeight,
                   decoration: BoxDecoration(
                     color: tokens.card,
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
+                      top: Radius.circular(AppRadius.roundedXxl),
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: tokens.cardShadow,
-                        blurRadius: 24,
-                        offset: const Offset(0, -4),
+                        blurRadius: WordLibraryLayout.panelShadowBlur,
+                        offset: const Offset(
+                          0,
+                          WordLibraryLayout.panelShadowOffsetY,
+                        ),
                       ),
                     ],
                   ),
@@ -150,25 +148,35 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
                     children: [
                       // 顶部先留 8 像素，不让手柄紧贴圆角边缘；当前交互明确为点击收起。
                       Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: AppSpace.p2),
                         child: GestureDetector(
                           onTap: _toggle,
                           behavior: HitTestBehavior.opaque,
                           child: const _DragHandle(),
                         ),
                       ),
-                      // header 区：搜索 + 筛选 + 排序。
+                      // header 区：搜索 + 排序。
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpace.pBase,
+                          AppSpace.p1,
+                          AppSpace.pBase,
+                          AppSpace.p2,
+                        ),
                         child: Column(
                           children: [
                             WordSearchField(onChanged: widget.onSearchChanged),
-                            const SizedBox(height: 12),
-                            widget.groupFilterBar,
-                            const SizedBox(height: 12),
+                            // 排序行被两条参考线夹在中间：上面是搜索框底边框，
+                            // 下面是列表顶那条 1px 分隔线。想让排序文字到两侧的
+                            // 视觉距离相等，骨架必须对称：
+                            //   上方 = 本段 p2(8) + 排序项顶内边距 p1(4) = 12
+                            //   下方 = 排序项底内边距 p1(4) + 本区底内边距 p2(8) = 12
+                            // 两侧同为 12，排序行才正好居中；原来这里用 p3(16)，
+                            // 上方是 20、下方是 12，文字就整体偏向了列表那条线。
+                            const SizedBox(height: AppSpace.p2),
                             widget.wordSortBar,
                             if (widget.selectionBar is! SizedBox) ...[
-                              const SizedBox(height: 10),
+                              const SizedBox(height: AppSpace.p2),
                               widget.selectionBar,
                             ],
                           ],
@@ -180,7 +188,7 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
                       // Flutter 会把这部分归零，避免同一安全距离被重复计算。
                       SafeArea(
                         top: false,
-                        minimum: const EdgeInsets.only(bottom: 12),
+                        minimum: const EdgeInsets.only(bottom: AppSpace.p3),
                         child: _WordLibraryLearningBar(
                           targetCount: widget.targetCount,
                           hasListeningSession: widget.hasListeningSession,
@@ -248,13 +256,18 @@ class _WordLibraryLearningBar extends StatelessWidget {
       key: const Key('word-library-learning-bar'),
       color: tokens.card,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.p3,
+          AppSpace.p2,
+          AppSpace.p3,
+          AppSpace.p3,
+        ),
         child: Row(
           children: [
             Expanded(
               child: _LearningAction(
                 key: const Key('word-library-listening-action'),
-                icon: TablerIcons.headphones,
+                icon: AppGlyph.moduleListening,
                 label: '随身听',
                 targetCount: targetCount,
                 emphasized: false,
@@ -265,11 +278,11 @@ class _WordLibraryLearningBar extends StatelessWidget {
                 tokens: tokens,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.p2),
             Expanded(
               child: _LearningAction(
                 key: const Key('word-library-listening-meaning-action'),
-                icon: TablerIcons.pencil,
+                icon: AppGlyph.moduleListeningMeaning,
                 label: '听音辨义',
                 targetCount: targetCount,
                 emphasized: true,
@@ -336,18 +349,19 @@ class _LearningAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     final foreground = emphasized ? Colors.white : tokens.text;
-    final background = emphasized ? AppTokens.accent : tokens.card;
-    final borderColor = emphasized ? AppTokens.accent : tokens.border;
+    final background = emphasized ? AppTokens.primary : tokens.card;
+    final borderColor = emphasized ? AppTokens.primary : tokens.border;
 
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.roundedLg),
       child: Container(
-        height: 48,
+        height: WordLibraryLayout.modeRowHeight,
         decoration: BoxDecoration(
           border: Border.all(color: borderColor),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         ),
         clipBehavior: Clip.antiAlias,
         child: Row(
@@ -358,17 +372,15 @@ class _LearningAction extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 19, color: foreground),
-                    const SizedBox(width: 7),
+                    Icon(icon, size: AppIcon.i20, color: foreground),
+                    const SizedBox(width: AppSpace.p2),
                     Flexible(
                       child: Text(
                         '$label · $targetCount',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: textTheme.fs5Semibold.copyWith(
                           color: foreground,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -379,9 +391,9 @@ class _LearningAction extends StatelessWidget {
             if (hasResume) ...[
               // 竖线把“继续”与“重新开始”分开，避免误触时覆盖旧进度。
               Container(
-                width: 1,
-                height: 26,
-                color: foreground.withValues(alpha: 0.22),
+                width: AppStroke.thin,
+                height: WordLibraryLayout.modeDividerHeight,
+                color: foreground.withValues(alpha: AppAlpha.a22),
               ),
               Tooltip(
                 message: '继续$label',
@@ -389,11 +401,11 @@ class _LearningAction extends StatelessWidget {
                   key: continueKey,
                   onTap: onContinue,
                   child: SizedBox(
-                    width: 40,
-                    height: 48,
+                    width: WordLibraryLayout.continueButtonWidth,
+                    height: WordLibraryLayout.modeRowHeight,
                     child: Icon(
-                      TablerIcons.playerPlay,
-                      size: 17,
+                      AppGlyph.play,
+                      size: AppIcon.i16,
                       color: foreground,
                     ),
                   ),
@@ -416,27 +428,28 @@ class _DragHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     return SizedBox(
       width: double.infinity,
-      height: 32,
+      height: WordLibraryLayout.dragBarAreaHeight,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 40,
-            height: 5,
+            width: WordLibraryLayout.dragBarWidth,
+            height: WordLibraryLayout.dragBarHeight,
             decoration: BoxDecoration(
               color: tokens.muted,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(AppRadius.roundedPill),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.p1),
           // 提示文字为装饰性小字，不随系统字体缩放：
           // 手柄区高度固定 32 像素，超大字体会把文字挤出造成溢出。
           Text(
             '点击收起',
             textScaler: TextScaler.noScaling,
-            style: TextStyle(fontSize: 11, color: tokens.textSecondary),
+            style: textTheme.fs6.copyWith(color: tokens.textSecondary),
           ),
         ],
       ),

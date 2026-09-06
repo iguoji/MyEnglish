@@ -23,6 +23,8 @@ import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/pages/listening_meaning/widgets/listening_meaning_layout.dart';
 import 'package:my_english/services/word_audio.dart';
 import 'package:my_english/store/settings.dart';
+// 顶栏行高与进度条高度已并入模块页面模板。
+import 'package:my_english/widgets/module_scaffold.dart';
 
 // 测试用内存会话 Store。
 import '../../support/memory_session_store.dart';
@@ -76,146 +78,149 @@ void main() {
     messenger.setMockMethodCallHandler(defaultRecordChannel, null);
   });
 
-  testWidgets('listeningMeaning handles wrong answers and advances between words', (
-    tester,
-  ) async {
-    // 本轮会话只有 ability（带两条释义）和 abandon（无释义）两个单词：
-    // 释义题的混淆项只能来自词库中“其他单词的含义”，而 abandon 没有释义，
-    // 因此 ability 的释义题在纯随机且“不强行凑齐”的新规则下只剩一个正确选项。
-    // 这正是用户拍板的降级行为：词库太小就不补，避免无中生有造含义词。
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ListeningMeaningPage(
-          words: _words,
-          audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
-          progress: _freshProgress(),
+  testWidgets(
+    'listeningMeaning handles wrong answers and advances between words',
+    (tester) async {
+      // 本轮会话只有 ability（带两条释义）和 abandon（无释义）两个单词：
+      // 释义题的混淆项只能来自词库中“其他单词的含义”，而 abandon 没有释义，
+      // 因此 ability 的释义题在纯随机且“不强行凑齐”的新规则下只剩一个正确选项。
+      // 这正是用户拍板的降级行为：词库太小就不补，避免无中生有造含义词。
+      await tester.pumpWidget(
+        MaterialApp(
+          // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+          // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+          theme: AppTheme.light,
+          home: ListeningMeaningPage(
+            words: _words,
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            progress: _freshProgress(),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    // 首题先显示拼写选择阶段和完整四个选项。
-    expect(find.text('听音，选出正确的单词'), findsOneWidget);
-    expect(find.text('ability'), findsOneWidget);
-    // 中部单词卡按 ability 的七个字母建立七个独立占位槽，初始均为空。
-    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 0);
-    // 每个拼写或释义小题都必须精确显示四个候选项。
-    _expectFourOptions(tester);
-    // 播放按钮已下线：重播交给单词卡听音钮，底部候选区改为文档流一行两个。
-    // 四个候选两两一行、上下两行，同一行的两个卡片顶对齐。
-    final row1Left = tester.getRect(
-      find.byKey(const Key('listening-meaning-option-0')),
-    );
-    final row1Right = tester.getRect(
-      find.byKey(const Key('listening-meaning-option-1')),
-    );
-    expect(row1Left.top, closeTo(row1Right.top, 0.01));
-    final row2Left = tester.getRect(
-      find.byKey(const Key('listening-meaning-option-2')),
-    );
-    final row2Right = tester.getRect(
-      find.byKey(const Key('listening-meaning-option-3')),
-    );
-    expect(row2Left.top, closeTo(row2Right.top, 0.01));
-    // 第二行整体在下方，说明候选按文档流纵向排列且一行两个。
+      // 首题先显示听音阶段：标题、副题与完整四个选项。
+      expect(find.text('这个单词是？'), findsOneWidget);
+      expect(find.text('仔细听发音，在下方选出正确的单词'), findsOneWidget);
+      expect(find.text('ability'), findsOneWidget);
+      // 听音阶段答案还没揭晓，正文用七个字母格占位，全部为空槽。
+      _expectLetterSlots(tester, count: 7);
+      // 每个拼写或释义小题都必须精确显示四个候选项。
+      _expectFourOptions(tester);
+      // 播放按钮已下线：重播交给单词卡听音钮，底部候选区改为文档流一行两个。
+      // 四个候选两两一行、上下两行，同一行的两个卡片顶对齐。
+      final row1Left = tester.getRect(
+        find.byKey(const Key('listening-meaning-option-0')),
+      );
+      final row1Right = tester.getRect(
+        find.byKey(const Key('listening-meaning-option-1')),
+      );
+      expect(row1Left.top, closeTo(row1Right.top, 0.01));
+      final row2Left = tester.getRect(
+        find.byKey(const Key('listening-meaning-option-2')),
+      );
+      final row2Right = tester.getRect(
+        find.byKey(const Key('listening-meaning-option-3')),
+      );
+      expect(row2Left.top, closeTo(row2Right.top, 0.01));
+      // 第二行整体在下方，说明候选按文档流纵向排列且一行两个。
 
-    // 固定生成的交换字母干扰项应触发红色错误反馈且累计一次。
-    await tester.tap(find.text('abliity'));
-    await tester.pump();
-    // 选错后以"答错 · 难度将 +1"提示，与新版难度告警横幅口径一致。
-    expect(find.text('答错 · 难度将 +1'), findsOneWidget);
-    // 新版原型只用红色文字反馈错误，不额外绘制错误图标。
-    expect(find.byIcon(TablerIcons.x), findsNothing);
+      // 固定生成的交换字母干扰项应触发红色错误反馈且累计一次。
+      await tester.tap(find.text('abliity'));
+      await tester.pump();
+      // 选错后白卡底部提示累计错次，不再使用旧「答错 · 难度将 +1」横幅文案。
+      expect(
+        find.byKey(const Key('listening-meaning-difficulty-hint')),
+        findsOneWidget,
+      );
+      expect(find.text('本题已答错 1 次'), findsOneWidget);
+      // 选项卡只用红色文字反馈错误，不额外绘制错误图标。
+      expect(find.byIcon(TablerIcons.x), findsNothing);
 
-    // 正确拼写进入第一个词义的第一条释义。
-    await tester.tap(find.text('ability'));
-    // 正确作答会触发候选组整组过渡动画（AnimatedSwitcher），需等待动画结束再断言候选数量。
-    await tester.pumpAndSettle();
-    expect(find.text('n. · 选择释义 1/2'), findsOneWidget);
-    // 词库只有 abandon 一个“其他单词”且它没有释义，语义题候选中只有正确答案自己；
-    // 纯随机规则下不让凑齐混淆项，因此这里不再有四选一，而是单选项。
-    await _expectSingleOption(tester, '能力');
-    await tester.tap(find.text('能力'));
-    // 同上：释义切换也触发候选组过渡，等待动画结束。
-    await tester.pumpAndSettle();
-    expect(find.text('n. · 选择释义 2/2'), findsOneWidget);
-    await _expectSingleOption(tester, '才能');
-    await tester.tap(find.text('才能'));
-    await tester.pump();
+      // 正确拼写进入释义阶段：白卡直接揭示完整单词，字母格随之消失。
+      await tester.tap(find.text('ability'));
+      await tester.pumpAndSettle();
+      expect(find.text('ability'), findsOneWidget);
+      // 听音阶段的字母格已整体卸载（释义阶段展示的是整词大字）。
+      _expectNoLetterSlots(tester);
+      // 词库只有 abandon 一个“其他单词”且它没有释义，语义题候选中只有正确答案自己；
+      // 纯随机规则下不让凑齐混淆项，因此这里不再有四选一，而是单选项。
+      await _expectSingleOption(tester, '能力');
+      // 答对第一条释义后原地揭示：正文释义槽与候选项都只认第一个下标。
+      await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+      await tester.pumpAndSettle();
+      await _expectSingleOption(tester, '才能');
+      await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+      await tester.pump();
 
-    // 当前单词全部答对后仍留在 ability，不能自动跳到第二题。
-    expect(find.text('当前单词已完成'), findsOneWidget);
-    // 完成拼写后仍使用原来的七个瓷砖，只把全部真实字母填入，不改变卡片尺寸。
-    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 7);
-    // 步骤一次性列出：第一步“听音选词”已完成，第二条是该词性的释义。
-    expect(find.byKey(const Key('listening-meaning-step-word')), findsOneWidget);
-    expect(find.byKey(const Key('listening-meaning-step-meaning-0')), findsOneWidget);
-    // 释义步骤展示小写词性标签与已答出的两条释义 chips。
-    expect(find.text('n.'), findsOneWidget);
-    expect(find.text('能力'), findsOneWidget);
-    expect(find.text('才能'), findsOneWidget);
-    // 四个候选、提示和播放整组隐藏。
-    _expectNoOptions(tester);
-    expect(find.byKey(const Key('listening-meaning-hint')), findsNothing);
-    expect(find.byKey(const Key('listening-meaning-play')), findsNothing);
-    // 底部显示「再试一次 + 下一题」两个按钮。
-    final retryButtonFinder = find.byKey(const Key('retry-listening-meaning-word'));
-    final nextButtonFinder = find.byKey(const Key('next-listening-meaning-word'));
-    expect(retryButtonFinder, findsOneWidget);
-    expect(nextButtonFinder, findsOneWidget);
-    expect(find.text('再试一次'), findsOneWidget);
-    expect(find.text('下一题'), findsOneWidget);
-    // 错误提示：本题选错过 1 次，完成后在「再试一次 / 下一题」上方展示累计错次
-    // （不再显示旧的“难度将 +1”，且不再是完成有错就什么都不提示）。
-    expect(find.text('本题已答错 1 次'), findsOneWidget);
-    // 右侧主操作仍保持蓝色实心。
-    final nextButton = tester.widget<FilledButton>(nextButtonFinder);
-    expect(
-      nextButton.style?.backgroundColor?.resolve(const <WidgetState>{}),
-      AppTokens.accent,
-    );
-    // 两个按钮各占一半宽度，中间留出统一间距。
-    final nextAreaWidth = tester
-        .getSize(find.byKey(const Key('listening-meaning-next-area')))
-        .width;
-    // 去掉左右各 20 像素页面留白后，才是两个按钮可用的内容宽度。
-    final contentWidth = nextAreaWidth - ListeningMeaningLayout.pageInset * 2;
-    // 每个按钮 = （内容宽 - 中间间距）/ 2。
-    final halfWidth = (contentWidth - ListeningMeaningLayout.columnGap) / 2;
-    expect(tester.getSize(retryButtonFinder).width, closeTo(halfWidth, 0.01));
-    expect(tester.getSize(nextButtonFinder).width, closeTo(halfWidth, 0.01));
-    // 左按钮的右边界 + 间距 = 右按钮的左边界，保证中间确实留有空隙。
-    final retryRect = tester.getRect(retryButtonFinder);
-    final nextRect = tester.getRect(nextButtonFinder);
-    expect(
-      nextRect.left,
-      closeTo(retryRect.right + ListeningMeaningLayout.columnGap, 0.01),
-    );
-    // 两个按钮上下边界完全一致。
-    expect(retryRect.top, closeTo(nextRect.top, 0.01));
-    expect(retryRect.height, ListeningMeaningLayout.actionHeight);
-    expect(nextRect.height, ListeningMeaningLayout.actionHeight);
+      // 当前单词全部答对后仍留在 ability，不能自动跳到第二题：
+      // 候选区与播放相关组件卸载，正文白卡保留整词与两条已揭示释义。
+      _expectNoOptions(tester);
+      expect(
+        find.byKey(const Key('listening-meaning-question-card')),
+        findsOneWidget,
+      );
+      // 底部显示「再试一次 + 下一题」两个按钮。
+      final retryButtonFinder = find.byKey(
+        const Key('retry-listening-meaning-word'),
+      );
+      final nextButtonFinder = find.byKey(
+        const Key('next-listening-meaning-word'),
+      );
+      expect(retryButtonFinder, findsOneWidget);
+      expect(nextButtonFinder, findsOneWidget);
+      expect(find.text('再试一次'), findsOneWidget);
+      expect(find.text('下一题'), findsOneWidget);
+      // 错误提示：本题选错过 1 次，完成后在「再试一次 / 下一题」上方展示累计错次
+      // （不再显示旧的“难度将 +1”，且不再是完成有错就什么都不提示）。
+      expect(find.text('本题已答错 1 次'), findsOneWidget);
+      // 右侧主操作使用 FilledButton：实心主色由主题统一提供，页面不再重复描色。
+      expect(tester.widget(nextButtonFinder), isA<FilledButton>());
+      // 左侧次要操作是描边按钮，与主操作形成主次对比。
+      expect(tester.widget(retryButtonFinder), isA<OutlinedButton>());
+      // 两个按钮各占一半宽度，中间留出统一间距。
+      final nextAreaWidth = tester
+          .getSize(find.byKey(const Key('listening-meaning-next-area')))
+          .width;
+      // 去掉左右各一档页面留白后，才是两个按钮可用的内容宽度。
+      final contentWidth = nextAreaWidth - ListeningMeaningLayout.pageInset * 2;
+      // 每个按钮 = （内容宽 - 中间间距）/ 2。
+      final halfWidth = (contentWidth - ListeningMeaningLayout.columnGap) / 2;
+      expect(tester.getSize(retryButtonFinder).width, closeTo(halfWidth, 0.01));
+      expect(tester.getSize(nextButtonFinder).width, closeTo(halfWidth, 0.01));
+      // 左按钮的右边界 + 间距 = 右按钮的左边界，保证中间确实留有空隙。
+      final retryRect = tester.getRect(retryButtonFinder);
+      final nextRect = tester.getRect(nextButtonFinder);
+      expect(
+        nextRect.left,
+        closeTo(retryRect.right + ListeningMeaningLayout.columnGap, 0.01),
+      );
+      // 两个按钮上下边界完全一致。
+      expect(retryRect.top, closeTo(nextRect.top, 0.01));
+      expect(retryRect.height, ListeningMeaningLayout.actionHeight);
+      expect(nextRect.height, ListeningMeaningLayout.actionHeight);
 
-    // 只有点击长条按钮后才按首页列表顺序进入第二个单词。
-    await tester.tap(nextButtonFinder);
-    await tester.pumpAndSettle();
-    expect(find.text('听音，选出正确的单词'), findsOneWidget);
-    _expectFourOptions(tester);
-    // 第二个单词没有释义，答对拼写后显示进入状态页的“完成”按钮。
-    await tester.tap(find.text('abandon'));
-    await tester.pump();
-    _expectNoOptions(tester);
-    expect(find.text('完成'), findsOneWidget);
-    // 末题提交成功后进入原有完成状态页，并保留整轮错选统计。
-    await tester.tap(find.byKey(const Key('next-listening-meaning-word')));
-    await tester.pumpAndSettle();
-    expect(find.text('听音辨义完成'), findsOneWidget);
-    expect(find.text('共 2 个单词 · 答错 1 次'), findsOneWidget);
-    expect(find.byIcon(TablerIcons.check), findsOneWidget);
+      // 只有点击长条按钮后才按首页列表顺序进入第二个单词。
+      await tester.tap(nextButtonFinder);
+      await tester.pumpAndSettle();
+      expect(find.text('这个单词是？'), findsOneWidget);
+      _expectFourOptions(tester);
+      // 第二个单词没有释义，答对拼写后显示进入状态页的“完成”按钮。
+      await tester.tap(find.text('abandon'));
+      await tester.pump();
+      _expectNoOptions(tester);
+      expect(find.text('完成'), findsOneWidget);
+      // 末题提交成功后进入原有完成状态页，并保留整轮错选统计。
+      await tester.tap(find.byKey(const Key('next-listening-meaning-word')));
+      await tester.pumpAndSettle();
+      expect(find.text('听音辨义完成'), findsOneWidget);
+      expect(find.text('共 2 个单词 · 答错 1 次'), findsOneWidget);
+      expect(find.byKey(const Key('finish-listeningMeaning')), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   // 记录必须等到点击“下一题”才写入；事务未完成前页面保持原题且按钮锁定。
   testWidgets('completion is recorded only after tapping next', (tester) async {
@@ -223,6 +228,9 @@ void main() {
     final store = MemorySessionStore();
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
@@ -238,13 +246,17 @@ void main() {
     await tester.tap(find.text('abliity'));
     await tester.pump();
     // 完整答完当前单词，但此时绝不能调用原生记录事务。
+    // 释义阶段正文存在与选项同文的占位量尺，统一改按选项下标点击，避免文本歧义。
     await tester.tap(find.text('ability'));
-    await tester.pump();
-    await tester.tap(find.text('能力'));
-    await tester.pump();
-    await tester.tap(find.text('才能'));
-    await tester.pump();
-    expect(find.text('当前单词已完成'), findsOneWidget);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('listening-meaning-next-area')),
+      findsOneWidget,
+    );
     // 结算必须只在点击「下一题」后发生；此时 Store 里一条结算记录都没有。
     expect(store.settles, isEmpty);
 
@@ -253,9 +265,13 @@ void main() {
     await tester.pumpAndSettle();
     // 结算参数：本局会话 1、单词 ability(1)、普通练习照常推进复习时间。
     expect(store.settles, hasLength(1));
-    expect(store.settles.first, (sessionId: 1, wordId: 1, updateReviewedAt: true));
+    expect(store.settles.first, (
+      sessionId: 1,
+      wordId: 1,
+      updateReviewedAt: true,
+    ));
     // 结算完成后才切换到下一个单词。
-    expect(find.text('听音，选出正确的单词'), findsOneWidget);
+    expect(find.text('这个单词是？'), findsOneWidget);
     expect(find.text('abandon'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -272,6 +288,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: Builder(
           builder: (context) => TextButton(
             onPressed: () async {
@@ -284,7 +303,7 @@ void main() {
                     audioPlayer: _ImmediateAudioPlayer(),
                     accent: PronunciationAccent.american,
                     progress: _freshProgress(store: store),
-                            ),
+                  ),
                 ),
               );
             },
@@ -308,7 +327,11 @@ void main() {
     await tester.tap(find.byKey(const Key('next-listening-meaning-word')));
     await tester.pumpAndSettle();
     expect(store.settles, hasLength(1));
-    expect(store.settles.first, (sessionId: 1, wordId: 2, updateReviewedAt: true));
+    expect(store.settles.first, (
+      sessionId: 1,
+      wordId: 2,
+      updateReviewedAt: true,
+    ));
     expect(find.byType(ListeningMeaningPage), findsOneWidget);
     expect(find.text('听音辨义完成'), findsOneWidget);
     expect(find.text('共 1 个单词 · 答错 0 次'), findsOneWidget);
@@ -330,6 +353,9 @@ void main() {
     // 只放一个带释义的单词，便于验证释义步骤也一起回滚。
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words.take(1).toList(),
           audioPlayer: _ImmediateAudioPlayer(),
@@ -343,24 +369,28 @@ void main() {
     // 先选错一次制造「非初始状态」：错误选项进入红色禁用态。
     await tester.tap(find.text('abliity'));
     await tester.pump();
-    expect(find.text('答错 · 难度将 +1'), findsOneWidget);
+    expect(
+      find.byKey(const Key('listening-meaning-difficulty-hint')),
+      findsOneWidget,
+    );
+    expect(find.text('本题已答错 1 次'), findsOneWidget);
 
     // 完整答对拼写与两条释义，进入完成态。
     await tester.tap(find.text('ability'));
-    await tester.pump();
-    await tester.tap(find.text('能力'));
-    await tester.pump();
-    await tester.tap(find.text('才能'));
-    await tester.pump();
-    expect(find.text('当前单词已完成'), findsOneWidget);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('listening-meaning-next-area')), findsOneWidget);
 
     // 点击「再试一次」。
     await tester.tap(find.byKey(const Key('retry-listening-meaning-word')));
     await tester.pump();
 
-    // 回到拼写阶段：四个候选项按一行两个重新出现。
-    expect(find.text('听音，选出正确的单词'), findsOneWidget);
-    expect(find.text('当前单词已完成'), findsNothing);
+    // 回到拼写阶段：标题重新出现，四个候选项按一行两个重新排列。
+    expect(find.text('这个单词是？'), findsOneWidget);
+    expect(find.text('仔细听发音，在下方选出正确的单词'), findsOneWidget);
     _expectFourOptions(tester);
     // 底部候选区回到文档流、一行两个。
     expect(
@@ -370,9 +400,9 @@ void main() {
     // 完成态的两个按钮消失。
     expect(find.byKey(const Key('retry-listening-meaning-word')), findsNothing);
     expect(find.byKey(const Key('next-listening-meaning-word')), findsNothing);
-    // 回到一开始的样子，字母槽重新全空。
-    _expectTiles(tester, spelling: 'ability', revealedLetterCount: 0);
-    // 上一次答出的释义 chips 不再显示（步骤回到未答状态）。
+    // 回到一开始的样子，字母格重新全空。
+    _expectLetterSlots(tester, count: 7);
+    // 上一次答出的释义不再显示（正文回到纯听音字母格阶段）。
     expect(find.text('才能'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -385,6 +415,9 @@ void main() {
     final player = _PendingAudioPlayer();
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words,
           audioPlayer: player,
@@ -398,21 +431,24 @@ void main() {
     // 进入页面自动播放第一个单词，且这次播放一直没有结束。
     expect(player.requested, <String>['ability']);
 
-    // 答对拼写与两条释义 → 触发一次奖励发音（第二次请求，仍是 ability）。
+    // 答对拼写与两条释义 → 完成当前单词（全程零错选，完成态提示“一气呵成”）。
     await tester.tap(find.text('ability'));
-    await tester.pump();
-    await tester.tap(find.text('能力'));
-    await tester.pump();
-    await tester.tap(find.text('才能'));
-    await tester.pump();
-    expect(player.requested, <String>['ability', 'ability']);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('listening-meaning-option-0')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('listening-meaning-next-area')),
+      findsOneWidget,
+    );
 
-    // 奖励音频尚未结束时点下一题。
+    // 前一题音频尚未结束时点下一题（_PendingAudioPlayer 的 play 一直挂起不结束）。
     await tester.tap(find.byKey(const Key('next-listening-meaning-word')));
     await tester.pump();
 
     // 关键断言：新单词的发音请求必须真的发出去，而不是被"正在播放"挡掉。
-    expect(player.requested, <String>['ability', 'ability', 'abandon']);
+    expect(player.requested.last, 'abandon');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -430,6 +466,9 @@ void main() {
     final player = _RecordingAudioPlayer();
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words,
           audioPlayer: player,
@@ -450,23 +489,25 @@ void main() {
     );
     expect(overlayRect, questionStackRect);
 
-    // 点击提示横幅中心，事件应由外层中部播放热区接收。
-    final promptCenter = tester
-        .getRect(find.byKey(const Key('listening-meaning-prompt-information')))
+    // 点击正文标题中心，事件应由外层中部播放热区接收（标题文字本身不是按钮）。
+    final titleCenter = tester
+        .getRect(find.byKey(const Key('listening-meaning-stage-title')))
         .center;
-    await tester.tapAt(promptCenter);
+    await tester.tapAt(titleCenter);
     await tester.pump();
     expect(player.requested, <String>['ability', 'ability']);
-    // 点击 Steps 轨道中心同样重播，不必伸手去够右下角按钮。
-    final stepsCenter = tester
-        .getRect(find.byKey(const Key('listening-meaning-vertical-steps')))
+    // 点击副题中心同样重播，不必伸手去够角落里的喇叭。
+    final subtitleCenter = tester
+        .getRect(find.byKey(const Key('listening-meaning-stage-subtitle')))
         .center;
-    await tester.tapAt(stepsCenter);
+    await tester.tapAt(subtitleCenter);
     await tester.pump();
     expect(player.requested, <String>['ability', 'ability', 'ability']);
 
     // 单词卡自身的听音按钮位于透明层内部，子按钮应赢得事件且只播放一次。
-    await tester.tap(find.byKey(const Key('listening-meaning-word-card-speaker')));
+    await tester.tap(
+      find.byKey(const Key('listening-meaning-word-card-speaker')),
+    );
     await tester.pump();
     expect(player.requested, <String>[
       'ability',
@@ -489,7 +530,7 @@ void main() {
   testWidgets('question overlay keeps long content vertically scrollable', (
     tester,
   ) async {
-    // 使用较矮手机画布和多条释义，确保 Steps 内容真实超过透明层可视高度。
+    // 使用较矮手机画布和十二条同词性释义，确保释义阶段的面板真实超过可视高度。
     await tester.binding.setSurfaceSize(const Size(390, 560));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final longWord = Word(
@@ -502,10 +543,19 @@ void main() {
         Meaning(id: 304, pos: 'adv.', definition: '释义四'),
         Meaning(id: 305, pos: 'prep.', definition: '释义五'),
         Meaning(id: 306, pos: 'conj.', definition: '释义六'),
+        Meaning(id: 307, pos: 'pron.', definition: '释义七'),
+        Meaning(id: 308, pos: 'num.', definition: '释义八'),
+        Meaning(id: 309, pos: 'art.', definition: '释义九'),
+        Meaning(id: 310, pos: 'int.', definition: '释义十'),
+        Meaning(id: 311, pos: 'aux.', definition: '释义十一'),
+        Meaning(id: 312, pos: 'abbr.', definition: '释义十二'),
       ],
     );
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: <Word>[longWord],
           audioPlayer: _ImmediateAudioPlayer(),
@@ -516,9 +566,14 @@ void main() {
     );
     await tester.pump();
 
-    // 保存拖动前单词卡位置；手势从内容区发起，不能落在悬浮候选按钮上。
+    // 先答对拼写进入释义阶段：十二条占位释义把正文白卡撑出可视高度。
+    await tester.tap(find.text('scroll'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('listening-meaning-word')), findsOneWidget);
+
+    // 保存拖动前白卡位置；手势从内容区发起，不能落在底部候选按钮上。
     final beforeTop = tester
-        .getTopLeft(find.byKey(const Key('listening-meaning-word-card')))
+        .getTopLeft(find.byKey(const Key('listening-meaning-question-card')))
         .dy;
     final overlayRect = tester.getRect(
       find.byKey(const Key('listening-meaning-question-audio-overlay')),
@@ -531,7 +586,7 @@ void main() {
 
     // ScrollView 必须消费纵向拖动，证明透明播放层没有封死原有滚动能力。
     final afterTop = tester
-        .getTopLeft(find.byKey(const Key('listening-meaning-word-card')))
+        .getTopLeft(find.byKey(const Key('listening-meaning-question-card')))
         .dy;
     expect(afterTop, lessThan(beforeTop));
 
@@ -543,6 +598,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words.take(1).toList(),
           audioPlayer: _ImmediateAudioPlayer(),
@@ -562,71 +620,96 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('continue mode resumes into the definition stage after spelling', (
+  testWidgets(
+    'continue mode resumes into the definition stage after spelling',
+    (tester) async {
+      // ability 的拼写那一步已经答对（含义为空的答对记录）。
+      final progress = _freshProgress(
+        cursor: 0,
+        records: const <SessionRecord>[
+          SessionRecord(
+            id: 1,
+            wordId: 1,
+            meaningId: null,
+            input: 'ability',
+            isCorrect: true,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+          // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+          theme: AppTheme.light,
+          home: ListeningMeaningPage(
+            words: _words.take(1).toList(),
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            progress: progress,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 直接进入释义阶段：第一条释义「能力」出现，不再要求重选拼写。
+      expect(find.text('能力'), findsWidgets);
+      // 释义阶段的候选项是中文，正确答案拼写不出现在四选一里。
+      expect(_visibleOptionTexts(tester), isNot(contains('ability')));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'continue mode restores elapsed from session and keeps counting',
+    (tester) async {
+      // 用户此前花了 125 秒退出，重进后右上角计时器必须接着累计，
+      // 不能每次进入都从 0 开始计时。
+      final progress = _freshProgress(elapsed: 125);
+      await tester.pumpWidget(
+        MaterialApp(
+          // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+          // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+          theme: AppTheme.light,
+          home: ListeningMeaningPage(
+            words: _words,
+            audioPlayer: _ImmediateAudioPlayer(),
+            accent: PronunciationAccent.american,
+            progress: progress,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 恢复后显示 02:05，而不是从 00:00 开始。
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('listening-meaning-elapsed')))
+            .data,
+        '02:05',
+      );
+
+      // 原地停留一秒，计时器继续从累计值上推进到 02:06。
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('listening-meaning-elapsed')))
+            .data,
+        '02:06',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('candidate options are ordered by spelling ascending', (
     tester,
   ) async {
-    // ability 的拼写那一步已经答对（含义为空的答对记录）。
-    final progress = _freshProgress(
-      cursor: 0,
-      records: const <SessionRecord>[
-        SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'ability', isCorrect: true),
-      ],
-    );
     await tester.pumpWidget(
       MaterialApp(
-        home: ListeningMeaningPage(
-          words: _words.take(1).toList(),
-          audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
-          progress: progress,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    // 直接进入释义阶段：第一条释义「能力」出现，不再要求重选拼写。
-    expect(find.text('能力'), findsWidgets);
-    // 释义阶段的候选项是中文，正确答案拼写不出现在四选一里。
-    expect(_visibleOptionTexts(tester), isNot(contains('ability')));
-
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('continue mode restores elapsed from session and keeps counting', (tester) async {
-    // 用户此前花了 125 秒退出，重进后右上角计时器必须接着累计，
-    // 不能每次进入都从 0 开始计时。
-    final progress = _freshProgress(elapsed: 125);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ListeningMeaningPage(
-          words: _words,
-          audioPlayer: _ImmediateAudioPlayer(),
-          accent: PronunciationAccent.american,
-          progress: progress,
-        ),
-      ),
-    );
-    await tester.pump();
-
-    // 恢复后显示 02:05，而不是从 00:00 开始。
-    expect(
-      tester.widget<Text>(find.byKey(const Key('listening-meaning-elapsed'))).data,
-      '02:05',
-    );
-
-    // 原地停留一秒，计时器继续从累计值上推进到 02:06。
-    await tester.pump(const Duration(seconds: 1));
-    expect(
-      tester.widget<Text>(find.byKey(const Key('listening-meaning-elapsed'))).data,
-      '02:06',
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('candidate options are ordered by spelling ascending', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
@@ -641,7 +724,8 @@ void main() {
     // 与看义选词、词义连连的候选口径统一；而不是固定在某个取模位上。
     final displayed = _visibleOptionTexts(tester);
     expect(displayed, hasLength(4));
-    final sorted = [...displayed]..sort((first, second) {
+    final sorted = [...displayed]
+      ..sort((first, second) {
         final byLetter = first.toLowerCase().compareTo(second.toLowerCase());
         return byLetter != 0 ? byLetter : first.compareTo(second);
       });
@@ -659,6 +743,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
@@ -687,20 +774,19 @@ void main() {
       Word(
         id: 1,
         spelling: 'internationalization',
-        meanings: [
-          const Meaning(id: 101, pos: 'n.', definition: '国际化'),
-        ],
+        meanings: [const Meaning(id: 101, pos: 'n.', definition: '国际化')],
       ),
       Word(
         id: 2,
         spelling: 'ability',
-        meanings: [
-          const Meaning(id: 102, pos: 'n.', definition: '能力'),
-        ],
+        meanings: [const Meaning(id: 102, pos: 'n.', definition: '能力')],
       ),
     ];
     await tester.pumpWidget(
       MaterialApp(
+        // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+        // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+        theme: AppTheme.light,
         home: ListeningMeaningPage(
           words: longWords,
           audioPlayer: _ImmediateAudioPlayer(),
@@ -720,200 +806,186 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('listeningMeaning mirrors listening header and anchors split controls', (
-    tester,
-  ) async {
-    // 使用真实手机比例的窄屏，同时验证右侧窄按钮不会溢出。
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    // 用例结束后恢复测试框架的默认屏幕，避免影响其他页面。
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    // 模拟底部 24 像素系统手势区，检查 SafeArea 和页面留白是否同时生效。
-    const safeBottom = 24.0;
-    // MaterialApp 提供主题和路由环境，内层 MediaQuery 注入本用例需要的安全区。
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(
-            size: Size(390, 844),
-            padding: EdgeInsets.only(bottom: safeBottom),
-          ),
-          child: ListeningMeaningPage(
-            words: _words,
-            audioPlayer: _ImmediateAudioPlayer(),
-            accent: PronunciationAccent.american,
-            progress: _freshProgress(),
+  testWidgets(
+    'listeningMeaning mirrors listening header and anchors split controls',
+    (tester) async {
+      // 使用真实手机比例的窄屏，同时验证右侧窄按钮不会溢出。
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      // 用例结束后恢复测试框架的默认屏幕，避免影响其他页面。
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      // 模拟底部 24 像素系统手势区，检查 SafeArea 和页面留白是否同时生效。
+      const safeBottom = 24.0;
+      // MaterialApp 提供主题和路由环境，内层 MediaQuery 注入本用例需要的安全区。
+      await tester.pumpWidget(
+        MaterialApp(
+          // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+          // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+          theme: AppTheme.light,
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(390, 844),
+              padding: EdgeInsets.only(bottom: safeBottom),
+            ),
+            child: ListeningMeaningPage(
+              words: _words,
+              audioPlayer: _ImmediateAudioPlayer(),
+              accent: PronunciationAccent.american,
+              progress: _freshProgress(),
+            ),
           ),
         ),
-      ),
-    );
-    // 等待首帧布局与进入页面后的自动发音状态更新完成。
-    await tester.pump();
-
-    // 返回按钮画布与随身听一样，直接从 20 像素页面边距开始。
-    final closeRect = tester.getRect(find.byKey(const Key('close-listeningMeaning')));
-    expect(closeRect.left, ListeningMeaningLayout.pageInset);
-    expect(closeRect.width, ListeningMeaningLayout.headerButtonSize);
-    // 题号的水平中心必须和 390 像素屏幕的中心完全重合。
-    final progressLabelRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-progress-label')),
-    );
-    expect(progressLabelRect.center.dx, closeTo(195, 0.01));
-    // 进度条左右均保留 20 像素，高度与随身听相同。
-    final progressBarRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-progress-bar')),
-    );
-    expect(progressBarRect.left, ListeningMeaningLayout.pageInset);
-    expect(progressBarRect.right, 390 - ListeningMeaningLayout.pageInset);
-    expect(progressBarRect.height, ListeningMeaningLayout.progressHeight);
-
-    // 按下标从上到下读取四个候选词的真实边界。
-    final optionRects = <Rect>[
-      for (var index = 0; index < 4; index++)
-        tester.getRect(find.byKey(Key('listening-meaning-option-$index'))),
-    ];
-    // 底部候选改为文档流一行两个：0/1 同一行，2/3 同一行；
-    // 行内两张卡垂直居中对齐，因此比较行中心而不是顶边。
-    expect(optionRects[0].center.dy, closeTo(optionRects[1].center.dy, 0.01));
-    expect(optionRects[2].center.dy, closeTo(optionRects[3].center.dy, 0.01));
-    // 每行两卡片等宽；高度至少 optionMinHeight，长候选换行后允许更高。
-    for (final optionRect in optionRects) {
-      expect(
-        optionRect.height,
-        greaterThanOrEqualTo(ListeningMeaningLayout.optionMinHeight),
       );
-    }
-    expect(optionRects[0].width, closeTo(optionRects[1].width, 0.01));
-    expect(optionRects[2].width, closeTo(optionRects[3].width, 0.01));
-    // 第二行顶部 = 第一行最下边 + 行间距。
-    expect(
-      optionRects[2].top,
-      closeTo(
-        _rowBottom(optionRects[0], optionRects[1]) +
-            ListeningMeaningLayout.optionGap,
-        0.01,
-      ),
-    );
-    // 每行左侧都有固定灰色正方形 badge，文字依次为 A、B、C、D。
-    for (var index = 0; index < optionRects.length; index += 1) {
-      final badgeFinder = find.byKey(Key('listening-meaning-option-badge-$index'));
-      final badgeRect = tester.getRect(badgeFinder);
-      final labelRect = tester.getRect(
-        find.byKey(Key('listening-meaning-option-label-$index')),
+      // 等待首帧布局与进入页面后的自动发音状态更新完成。
+      await tester.pump();
+
+      // 返回按钮画布与随身听一样，直接从页面留白那一档开始。
+      final closeRect = tester.getRect(
+        find.byKey(const Key('close-listeningMeaning')),
       );
-      // 方形 badge 的宽高严格相等，并按统一内边距贴齐候选按钮左侧。
-      expect(badgeRect.width, ListeningMeaningLayout.optionBadgeSize);
-      expect(badgeRect.height, ListeningMeaningLayout.optionBadgeSize);
+      expect(closeRect.left, ListeningMeaningLayout.pageInset);
+      expect(closeRect.width, ModuleScaffoldLayout.headerButtonSize);
+      // 题号的水平中心必须和 390 像素屏幕的中心完全重合。
+      final progressLabelRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-progress-label')),
+      );
+      expect(progressLabelRect.center.dx, closeTo(195, 0.01));
+      // 进度条左右均保留同一档留白，高度与随身听相同。
+      final progressBarRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-progress-bar')),
+      );
+      expect(progressBarRect.left, ListeningMeaningLayout.pageInset);
+      expect(progressBarRect.right, 390 - ListeningMeaningLayout.pageInset);
+      expect(progressBarRect.height, ModuleScaffoldLayout.progressHeight);
+
+      // 按下标从上到下读取四个候选词的真实边界。
+      final optionRects = <Rect>[
+        for (var index = 0; index < 4; index++)
+          tester.getRect(find.byKey(Key('listening-meaning-option-$index'))),
+      ];
+      // 底部候选改为文档流一行两个：0/1 同一行，2/3 同一行；
+      // 行内两张卡垂直居中对齐，因此比较行中心而不是顶边。
+      expect(optionRects[0].center.dy, closeTo(optionRects[1].center.dy, 0.01));
+      expect(optionRects[2].center.dy, closeTo(optionRects[3].center.dy, 0.01));
+      // 每行两卡片等宽；高度至少 optionMinHeight，长候选换行后允许更高。
+      for (final optionRect in optionRects) {
+        expect(
+          optionRect.height,
+          greaterThanOrEqualTo(ListeningMeaningLayout.optionMinHeight),
+        );
+      }
+      expect(optionRects[0].width, closeTo(optionRects[1].width, 0.01));
+      expect(optionRects[2].width, closeTo(optionRects[3].width, 0.01));
+      // 第二行顶部 = 第一行最下边 + 行间距。
       expect(
-        badgeRect.left,
+        optionRects[2].top,
         closeTo(
-          // 边框绘制在按钮内容区外侧，实际内容从一像素边框之后开始。
-          optionRects[index].left + 1 + ListeningMeaningLayout.optionHorizontalInset,
+          _rowBottom(optionRects[0], optionRects[1]) +
+              ListeningMeaningLayout.optionGap,
           0.01,
         ),
       );
+      // 每行左侧都有固定灰色正方形 badge，文字依次为 A、B、C、D。
+      for (var index = 0; index < optionRects.length; index += 1) {
+        final badgeFinder = find.byKey(
+          Key('listening-meaning-option-badge-$index'),
+        );
+        final badgeRect = tester.getRect(badgeFinder);
+        final labelRect = tester.getRect(
+          find.byKey(Key('listening-meaning-option-label-$index')),
+        );
+        // 方形 badge 的宽高严格相等，并按统一内边距贴齐候选按钮左侧。
+        expect(badgeRect.width, ListeningMeaningLayout.optionBadgeSize);
+        expect(badgeRect.height, ListeningMeaningLayout.optionBadgeSize);
+        expect(
+          badgeRect.left,
+          closeTo(
+            // 边框绘制在按钮内容区外侧，实际内容从一像素边框之后开始。
+            optionRects[index].left +
+                1 +
+                ListeningMeaningLayout.optionHorizontalInset,
+            0.01,
+          ),
+        );
+        expect(
+          find.descendant(of: badgeFinder, matching: find.text('ABCD'[index])),
+          findsOneWidget,
+        );
+        // badge 不参与候选文本的居中计算：文字在「序号方块右侧」到
+        // 「右侧留白」之间居中，因此中心比整个按钮略偏右。
+        final contentLeft =
+            optionRects[index].left +
+            1 +
+            ListeningMeaningLayout.optionHorizontalInset;
+        final contentRight =
+            optionRects[index].right -
+            1 -
+            ListeningMeaningLayout.optionHorizontalInset;
+        final textLeft =
+            contentLeft +
+            ListeningMeaningLayout.optionBadgeSize +
+            ListeningMeaningLayout.optionHorizontalInset;
+        final textRight =
+            contentRight - ListeningMeaningLayout.optionTextRightInset;
+        expect(labelRect.center.dx, closeTo((textLeft + textRight) / 2, 0.01));
+      }
+
+      // 播放按钮已下线；候选词一行两个，宽度 =（内容宽 − 行间距）/ 2。
+      // 内容宽度 = 屏幕宽 − 左右两处页面留白。
+      final contentWidth = 390 - ListeningMeaningLayout.pageInset * 2;
+      final halfWidth = (contentWidth - ListeningMeaningLayout.optionGap) / 2;
+      expect(optionRects[0].width, closeTo(halfWidth, 0.01));
       expect(
-        find.descendant(of: badgeFinder, matching: find.text('ABCD'[index])),
-        findsOneWidget,
+        optionRects[1].left,
+        closeTo(optionRects[0].right + ListeningMeaningLayout.optionGap, 0.01),
       );
-      // badge 不参与候选文本的居中计算：文字在「序号方块右侧」到
-      // 「右侧留白」之间居中，因此中心比整个按钮略偏右。
-      final contentLeft =
-          optionRects[index].left +
-          1 +
-          ListeningMeaningLayout.optionHorizontalInset;
-      final contentRight =
-          optionRects[index].right -
-          1 -
-          ListeningMeaningLayout.optionHorizontalInset;
-      final textLeft =
-          contentLeft +
-          ListeningMeaningLayout.optionBadgeSize +
-          ListeningMeaningLayout.optionHorizontalInset;
-      final textRight =
-          contentRight - ListeningMeaningLayout.optionTextRightInset;
+      // 候选区底部（取第二行两张卡最下边）必须位于系统安全区和页面额外留白之上。
       expect(
-        labelRect.center.dx,
-        closeTo((textLeft + textRight) / 2, 0.01),
+        _rowBottom(optionRects[2], optionRects[3]),
+        closeTo(
+          844 - safeBottom - ListeningMeaningLayout.bottomActionInset,
+          0.01,
+        ),
       );
-    }
 
-    // 播放按钮已下线；候选词一行两个，宽度 =（内容宽 − 行间距）/ 2。
-    // 内容宽度 = 屏幕宽 − 左右两处页面留白。
-    final contentWidth =
-        390 - ListeningMeaningLayout.pageInset * 2;
-    final halfWidth =
-        (contentWidth - ListeningMeaningLayout.optionGap) / 2;
-    expect(optionRects[0].width, closeTo(halfWidth, 0.01));
-    expect(optionRects[1].left, closeTo(optionRects[0].right + ListeningMeaningLayout.optionGap, 0.01));
-    // 候选区底部（取第二行两张卡最下边）必须位于系统安全区和页面额外留白之上。
-    expect(
-      _rowBottom(optionRects[2], optionRects[3]),
-      closeTo(844 - safeBottom - ListeningMeaningLayout.bottomInset, 0.01),
-    );
+      // 正文白卡位于进度条和底部候选区之间，不能与两者重叠。
+      final questionCardRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-question-card')),
+      );
+      expect(
+        questionCardRect.top,
+        closeTo(
+          progressBarRect.bottom + ListeningMeaningLayout.questionVerticalInset,
+          0.01,
+        ),
+      );
+      expect(questionCardRect.bottom, lessThan(optionRects.first.top));
+      // 白卡内部按「播放入口 → 标题 → 副题 → 字母格」的顺序纵向排列（听音阶段），
+      // 各自的首行都落在上一个元素的下方，不能互相重叠。
+      final cardBodyRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-card-body')),
+      );
+      final speakerRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-word-card-speaker')),
+      );
+      final titleRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-stage-title')),
+      );
+      final subtitleRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-stage-subtitle')),
+      );
+      final maskRect = tester.getRect(
+        find.byKey(const Key('listening-meaning-spelling-mask')),
+      );
+      expect(speakerRect.top, greaterThanOrEqualTo(cardBodyRect.top));
+      expect(titleRect.top, greaterThan(speakerRect.bottom));
+      expect(subtitleRect.top, greaterThan(titleRect.bottom));
+      expect(maskRect.top, greaterThan(subtitleRect.bottom));
+      expect(maskRect.bottom, lessThanOrEqualTo(cardBodyRect.bottom));
 
-    // 中部三个子模块必须位于进度条和底部候选区之间，不能与两者重叠。
-    final questionContentRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-question-content')),
-    );
-    expect(
-      questionContentRect.top,
-      closeTo(
-        progressBarRect.bottom + ListeningMeaningLayout.questionVerticalInset,
-        0.01,
-      ),
-    );
-    expect(questionContentRect.bottom, lessThan(optionRects.first.top));
-    // 三个同级模块按“单词卡、独立提示横幅、全量步骤”居上排列。
-    final wordCardRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-word-card')),
-    );
-    final promptInformationRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-prompt-information')),
-    );
-    final stepsSectionRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-vertical-steps')),
-    );
-    final stageRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-stage-label')),
-    );
-    final feedbackRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-feedback-slot')),
-    );
-    expect(wordCardRect.top, questionContentRect.top);
-    expect(promptInformationRect.top, greaterThan(wordCardRect.bottom));
-    expect(stepsSectionRect.top, greaterThan(promptInformationRect.bottom));
-    // 提示到全部步骤使用同一条 Tabler Steps vertical 轨道。
-    expect(find.byKey(const Key('listening-meaning-vertical-steps')), findsOneWidget);
-    final promptMarkerRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-step-marker-0')),
-    );
-    final meaningMarkerRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-step-marker-1')),
-    );
-    final connectorRect = tester.getRect(
-      find.byKey(const Key('listening-meaning-step-connector-0')),
-    );
-    // 两个节点和连接线的水平中心一致，轨道不会左右折线。
-    expect(
-      promptMarkerRect.center.dx,
-      closeTo(meaningMarkerRect.center.dx, 0.01),
-    );
-    expect(connectorRect.center.dx, closeTo(promptMarkerRect.center.dx, 0.01));
-    // 连接线从听音节点下缘连续延伸到释义节点上缘。
-    expect(connectorRect.top, closeTo(promptMarkerRect.bottom, 0.01));
-    expect(connectorRect.bottom, closeTo(meaningMarkerRect.top, 0.01));
-    // 提示与反馈都属于第二个模块（独立横幅），并按顶部阅读顺序排列。
-    expect(stageRect.top, greaterThanOrEqualTo(promptInformationRect.top));
-    expect(feedbackRect.top, greaterThan(stageRect.bottom));
-    expect(
-      feedbackRect.bottom,
-      lessThanOrEqualTo(promptInformationRect.bottom),
-    );
-    expect(stepsSectionRect.bottom, questionContentRect.bottom);
-
-    // 销毁页面以触发 dispose，使自动发音相关资源在用例结束前被停止。
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+      // 销毁页面以触发 dispose，使自动发音相关资源在用例结束前被停止。
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets(
     'listeningMeaning restores the second word and skips settled ones',
@@ -924,13 +996,34 @@ void main() {
         store: store,
         cursor: 1,
         records: const <SessionRecord>[
-          SessionRecord(id: 1, wordId: 1, meaningId: null, input: 'ability', isCorrect: true),
-          SessionRecord(id: 2, wordId: 1, meaningId: 101, input: '能力', isCorrect: true),
-          SessionRecord(id: 3, wordId: 1, meaningId: 102, input: '才能', isCorrect: true),
+          SessionRecord(
+            id: 1,
+            wordId: 1,
+            meaningId: null,
+            input: 'ability',
+            isCorrect: true,
+          ),
+          SessionRecord(
+            id: 2,
+            wordId: 1,
+            meaningId: 101,
+            input: '能力',
+            isCorrect: true,
+          ),
+          SessionRecord(
+            id: 3,
+            wordId: 1,
+            meaningId: 102,
+            input: '才能',
+            isCorrect: true,
+          ),
         ],
       );
       await tester.pumpWidget(
         MaterialApp(
+          // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
+          // 槽位取，缺了它读到的会是 Material 自带的默认字号。
+          theme: AppTheme.light,
           home: ListeningMeaningPage(
             words: _words,
             audioPlayer: _ImmediateAudioPlayer(),
@@ -984,9 +1077,9 @@ Future<void> _expectSingleOption(WidgetTester tester, String correct) async {
   // 只有唯一选项，且文本就是正确答案本身。
   expect(find.byKey(const Key('listening-meaning-option-0')), findsOneWidget);
   expect(
-    tester.widget<Text>(
-      find.byKey(const Key('listening-meaning-option-label-0')),
-    ).data,
+    tester
+        .widget<Text>(find.byKey(const Key('listening-meaning-option-label-0')))
+        .data,
     correct,
   );
   // 其余下标没有任何选项，绝不给正确答案补假混淆项。
@@ -1029,30 +1122,23 @@ List<String> _visibleOptionTexts(WidgetTester tester) {
 }
 
 ///
-/// 断言一个英文字母严格对应一个固定瓷砖，并核对当前公开的字母数量。
-void _expectTiles(
-  WidgetTester tester, {
-  required String spelling,
-  required int revealedLetterCount,
-}) {
-  // 本测试数据都是普通英文单词，因此字符串下标与页面英文字母下标一致。
-  for (var index = 0; index < spelling.length; index += 1) {
-    // 每个字母必须存在独立字母瓷砖，不能退回一整串下划线文本。
-    expect(find.byKey(Key('listening-meaning-tile-$index')), findsOneWidget);
-    // 直接读取瓷砖内 Text 的值，避免页面其他候选词文本干扰断言。
-    final letterText = tester.widget<Text>(
-      find.byKey(Key('listening-meaning-tile-letter-$index')),
-    );
-    // 字母字号跟随布局常量，不能被后续局部样式意外覆盖。
-    expect(letterText.style?.fontSize, ListeningMeaningLayout.wordLetterFontSize);
-    // 提示范围以内显示大写真实字母，其余瓷砖保持空字符串。
-    expect(
-      letterText.data,
-      index < revealedLetterCount ? spelling[index].toUpperCase() : '',
-    );
+/// 断言听音阶段正文展示的字母格数量（对应单词字母数），且不出现多余格子。
+void _expectLetterSlots(WidgetTester tester, {required int count}) {
+  // 每个字母都必须有独立字母格，不能退回一整串下划线文本。
+  for (var index = 0; index < count; index += 1) {
+    expect(find.byKey(Key('listening-meaning-mask-$index')), findsOneWidget);
   }
-  // 单词长度之外不允许多出额外字母瓷砖。
-  expect(find.byKey(Key('listening-meaning-tile-${spelling.length}')), findsNothing);
+  // 单词长度之外不允许多出额外字母格。
+  expect(find.byKey(Key('listening-meaning-mask-$count')), findsNothing);
+}
+
+///
+/// 断言释义 / 完成阶段不再有听音字母格（正文已切换成整词大字展示）。
+void _expectNoLetterSlots(WidgetTester tester) {
+  expect(
+    find.byKey(const Key('listening-meaning-spelling-mask')),
+    findsNothing,
+  );
 }
 
 ///

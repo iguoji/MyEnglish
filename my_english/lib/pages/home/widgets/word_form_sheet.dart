@@ -1,10 +1,11 @@
 // material.dart 提供底部面板、输入框、标签与按钮。
 import 'package:flutter/material.dart';
-// tabler_icons_plus 统一提供表单内的选择、添加和删除图标。
-import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
 // 引入设计稿色板令牌。
 import '../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import 'home_layout.dart';
 // Meaning 与 Word 是表单产出的数据模型。
 import '../../../models/meaning.dart';
 import '../../../models/word.dart';
@@ -36,7 +37,8 @@ const List<String> _kPosOptions = <String>[
 
 ///
 /// 词性、含义标签与含义输入框之间的统一纵向距离。
-const double _kMeaningContentGap = 10;
+/// 数值取自首页尺寸表的 [WordFormLayout.meaningContentGap]。
+const double _kMeaningContentGap = WordFormLayout.meaningContentGap;
 
 ///
 /// 表单提交结果：首页据此调用 WordStore 创建或更新。
@@ -139,7 +141,6 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   ///
   /// 拼写输入控制器；编辑模式带入原拼写。
   late final TextEditingController _spelling;
-
 
   ///
   /// 全部"词性+释义"编辑块。
@@ -288,6 +289,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   /// 输出完整表单面板。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
     // 是否处于编辑模式。
@@ -297,14 +299,16 @@ class _WordFormSheetState extends State<_WordFormSheet> {
 
     // 键盘弹出时缩短表单可用高度，让底部操作栏停在键盘上方而不是被遮住。
     return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: AppDuration.ms160),
       curve: Curves.easeOut,
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Material(
         key: const Key('word-form-surface'),
         color: tokens.card,
         // 恢复旧版底部弹层的顶部圆角；底部贴紧屏幕，因此只处理上面两个角。
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadius.roundedXl),
+        ),
         // 裁掉圆角之外的标题栏背景，让透明路由露出真正的圆弧。
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
@@ -320,7 +324,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   key: const Key('word-form-body'),
                   color: tokens.page,
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.pBase,
+                      AppSpace.p3,
+                      AppSpace.pBase,
+                      AppSpace.pBase,
+                    ),
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                     child: Column(
@@ -328,26 +337,24 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                       children: [
                         // 第一部分：分组与单词两列白色卡片。
                         _buildPrimaryCard(tokens),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: AppSpace.p3),
                         // 第二部分：词性与含义组。
                         Text(
                           '词性与含义',
-                          style: TextStyle(
+                          style: textTheme.fs5Semibold.copyWith(
                             color: tokens.textSecondary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 9),
+                        const SizedBox(height: AppSpace.p2),
                         for (
                           var index = 0;
                           index < _meanings.length;
                           index += 1
                         ) ...[
-                          if (index > 0) const SizedBox(height: 10),
+                          if (index > 0) const SizedBox(height: AppSpace.p2),
                           _buildMeaningCard(tokens, index),
                         ],
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppSpace.p3),
                         // 第三部分：透明底、虚线边框的大号新增按钮。
                         _buildAddMeaningButton(tokens),
                       ],
@@ -367,6 +374,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   ///
   /// 构建与首页顶部左右位置一致的标题栏。
   Widget _buildHeader(AppTokens tokens, bool isEditing) {
+    final textTheme = Theme.of(context).textTheme;
     // 白色标题栏固定在顶部，不跟随表单内容滚动。
     return Container(
       key: const Key('word-form-header'),
@@ -375,7 +383,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
         // 标题栏与滚动表单区之间增加一条稳定的分隔线。
         border: Border(bottom: BorderSide(color: tokens.border)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.pBase,
+        AppSpace.pBase,
+        AppSpace.pBase,
+        AppSpace.p3,
+      ),
       child: Row(
         // 标题文字与右侧 40 像素关闭按钮沿同一条水平中线排列。
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -384,15 +397,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           Expanded(
             child: Text(
               isEditing ? '编辑单词' : '添加单词',
-              style: TextStyle(
-                color: tokens.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0,
-              ),
+              // 与首页两个确认对话框共用同一档（16 号半粗）。
+              style: textTheme.fs4Semibold,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.p2),
           // 40×40 点击区与首页汉堡按钮尺寸一致，图标靠右对齐。
           Semantics(
             button: true,
@@ -400,13 +409,17 @@ class _WordFormSheetState extends State<_WordFormSheet> {
             child: InkWell(
               key: const Key('form-close'),
               onTap: () => Navigator.of(context).pop(),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.roundedLg),
               child: SizedBox(
-                width: 40,
-                height: 40,
+                width: WordFormLayout.closeButtonSize,
+                height: WordFormLayout.closeButtonSize,
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: Icon(TablerIcons.x, size: 20, color: tokens.text),
+                  child: Icon(
+                    AppGlyph.dismiss,
+                    size: AppIcon.i20,
+                    color: tokens.text,
+                  ),
                 ),
               ),
             ),
@@ -424,11 +437,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
     return Container(
       key: const Key('word-form-primary-card'),
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpace.pBase),
       decoration: BoxDecoration(
         color: tokens.card,
         border: Border.all(color: tokens.rowBorder),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
       ),
       child: _buildSpellingField(tokens),
     );
@@ -437,22 +450,23 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   ///
   /// 构建带 Label 的单词输入字段。
   Widget _buildSpellingField(AppTokens tokens) {
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       key: const Key('form-spelling-field'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _FormLabel(text: '单词', color: tokens.textSecondary),
-        const SizedBox(height: 7),
+        const SizedBox(height: AppSpace.p2),
         Container(
           key: const Key('form-spelling-input'),
-          height: 44,
+          height: WordFormLayout.spellingFieldHeight,
           decoration: BoxDecoration(
             // 与分组控件共用相同高度的外层下边线，避免 TextField 自身布局造成错位。
             border: Border(bottom: BorderSide(color: tokens.inputBorder)),
           ),
           // 左侧不再二次缩进；右侧保留输入余量，纵向位置交给 Align 精确居中。
           child: Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: AppSpace.p3),
             child: Align(
               key: const Key('form-spelling-alignment'),
               alignment: Alignment.center,
@@ -463,14 +477,14 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                 // 单词只能输入一行，外层容器负责统一 44 像素高度。
                 maxLines: 1,
                 textAlignVertical: TextAlignVertical.center,
-                style: TextStyle(color: tokens.text, fontSize: 15, height: 1.2),
+                style: textTheme.fs4.copyWith(height: AppLine.lhSm),
                 // collapsed 不附带 Material 输入框默认的上下留白，文字由外层垂直居中。
                 decoration: InputDecoration.collapsed(
                   hintText: '输入单词拼写',
-                  hintStyle: TextStyle(
+                  // 提示文字刻意比输入文字小一档，输入后不会显得突然变小。
+                  hintStyle: textTheme.fs5.copyWith(
                     color: tokens.muted,
-                    fontSize: 14,
-                    height: 1.2,
+                    height: AppLine.lhSm,
                   ),
                 ),
               ),
@@ -484,9 +498,10 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   ///
   /// 构建透明背景的虚线“添加一组词性与含义”按钮。
   Widget _buildAddMeaningButton(AppTokens tokens) {
+    final textTheme = Theme.of(context).textTheme;
     return _DashedBorder(
       color: tokens.check,
-      radius: 8,
+      radius: WordFormLayout.dashedBorderRadius,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -495,9 +510,9 @@ class _WordFormSheetState extends State<_WordFormSheet> {
             _meanings.add(_MeaningDraft());
             _draftControllers.add(TextEditingController());
           }),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.roundedLg),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: AppSpace.p3),
             child: Center(
               // WidgetSpan 按文字中线放置加号，避免图标盒与字体基线不同造成视觉错位。
               child: Text.rich(
@@ -506,11 +521,11 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                     WidgetSpan(
                       alignment: PlaceholderAlignment.middle,
                       child: Padding(
-                        padding: const EdgeInsets.only(right: 7),
+                        padding: const EdgeInsets.only(right: AppSpace.p2),
                         child: Icon(
-                          TablerIcons.plus,
+                          AppGlyph.add,
                           key: const Key('add-meaning-icon'),
-                          size: 17,
+                          size: AppIcon.i16,
                           color: tokens.textSecondary,
                         ),
                       ),
@@ -519,11 +534,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   ],
                 ),
                 key: const Key('add-meaning-label'),
-                style: TextStyle(
+                style: textTheme.fs5Semibold.copyWith(
                   color: tokens.textSecondary,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -556,11 +568,15 @@ class _WordFormSheetState extends State<_WordFormSheet> {
         child: InkWell(
           key: Key('meaning-delete-$index'),
           onTap: () => _removeMeaning(index),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AppRadius.rounded),
           child: const SizedBox(
-            width: 30,
-            height: 30,
-            child: Icon(TablerIcons.trash, size: 17, color: AppTokens.danger),
+            width: WordFormLayout.deleteButtonSize,
+            height: WordFormLayout.deleteButtonSize,
+            child: Icon(
+              AppGlyph.delete,
+              size: AppIcon.i16,
+              color: AppTokens.danger,
+            ),
           ),
         ),
       ),
@@ -578,7 +594,12 @@ class _WordFormSheetState extends State<_WordFormSheet> {
       ),
       child: SafeArea(
         top: false,
-        minimum: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+        minimum: const EdgeInsets.fromLTRB(
+          AppSpace.pBase,
+          AppSpace.p3,
+          AppSpace.pBase,
+          AppSpace.p3,
+        ),
         child: Row(
           children: [
             Expanded(
@@ -591,31 +612,31 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                 onTap: () => Navigator.of(context).pop(),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.p2),
             Expanded(
               child: Opacity(
-                opacity: canSubmit ? 1 : 0.45,
+                opacity: canSubmit ? 1 : AppAlpha.a44,
                 child: _FormButton(
                   key: const Key('form-submit'),
                   label: isEditing ? '保存' : '添加',
-                  background: AppTokens.accent,
+                  background: AppTokens.primary,
                   foreground: Colors.white,
                   onTap: _isSubmitting ? null : () => _submit(false),
                 ),
               ),
             ),
             if (!isEditing) ...[
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpace.p2),
               Expanded(
                 flex: 2,
                 child: Opacity(
-                  opacity: canSubmit ? 1 : 0.45,
+                  opacity: canSubmit ? 1 : AppAlpha.a44,
                   child: _FormButton(
                     key: const Key('form-submit-continue'),
                     label: '提交并继续',
                     background: Colors.transparent,
-                    foreground: AppTokens.accent,
-                    border: AppTokens.accent,
+                    foreground: AppTokens.primary,
+                    border: AppTokens.primary,
                     onTap: _isSubmitting ? null : () => _submit(true),
                   ),
                 ),
@@ -630,24 +651,21 @@ class _WordFormSheetState extends State<_WordFormSheet> {
   ///
   /// 构建第 index 个"词性+释义"编辑卡。
   Widget _buildMeaningCard(AppTokens tokens, int index) {
+    final textTheme = Theme.of(context).textTheme;
     // 当前编辑块。
     final meaning = _meanings[index];
-    // Azure 标签在深色背景上提高透明度和文字亮度，保持两个主题都清晰。
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final azureBackground = isDark
-        ? const Color(0x3345AAF2)
-        : const Color(0x1A45AAF2);
-    final azureForeground = isDark
-        ? const Color(0xFF45AAF2)
-        : const Color(0xFF2B94D4);
+    // Azure 标签在深色背景上提高透明度和文字亮度，保持两个主题都清晰；
+    // 这两个色值已经收进设计令牌，明暗判断由 AppTokens 统一负责。
+    final azureBackground = tokens.badgeAzureBg;
+    final azureForeground = tokens.badgeAzureText;
     // 圆角描边卡片。
     return Container(
       key: Key('meaning-card-$index'),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpace.pBase),
       decoration: BoxDecoration(
         color: tokens.card,
         border: Border.all(color: tokens.rowBorder),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,7 +673,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           // 第一行固定为 30 高，删除图标出现与否都不会改变上下位置。
           SizedBox(
             key: Key('meaning-pos-row-$index'),
-            height: 30,
+            height: WordFormLayout.posRowHeight,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -676,7 +694,7 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                 ),
                 // 只剩一个块时保留必需的基础录入区，不显示删除动作。
                 if (_meanings.length > 1) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.p2),
                   _buildMeaningDeleteButton(index),
                 ],
               ],
@@ -688,8 +706,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           if (meaning.defs.isNotEmpty) ...[
             Wrap(
               key: Key('meaning-tags-$index'),
-              spacing: 6,
-              runSpacing: 6,
+              spacing: AppSpace.p2,
+              runSpacing: AppSpace.p2,
               children: [
                 for (
                   var defIndex = 0;
@@ -698,11 +716,16 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                 )
                   Container(
                     key: Key('meaning-tag-$index-$defIndex'),
-                    padding: const EdgeInsets.fromLTRB(10, 5, 9, 5),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.p2,
+                      AppSpace.p2,
+                      AppSpace.p2,
+                      AppSpace.p2,
+                    ),
                     decoration: BoxDecoration(
                       // 已确认含义统一使用 Tabler Azure 浅色徽章。
                       color: azureBackground,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(AppRadius.rounded),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -710,21 +733,18 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                         // 释义文字。
                         Text(
                           meaning.defs[defIndex],
-                          style: TextStyle(
-                            color: azureForeground,
-                            fontSize: 12.5,
-                          ),
+                          style: textTheme.fs6.copyWith(color: azureForeground),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: AppSpace.p2),
                         // 删除该释义标签。
                         GestureDetector(
                           onTap: () => setState(() {
                             meaning.defs.removeAt(defIndex);
                           }),
                           child: Icon(
-                            TablerIcons.x,
+                            AppGlyph.removeTag,
                             color: azureForeground,
-                            size: 14,
+                            size: AppIcon.i14,
                           ),
                         ),
                       ],
@@ -738,10 +758,10 @@ class _WordFormSheetState extends State<_WordFormSheet> {
           // 释义草稿输入 + 添加按钮的组合行。
           Container(
             key: Key('meaning-input-$index'),
-            height: 36,
+            height: WordFormLayout.meaningInputHeight,
             decoration: BoxDecoration(
               border: Border.all(color: tokens.inputBorder),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             child: Row(
               // 纵向拉伸让"添加"按钮贴满整行高度。
@@ -761,23 +781,19 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                     maxLines: null,
                     // 文字在撑满的高度内垂直居中。
                     textAlignVertical: TextAlignVertical.center,
-                    style: TextStyle(
-                      color: tokens.text,
-                      fontSize: 13.5,
-                      height: 1.2,
-                    ),
+                    style: textTheme.fs5.copyWith(height: AppLine.lhSm),
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: '输入含义，回车或点添加',
-                      hintStyle: TextStyle(
+                      // 提示与输入读同一档，敲字前后字号不跳。
+                      hintStyle: textTheme.fs5.copyWith(
                         color: tokens.muted,
-                        fontSize: 13.5,
-                        height: 1.2,
+                        height: AppLine.lhSm,
                       ),
                       border: InputBorder.none,
                       // 清空垂直内边距，由 36 高容器 + 居中控制。
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
+                        horizontal: AppSpace.p2,
                       ),
                     ),
                   ),
@@ -787,7 +803,9 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                   key: Key('meaning-add-$index'),
                   onTap: () => _commitDraft(index),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.p3,
+                    ),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: tokens.sub,
@@ -795,15 +813,13 @@ class _WordFormSheetState extends State<_WordFormSheet> {
                         left: BorderSide(color: tokens.inputBorder),
                       ),
                       borderRadius: const BorderRadius.horizontal(
-                        right: Radius.circular(7),
+                        right: Radius.circular(AppRadius.roundedLg),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       '添加',
-                      style: TextStyle(
-                        color: AppTokens.accent,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
+                      style: textTheme.fs6Semibold.copyWith(
+                        color: AppTokens.primary,
                       ),
                     ),
                   ),
@@ -911,8 +927,10 @@ class _PosSelectorState extends State<_PosSelector> {
     final viewportLeft = viewport.localToGlobal(Offset.zero).dx;
     final chipCenter = chipLeft - viewportLeft + chip.size.width / 2;
     final viewportWidth = _scrollController.position.viewportDimension;
-    final target = (chipCenter - viewportWidth / 2)
-        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    final target = (chipCenter - viewportWidth / 2).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
     _scrollController.jumpTo(target);
   }
 
@@ -933,7 +951,7 @@ class _PosSelectorState extends State<_PosSelector> {
     // SingleChildScrollView +横向滚动 让词性列表超出宽度时可滑动。
     return SizedBox(
       // 在原 34 高基础上，上下各减少 2 像素留白，最终高度为 30。
-      height: 30,
+      height: WordFormLayout.posRowHeight,
       child: SingleChildScrollView(
         controller: _scrollController,
         // 横向滚动。
@@ -942,7 +960,7 @@ class _PosSelectorState extends State<_PosSelector> {
           children: [
             // 选项之间的间距通过 Padding 包裹实现。
             for (var i = 0; i < _kPosOptions.length; i++) ...[
-              if (i > 0) const SizedBox(width: 6),
+              if (i > 0) const SizedBox(width: AppSpace.p2),
               _PosChip(
                 key:
                     _kPosOptions[i] == widget.selected &&
@@ -996,36 +1014,38 @@ class _PosChip extends StatelessWidget {
   /// 输出圆角描边 Chip。
   @override
   Widget build(BuildContext context) {
-    // 从当前主题读取 primary，深色模式会自动得到对应的主色和前景色。
-    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     // InkWell 提供点击反馈。
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(AppRadius.roundedXl),
       child: Container(
         key: Key('pos-chip-$label'),
         // 左右在原 13 像素基础上各增加 3 像素；高度由外层 30 统一约束。
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.p3),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          // 选中项使用实心主题主色，未选中项保持透明。
-          color: isSelected ? colorScheme.primary : Colors.transparent,
+          // 选中项使用实心品牌蓝，未选中项保持透明。
+          //
+          // 这里读 [AppTokens.primary] 而不是 Material 的 `colorScheme.primary`：
+          // 后者在深色模式下会自动提亮成另一个蓝，页面里就会出现「同一个选中态
+          // 在浅色是 A 蓝、深色是 B 蓝」的分歧。全站品牌蓝只有这一个值。
+          color: isSelected ? AppTokens.primary : Colors.transparent,
           // 选中项用主色描边，未选中用输入框边框色。
           border: Border.all(
-            color: isSelected ? colorScheme.primary : tokens.inputBorder,
+            color: isSelected ? AppTokens.primary : tokens.inputBorder,
           ),
           // 半高 15 像素圆角形成左右完整圆弧的胶囊外观。
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(AppRadius.roundedXl),
         ),
         child: Text(
           // 词性统一使用小写显示；即使旧选项数据含大写，也在展示层归一化。
           label.toLowerCase(),
-          style: TextStyle(
-            // 实心主色上的文字使用 onPrimary，确保明暗主题中都有足够对比度。
-            color: isSelected ? colorScheme.onPrimary : tokens.textSecondary,
-            fontSize: 12.5,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          style: textTheme.fs6.copyWith(
+            // 实心蓝底上一律用白字，和全站「蓝底白字」的按钮保持一致。
+            color: isSelected ? Colors.white : tokens.textSecondary,
+            fontWeight: isSelected ? AppWeight.semibold : AppWeight.normal,
           ),
         ),
       ),
@@ -1055,11 +1075,7 @@ class _FormLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(
-        color: color,
-        fontSize: 12.5,
-        fontWeight: FontWeight.w600,
-      ),
+      style: Theme.of(context).textTheme.fs6Semibold.copyWith(color: color),
     );
   }
 }
@@ -1116,24 +1132,26 @@ class _DashedBorderPainter extends CustomPainter {
   final double radius;
 
   ///
-  /// 在组件边缘绘制 6 像素实线和 4 像素空白交替的路径。
+  /// 在组件边缘绘制「画一段、空一段」的虚线路径（实线与空白各占半个步长）。
   @override
   void paint(Canvas canvas, Size size) {
     // 半个线宽内缩，避免边框边缘被画布裁掉。
-    final rect = (Offset.zero & size).deflate(0.5);
+    final rect = (Offset.zero & size).deflate(WordFormLayout.dashedBorderInset);
     // PathMetric 可以沿整个圆角矩形按距离提取短路径。
     final path = Path()
       ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = AppStroke.thin;
     for (final metric in path.computeMetrics()) {
       var distance = 0.0;
       while (distance < metric.length) {
-        final end = (distance + 6).clamp(0.0, metric.length).toDouble();
+        final end = (distance + WordFormLayout.dashLength)
+            .clamp(0.0, metric.length)
+            .toDouble();
         canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance += 10;
+        distance += WordFormLayout.dashStride;
       }
     }
   }
@@ -1185,31 +1203,28 @@ class _FormButton extends StatelessWidget {
   /// 输出 40 高圆角按钮。
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     // InkWell 提供点击反馈。
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.roundedLg),
       child: Container(
-        height: 40,
+        height: WordFormLayout.submitButtonHeight,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: background,
           border: border == null ? null : Border.all(color: border!),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         ),
         // FittedBox 只在窄屏或大字体确实放不下时缩小，避免按钮文字越界。
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.p2),
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               label,
               maxLines: 1,
-              style: TextStyle(
-                color: foreground,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: textTheme.fs5Semibold.copyWith(color: foreground),
             ),
           ),
         ),

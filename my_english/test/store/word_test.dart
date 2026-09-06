@@ -88,9 +88,10 @@ void main() {
 
       // 创建返回主键。
       final createdId = await store.create(
-        Word(spelling: 'persisted', meanings: const <Meaning>[
-          Meaning(pos: 'n.', definition: '持久化的'),
-        ]),
+        Word(
+          spelling: 'persisted',
+          meanings: const <Meaning>[Meaning(pos: 'n.', definition: '持久化的')],
+        ),
       );
       expect(createdId, 7);
       // 查询从原生获取模型。
@@ -104,10 +105,7 @@ void main() {
         'persisted',
       );
       // 按条件选词返回主键数组。
-      expect(
-        await store.pickWords(limit: 1, exclude: const <int>[]),
-        <int>[7],
-      );
+      expect(await store.pickWords(limit: 1, exclude: const <int>[]), <int>[7]);
       // 更新用一次调用整体替换主体与释义。
       await store.update(Word(id: 7, spelling: 'persisted'));
       // 保存混淆词与音节分别路由到各自的通道方法。
@@ -144,10 +142,7 @@ void main() {
         'clearAll',
       ]);
       // 删除参数携带主键。
-      expect(
-        (nativeCalls[9].arguments as Map<Object?, Object?>)['id'],
-        7,
-      );
+      expect((nativeCalls[9].arguments as Map<Object?, Object?>)['id'], 7);
     },
   );
 
@@ -186,38 +181,45 @@ void main() {
 
   // parseWordMaps 逐条转换并保留顺序，坏记录带位置信息报错。
   test('parseWordMaps converts maps and wraps errors with position', () {
-    final words = parseWordMaps(
-      <dynamic>[
-        <Object?, Object?>{
-          'id': 1,
-          'spelling': 'able',
-          'meanings': <Object?>[
-            <Object?, Object?>{'id': 10, 'word_id': 1, 'pos': 'adj.', 'definition': '能做……的'},
-          ],
-        },
-        <Object?, Object?>{
-          'id': 2,
-          'spelling': 'book',
-          'meanings': <Object?>[
-            <Object?, Object?>{'id': 11, 'word_id': 2, 'pos': 'n.', 'definition': '书'},
-          ],
-        },
-      ],
-      sourceLabel: '导入文件',
-    );
+    final words = parseWordMaps(<dynamic>[
+      <Object?, Object?>{
+        'id': 1,
+        'spelling': 'able',
+        'meanings': <Object?>[
+          <Object?, Object?>{
+            'id': 10,
+            'word_id': 1,
+            'pos': 'adj.',
+            'definition': '能做……的',
+          },
+        ],
+      },
+      <Object?, Object?>{
+        'id': 2,
+        'spelling': 'book',
+        'meanings': <Object?>[
+          <Object?, Object?>{
+            'id': 11,
+            'word_id': 2,
+            'pos': 'n.',
+            'definition': '书',
+          },
+        ],
+      },
+    ], sourceLabel: '导入文件');
 
     // 数量与顺序原样保留。
-    expect(words.map((word) => word.spelling).toList(), <String>['able', 'book']);
+    expect(words.map((word) => word.spelling).toList(), <String>[
+      'able',
+      'book',
+    ]);
 
     // 第二条记录缺拼写，错误信息应指明是第几条。
     expect(
-      () => parseWordMaps(
-        <dynamic>[
-          <Object?, Object?>{'spelling': 'ok'},
-          <Object?, Object?>{'id': 3},
-        ],
-        sourceLabel: '导入文件',
-      ),
+      () => parseWordMaps(<dynamic>[
+        <Object?, Object?>{'spelling': 'ok'},
+        <Object?, Object?>{'id': 3},
+      ], sourceLabel: '导入文件'),
       throwsA(
         predicate(
           (error) =>

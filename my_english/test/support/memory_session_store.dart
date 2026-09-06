@@ -68,7 +68,8 @@ class MemorySessionStore implements SessionStore {
   ///
   /// 按调用顺序记下的「收尾」调用。
   final List<({int sessionId, SessionStatus status, int? cursor, int? elapsed})>
-  finishes = <({int sessionId, SessionStatus status, int? cursor, int? elapsed})>[];
+  finishes =
+      <({int sessionId, SessionStatus status, int? cursor, int? elapsed})>[];
 
   // ---- 复习词库 ---------------------------------------------------------
 
@@ -206,7 +207,11 @@ class MemorySessionStore implements SessionStore {
     required int cursor,
     required int elapsed,
   }) async {
-    progressWrites.add((sessionId: sessionId, cursor: cursor, elapsed: elapsed));
+    progressWrites.add((
+      sessionId: sessionId,
+      cursor: cursor,
+      elapsed: elapsed,
+    ));
     _replaceSession(
       sessionId,
       (session) => _rebuild(session, cursor: cursor, elapsed: elapsed),
@@ -220,7 +225,12 @@ class MemorySessionStore implements SessionStore {
     int? cursor,
     int? elapsed,
   }) async {
-    finishes.add((sessionId: sessionId, status: status, cursor: cursor, elapsed: elapsed));
+    finishes.add((
+      sessionId: sessionId,
+      status: status,
+      cursor: cursor,
+      elapsed: elapsed,
+    ));
     _replaceSession(
       sessionId,
       (session) => _rebuild(
@@ -331,14 +341,20 @@ class MemorySessionStore implements SessionStore {
     required int wordId,
     required bool updateReviewedAt,
   }) async {
-    settles.add((sessionId: sessionId, wordId: wordId, updateReviewedAt: updateReviewedAt));
+    settles.add((
+      sessionId: sessionId,
+      wordId: wordId,
+      updateReviewedAt: updateReviewedAt,
+    ));
     // 返回一份形状正确的结果即可；真实难度计算由原生负责。
     return SettleResult(
       isCorrect: true,
       streak: 1,
       difficultyBefore: 0,
       difficultyAfter: 0,
-      reviewedAt: updateReviewedAt ? DateTime.fromMillisecondsSinceEpoch(1) : null,
+      reviewedAt: updateReviewedAt
+          ? DateTime.fromMillisecondsSinceEpoch(1)
+          : null,
     );
   }
 
@@ -357,7 +373,8 @@ class MemorySessionStore implements SessionStore {
   }) async => <String, int>{};
 
   @override
-  Future<Map<String, int>> getMonthlyCounts({String? since}) async => <String, int>{};
+  Future<Map<String, int>> getMonthlyCounts({String? since}) async =>
+      <String, int>{};
 
   ///
   /// 取当前设备日期的 yyyy-MM-dd 文本。

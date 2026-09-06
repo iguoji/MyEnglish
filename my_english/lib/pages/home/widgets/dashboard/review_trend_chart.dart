@@ -5,6 +5,9 @@ import 'dart:async';
 
 // 引入设计稿色板令牌。
 import '../../../../common/theme.dart';
+
+// 首页专属尺寸表：本组件的宽高从这里取名字，数值继承设计令牌总表。
+import '../home_layout.dart';
 // 引入可复用的曲线图组件（纯展示，不绑定业务）。
 import 'trend_chart.dart';
 // 引入听音辨义记录 Store：7 天与 30 天的每日复习量聚合查询都走这里。
@@ -42,7 +45,11 @@ extension TrendRangeLabel on TrendRange {
 class ReviewTrendChart extends StatefulWidget {
   ///
   /// 创建趋势图；数据由内部异步加载。
-  const ReviewTrendChart({required this.refreshToken, super.key});
+  const ReviewTrendChart({
+    required this.refreshToken,
+    this.clock = DateTime.now,
+    super.key,
+  });
 
   ///
   /// 首页传入的回刷序号。
@@ -50,6 +57,14 @@ class ReviewTrendChart extends StatefulWidget {
   /// 生活化解释：曲线只在第一次出现时查一次数据库，之后首页刷新多少次它都不动。
   /// 首页每从复习模块返回一次就把这个数字 +1，等于给曲线递一张“数据变了”的通知单。
   final int refreshToken;
+
+  ///
+  /// 「今天是哪天」的取法；不传就去问系统。
+  ///
+  /// 生活化解释：曲线横轴上的日期是从今天往前数出来的（7 天档就是今天往前 6 天），
+  /// 所以这张图每天长得都不一样。基准截图要能稳定比对，就得让测试把「今天」
+  /// 固定住；正式 App 不传，行为和以前完全一样。
+  final DateTime Function() clock;
 
   @override
   State<ReviewTrendChart> createState() => _ReviewTrendChartState();
@@ -62,14 +77,16 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   /// 安全边界线：与仪表盘 ListView 的水平内边距一致（问候语、汉堡菜单
   /// 距屏幕边缘的距离）。节点与文字排列在此边界内，曲线、渐变、
   /// 分割线则突破边界直达屏幕边缘。
-  static const double _edgeInset = 20;
+  static const double _edgeInset = HomeDashboardLayout.edgeInset;
 
   /// 每个范围固定 7 个节点：首尾两个端点 + 中间 5 个均分节点。
   static const int _nodeCount = 7;
 
   /// 进入页面后延迟加载数据的时长：保证"先看到空数据直线，
   /// 再看到节点滑上来"的过渡节奏。
-  static const Duration _initialDelay = Duration(milliseconds: 600);
+  static const Duration _initialDelay = Duration(
+    milliseconds: AppDuration.ms800,
+  );
 
   /// 当前选中的范围，默认 7 天。
   TrendRange _range = TrendRange.week;
@@ -85,8 +102,8 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
     super.initState();
     // 先用当前范围的空数据铺出节点骨架（label 已就绪，value 全 0）。
     _points = _flatPoints(_range);
-    // 模拟后台异步查询：600ms 后才发起真实聚合，期间曲线是贴底直线，
-    // 最右侧（今天）节点默认选中并显示 0。
+    // 模拟后台异步查询：等 _initialDelay（800 毫秒）后才发起真实聚合，
+    // 期间曲线是贴底直线，最右侧（今天）节点默认选中并显示 0。
     _loadTimer = Timer(_initialDelay, _load);
   }
 
@@ -146,14 +163,17 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   /// 7天 / 30天都使用日粒度，走 [ReviewRecordStore.getDailyMasteredCounts]。
   /// 「掌握量」口径比旧「复习量」更严：只要 0 错 0 提醒的记录。
   Future<List<TrendDataPoint>> _loadPoints(TrendRange range) async {
-    final today = DateTime.now();
+    final today = widget.clock();
     final store = LocalSessionStore.instance;
 
     switch (range) {
       case TrendRange.week:
         // 7 天：今天往前数 6 天到今天，每天一个节点。
         final since = today.subtract(const Duration(days: _nodeCount - 1));
-        final counts = await store.getDailyCounts(correctOnly: true, since: _dateKey(since));
+        final counts = await store.getDailyCounts(
+          correctOnly: true,
+          since: _dateKey(since),
+        );
         return [
           for (var i = 0; i < _nodeCount; i++)
             () {
@@ -167,7 +187,8 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 
       case TrendRange.month:
         // 30 天：跨度 30 天，7 个节点按天数均分（含首尾端点）。
-        final counts = await store.getDailyCounts(correctOnly: true, 
+        final counts = await store.getDailyCounts(
+          correctOnly: true,
           since: _dateKey(today.subtract(const Duration(days: 30))),
         );
         return [
@@ -188,7 +209,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   ///
   /// 生成某个范围的空数据骨架：label 按该档粒度排好，value 全 0。
   List<TrendDataPoint> _flatPoints(TrendRange range) {
-    final today = DateTime.now();
+    final today = widget.clock();
     final labels = <String>[];
     switch (range) {
       case TrendRange.week:
@@ -210,6 +231,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -223,27 +245,23 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
           // 常规字号（1.0 倍）下钳制完全不生效，不存在任何缩放。
           // 1.15 的上限经 320px + 2 倍字体用例验证仍有约 10px 余量。
           child: MediaQuery.withClampedTextScaling(
-            maxScaleFactor: 1.15,
+            maxScaleFactor: HomeDashboardLayout.maxTextScale,
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 3,
+                    horizontal: AppSpace.p2,
+                    vertical: AppSpace.p1,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTokens.accent,
+                    color: AppTokens.primary,
                     // 999 的圆角半径远超文字高度，视觉上就是完整胶囊圆角。
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(AppRadius.roundedPill),
                   ),
-                  child: const Text(
+                  child: Text(
                     '掌握量',
-                    style: TextStyle(
-                      // 比时间选择器小 2px。
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                    // 蓝色徽章上的白字，比时间选择器小一档。
+                    style: textTheme.fs6Semibold.copyWith(color: Colors.white),
                   ),
                 ),
                 // 弹性占位：把时间选择器推到右边缘。
@@ -253,7 +271,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
                   children: [
                     for (final range in TrendRange.values) ...[
                       if (range != TrendRange.values.first)
-                        const SizedBox(width: 12),
+                        const SizedBox(width: AppSpace.p3),
                       _RangeTab(
                         label: range.label,
                         isActive: range == _range,
@@ -266,7 +284,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.p1),
         // 曲线图：直接把数据交给可复用组件渲染；组件内部处理坐标、渐变、
         // 选中交互与数据过渡动画。edgeInset 告诉组件安全边界在哪，
         // 曲线/渐变/分割线会突破边界画到屏幕边缘，节点与文字留在边界内。
@@ -312,11 +330,12 @@ class _RangeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
+    final textTheme = Theme.of(context).textTheme;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 2),
+        padding: const EdgeInsets.only(bottom: AppSpace.p1),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -324,20 +343,19 @@ class _RangeTab extends StatelessWidget {
             // 外层已无任何缩放容器，字号所见即所得。
             Text(
               label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              style: textTheme.fs5.copyWith(
+                fontWeight: isActive ? AppWeight.semibold : AppWeight.normal,
                 color: isActive ? tokens.text : tokens.textSecondary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.p1),
             // 选中时的主色短下划线。
             Container(
-              width: 24,
-              height: 3,
+              width: HomeDashboardLayout.rangeTabUnderlineWidth,
+              height: HomeDashboardLayout.rangeTabUnderlineHeight,
               decoration: BoxDecoration(
-                color: isActive ? AppTokens.accent : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
+                color: isActive ? AppTokens.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadius.roundedSm),
               ),
             ),
           ],

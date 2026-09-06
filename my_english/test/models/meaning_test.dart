@@ -24,7 +24,8 @@ List<Meaning> _meanings(List<(String pos, String definition)> rows) {
 ///
 /// 把分组结果压成 `词性: 含义;含义` 的字符串，方便一眼比对。
 Map<String, String> _flatten(Word word) => <String, String>{
-  for (final group in word.meaningGroups) group.pos: group.joinedDefinitions('；'),
+  for (final group in word.meaningGroups)
+    group.pos: group.joinedDefinitions('；'),
 };
 
 void main() {
@@ -39,10 +40,7 @@ void main() {
           ('n.', '流媒体播放'),
         ]),
       );
-      expect(_flatten(word), <String, String>{
-        'n.': '小溪；流媒体播放',
-        'vi.': '流动',
-      });
+      expect(_flatten(word), <String, String>{'n.': '小溪；流媒体播放', 'vi.': '流动'});
     });
 
     test('同一词性下重复的中文只留一条', () {
@@ -121,10 +119,7 @@ void main() {
           ('vt.', '踢'),
         ]),
       );
-      expect(_flatten(word), <String, String>{
-        'v.': '踹',
-        'vi. vt.': '踢',
-      });
+      expect(_flatten(word), <String, String>{'v.': '踹', 'vi. vt.': '踢'});
     });
 
     test('vlink. 不与 vi./vt. 合并，自成一组', () {
