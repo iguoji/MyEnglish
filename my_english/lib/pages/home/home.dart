@@ -203,9 +203,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 真正执行缓存和播放的音频接口。
   late final WordAudioPlayer _audioPlayer;
 
-  /// 当前前台会话是否已经提示过系统 TTS。
-  bool _hasShownTtsNotice = false;
-
   ///
   /// 原生 SAF 文件读写服务：导入选 JSON、导出写文件。
   /// 默认走 Android 原生通道；测试可注入假通道避免真正弹出系统选择器。
@@ -1070,8 +1067,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 防止继续执行下面停止逻辑。
       return;
     }
-    // 离开前台后，下次播放要重新提示一次 TTS 兜底来源。
-    _hasShownTtsNotice = false;
     // 离开前台时停止发音，避免 App 隐藏后继续播。
     unawaited(_stopAudio());
   }
@@ -1155,16 +1150,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       // 读取点击时的口音快照；设置变化只影响下一次播放。
       final accent = _settings.accent;
-      // 原生智能轮转：优先播“本周期未读且有缓存”的网络渠道，缺缓存则后台补齐，
-      // 全部不可用才由系统 TTS 兜底（TTS 是否发声会在返回后通过来源信息判断）。
+      // 原生智能轮转：同一词连点会按 不背单词→百度→有道→本地TTS 顺序轮流点名；
+      // 切换单词或离开页面后账本自动作废，重新从最高优先级开始。
       await _audioPlayer.play(word.spelling, accent);
-      // 只有真正使用本地 TTS 并成功朗读后，才在本次前台会话第一次提示。
-      if (!_hasShownTtsNotice &&
-          await _audioPlayer.consumeLastPlaybackUsedTts()) {
-        _hasShownTtsNotice = true;
-        if (mounted) {
-          Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
-        }
+      // 播音不附带任何提示：网络渠道静默失败、TTS 正常发声都不打扰用户，
+      // 只有 TTS 引擎本身不可用（走下方专用异常）才需要说明。
+    } on WordAudioTtsUnavailableException catch (error) {
+      // 设备没有可用的离线英语 TTS（且网络发音未能成功兜住）时给出明确提示，
+      // 不带“播放失败”前缀，直接展示原因，方便用户去装语音包或联网。
+      if (mounted && identical(_playingWord, word)) {
+        Toast.show(context, error.toString());
       }
     } on WordAudioInterruptedException {
       // 点击其他单词或页面进入后台属于正常中断，不显示错误。

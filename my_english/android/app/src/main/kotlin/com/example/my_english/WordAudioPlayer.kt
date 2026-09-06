@@ -79,7 +79,6 @@ import android.os.Build
 class WordAudioPlayer(
     context: Context,
     channel: MethodChannel,
-    private val database: WordsDatabase,
 ) {
     // 保存 applicationContext，生命周期独立于单个 Activity 页面。
     private val appContext = context.applicationContext
@@ -175,14 +174,14 @@ class WordAudioPlayer(
     // 当前尚未返回 Dart 的 play 结果。
     private var pendingResult: MethodChannel.Result? = null
 
-    // 内存中的失败截止时间；进程重启后从 settings 表恢复。
+    // 内存中的网络失败截止时间（纯内存，进程重启即清零）。
     //
     // 生活化解释：网络发音接口挂掉时，没必要每读一个词都去撞一次墙。
     // 这里记一个「几点之前别再试了」的时间点，期间直接用系统 TTS 发声。
-    // 它是全项目唯一一处「非用户设置」也放进设置表的值——因为规矩是
-    // 除了离线语音文件，任何需要跨进程留存的东西都只能进这一张表。
+    // 冷静期只有 30 秒且不落盘：轮询本来就是「当前场景」的临时小事，
+    // App 重启后立即重新试网即可，磁盘上不留任何轮询痕迹。
     @Volatile
-    private var networkAudioUnavailableUntilMillis = readNetworkFailureDeadline()
+    private var networkAudioUnavailableUntilMillis = 0L
 
     // 系统 TTS 实例；真正发声的引擎可能是 Google、厂商或用户安装的其他引擎。
     private var textToSpeech: TextToSpeech? = null
@@ -199,9 +198,16 @@ class WordAudioPlayer(
     // 当前 TTS utterance 的唯一编号；用来过滤旧单词迟到的回调。
     private var pendingTtsUtteranceId: String? = null
 
-    // 智能轮转播放（playSmart）的记账本：key=(拼写|口音)，value=本周期已经朗读过的
-    // 网络渠道。每次点击只从「有缓存且本周期还没读过」的渠道里挑一个出声，全部读过
-    // 一遍才清空进入下一周期。系统 TTS 不记账、不参与点名，永远只做最后兜底。
+    // 轮转播放（playSmart）的记账本：key=(拼写|口音)，value=本周期已经朗读过的渠道。
+    //
+    // 作用域刻意压到最小：账本里永远只允许存在「当前正在播放的这一个词」。
+    // 播放新词（或换口音）时旧账立即整本作废——不跨词、不跨页、不落盘；
+    // 页面销毁/进后台（stop）也会清账，回到 App 点任何词都从最高优先级重新开始。
+    //
+    // 点名规则：不背单词 → 百度翻译 → 有道 → 本地 TTS（优先级降序）。
+    // 网络渠道「就绪」= 本地有缓存；未就绪的渠道后台并发补下载、不占点名机会。
+    // TTS 固定排最后一位参与轮询，也会被记入账本；只有轮到它或网络全不可用时才发声。
+    // 某一轮的全部渠道（网络就绪全集 + TTS）都读过一遍，账本清空进入下一轮。
     private val rotationLedger = HashMap<String, MutableSet<String>>()
 
     // 当前正在出声的记账条目（账本 key 到渠道）。播放自然完成时保留记账（下轮换人）；
@@ -446,12 +452,22 @@ class WordAudioPlayer(
         }
     }
 
-    /** 页面销毁或 App 进入后台时主动停止。 */
+    /**
+     * 页面销毁或 App 进入后台时主动停止，同时作废轮转账本。
+     *
+     * 生活化解释：轮转只服务于「当前页面正在播的这个单词」。页面一走或 App
+     * 一进后台，这次发音场景就结束了，账本跟着作废——下次回来点任何词，
+     * 都会从最高优先级（不背单词）重新开始轮转，绝不在别处接着上次的顺序。
+     */
     fun stop(result: MethodChannel.Result) {
         // 让后台中的旧下载完成后不能再启动播放器。
         requestGeneration += 1
         // 释放播放器并结束尚未完成的旧 play Future。
         interruptCurrent("AUDIO_STOPPED", "播放已停止")
+        // 清空轮转账本：页面/会话场景结束，已读记录不再有保留意义。
+        synchronized(rotationLedger) {
+            rotationLedger.clear()
+        }
         // 当前 stop 调用本身正常完成。
         result.success(null)
     }
@@ -459,13 +475,15 @@ class WordAudioPlayer(
     /**
      * 智能轮转播放：统一“正常播放”与“轮转重听”的入口。
      *
-     * 生活化解释：每个单词都有一本小账本，记着“这一轮里哪些发音渠道已经读过”。
-     * 每次点单词：只从「本地已有缓存、且这本账上还没读过」的网络渠道里挑第一个出声；
-     * 没有缓存的渠道在后台并发补下载（不挡本次出声）；万一所有网络渠道都没就绪，
-     * 就等一个短暂窗口让快的下载先完成；再不行，才轮到系统 TTS 做最后兜底。
+     * 生活化解释：每个正在播的单词都带一本小账本，记着“这一轮哪些渠道已经读过”。
+     * 点名顺序 = 不背单词 → 百度翻译 → 有道 → 本地 TTS（最低优先级、固定排最后）。
+     * 每次点单词：从「本地有缓存、且这轮还没读过」的网络渠道里挑第一个出声；没缓存的
+     * 渠道在后台并发补下载（不挡本次出声）；网络渠道都还没就绪就先等一个短暂窗口；
+     * TTS 是轮转队列的正式一员——轮到它才出声，只有当网络渠道一个都没就绪时，
+     * 队列里只剩 TTS，才会“怎么点都是它”。
      *
-     * 好处：未就绪的渠道不会占用“点名机会”（旧轮转会点到没缓存的渠道而哑火）；
-     * 缓存下载完成后渠道自动加入轮转；TTS 只出现在“网络真的无能为力”时。
+     * 账本作用域刻意最小：只认当前这一个 (词, 口音)。切换单词即整本作废，
+     * 页面销毁/进后台（stop）同样清账——不跨词、不跨页、不落盘。
      */
     fun playSmart(spelling: String, accent: String, result: MethodChannel.Result) {
         // 清理首尾空格，防止生成无意义 URL。
@@ -490,19 +508,28 @@ class WordAudioPlayer(
         // 当前调用要等到完成或失败时再回传。
         pendingResult = result
 
+        // 账本只服务当前这一个词：之前记的是别的词（或别口音）就整本作废，
+        // 避免“上次在别的页面听过 apple，这次又接着上次的顺序跳”的跨页串味。
+        // 账本不变量：任意时刻最多只有一张正在服务的词条。
+        val ledgerKey = rotationKey(normalizedSpelling, accent)
+        synchronized(rotationLedger) {
+            if (rotationLedger.size != 1 || !rotationLedger.containsKey(ledgerKey)) {
+                rotationLedger.clear()
+            }
+        }
+
         // 挑选渠道与等待下载窗口都属于文件 IO，放入播放专用后台线程。
         downloadExecutor.execute {
             try {
                 // 读一次账本快照：本周期已经朗读过的渠道（只发生在主线程与播放线程，快照安全）。
                 val alreadyPlayed = synchronized(rotationLedger) {
-                    rotationLedger[rotationKey(normalizedSpelling, accent)]?.toSet() ?: emptySet()
+                    rotationLedger[ledgerKey]?.toSet() ?: emptySet()
                 }
-                // 把网络渠道分成两拨：有缓存可点名（ready）与缺缓存需要补齐（missing）。
-                // 已读过的渠道直接跳过，保证这一轮不会让同一家反复出声。
+                // 把网络渠道分成两拨：有缓存可点名（ready 全集，不排除已读）与缺缓存需补齐
+                // （missing）。全集供“整轮是否读完”判定；点名时再跳过已读渠道。
                 val ready = mutableListOf<String>()
                 val missing = mutableListOf<String>()
                 for (channel in NETWORK_CHANNELS) {
-                    if (channel in alreadyPlayed) continue
                     if (isLikelyMp3(channelCacheFile(normalizedSpelling, accent, channel))) {
                         ready.add(channel)
                     } else {
@@ -510,7 +537,7 @@ class WordAudioPlayer(
                     }
                 }
 
-                // 只有明确离线或处于 5 分钟网络熔断期时才不发起网络请求。
+                // 只有明确离线或处于 30 秒网络冷静期时才不发起网络请求。
                 val tryNetwork = !shouldSkipNetworkAudio()
                 // 缺缓存的渠道并发丢到后台线程池补下载（不阻塞本次点名、失败静默）。
                 if (tryNetwork && missing.isNotEmpty()) {
@@ -521,62 +548,99 @@ class WordAudioPlayer(
                     "audio",
                     "点播 拼写=$normalizedSpelling 口音=$accent 就绪=$ready 补缓存=$missing 本周期已读=$alreadyPlayed 跳过网络=${!tryNetwork}",
                 )
-                // 一个就绪渠道都没有时，等一个短暂窗口，让下载快的渠道能赶上本次出声，
-                // 从而避免“第一次点某个单词必定是机器 TTS”的体验。
+                // 网络渠道一个就绪都没有时，等一个短暂窗口，让下载快的渠道能赶上本次出声，
+                // 从而避免“第一次点某个单词必定是本地 TTS”的体验。
                 if (tryNetwork && ready.isEmpty() && missing.isNotEmpty()) {
                     val waitStartedAt = System.currentTimeMillis()
-                    waitForPrefetch(normalizedSpelling, accent, generation, ready, alreadyPlayed)
+                    waitForPrefetch(normalizedSpelling, accent, generation, ready)
                     // 用户感觉「点了很久才出声」时先看这一行：无缓存首播最多要等 1 秒窗口。
                     AppLog.i(
                         "audio",
                         "无就绪缓存，等待下载窗口 ${System.currentTimeMillis() - waitStartedAt}ms 后就绪=$ready",
                     )
                     // 仅当请求仍然有效时才更新网络状态：等待期间若用户已切词（代次失效），
-                    // 既不能误记 5 分钟熔断，也不该清掉真实的旧熔断记录。
+                    // 既不能误记 30 秒冷静期，也不该清掉真实的旧冷静期记录。
                     if (generation == requestGeneration) {
                         if (ready.isEmpty()) {
-                            // 窗口结束仍一个渠道都没补上 → 记 5 分钟熔断，避免之后每词白等窗口。
+                            // 窗口结束仍一个渠道都没补上 → 记 30 秒冷静期，避免之后每词白等窗口。
                             recordNetworkAudioFailure(
                                 NetworkResolutionException("智能轮转预取未能在等待窗口内成功"),
                             )
                         } else {
-                            // 有渠道补上了，说明网络已恢复，清掉旧熔断记录。
+                            // 有渠道补上了，说明网络已恢复，清掉旧冷静期记录。
                             clearNetworkAudioFailure()
                         }
                     }
                 }
 
-                // 就绪池非空：按优先级点名第一个未读渠道，播放它自己的本地缓存文件。
-                if (ready.isNotEmpty()) {
-                    val channel = ready.first()
+                // 组成本轮可点名队列：就绪网络渠道（按优先级在前）+ 本地 TTS（固定排最后）。
+                // TTS 只要引擎没被判死就占一个位；仍在初始化会挂起等引擎就绪再发声。
+                val rotationPool = buildList {
+                    addAll(ready)
+                    if (!ttsInitializationFailed) add(CHANNEL_TTS)
+                }
+                // 点名与“整轮清账”放进同一个临界区原子完成：先看这轮队列的渠道是否已全部
+                // 读过（读完了就清账重开，让最高优先级渠道重新获得资格），再从清完的账本上
+                // 取第一个“这轮还没读过”的渠道。临界区外不直接碰账本，避免与主线程的
+                // 记账回滚交错出“点名到刚被回滚渠道”的竞态。
+                var cycleRestarted = false
+                var pick: String?
+                synchronized(rotationLedger) {
+                    val currentRead = rotationLedger[ledgerKey]?.toSet() ?: emptySet()
+                    // 整轮清账判定放在点名之前，且对比的是“当下就绪全集”而非“本次就绪子集”：
+                    // 否则缓存分批就绪时，只就绪一家也会立刻清账，导致同一家被连续点名两遍
+                    //（这就是“前两个渠道声音一模一样”的根因）。
+                    if (currentRead.isNotEmpty() &&
+                        rotationPool.isNotEmpty() &&
+                        rotationPool.all { it in currentRead }
+                    ) {
+                        rotationLedger.remove(ledgerKey)
+                        cycleRestarted = true
+                    }
+                    val readAfterClear = rotationLedger[ledgerKey]?.toSet() ?: emptySet()
+                    pick = rotationPool.firstOrNull { it !in readAfterClear }
+                }
+                if (cycleRestarted) {
+                    AppLog.i("audio", "本轮渠道已全部播完，账本清空，重新从最高优先级开始")
+                }
+
+                if (pick != null) {
                     // 记录到底点名了哪家渠道：复查「为什么是它出声」时看这一行。
                     AppLog.i(
                         "audio",
-                        "点名播放 渠道=$channel 拼写=$normalizedSpelling 口音=$accent",
+                        "点名播放 渠道=$pick 拼写=$normalizedSpelling 口音=$accent 本轮队列=$rotationPool",
                     )
-                    // 记账：本周期已读过这一家（并发写用同一把锁保护）。
-                    markLedgerRead(normalizedSpelling, accent, channel)
-                    // 若就绪渠道这一轮已全部读过，清空账本进入下一周期。
-                    clearLedgerIfCycleDone(normalizedSpelling, accent, ready)
+                    // 记账：本周期已读过这一家（TTS 也记账，保证它不会在正常轮转里反复出现）。
+                    markLedgerRead(normalizedSpelling, accent, pick)
                     // 记录正在出声的记账条目；播放失败/中断时按它回滚。
-                    activeLedgerEntry =
-                        rotationKey(normalizedSpelling, accent) to channel
-                    // MediaPlayer 必须回到主线程创建和启动。
+                    activeLedgerEntry = ledgerKey to pick
+                    // MediaPlayer / TTS 都必须回到 Android 主线程创建和启动。
                     mainHandler.post {
-                        // 若用户期间点击了其他单词，旧文件只保留缓存但绝不播放。
+                        // 若用户期间点击了其他单词，旧请求绝不突然出声。
                         if (generation != requestGeneration) return@post
-                        startPlayer(channelCacheFile(normalizedSpelling, accent, channel), generation)
+                        if (pick == CHANNEL_TTS) {
+                            // 轮到 TTS 档：走本地 TTS 朗读；引擎缺失时由它给出明确提示。
+                            startTtsFallback(normalizedSpelling, accent, generation, source = "轮转点名")
+                        } else {
+                            // 播放该渠道自己的本地缓存文件。
+                            startPlayer(
+                                channelCacheFile(normalizedSpelling, accent, pick),
+                                generation,
+                            )
+                        }
                     }
                     return@execute
                 }
 
-                // 所有网络渠道都无能为力：切回主线程交给系统 TTS 最后兜底。
+                // 队列为空 = 网络渠道一个都没就绪、且 TTS 引擎已确认不可用：
+                // 仍交给 startTtsFallback 收尾——它会向 Dart 回传“TTS 不可用”的明确提示。
+                AppLog.i("audio", "点名队列为空，进入 TTS 收尾 拼写=$normalizedSpelling 口音=$accent")
                 mainHandler.post {
                     if (generation != requestGeneration) return@post
                     startTtsFallback(normalizedSpelling, accent, generation)
                 }
             } catch (error: Throwable) {
-                // 异常（如目录创建失败）也统一回到主线程走 TTS 兜底，不让用户干等。
+                // 异常（如目录创建失败）也统一回到主线程走 TTS 收尾，不让用户干等。
                 mainHandler.post {
                     if (generation != requestGeneration) return@post
                     startTtsFallback(normalizedSpelling, accent, generation)
@@ -597,36 +661,34 @@ class WordAudioPlayer(
         accent: String,
         generation: Long,
         ready: MutableList<String>,
-        alreadyPlayed: Set<String>,
     ) {
         val deadline = System.currentTimeMillis() + SMART_PREFETCH_WINDOW_MILLIS
         while (System.currentTimeMillis() < deadline) {
             // 用户已点其他单词或退页面：旧请求不再出声，立即放弃等待。
             if (generation != requestGeneration) return
-            // 把窗口内新出现有效缓存的渠道并入就绪池（仍跳过已读渠道）。
-            collectNewlyReadyChannels(spelling, accent, ready, alreadyPlayed)
+            // 把窗口内新出现有效缓存的渠道并入就绪全集（已读与否交给点名阶段判断）。
+            collectNewlyReadyChannels(spelling, accent, ready)
             if (ready.isNotEmpty()) return
             try {
                 Thread.sleep(SMART_PREFETCH_POLL_MILLIS)
             } catch (_: InterruptedException) {
-                // 线程被中断（如服务销毁）时直接放弃等待，由外层决定兜底。
+                // 线程被中断（如服务销毁）时直接放弃等待，由外层决定收尾。
                 return
             }
         }
         // 最后再扫一次，让恰好赶在超时前完成下载的渠道也能被点名。
-        collectNewlyReadyChannels(spelling, accent, ready, alreadyPlayed)
+        collectNewlyReadyChannels(spelling, accent, ready)
     }
 
-    /** 把后台补缓存刚写好的渠道并入就绪池；只认文件头有效的 MP3。 */
+    /** 把后台补缓存刚写好的渠道并入就绪全集；只认文件头有效的 MP3。 */
     private fun collectNewlyReadyChannels(
         spelling: String,
         accent: String,
         ready: MutableList<String>,
-        alreadyPlayed: Set<String>,
     ) {
         for (channel in NETWORK_CHANNELS) {
-            // 已入池、已读或仍无有效文件的渠道都不处理。
-            if (channel in ready || channel in alreadyPlayed) continue
+            // 已入池或仍无有效文件的渠道都不处理。
+            if (channel in ready) continue
             if (isLikelyMp3(channelCacheFile(spelling, accent, channel))) {
                 ready.add(channel)
             }
@@ -676,27 +738,12 @@ class WordAudioPlayer(
     /** 组装账本 key：拼写与口音都必须参与，避免美式/英式互相串账。 */
     private fun rotationKey(spelling: String, accent: String): String = "$spelling|$accent"
 
-    /** 记账：把「本周期已读过该渠道」写入账本。 */
+    /** 记账：把「本周期已读过该渠道」写入账本（网络渠道与 TTS 都记）。 */
     private fun markLedgerRead(spelling: String, accent: String, channel: String) {
         synchronized(rotationLedger) {
             rotationLedger
                 .getOrPut(rotationKey(spelling, accent)) { mutableSetOf() }
                 .add(channel)
-        }
-    }
-
-    /** 就绪池里的渠道这一轮已全部读过时，清空账本进入下一轮轮转。 */
-    private fun clearLedgerIfCycleDone(
-        spelling: String,
-        accent: String,
-        readyChannels: List<String>,
-    ) {
-        synchronized(rotationLedger) {
-            val key = rotationKey(spelling, accent)
-            val ledger = rotationLedger[key] ?: return
-            // 只与“本轮就绪”的渠道比对：永远下载失败的渠道不参与计数，
-            // 不会像旧“总数对比”那样让账本永远清不掉。
-            if (readyChannels.all { it in ledger }) rotationLedger.remove(key)
         }
     }
 
@@ -723,6 +770,11 @@ class WordAudioPlayer(
     fun dispose() {
         // 使所有尚未回到主线程的任务失效。
         requestGeneration += 1
+        // 整机级别的播放场景结束：轮转账本随之作废，不留下任何已读记忆。
+        synchronized(rotationLedger) {
+            rotationLedger.clear()
+        }
+        activeLedgerEntry = null
         // 销毁阶段不再向已经关闭的 Dart 引擎发送结果。
         pendingResult = null
         // 取消等待中的 TTS 兜底请求。
@@ -801,50 +853,23 @@ class WordAudioPlayer(
         }
     }
 
-    /** 记录网络音频失败，并把相同判断暂存 5 分钟。 */
+    /** 记录网络音频失败，并把相同判断暂存 30 秒（纯内存，不落盘）。 */
     private fun recordNetworkAudioFailure(error: Throwable) {
-        // 熔断一旦建立，之后每个词都直接走 TTS：它是「听不到网络发音」的最重要解释。
-        AppLog.e("audio", "网络音源不可用，进入 5 分钟熔断：${error.message}")
-        // 使用墙上时钟便于跨进程重启后恢复同一条 5 分钟记录。
-        val unavailableUntil = System.currentTimeMillis() + NETWORK_FAILURE_TTL_MILLIS
-        // 内存值立即生效，磁盘写入失败也不影响本次判断。
-        networkAudioUnavailableUntilMillis = unavailableUntil
-        writeNetworkFailureDeadline(unavailableUntil)
+        // 冷静期一旦建立，之后每个词都直接走 TTS：它是「听不到网络发音」的最重要解释。
+        AppLog.e("audio", "网络音源不可用，进入 30 秒冷静期：${error.message}")
+        // 只更新内存值：30 秒很短，进程重启后立即重新试网即可，不写任何持久化。
+        networkAudioUnavailableUntilMillis = System.currentTimeMillis() + NETWORK_FAILURE_TTL_MILLIS
         Log.i(
             LOG_TAG,
-            "网络音频失败，${NETWORK_FAILURE_TTL_MILLIS / 60_000} 分钟内使用系统 TTS：" +
+            "网络音频失败，${NETWORK_FAILURE_TTL_MILLIS / 1_000} 秒内优先使用系统 TTS：" +
                 (error.message ?: error.javaClass.simpleName),
         )
     }
 
     /** 清除已经恢复的网络音频失败记录。 */
     private fun clearNetworkAudioFailure() {
-        AppLog.i("audio", "网络音源恢复可用，解除 5 分钟熔断")
+        AppLog.i("audio", "网络音源恢复可用，解除 30 秒冷静期")
         networkAudioUnavailableUntilMillis = 0L
-        writeNetworkFailureDeadline(0L)
-    }
-
-    /**
-     * 从设置表读回上次记录的失败截止时间；没有记录或读失败时按 0 处理。
-     *
-     * 这一步在构造函数里跑，读失败绝不能让整个音频服务起不来——
-     * 最坏结果只是多撞一次网络墙，不影响发声。
-     */
-    private fun readNetworkFailureDeadline(): Long = try {
-        val entry = database.getSettings()[NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY] as? Map<*, *>
-        (entry?.get("value") as? String)?.toLongOrNull() ?: 0L
-    } catch (error: Throwable) {
-        Log.w(LOG_TAG, "读取网络音频熔断时间失败，按未熔断处理：${error.message}")
-        0L
-    }
-
-    /** 把失败截止时间写回设置表；写失败只记日志，不影响播放。 */
-    private fun writeNetworkFailureDeadline(millis: Long) {
-        try {
-            database.setSetting(NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY, millis.toString(), "int")
-        } catch (error: Throwable) {
-            Log.w(LOG_TAG, "保存网络音频熔断时间失败：${error.message}")
-        }
     }
 
     /** 网络状态枚举：只有 UNAVAILABLE 才表示可以确信当前没有网络。 */
@@ -1503,18 +1528,27 @@ class WordAudioPlayer(
         }
     }
 
-    /** 网络音频失败后，选择设备上不需要网络的英语 TTS 声音并开始朗读。 */
-    private fun startTtsFallback(spelling: String, accent: String, generation: Long) {
+    /**
+     * 朗读本地 TTS 声音：可能是轮转点名刚好轮到 TTS 档（source=轮转点名），
+     * 也可能是网络渠道全不可用或点名队列为空时的最后收尾（默认）。两者共用
+     * 同一套引擎初始化、口音选择与错误提示逻辑，只是来源不同、日志可区分。
+     */
+    private fun startTtsFallback(
+        spelling: String,
+        accent: String,
+        generation: Long,
+        source: String = "收尾兜底",
+    ) {
         // 新单词已经替换当前请求时，不能让旧请求突然开始朗读。
         if (generation != requestGeneration) return
 
-        // 记录进入 TTS 兜底时的引擎状态：回答「本地 TTS 为什么没声」这类问题。
+        // 记录进入 TTS 朗读时的引擎状态：回答「本地 TTS 为什么没声」这类问题。
         val ttsState = when {
             ttsInitialized -> "已就绪"
             ttsInitializationFailed -> "初始化失败"
             else -> "仍在初始化"
         }
-        AppLog.i("audio", "进入 TTS 兜底 拼写=$spelling 口音=$accent 引擎状态=$ttsState")
+        AppLog.i("audio", "进入 TTS 朗读 来源=$source 拼写=$spelling 口音=$accent 引擎状态=$ttsState")
 
         // TTS 初始化尚未结束时，先保存动作；初始化回调完成后会继续执行它。
         if (!ttsInitialized) {
@@ -1604,12 +1638,15 @@ class WordAudioPlayer(
     private fun finishTtsSuccessfully(utteranceId: String) {
         // 旧单词回调到达时不能结束新单词的 Future。
         if (pendingTtsUtteranceId != utteranceId) return
-        // TTS 最终成功出声并读完，记录完成（配合「进入 TTS 兜底」行可算出总等待）。
+        // TTS 最终成功出声并读完，记录完成（配合「进入 TTS 朗读」行可算出总等待）。
         AppLog.i("audio", "TTS 朗读完成 utterance=$utteranceId")
         // 清除当前 TTS 状态，防止重复回调重复完成结果。
         pendingTtsUtteranceId = null
         // 单词已经读完，释放焦点，避免蓝牙耳机或其他 App 后续仍认为本应用占用媒体输出。
         abandonAudioFocus()
+        // 自然读完：保留“本周期已读过 TTS”的记账（下一轮换别的渠道），只清活动条目，
+        // 与 MP3 自然播完的处理保持一致。
+        clearActiveLedger(unmark = false)
         // 朗读完成后通知 Flutter 页面收起播放动画。
         // true 告诉 Flutter 本次实际由本地英语 TTS 完成朗读。
         pendingResult?.success(true)
@@ -1653,11 +1690,9 @@ class WordAudioPlayer(
     private fun finishWithError(code: String, message: String) {
         // 所有用户可见的播放失败都汇总到这里统一留痕，一处不漏。
         AppLog.e("audio", "播放失败 code=$code message=$message")
-        // 播放器自身失败（坏缓存、抢不到音频焦点）时，点名播放没成功，回滚记账，
-        // 让该渠道下次还能重新点名；TTS 类错误发生时没有点名播放，无需回滚。
-        if (code == "AUDIO_PLAYBACK_FAILED" || code == "AUDIO_FOCUS_UNAVAILABLE") {
-            clearActiveLedger(unmark = true)
-        }
+        // 任何点名渠道（网络 MP3 或 TTS）只要没能成功出声，都回滚本次记账，
+        // 让该渠道在下一轮还能重新被点名；无活动条目时该调用是安全的空操作。
+        clearActiveLedger(unmark = true)
         // 错误后必须释放可能处于 prepare 状态的播放器。
         releasePlayer()
         // 把具体错误返回 Dart。
@@ -1958,18 +1993,16 @@ class WordAudioPlayer(
         // 每个网络来源最多等待 1 秒；超时后立即尝试下一个音源或后续 TTS 兜底。
         const val NETWORK_TIMEOUT_MILLIS = 1_000
 
-        // 网络音频失败记录有效 5 分钟，避免每个单词重复请求三个网络音源。
-        const val NETWORK_FAILURE_TTL_MILLIS = 5 * 60 * 1_000L
+        // 网络音频失败后的冷静期 30 秒，避免每个单词重复请求三个网络音源。
+        // 冷静期只存内存（不写 settings 表）：30 秒很短，进程重启后立即重新试网即可。
+        const val NETWORK_FAILURE_TTL_MILLIS = 30_000L
 
         // 智能轮转的无缓存等待窗口：第一次点某词时，最多等这么久让快的下载赶上发声，
-        // 避免首次播放必定是机器 TTS。窗口结束未完成的下载继续在后台跑，不会被取消。
+        // 避免首次播放必定是本地 TTS。窗口结束未完成的下载继续在后台跑，不会被取消。
         const val SMART_PREFETCH_WINDOW_MILLIS = 1_000L
 
         // 等待窗口内的轮询粒度：每 100 毫秒看一次后台补缓存是否已写好新文件。
         const val SMART_PREFETCH_POLL_MILLIS = 100L
-
-        // settings 表中保存网络音频失败截止时间的键名。
-        const val NETWORK_AUDIO_UNAVAILABLE_UNTIL_KEY = "networkAudioUnavailableUntilMillis"
 
         // 便于从 adb logcat 中筛选本功能的网络兜底日志。
         const val LOG_TAG = "MyEnglishAudio"

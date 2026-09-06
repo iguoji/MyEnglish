@@ -586,18 +586,30 @@ class _ListeningMeaningPlaybackCapsuleState
                           duration: const Duration(
                             milliseconds: AppDuration.ms160,
                           ),
-                          child: Text(
-                            '${widget.accentLabel} · $statusLabel',
-                            key: ValueKey('${widget.accentLabel}-$statusLabel'),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: textTheme.fs6Semibold.copyWith(
-                              color: AppTokens.primary.withValues(
-                                alpha: AppAlpha.a70,
+                          // 用 Align(centerLeft) 把状态文字钉在左侧：
+                          // AnimatedSwitcher 默认 Stack alignment.center，
+                          // 切换「点击播放」↔「播放中」时文字宽度变窄，
+                          // 没有 Align 的话 Stack 会按最大子宽度居中叠放，
+                          // 短文本看起来会向左/右跳一段。
+                          // 拼写巩固的胶囊早就包了 Align，这里补上同一层
+                          // 包裹，两个页面的胶囊从此行为完全一致。
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${widget.accentLabel} · $statusLabel',
+                              key: ValueKey(
+                                '${widget.accentLabel}-$statusLabel',
                               ),
-                              // 这一处刻意比全站字距宽得多，几个字才拉得开。
-                              letterSpacing:
-                                  SpellingLayout.playbackLabelLetterSpacing,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: textTheme.fs6Semibold.copyWith(
+                                color: AppTokens.primary.withValues(
+                                  alpha: AppAlpha.a70,
+                                ),
+                                // 这一处刻意比全站字距宽得多，几个字才拉得开。
+                                letterSpacing:
+                                    SpellingLayout.playbackLabelLetterSpacing,
+                              ),
                             ),
                           ),
                         ),

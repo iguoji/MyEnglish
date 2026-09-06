@@ -178,9 +178,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 当前音频请求代次，只允许最新请求更新播放状态。
   int _playGeneration = 0;
 
-  /// 当前进入听音辨义页面后是否已经提示过系统 TTS。
-  bool _hasShownTtsNotice = false;
-
   ///
   /// 页面进入后已用毫秒数，用于右上角 mm:ss 计时。
   int _elapsedMs = 0;
@@ -494,14 +491,13 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _currentWord.spelling,
         widget.accent,
       );
-      // 智能轮转下 TTS 只会作为“网络全部不可用”的最后兜底出现（不再被点名），
-      // 因此只要本次确由 TTS 完成，就值得在同一页面首次提示一次网络音频不可用。
-      final playback = widget.audioPlayer.consumeLastPlayback();
-      if (!_hasShownTtsNotice && playback.usedTts) {
-        _hasShownTtsNotice = true;
-        if (mounted) {
-          Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
-        }
+      // 播音不附带任何提示：TTS 现在也是轮转队列的正常一员，轮到它出声并不代表
+      // 网络坏了；只有 TTS 引擎本身不可用（下方专用异常）时才需要向用户说明。
+    } on WordAudioTtsUnavailableException catch (error) {
+      // 设备没有可用的离线英语 TTS（且网络发音未能成功兜住）时给出明确提示，
+      // 不带“播放失败”前缀，直接展示原因，方便用户去装语音包或联网。
+      if (mounted && generation == _playGeneration) {
+        Toast.show(context, error.toString());
       }
     } on WordAudioPlaybackException catch (firstError) {
       // 原生已经删除损坏缓存；同一代次立即重试一次，触发重新下载并播放。
@@ -512,13 +508,11 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             _currentWord.spelling,
             widget.accent,
           );
-          // 解码失败重试成功后，同样检查真实播放来源并只在首次提示一次。
-          final retryPlayback = widget.audioPlayer.consumeLastPlayback();
-          if (!_hasShownTtsNotice && retryPlayback.usedTts) {
-            _hasShownTtsNotice = true;
-            if (mounted) {
-              Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
-            }
+          // 重试成功同样静默结束，无需提示来源。
+        } on WordAudioTtsUnavailableException catch (ttsError) {
+          // 重试兜底到 TTS 但引擎不可用时，展示原因而不是“播放失败”前缀。
+          if (mounted && generation == _playGeneration) {
+            Toast.show(context, ttsError.toString());
           }
         } on WordAudioInterruptedException {
           // 用户在重试期间切题或退出时按正常中断处理，不弹错误。
@@ -558,7 +552,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     }
     // 退后台停表，避免把后台停留时间计进本局。
     _stopElapsedTimer();
-    _hasShownTtsNotice = false;
     ++_playGeneration;
     if (mounted) {
       // 退后台时同步更新内存和界面状态，回到前台后播放按钮保持暂停样式。

@@ -230,10 +230,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   int _playGeneration = 0;
 
   ///
-  /// 本次进入页面后是否已经提示过正在使用系统 TTS。
-  bool _hasShownTtsNotice = false;
-
-  ///
   /// 已经写过复习记录的单词下标，防止恢复进度后重复写入。
   final Set<int> _recordedIndexes = <int>{};
 
@@ -491,14 +487,13 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
         _currentWord.spelling,
         widget.accent,
       );
-      // 智能轮转下 TTS 只会作为“网络全部不可用”的最后兜底出现（不再被点名），
-      // 因此只要本次确由 TTS 完成，就值得在同一页面首次提示一次网络音频不可用。
-      final playback = widget.audioPlayer.consumeLastPlayback();
-      if (!_hasShownTtsNotice && playback.usedTts) {
-        _hasShownTtsNotice = true;
-        if (mounted) {
-          Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
-        }
+      // 播音不附带任何提示：TTS 现在也是轮转队列的正常一员，轮到它出声并不代表
+      // 网络坏了；只有 TTS 引擎本身不可用（下方专用异常）时才需要向用户说明。
+    } on WordAudioTtsUnavailableException catch (error) {
+      // 设备没有可用的离线英语 TTS（且网络发音未能成功兜住）时给出明确提示，
+      // 不带“播放失败”前缀，直接展示原因，方便用户去装语音包或联网。
+      if (mounted && generation == _playGeneration) {
+        Toast.show(context, error.toString());
       }
     } on WordAudioInterruptedException {
       // 页面关闭或新播放替换旧播放时无需弹出错误。
@@ -763,8 +758,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _stopWaveTimer();
     _stopElapsedTimer();
     _autoSpeakTimer?.cancel();
-    // 退后台时让下一次播放重新提示 TTS，并作废正在进行的播放请求。
-    _hasShownTtsNotice = false;
+    // 退后台时作废正在进行的播放请求。
     ++_playGeneration;
     if (mounted) _setPlaybackState(false);
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));

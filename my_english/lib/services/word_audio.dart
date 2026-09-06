@@ -23,9 +23,10 @@ abstract class WordAudioPlayer {
   /// 用“智能轮转”方式朗读一个单词（渠道挑选与记账都在原生完成）。
   ///
   /// 默认实现退化为普通 [play]，这样测试替身和旧实现无需逐个补方法也能编译；
-  /// 生产实现（[LocalWordAudioPlayer]）会请求原生在“本周期未读且有缓存”的网络渠道
-  /// 间点名播放，缺缓存的渠道后台并发补齐，全部不可用才由系统 TTS 最后兜底。
-  /// 三个复习模块统一走本方法，反复点按重听时就能轮流听到不同来源的发音。
+  /// 生产实现（[LocalWordAudioPlayer]）会请求原生按优先级点名：不背单词 → 百度 →
+  /// 有道 → 本地 TTS（固定排最后一位），缺缓存的网络渠道后台并发补齐、不占点名机会。
+  /// 轮转账本只认“当前页面正在播的这个词”：切词或离开页面即整体作废。
+  /// 三个复习模块统一走本方法，同一词反复点按重听时就能轮流听到不同来源的发音。
   Future<void> playRandomChannel(
     String spelling,
     PronunciationAccent accent,
@@ -38,15 +39,15 @@ abstract class WordAudioPlayer {
   /// 读取并消费最近一次播放是否由本地 TTS 完成。
   ///
   /// 测试替身和旧播放器默认返回 false；Android 原生实现返回本次 play 的真实来源。
-  /// 页面据此只在当前页面第一次使用 TTS 时显示提示。
+  /// 页面已不再根据“本次用了 TTS”弹提示（TTS 是轮转正常一员），保留给测试断言来源。
   Future<bool> consumeLastPlaybackUsedTts() async => false;
 
   ///
   /// 读取并消费最近一次播放的详细来源信息。
   ///
-  /// 返回是否由本地 TTS 完成，以及本次是否来自轮转渠道播放。轮转渠道模式下 TTS
-  /// 可能是被故意按顺序选中（而不是网络不可用的兜底），页面据此决定要不要提示
-  /// “当前网络音频不可用”。
+  /// 返回是否由本地 TTS 完成，以及本次是否来自轮转渠道播放。TTS 已是轮转队列的
+  /// 正式一员，页面不再用“本次是否 TTS”来判断网络好坏（播音不再附带任何提示），
+  /// 本方法保留给测试与有自查需要的调用方；读取一次后即被消费清空。
   ///
   /// 默认实现按“非 TTS、非轮转渠道”处理，测试替身和旧实现无需覆盖。
   ({bool usedTts, bool isRandomChannel}) consumeLastPlayback() {
@@ -159,14 +160,15 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   /// 最近一次已经完成的播放是否使用了本地 TTS。
   bool? _lastPlaybackUsedTts;
 
-  /// 最近一次播放是否来自“智能轮转”请求（供页面判断 TTS 是网络兜底还是普通路径）。
+  /// 最近一次播放是否来自“智能轮转”请求（保留供测试断言轮转语义）。
   bool _playbackWasRandomChannel = false;
 
   ///
   /// 把拼写和口音发送给 Android；原生 Future 会持续到音频播放结束。
   ///
-  /// 原生智能轮转会先挑“本周期未读且有本地缓存”的网络渠道播放；没有缓存就并发
-  /// 后台补齐并等一个短暂窗口；全部不可用才走系统 TTS 兜底，渠道挑选不再由 Dart 完成。
+  /// 原生智能轮转在“本轮未读且有本地缓存”的网络渠道间按优先级点名，本地 TTS
+  /// 固定排最后一位参与轮询；没有缓存的渠道后台并发补齐并等一个短暂窗口。
+  /// 轮转账本只服务当前页面正在播的这个词，切词/切页自动作废。渠道挑选不由 Dart 完成。
   @override
   Future<void> play(String spelling, PronunciationAccent accent) async {
     // trim 防止数据源首尾空格进入 URL 和缓存文件名。
@@ -180,14 +182,14 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   ///
   /// 智能轮转请求朗读单词（轮转记账在原生，本方法只负责标记来源语义）。
   ///
-  /// 三个复习模块反复重听时，原生按“不背单词 -> 百度翻译 -> 有道”的本周期已读
-  /// 账本轮流点名，且始终限定在用户设置的口音之内，不擅自切换美式/英式。
+  /// 三个复习模块反复重听时，原生按“不背单词 → 百度翻译 → 有道 → 本地 TTS”
+  /// 的账本轮流点名，且始终限定在用户设置的口音之内，不擅自切换美式/英式。
   @override
   Future<void> playRandomChannel(
     String spelling,
     PronunciationAccent accent,
   ) async {
-    // 与 [play] 同走原生智能轮转；randomChannel 标记让页面能区分 TTS 兜底场景。
+    // 与 [play] 同走原生智能轮转；randomChannel 标记仅供测试断言轮转语义。
     await _invokePlay('playSmart', <String, Object?>{
       // trim 防止数据源首尾空格进入 URL 和缓存文件名。
       'spelling': spelling.trim(),
@@ -200,7 +202,7 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
   /// 通用播放调用：负责发送通道请求并统一转换原生错误。
   ///
   /// [method] 目前恒为 playSmart（渠道挑选已下沉原生）；[randomChannel] 标记本次
-  /// 是否属于轮转请求，供消费播放来源时区分“TTS 是网络兜底还是故意点名”。
+  /// 是否属于轮转请求，供测试断言播放来源语义。
   Future<void> _invokePlay(
     String method,
     Map<String, Object?> args, {

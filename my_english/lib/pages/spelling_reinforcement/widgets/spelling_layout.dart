@@ -96,10 +96,15 @@ abstract final class SpellingLayout {
   /// 播放胶囊的固定总宽度；播放状态切换时外框不会横向变化。
   static const double playbackWidth = 196;
 
-  /// 播放胶囊右侧上下内容的固定宽度，声纹与中文状态文字共用这一宽度。
   ///
-  /// 收窄后，声纹不会比“美式 · 点击播放”这类状态文字显得突兀地长。
-  static const double playbackTextWidth = 92;
+  /// 胶囊文字区的固定宽度——声纹与状态文字共用同一宽度,保证两行"看起来一样长"。
+  ///
+  /// 数值来源：把 `playbackWidth` 减去圆按钮（40）、圆按钮内边距（p2+p3）、内容间距
+  /// （p3）、右内边距（p3）和一段留白，刚好够放「美式 · 点击播放」这串文案（含 12px
+  /// 字号、letterSpacing 1.2）且左右都不顶到胶囊内壁。原值 92 在真机字体下会让尾字
+  /// 「放」被 RichText 默认的 `Clip.hardEdge` 硬切掉一点甚至小半，统一加大到 108
+  /// 留出 10% 以上的安全余量；切换到更短的「播放中」时也仍然稳稳居中，不会顶到右壁。
+  static const double playbackTextWidth = 108;
 
   /// 播放圆形区域内 Tabler 扬声器图标的字号。
   static const double playbackIconSize = AppIcon.i20;

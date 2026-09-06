@@ -79,9 +79,6 @@ class _ListeningPageState extends State<ListeningPage>
   /// 播放列表滚动控制器，用于把当前单词自动移动到可见区域。
   final ScrollController _listController = ScrollController();
 
-  /// 当前进入随身听页面后是否已经提示过系统 TTS。
-  bool _hasShownTtsNotice = false;
-
   ///
   /// 保存搜索框输入并管理输入组件生命周期的控制器。
   final TextEditingController _queryController = TextEditingController();
@@ -248,14 +245,16 @@ class _ListeningPageState extends State<ListeningPage>
           _currentWord.spelling,
           widget.settings.accent,
         );
-        // TTS 是成功播放后的来源提示，同一页面只提示一次。
-        if (!_hasShownTtsNotice &&
-            await widget.audioPlayer.consumeLastPlaybackUsedTts()) {
-          _hasShownTtsNotice = true;
-          if (mounted) {
-            Toast.show(context, '当前网络音频不可用，正在使用系统 TTS 朗读');
-          }
-        }
+        // 播音不附带任何提示：TTS 是轮转队列的正常一员，轮到它出声不代表网络坏了。
+      } on WordAudioTtsUnavailableException catch (error) {
+        // 设备没有可用的离线英语 TTS（且网络发音未能成功兜住）时暂停循环并说明原因，
+        // 避免无引擎的循环无限次失败重试。
+        if (!mounted || serial != _playSerial) return;
+        setState(() => _isPlaying = false);
+        unawaited(_persistSession());
+        // 不带“播放失败”前缀，直接展示原因，方便用户去装语音包或联网。
+        Toast.show(context, error.toString());
+        return;
       } on WordAudioInterruptedException {
         // 用户暂停或跳转时 stop 会中断音频，这是正常控制流程。
       } catch (error) {
@@ -334,11 +333,10 @@ class _ListeningPageState extends State<ListeningPage>
     }
   }
 
-  /// App 离开前台时停止音频，并重置下一次提示状态。
+  /// App 离开前台时停止音频。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) return;
-    _hasShownTtsNotice = false;
     if (_isPlaying) unawaited(_pausePlayback());
   }
 

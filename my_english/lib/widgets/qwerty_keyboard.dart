@@ -324,13 +324,23 @@ class _QwertyKeyboardState extends State<QwertyKeyboard> {
         ),
         // 普通场景保留面板四周的呼吸空间；贴边场景把左右留白交给键盘内部，
         // 让外层底部区域可以完整铺满屏幕，同时保证按键不会贴住屏幕边缘。
+        //
+        // 底部这块单独说明一下：贴边模式（`edgeToEdge: true`）下走的是「键盘面板
+        // 一直延伸到屏幕底边」的设计，外层 SafeArea 能给到的底部安全距离只取决于
+        // 系统手势条——在 Android 三键导航 / 非 edge-to-edge 的设备上 `padding.bottom`
+        // 恒为 0，SafeArea 拿不到任何东西，第三行 zxcvbnm 的下边框就会紧贴屏幕最底。
+        // 这里给一个固定 16 像素的「兜底安全距离」：
+        //   • 手势导航设备：外层 SafeArea 已经让出 24~34，系统 inset + 16 = 40~50，
+        //     看着略宽但不会顶到按键；
+        //   • 三键导航设备：SafeArea 让不出东西，16 像素成为唯一的留白，
+        //     第三行按键终于不再贴着屏幕底缘。
         child: Padding(
           padding: widget.edgeToEdge
               ? const EdgeInsets.fromLTRB(
                   AppSpace.p2,
                   AppSpace.p2,
                   AppSpace.p2,
-                  AppSpace.p0,
+                  AppSpace.p3,
                 )
               : const EdgeInsets.fromLTRB(
                   AppSpace.p2,

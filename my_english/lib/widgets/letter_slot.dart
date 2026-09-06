@@ -205,13 +205,19 @@ class LetterSlot extends StatelessWidget {
             ),
           ),
           // 文字区域与下划线之间留出一点距离，避免字母下沿碰线。
+          //
+          // 这里**只固定底部**，不写高度：原来偷懒把高度写成 caretHeight(16)，
+          // 但字母字号 fs1=24、行高 lh1=1 → 字形行盒 24 > 16，
+          // RenderParagraph 被父约束压到 16 后会被自己的 hard clip 切掉下半截，
+          // 真机上看字母只能看到上半截（连带 g / y / p 的下伸笔画一起丢）。
+          // 不固定高度后，Align 让 24 行盒直接以底部对齐到「下划线 + gap」位置，
+          // 字母顶端自然向上展开，缩放动画放大时溢出也在 Stack clip:none 下安全可见。
           Positioned(
             left: 0,
             right: 0,
             bottom:
                 LetterSlotLayout.underlineHeight +
                 LetterSlotLayout.letterBottomGap,
-            height: LetterSlotLayout.caretHeight,
             child: Align(
               alignment: Alignment.bottomCenter,
               child: _buildLetterEntry(),

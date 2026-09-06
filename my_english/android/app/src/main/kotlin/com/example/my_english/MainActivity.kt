@@ -114,7 +114,8 @@ class MainActivity : FlutterActivity() {
         // 先创建音频通道：Dart 调用播放/停止，也用于把媒体按键回传给 Dart。
         audioChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, audioChannelName)
         // 创建下载与播放服务，把音频通道交给它用于回传锁屏/蓝牙的媒体控制事件。
-        wordAudioPlayer = WordAudioPlayer(applicationContext, audioChannel, wordsDatabase)
+        // 轮转/冷静期状态都在内存里自洽，无需再把数据库传给它。
+        wordAudioPlayer = WordAudioPlayer(applicationContext, audioChannel)
 
         // 在当前 FlutterEngine 上注册 Dart ↔ Android 数据方法通道。
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
