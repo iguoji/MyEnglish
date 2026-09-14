@@ -12,7 +12,6 @@
 /// | [HomeHeaderLayout] | 顶部问候语与右上角菜单按钮 |
 /// | [WordSearchFieldLayout] | 搜索框 |
 /// | [WordListTileLayout] | 单词行（含左滑操作区、难度徽标、声纹图标） |
-/// | [LearningFabLayout] | 右下角学习悬浮按钮及展开面板 |
 /// | [HomeDrawerLayout] | 左侧抽屉（含各类设置控件） |
 /// | [WordFormLayout] | 新增 / 编辑单词表单 |
 /// | [WordLibraryLayout] | 词库抽屉 |
@@ -166,38 +165,6 @@ abstract final class WordListTileLayout {
   ///
   /// 比宽度矮 2：喇叭右侧那三道弧线要贴着画布右边缘画完，画布再高就显得空。
   static const double speakerIconHeight = 16;
-}
-
-///
-/// 右下角学习悬浮按钮：主按钮 + 展开后那叠模式条。
-///
-abstract final class LearningFabLayout {
-  ///
-  /// 主按钮（收起状态那颗胶囊）的高度。
-  static const double mainButtonHeight = 46;
-
-  ///
-  /// 展开后每一条模式行的高度。
-  static const double itemHeight = 40;
-
-  ///
-  /// 主按钮的投影高度。
-  ///
-  /// 「投影高度」是 Material 的说法：数字越大，投影越散越远，看着离页面越高。
-  /// 这一叠三个数字构成层次——主按钮最高、模式行次之、「继续」最贴纸面，
-  /// 用户一眼就能看出谁压在谁上面。
-  static const double mainElevation = 8;
-
-  ///
-  /// 展开后每一条模式行的投影高度。
-  static const double itemElevation = 6;
-
-  ///
-  /// 模式行里「继续」小按钮的投影高度。
-  static const double continueElevation = 2;
-
-  // 「主按钮文字的字距 0.5」这一档已经删除。半个像素的字距说是「白字压蓝底更清楚」，
-  // 可实际上把手机举到眼前也分辨不出加没加；真正让白字清楚的是主色底的深浅和字重。
 }
 
 ///

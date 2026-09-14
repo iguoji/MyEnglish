@@ -24,7 +24,7 @@ class Word {
     this.reviewedAt,
     this.createdAt,
     this.updatedAt,
-  }) :       rawMeanings = List<Meaning>.unmodifiable(meanings),
+  }) : rawMeanings = List<Meaning>.unmodifiable(meanings),
        meanings = buildMeaningGroups(meanings, verbOnlyMerge: true);
 
   ///
@@ -56,7 +56,8 @@ class Word {
   final List<Meaning> rawMeanings;
 
   ///
-  /// 难度，最小 0 且没有上限；答错 +1，连对满 5 的倍数 -1。
+  /// 难度最小为 0；答错建议加一，达到连对阈值后每次答对建议减一。
+  /// 用户可在结算页调整建议，确认后才正式更新。
   final int difficulty;
 
   ///
@@ -67,7 +68,7 @@ class Word {
   final List<String> confusions;
 
   ///
-  /// 按音节拆分后的数组，如 `[tra, di, tion]`；拼写巩固用它出题。
+  /// 保留的音节数组，如 `[tra, di, tion]`；当前拼写巩固使用逐字母键盘。
   final List<String> syllables;
 
   ///
@@ -113,9 +114,7 @@ class Word {
   /// 不影响「随便合并」的词义连连 / 看义选词（它们继续用 [allMeanings]）。
   List<Meaning> get verbMergedMeanings {
     final groups = buildMeaningGroups(rawMeanings, verbOnlyMerge: true);
-    return <Meaning>[
-      for (final group in groups.values) ...group,
-    ];
+    return <Meaning>[for (final group in groups.values) ...group];
   }
 
   ///

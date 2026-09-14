@@ -641,7 +641,13 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         _errorRightIndex = rightIndex;
       }
     });
-    await _persist();
+    try {
+      await _persist();
+    } catch (error) {
+      // 配对答案已经保存，恢复时能据此还原；游标失败不能锁死已连完的棋盘。
+      if (mounted) Toast.show(context, '进度保存失败，配对结果已保留：$error');
+    }
+    if (!mounted) return;
     if (correct && _matchedLeft.length >= _currentPairs.length) {
       _onGroupComplete();
     } else if (!correct) {
@@ -756,11 +762,8 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   ///
   /// 没有倒计时后，词义连连只有在全部含义匹配完成时进入这里；
   /// 普通返回不会把进行中的会话误判为失败。
-  Future<void> _finishSession() => _progress.finish(
-    perfect: true,
-    cursor: _matchedPairs,
-    elapsed: _elapsedSeconds,
-  );
+  Future<void> _finishSession() =>
+      _progress.finish(cursor: _matchedPairs, elapsed: _elapsedSeconds);
 
   ///
   /// App 前后台切换：退后台暂停累计用时并保存，回前台再恢复。
@@ -1015,11 +1018,12 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     return SettlementSummary(
       key: const Key('settlement-meaningMatch'),
       items: items,
+      isBusy: _isCommittingSummary,
       // 词义连连无法按单词拆分时间，所以结算页不显示用时。
       showTotalElapsed: false,
-      onAdjust: (index, adjust) {
+      onAdjust: (index, adjust) async {
         final id = widget.words[index].id;
-        if (id != null) unawaited(_progress.adjustSettlement(id, adjust));
+        if (id != null) await _progress.adjustSettlement(id, adjust);
       },
       onRetry: () => unawaited(_leaveSummary(retry: true)),
       onConfirm: _leaveSummary,
@@ -1033,13 +1037,16 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       return;
     }
     if (_isCommittingSummary) return;
-    _isCommittingSummary = true;
+    setState(() => _isCommittingSummary = true);
     try {
       await _progress.commitSettlement();
       if (mounted) Navigator.of(context).pop(retry);
     } catch (error) {
-      _isCommittingSummary = false;
       debugPrint('提交词义连连结算失败：$error');
+      if (mounted) {
+        setState(() => _isCommittingSummary = false);
+        Toast.show(context, '保存结算失败，请重试：$error');
+      }
     }
   }
 }

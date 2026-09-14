@@ -33,25 +33,6 @@ class ReviewFlow {
   final WordStore wordStore;
   final SessionStore sessionStore;
   final Random _random;
-  static const double primaryRatio = 0.4;
-
-  Future<List<int>> pickTwoLayer({
-    required int limit,
-    List<int> exclude = const <int>[],
-  }) async {
-    if (limit <= 0) return const [];
-    final hard = await wordStore.pickWords(
-      limit: (limit * primaryRatio).ceil(),
-      exclude: exclude,
-      layer: PickLayer.hard,
-    );
-    final stale = await wordStore.pickWords(
-      limit: limit - hard.length,
-      exclude: <int>[...exclude, ...hard],
-      layer: PickLayer.stale,
-    );
-    return <int>[...hard, ...stale];
-  }
 
   /// libraryCount 仅保留调用兼容；实际补缺直接读取数据库，首页缓存不会限制新词。
   Future<WordSet?> resolveWordSet({

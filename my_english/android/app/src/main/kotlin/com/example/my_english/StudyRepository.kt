@@ -713,7 +713,8 @@ internal class StudyRepository(private val owner: WordsDatabase) {
     private fun finish(p: Map<*, *>): Any? = owner.transaction {
         val sid = p.long("id")
         val s = session(sid)
-        if (s.int("status") != 2) return@transaction null
+        if (s.int("status") == 1) return@transaction null
+        require(s.int("status") == 2) { "这局已经中断，不能标记为完成" }
         val status = p.int("status")
         if (status == 3 || status == 0) {
             abort(sid, status)
@@ -735,7 +736,9 @@ internal class StudyRepository(private val owner: WordsDatabase) {
 
     private fun finalize(sid: Long): Int = owner.transaction {
         val s = session(sid)
-        if (s.int("settlement_status") != 0 || s.int("status") != 1) return@transaction 0
+        // 已落实允许幂等重试；未完成或已中断必须报错，不能把“没执行”当作成功。
+        if (s.int("settlement_status") == 1 && s.int("status") == 1) return@transaction 0
+        require(s.int("status") == 1 && s.int("settlement_status") == 0) { "本局尚未完成或已经中断，不能提交结算" }
         val drafts = rows("SELECT * FROM session_word_settlements WHERE session_id=? AND apply_status=0 AND deleted_at IS NULL ORDER BY id", sid)
         require(drafts.isNotEmpty()) { "已完成会话缺少结算草稿" }
         for (row in drafts) {
@@ -773,10 +776,21 @@ internal class StudyRepository(private val owner: WordsDatabase) {
 
     /** 导入时额外核对“编号存在但属于别局/别词”的关联错误。 */
     fun validateImportedData() {
+        // 设置也必须能被页面重新读取；否则事务成功后才在 Flutter 解析时失败，
+        // 错误备份已经替换掉原数据，下一次启动还会反复遇到同一个错误。
+        one("SELECT value FROM settings WHERE key=? AND deleted_at IS NULL", WordsDatabase.LISTENING_PLAYBACK_KEY)?.let { row ->
+            val playback = decode(row["value"].toString()) as? Map<*, *> ?: error("随身听播放状态必须是对象")
+            val ids = playback["word_ids"] as? List<*> ?: error("随身听缺少单词编号列表")
+            require(ids.all { (it is Int || it is Long) && (it as Number).toLong() > 0 }) { "随身听单词编号必须是正整数" }
+            require(ids.map { (it as Number).toLong() }.distinct().size == ids.size) { "随身听单词编号不能重复" }
+        }
         require(rows("SELECT d.id FROM session_question_details d JOIN word_meanings m ON m.id=d.meaning_id WHERE m.word_id<>d.word_id LIMIT 1").isEmpty()) { "题目含义不属于指定单词" }
         require(rows("SELECT s.id FROM sessions s JOIN session_main_questions g ON g.id=s.current_main_question_id WHERE g.session_id<>s.id LIMIT 1").isEmpty()) { "会话当前大题不属于本局" }
         require(rows("SELECT g.id FROM session_main_questions g JOIN session_sub_questions q ON q.id=g.current_sub_question_id WHERE q.main_question_id<>g.id LIMIT 1").isEmpty()) { "大题当前小题不属于本题" }
         require(rows("SELECT x.id FROM session_word_settlements x JOIN sessions s ON s.id=x.session_id WHERE x.date<>s.date LIMIT 1").isEmpty()) { "结算归属日期与会话不一致" }
+        require(rows("SELECT x.id FROM session_word_settlements x WHERE x.deleted_at IS NULL AND NOT EXISTS (" +
+            "SELECT 1 FROM session_question_details d JOIN session_sub_questions q ON q.id=d.sub_question_id " +
+            "JOIN session_main_questions g ON g.id=q.main_question_id WHERE g.session_id=x.session_id AND d.word_id=x.word_id) LIMIT 1").isEmpty()) { "结算单词不属于本局试卷" }
         require(rows("SELECT a.id FROM session_question_answers a JOIN session_sub_questions q ON q.id=a.sub_question_id JOIN session_main_questions g ON g.id=q.main_question_id WHERE a.attempt_no>g.retry_count+1 LIMIT 1").isEmpty()) { "答题遍次超过大题重试次数" }
         require(rows("SELECT x.id FROM session_word_settlements x JOIN sessions s ON s.id=x.session_id WHERE x.apply_status=1 AND (s.status<>1 OR s.settlement_status<>1) AND x.deleted_at IS NULL LIMIT 1").isEmpty()) { "已落实结算必须属于已完成且已结算的会话" }
         for (s in rows("SELECT * FROM sessions WHERE deleted_at IS NULL")) {
@@ -790,10 +804,32 @@ internal class StudyRepository(private val owner: WordsDatabase) {
                     require(strings(q["content"]).size == 1 && details(q.long("id")).isNotEmpty()) { "题目缺少内容或考察对象" }
                 }
             }
+            // 外键只能证明编号在资料库里存在，不能证明它也在开局时的内容副本里。
+            // 先校验原数组，避免 filterIsInstance 或字典覆盖悄悄吞掉格式错误及重复编号。
+            val rawSnapshot = owner.setting("session.${s.long("id")}.snapshot")
+            require(rawSnapshot is List<*> && rawSnapshot.all { it is Map<*, *> }) { "会话词库快照必须是单词对象数组" }
             val words = snapshot(s.long("id"))
             require(words.isNotEmpty() && words.all { it.long("id") > 0 && it["spelling"] is String && it["spelling"].toString().isNotBlank() && it["meanings"] is List<*> }) { "会话词库快照格式错误" }
-            val ids = words.map { it.long("id") }.toSet()
-            require(allQuestions(s.long("id")).flatMap { details(it.long("id")) }.all { it.long("word_id") in ids }) { "会话快照缺少考察单词" }
+            val ids = mutableSetOf<Long>()
+            val meaningOwners = mutableMapOf<Long, Long>()
+            for (word in words) {
+                val wordId = word.long("id")
+                require(word["id"] is Int || word["id"] is Long) { "会话快照单词编号必须是整数" }
+                require(ids.add(wordId)) { "会话快照的单词编号重复" }
+                for (raw in word["meanings"] as List<*>) {
+                    val meaning = raw as? Map<*, *> ?: error("会话快照含义格式错误")
+                    val meaningId = meaning.long("id")
+                    require(meaning["id"] is Int || meaning["id"] is Long) { "会话快照含义编号必须是整数" }
+                    require(meaningId > 0 && meaning["definition"] is String && meaning["definition"].toString().isNotBlank()) { "会话快照含义缺少编号或正文" }
+                    require(meaningOwners.put(meaningId, wordId) == null) { "会话快照的含义编号重复" }
+                }
+            }
+            for (detail in loadPaper(s.long("id")).details) {
+                val wordId = detail.long("word_id")
+                require(wordId in ids) { "会话快照缺少考察单词" }
+                val meaningId = (detail["meaning_id"] as? Number)?.toLong()
+                require(meaningId == null || meaningOwners[meaningId] == wordId) { "会话快照缺少考察含义或含义属于其他单词" }
+            }
         }
         for (q in rows("SELECT * FROM session_sub_questions WHERE question_type IN (100,200) AND deleted_at IS NULL")) {
             val correct = strings(q["answers"])

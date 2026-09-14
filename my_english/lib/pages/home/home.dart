@@ -254,19 +254,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   WordSet? _dailyWordSet;
 
   ///
-  /// 正在打开的模块，以及它那一次「备词库 → 开会话」的共享任务。
-  ///
-  /// 生活化解释：用户手快连点两下「听音辨义」，第二下会直接复用第一下的
-  /// 结果，而不是再走一遍完整流程，否则同一模块会冒出两局。
-  ///
-  /// 键必须带上模块：连点的如果是两张不同的卡片，第二张要老老实实自己去开局，
-  /// 不能拿第一张的结果——那会让词义连连拿到听音辨义的会话。
-  (ReviewModule, Future<ReviewEntry?>)? _openModuleRequest;
-
-  ///
   /// 上一次已知的每日复习数量，用来发现用户在抽屉里改了设置。
   ///
-  /// 数量一变，今天这批词就要重新算，所有进行中的会话必须强行中断。
+  /// 数量变化后调整计划；已经开始的练习继续使用原试卷。
   int? _lastKnownDailyGoal;
 
   ///
@@ -283,7 +273,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 只看今天：会话表按日期组织，昨天没练完的局启动时已经收成「中断」。
   var _resumableSessions = const <ReviewModule, Session>{};
   ReviewModule _libraryModule = ReviewModule.listening;
-  bool _libraryActionBusy = false;
+  bool _learningActionBusy = false;
 
   ///
   /// 当前处于下载或播放状态的具体 Word 对象。
@@ -382,7 +372,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// ——今天有今天的词库。不收掉的话，数据库里会攒下一堆永远不会结束的局。
   /// 先落实上次已完成的结算，再读取词库和计划，避免首屏读到旧难度和旧统计。
   Future<void> _loadInitialData() async {
-    await _abortStaleReviewSessions();
+    await _abortStaleReviewSessions(recoverSettlements: true);
     if (!mounted) return;
     await Future.wait<void>(<Future<void>>[
       _loadWords(),
@@ -397,11 +387,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (mounted) await _refreshReviewDashboard();
   }
 
-  Future<void> _abortStaleReviewSessions() async {
+  Future<void> _abortStaleReviewSessions({
+    bool recoverSettlements = false,
+  }) async {
     try {
       // 进程被系统直接回收时，结算页没有机会点击“返回首页”；启动先把
       // 仍挂着的草稿应用掉，避免用户看到完成状态却一直没有更新难度。
-      await _sessionStore.recoverPendingSettlements();
+      // 普通恢复前台时，结算页可能仍在编辑，不能提前替用户确认。
+      if (recoverSettlements) await _sessionStore.recoverPendingSettlements();
       // 会话表按日期组织；开局时会拿今天的日期查，昨天那些查不到也就不会被续上。
       // 这里把它们统一收成「中断」，免得数据库里攒下一堆永远不会结束的局。
       await _sessionStore.abortStaleSessions(todayKey());
@@ -706,32 +699,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 打开一个复习模块：备好今天的词库，再决定这一局开主线还是开巩固。
   ///
-  /// 真正的判断逻辑全在 [ReviewFlow.openModule] 里，这里只负责三件事：
-  /// 1. 用一个共享 Future 挡住快速连点，避免同一模块冒出两局；
-  /// 2. 把结果里的词库同步进内存，供首页展示；
-  /// 3. 把原生异常转成用户看得懂的提示。
-  Future<ReviewEntry?> _openReviewSession(ReviewModule module) {
-    // 同一个模块已经有请求在跑时直接共用，杜绝连点开出两局。
-    final running = _openModuleRequest;
-    if (running != null && running.$1 == module) return running.$2;
-
-    final request = _openReviewSessionInternal(module);
-    _openModuleRequest = (module, request);
-    // 请求结束后释放临时引用，下一次点击会重新走完整流程。
-    unawaited(
-      request.whenComplete(() {
-        // 只清理自己那一条，避免把后来者的请求误删。
-        if (identical(_openModuleRequest?.$2, request)) {
-          _openModuleRequest = null;
-        }
-      }),
-    );
-    return request;
-  }
-
-  ///
-  /// 实际执行「备词库 → 开会话」，并把异常收敛成一次用户提示。
-  Future<ReviewEntry?> _openReviewSessionInternal(ReviewModule module) async {
+  /// 开局规则由 [ReviewFlow.openModule] 处理；入口锁覆盖开局与整个页面，
+  /// 这里负责刷新计划并把读取错误转成用户提示。
+  Future<ReviewEntry?> _openReviewSession(ReviewModule module) async {
     try {
       final entry = await _reviewFlow.openModule(
         module,
@@ -840,35 +810,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return timing == null ? open() : timing.run(open);
   }
 
-  /// 词库入口串行打开页面，快速重复点击只执行一次，不覆盖刚创建的清单或自测。
-  Future<void> _runLibraryAction(Future<void> Function() action) async {
-    if (_libraryActionBusy) return;
-    setState(() => _libraryActionBusy = true);
+  /// 首页卡片和词库入口共用一把锁，直到学习页面返回才释放。
+  /// 只合并开局请求仍会重复跳页，因此锁必须覆盖导航及“再来一次”。
+  Future<void> _runLearningAction(Future<void> Function() action) async {
+    if (_learningActionBusy) return;
+    setState(() => _learningActionBusy = true);
     try {
       await action();
     } catch (error, stackTrace) {
-      debugPrint('打开词库学习失败：$error');
+      debugPrint('打开学习页面失败：$error');
       debugPrintStack(stackTrace: stackTrace);
       if (mounted) Toast.show(context, '打开失败，请重试：$error');
     } finally {
-      if (mounted) setState(() => _libraryActionBusy = false);
+      if (mounted) setState(() => _learningActionBusy = false);
     }
   }
 
   /// 新清单只保存编号及初始位置，直接复用词库里已经读取的单词对象进入页面。
-  Future<void> _startListening(List<Word> words) => _runLibraryAction(() async {
-    final valid = [
-      for (final word in words)
-        if (word.id != null) word,
-    ];
-    if (valid.isEmpty) return;
-    await _settings.startListening(valid.map((word) => word.id!));
-    if (!mounted) return;
-    await _showListening(valid);
-  });
+  Future<void> _startListening(List<Word> words) =>
+      _runLearningAction(() async {
+        final valid = [
+          for (final word in words)
+            if (word.id != null) word,
+        ];
+        if (valid.isEmpty) return;
+        await _settings.startListening(valid.map((word) => word.id!));
+        if (!mounted) return;
+        await _showListening(valid);
+      });
 
   /// 续播按保存的编号重建顺序；删除项自动跳过，当前位置跟随原来的单词。
-  Future<void> _continueListening() => _runLibraryAction(() async {
+  Future<void> _continueListening() => _runLearningAction(() async {
     final saved = _settings.listeningPlayback;
     if (!saved.hasWords) return;
     final currentWords = await _store.getByIds(saved.wordIds);
@@ -903,7 +875,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _startSelfTest(ReviewModule module, List<Word> words) =>
-      _runLibraryAction(() async {
+      _runLearningAction(() async {
         final reason = SelfTestPolicy.unavailableReason(words.length);
         if (reason != null) {
           Toast.show(context, reason);
@@ -913,7 +885,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
 
   /// 首页练习和词库自测共用页面路由，只有开局来源不同。
-  Future<void> _openReviewModule(ReviewModule module) async {
+  Future<void> _openReviewModule(ReviewModule module) =>
+      _runLearningAction(() => _showDailyStudyPage(module));
+
+  /// “再来一次”仍由同一个入口锁保护，只重开试卷，不再次争用锁。
+  Future<void> _showDailyStudyPage(ReviewModule module) async {
     if (!module.isReviewCard) return;
     final entry = await _openReviewSession(module);
     if (!mounted || entry == null) return;
@@ -993,7 +969,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       await _openStudyPage(module, _openAdHocSession(module, words));
     } else {
-      await _openReviewModule(module);
+      await _showDailyStudyPage(module);
     }
   }
 
@@ -1030,7 +1006,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   /// 继续旧自测使用原选词，入口的 5–100 词限制只约束新建，保留已有进度。
-  Future<void> _continueSelfTest(ReviewModule module) => _runLibraryAction(
+  Future<void> _continueSelfTest(ReviewModule module) => _runLearningAction(
     () async {
       final entry = await _reviewFlow.resumeSelf(module, todayKey());
       if (!mounted) return;
@@ -1337,6 +1313,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _importData() async {
     // 先关闭抽屉，避免遮挡系统选择器。
     Navigator.of(context).pop();
+    var imported = false;
     try {
       // 打开系统文件选择器，只列出 JSON；用户取消时返回 null，不做任何改动。
       final jsonText = await _fileIo.pickJsonText();
@@ -1351,16 +1328,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final payload = Map<String, Object?>.from(decoded);
       // 原生先验证十一张表和关联；整份文件要么全部恢复，要么保留原数据。
       await _store.importData(payload);
+      imported = true;
       final importedCount = (payload['words'] as List)
           .where((row) => row is Map && row['deleted_at'] == null)
           .length;
       await _settings.reload();
       // 文件操作期间首页可能已退出，后续不能再更新页面状态或发起页面刷新。
       if (!mounted) return;
-      // 原生整库导入会同步清空会话表，首页立即移除两个「继续」按钮。
+      // 全部数据已被备份替换，先清掉旧缓存，再读取备份中的计划和继续进度。
       setState(() {
         _resumableSessions = const <ReviewModule, Session>{};
-        // 整库导入会清空原生的每日词库、会话与复习记录，内存同步失效。
+        // 这些缓存属于导入前的数据，不能和新词库混用。
         _dailyWordSet = null;
         _reviewModuleStates = const <ReviewModule, ReviewModuleState>{};
         _reviewCount = 0;
@@ -1375,19 +1353,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _showSnackBar('已恢复 $importedCount 个单词及全部计划、会话和设置');
     } on FormatException catch (error) {
       // JSON 结构或字段错误，显示具体原因便于修正文件。
-      _showSnackBar('导入失败：${error.message}');
+      _showSnackBar(
+        imported
+            ? '备份已导入，但界面刷新失败，请重新打开应用：${error.message}'
+            : '导入失败：${error.message}',
+      );
     } catch (error) {
-      // 文件读取或原生写入异常，显示可读详情。
-      _showSnackBar('导入失败：${_describeLoadError(error)}');
+      // 数据库替换成功后的刷新错误不能再说成“导入失败”，以免用户误判数据状态。
+      _showSnackBar(
+        imported
+            ? '备份已导入，但界面刷新失败，请重新打开应用：${_describeLoadError(error)}'
+            : '导入失败：${_describeLoadError(error)}',
+      );
     }
   }
 
   ///
-  /// 数据导出：把本地全部单词、分组与成员关系聚合为 JSON，通过系统保存框写出。
-  ///
-  /// 导出结构在 words.json 基础上包含分组、成员、设置、每日词库、复习会话与
-  /// 记录、学习会话、听音候选项缓存和音节划分等全部本地数据，原生 importData
-  /// 导入时整库还原，保证换机或重装后能完整恢复学习进度与统计结果。
+  /// 完整导出十一张业务表，包含词库、设置、计划、题目、答案、结算及软删除历史。
+  /// 文件格式为 version=3；离线音频和运行日志不在这份备份中。
   Future<void> _exportData() async {
     // 先关闭抽屉，避免遮挡系统保存框。
     Navigator.of(context).pop();
@@ -1453,9 +1436,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 用户取消则什么都不做。
     if (!confirmed || !mounted) return;
     try {
-      // 清空 SQLite 全部业务数据，含单词、释义、分组、记录、候选/音节缓存与学习会话。
+      // 清空新版数据库的全部业务表；旧版数据库文件保持原样。
       await _store.clearAll();
-      // 清空设置（原生 SharedPreferences 清空 + 内存重置为默认值）。
+      // 重置数据库中的偏好，并同步恢复内存默认值。
       await _settings.clearAll();
       // 一并清空离线语音缓存文件（word_audio 目录下全部 mp3），并重置进度。
       await WordAudioCache.instance.clearCacheFiles();
@@ -2030,7 +2013,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     selectedCount: selfTestWords.length,
                     selectedModule: libraryModule,
                     hasResume: hasResume,
-                    busy: _libraryActionBusy,
+                    busy: _learningActionBusy,
                     onModuleChanged: (module) =>
                         setState(() => _libraryModule = module),
                     onStart: () => unawaited(

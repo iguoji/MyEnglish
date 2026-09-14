@@ -39,7 +39,7 @@ abstract final class MatchingRoundBuilder {
     final wordOrder = <String, int>{
       for (final word in byWord.keys) word: wordIndex++,
     };
-    final rounds = <List<Map<String, Object?>>>[];
+    final rounds = <List<_Pair>>[];
 
     while (pending.isNotEmpty) {
       final turn = rounds.length + 1;
@@ -153,9 +153,48 @@ abstract final class MatchingRoundBuilder {
         usesByPair.update(pair.order, (count) => count + 1, ifAbsent: () => 1);
         lastWordRound[pair.word] = rounds.length;
       }
-      rounds.add(selected.map((pair) => pair.question).toList());
+      rounds.add(selected);
     }
-    return rounds;
+    return _separateAmbiguousRounds(rounds, byWord);
+  }
+
+  /// 不同单词不能抢同轮另一张卡的含义：例如 big→重要、large→大，
+  /// 若 big 也收录了“大”，用户无法从题面知道“大”预先分配给了谁。
+  /// 在完整编排后按已收录的含义文本精确检查，冲突的配对分轮展示。
+  /// 同拼写的卡片仍可互换；只拆轮次，不增加、删除或改写任何配对。
+  static List<List<Map<String, Object?>>> _separateAmbiguousRounds(
+    List<List<_Pair>> rounds,
+    Map<String, List<_Pair>> byWord,
+  ) {
+    final definitions = <String, Set<String>>{
+      for (final entry in byWord.entries)
+        entry.key: entry.value.map((pair) => pair.definition).toSet(),
+    };
+    final result = <List<Map<String, Object?>>>[];
+    for (final round in rounds) {
+      final separated = <List<_Pair>>[];
+      for (final pair in round) {
+        final target = separated
+            .where(
+              (part) => part.every(
+                (other) =>
+                    pair.word == other.word ||
+                    (!definitions[pair.word]!.contains(other.definition) &&
+                        !definitions[other.word]!.contains(pair.definition)),
+              ),
+            )
+            .firstOrNull;
+        if (target == null) {
+          separated.add(<_Pair>[pair]);
+        } else {
+          target.add(pair);
+        }
+      }
+      result.addAll(
+        separated.map((part) => part.map((pair) => pair.question).toList()),
+      );
+    }
+    return result;
   }
 
   /// 同时寻找尽可能多组“单词不同、含义也不同”的配对。

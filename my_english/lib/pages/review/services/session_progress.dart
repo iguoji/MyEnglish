@@ -9,9 +9,9 @@ import '../../../models/settlement.dart';
 import '../../../models/word.dart';
 import '../../../store/session.dart';
 import 'question_options.dart';
-import 'question_builder.dart';
 
-/// 五个页面共用的会话控制器：排队保存、当前遍次、题目用时与统一结算。
+/// 四种答题页面共用的会话控制器：排队保存、当前遍次、题目用时与统一结算。
+/// 随身听的清单和播放进度由 SettingsStore 独立保存。
 class SessionProgress with WidgetsBindingObserver {
   SessionProgress({
     required this.store,
@@ -93,7 +93,8 @@ class SessionProgress with WidgetsBindingObserver {
   bool _timingAllowed = false;
   bool _readyForSettlement = false;
   bool _committed = false;
-  bool _commitInFlight = false;
+  Future<void>? _pendingCommit;
+  int _pendingAdjustments = 0;
   bool _detached = false;
 
   ReviewModule get module => session.module;
@@ -202,22 +203,6 @@ class SessionProgress with WidgetsBindingObserver {
     });
   }
 
-  Future<void> savePlayback({
-    required int cursor,
-    required int elapsed,
-    required Map<String, Object?> playback,
-  }) {
-    final sessionId = session.id;
-    return _enqueue(
-      () => store.savePlayback(
-        sessionId: sessionId,
-        cursor: cursor,
-        elapsed: elapsed,
-        playback: playback,
-      ),
-    );
-  }
-
   Future<void> record({
     required int wordId,
     int? meaningId,
@@ -275,24 +260,6 @@ class SessionProgress with WidgetsBindingObserver {
     });
   }
 
-  /// 随身听播完后在原页面再次播放，也建立一局新的自测。
-  Future<void> restartListening() => _enqueue(() async {
-    final words = session.snapshotWords;
-    _session = await store.createStudySession(
-      module: ReviewModule.listening,
-      kind: SessionKind.selfTest,
-      planId: null,
-      words: words,
-      groups: ReviewQuestionBuilder.build(ReviewModule.listening, words),
-      date: DateTime.now().toIso8601String().substring(0, 10),
-    );
-    _liveRecords.clear();
-    _indexSession();
-    _readyForSettlement = false;
-    _committed = false;
-    _elapsed = 0;
-  });
-
   Future<void> retryWord(int wordId) => _enqueue(() async {
     final group = session.groups.firstWhere(
       (group) => group.questions.any((q) => q.wordIds.contains(wordId)),
@@ -310,10 +277,8 @@ class SessionProgress with WidgetsBindingObserver {
       ..reset();
   });
 
-  Future<SettleResult?> settle(
-    int wordId, {
-    Duration usedTime = Duration.zero,
-  }) async {
+  /// 单词结果和实际用时统一从已保存的小题读取，不使用页面停留的墙上时间。
+  Future<SettleResult?> settle(int wordId) async {
     if (_committed || !module.writesRecords) return null;
     SettleResult? result;
     await _enqueue(() async {
@@ -339,57 +304,69 @@ class SessionProgress with WidgetsBindingObserver {
     return result;
   }
 
-  Future<void> adjustSettlement(int wordId, DifficultyAdjust adjust) =>
-      _enqueue(() async {
-        final current = _drafts[wordId];
-        if (_committed || current == null) return;
-        final next = current.copyWithAdjust(adjust);
-        await store.updateSettlementDraft(
-          sessionId: session.id,
-          wordId: wordId,
-          difficultyAfter: next.difficultyAfter,
-          adjustment: next.adjustment,
-          operation: 2,
-        );
-        _drafts[wordId] = next;
-      });
+  /// 调整成功后才更新草稿；保存期间禁止离开，避免把未确认的旧值落实。
+  Future<void> adjustSettlement(int wordId, DifficultyAdjust adjust) {
+    if (_committed || _pendingCommit != null) {
+      return Future<void>.error(StateError('结算正在提交或已经提交，不能再调整'));
+    }
+    _pendingAdjustments++;
+    return _enqueue(() async {
+      final current = _drafts[wordId];
+      if (current == null) throw StateError('没有找到这个单词的结算草稿');
+      final next = current.copyWithAdjust(adjust);
+      await store.updateSettlementDraft(
+        sessionId: session.id,
+        wordId: wordId,
+        difficultyAfter: next.difficultyAfter,
+        adjustment: next.adjustment,
+        operation: 2,
+      );
+      _drafts[wordId] = next;
+    }).whenComplete(() {
+      _pendingAdjustments--;
+    });
+  }
 
-  Future<void> finish({required bool perfect, int? cursor, int? elapsed}) =>
-      _enqueue(() async {
-        if (_readyForSettlement || _committed) return;
-        _captureTime();
-        _questionClock.stop();
-        _timingAllowed = false;
-        await store.finishSession(
-          sessionId: session.id,
-          status: perfect ? SessionStatus.completed : SessionStatus.failed,
-          cursor: cursor,
-          elapsed: elapsed,
-          pendingSettlement: module.writesRecords,
-        );
-        if (module.writesRecords) {
-          final drafts = await store.getSettlementDrafts(session.id);
-          _drafts
-            ..clear()
-            ..addEntries(drafts.map((draft) => MapEntry(draft.wordId, draft)));
-        }
-        _readyForSettlement = true;
-      });
+  /// 完成整张试卷即为完成；是否全对只影响逐词结算，不能把整局记成失败。
+  Future<void> finish({int? cursor, int? elapsed}) => _enqueue(() async {
+    if (_readyForSettlement || _committed) return;
+    _captureTime();
+    _questionClock.stop();
+    _timingAllowed = false;
+    await store.finishSession(
+      sessionId: session.id,
+      status: SessionStatus.completed,
+      cursor: cursor,
+      elapsed: elapsed,
+      pendingSettlement: module.writesRecords,
+    );
+    if (module.writesRecords) {
+      final drafts = await store.getSettlementDrafts(session.id);
+      _drafts
+        ..clear()
+        ..addEntries(drafts.map((draft) => MapEntry(draft.wordId, draft)));
+    }
+    _readyForSettlement = true;
+  });
 
   Future<void> commitSettlement() {
     if (_committed || !module.writesRecords) return Future<void>.value();
-    if (_commitInFlight) return _queue;
-    _commitInFlight = true;
-    return _enqueue(() => store.finalizeSessionSettlement(session.id)).then(
-      (_) {
-        _committed = true;
-        _commitInFlight = false;
-      },
-      onError: (Object error, StackTrace stack) {
-        _commitInFlight = false;
-        Error.throwWithStackTrace(error, stack);
-      },
-    );
+    if (_pendingAdjustments > 0) {
+      return Future<void>.error(StateError('难度调整正在保存，请稍候'));
+    }
+    // 连续点击必须共享真正的提交结果，不能返回会吞掉错误的队列尾部。
+    final pending = _pendingCommit;
+    if (pending != null) return pending;
+    final commit =
+        _enqueue(() async {
+          if (!_readyForSettlement) throw StateError('本局尚未完成保存，请重试');
+          await store.finalizeSessionSettlement(session.id);
+          _committed = true;
+        }).whenComplete(() {
+          _pendingCommit = null;
+        });
+    _pendingCommit = commit;
+    return commit;
   }
 
   @override

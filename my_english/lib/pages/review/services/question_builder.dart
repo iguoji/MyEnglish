@@ -40,10 +40,16 @@ abstract final class ReviewQuestionBuilder {
               _question(100, 1, 1, word.spelling, <String>[
                 word.spelling,
               ], _details(word)),
+              // 一条中文释义一道小题，每道小题只能挂**它自己那一条**释义记录。
+              // 这里不能按中文文字去找考察对象（那是 [_details] 的口径）：
+              // 同一个词在两个词性下写着同一句中文时（close 的 v. 接近 / adv. 接近），
+              // 按文字找会把两条记录都挂到两道小题上，页面按「单词 + 含义」反查小题时
+              // 第二道就永远查不到、永远没人作答；点「下一题」结算时原生核对
+              // 「这个词还没做完」，只会弹一句「保存听音辨义结果失败」。
               for (final meaning in _meanings(word, verbOnly: true))
                 _question(100, 2, 2, meaning.definition, <String>[
                   meaning.definition,
-                ], _details(word, meaning.definition)),
+                ], _meaningDetail(word, meaning)),
             ]),
         ];
       case ReviewModule.listening:
@@ -127,6 +133,17 @@ abstract final class ReviewQuestionBuilder {
                 meaning.definition.trim() == definition.trim())
               {'word_id': word.id, 'meaning_id': meaning.id},
         ];
+
+  /// 一道释义小题的考察对象：**只认它自己那一条释义记录**。
+  ///
+  /// 与 `_details` 的区别：这里不做任何文字匹配，传进来哪条就是哪条。
+  /// 听音辨义必须用它——它的小题编号是「一条释义一道题」，一旦按文字匹配，
+  /// 同一句中文在这个词里出现两次时，两道小题会共用同一批考察对象，
+  /// 页面按「单词 + 含义」反查小题就必然有一道永远查不到（详见调用处注释）。
+  static List<Map<String, Object?>> _meaningDetail(Word word, Meaning meaning) =>
+      <Map<String, Object?>>[
+        {'word_id': word.id, 'meaning_id': meaning.id},
+      ];
 
   static List<Map<String, Object?>> _choice(List<Word> words, Random random) {
     final byDefinition = <String, List<Word>>{};

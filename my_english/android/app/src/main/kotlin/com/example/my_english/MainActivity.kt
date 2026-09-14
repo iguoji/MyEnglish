@@ -596,38 +596,6 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * 从 MethodChannel 参数中读取一个「模块标识」字符串。
-     *
-     * 复习模块的多个方法只需要这一个参数，抽出来避免重复的空值判断。
-     *
-     * @param arguments Dart 传来的原始参数，应为 {module: "..."} 形态。
-     * @param method 方法名，仅用于拼出可读的错误信息。
-     * @return 去掉首尾空格后的非空模块标识。
-     */
-    private fun readModule(arguments: Any?, method: String): String {
-        // as? 相当于 PHP 的 instanceof 判断，类型不符时得到 null 而不是崩溃。
-        val payload = arguments as? Map<*, *> ?: error("$method 缺少参数")
-        return payload["module"]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
-            ?: error("$method 缺少有效 module")
-    }
-
-    /**
-     * 从 MethodChannel 参数中读取一个「日期」字符串（yyyy-MM-dd）。
-     *
-     * 日期一律由 Dart 侧算好再传进来，而不是原生自己取「今天」——
-     * 这样两边对「今天从几点开始」的理解永远一致，也方便测试注入固定日期。
-     *
-     * @param arguments Dart 传来的原始参数，应为 {date: "2026-08-29"} 形态。
-     * @param method 方法名，仅用于拼出可读的错误信息。
-     * @return 去掉首尾空格后的非空日期字符串。
-     */
-    private fun readDate(arguments: Any?, method: String): String {
-        val payload = arguments as? Map<*, *> ?: error("$method 缺少参数")
-        return payload["date"]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
-            ?: error("$method 缺少有效 date")
-    }
-
-    /**
      * 从 MethodChannel 参数中读取一个必填的数字字段。
      *
      * Dart 的 int 过通道后可能是 Int 也可能是 Long，统一按 Number 读取再收窄。
@@ -845,9 +813,12 @@ class MainActivity : FlutterActivity() {
         acceptsChannelResults = false
         // 先停止下载回调并释放 MediaPlayer。
         if (::wordAudioPlayer.isInitialized) wordAudioPlayer.dispose()
-        // 先关闭 SQLite 连接。
-        if (::wordsDatabase.isInitialized) wordsDatabase.close()
-        // 停止后台执行器，不再接收新任务。
+        // 数据库可能仍在保存退出前的答案；把关闭动作排在已有写入之后，
+        // 避免主线程先关连接，让队列里的保存失败或重新打开一份无人关闭的连接。
+        if (::wordsDatabase.isInitialized) {
+            databaseExecutor.execute { wordsDatabase.close() }
+        }
+        // 停止接收新任务，已经排队的写入与关闭动作仍会按顺序完成。
         databaseExecutor.shutdown()
         // 同时停止普通文件 I/O 队列。
         ioExecutor.shutdown()

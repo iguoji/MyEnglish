@@ -460,11 +460,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     // 整局已经结束，彻底停表，避免结算页期间定时器继续空转。
     _stopElapsedTimer();
     // 只有全部含义都完成后才准备单词结算；多义词因此不会被提前奖励。
-    await _progress.finish(
-      perfect: true,
-      cursor: _rounds.length,
-      elapsed: _elapsedSeconds,
-    );
+    await _progress.finish(cursor: _rounds.length, elapsed: _elapsedSeconds);
     if (mounted) setState(() => _completed = true);
   }
 
@@ -914,11 +910,12 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     return SettlementSummary(
       key: const Key('settlement-meaningWordChoice'),
       items: items,
+      isBusy: _isCommittingSummary,
       // 看义选词无法按单词拆分时间，所以结算页不显示用时。
       showTotalElapsed: false,
-      onAdjust: (index, adjust) {
+      onAdjust: (index, adjust) async {
         final id = _wordsById.values.elementAt(index).id;
-        if (id != null) unawaited(_progress.adjustSettlement(id, adjust));
+        if (id != null) await _progress.adjustSettlement(id, adjust);
       },
       onRetry: () => unawaited(_leaveSummary(retry: true)),
       onConfirm: _leaveSummary,
@@ -932,13 +929,16 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       return;
     }
     if (_isCommittingSummary) return;
-    _isCommittingSummary = true;
+    setState(() => _isCommittingSummary = true);
     try {
       await _progress.commitSettlement();
       if (mounted) Navigator.of(context).pop(retry);
     } catch (error) {
-      _isCommittingSummary = false;
       debugPrint('提交看义选词结算失败：$error');
+      if (mounted) {
+        setState(() => _isCommittingSummary = false);
+        Toast.show(context, '保存结算失败，请重试：$error');
+      }
     }
   }
 

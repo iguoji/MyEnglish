@@ -187,15 +187,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   int _elapsedMs = 0;
 
   ///
-  /// 当前这个单词是「几点几分几秒」开始答题的。
-  ///
-  /// 生活化解释：右上角那个计时器是**整局**的，退后台会停、切页面也会停；
-  /// 这一块是另一只独立的手表，专门掐「这个单词我盯着看了多久」。
-  /// 结算页每行右边那个用时就是拿「现在」减它算出来的，
-  /// 所以哪怕整局计时器中途被打断过，单词用时也还是真实值。
-  DateTime _wordStartedAt = DateTime.now();
-
-  ///
   /// 每秒推进一次 [\_elapsedMs] 的定时器；退后台停表、回前台继续。
   Timer? _elapsedTimer;
 
@@ -315,7 +306,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 已用时间来自会话字段（单位秒）；继续模式要累计，不能每次进入从 0 开始。
     _elapsedMs = session.elapsed * 1000;
     // 进入页面（或续玩回到题目）的这一刻，就是当前单词的起跑时间。
-    _wordStartedAt = DateTime.now();
     // 累计错误由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
 
     final wordId = _currentWord.id;
@@ -386,12 +376,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   /// 判定规则：只要把这一局的单词全部操作完一遍（走到这个方法时必然如此，
   /// 因为它只在最后一个单词提交成功后被调用），就算「完成」；中途累计的
   /// 答错次数只影响单词个体的难度与结算页展示，不影响整局成败。
-  Future<void> _finishSession() => _progress.finish(
-    // 走到这里说明全部单词都已操作完一遍，不论过程中是否答错，都算过关。
-    perfect: true,
-    cursor: widget.words.length,
-    elapsed: _elapsedSeconds,
-  );
+  Future<void> _finishSession() =>
+      _progress.finish(cursor: widget.words.length, elapsed: _elapsedSeconds);
 
   ///
   /// 当前小题的正确答案：拼写阶段是单词，释义阶段是当前中文释义。
@@ -819,11 +805,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     if (wordId == null) return true;
     try {
       // 等待原生事务真正结束后才允许切题，确保首页回刷时能读取到最新数据。
-      await _progress.settle(
-        wordId,
-        // 本词用时 = 现在 − 这个单词开始答题的那一刻，取总秒数。
-        usedTime: DateTime.now().difference(_wordStartedAt),
-      );
+      await _progress.settle(wordId);
       // 只有事务成功后才把 id 带回首页，避免首页回刷一条并未更新的数据。
       _reviewedWordIds.add(wordId);
       // true 告诉按钮流程可以安全进入下一题。
@@ -856,9 +838,11 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
               Navigator.pop(context, _reviewedWordIds.toList());
             })
             .catchError((Object error) {
-              _isSavingCompletion = false;
               debugPrint('提交听音辨义结算失败：$error');
-              if (mounted) Toast.show(context, '保存结算失败，请重试');
+              if (mounted) {
+                setState(() => _isSavingCompletion = false);
+                Toast.show(context, '保存结算失败，请重试：$error');
+              }
             }),
       );
       return;
@@ -884,6 +868,18 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     }
     // 最后一题提交成功后进入整轮完成状态页，由用户确认后再返回首页。
     if (_wordIndex + 1 >= widget.words.length) {
+      // 会话完成和全部草稿都保存成功，才能显示可调整的结算页。
+      // 失败时保留当前题与完成按钮，用户可以再次提交同一份结果。
+      try {
+        await _finishSession();
+      } catch (error) {
+        if (mounted) {
+          setState(() => _isSavingCompletion = false);
+          Toast.show(context, '保存结算失败，请重试：$error');
+        }
+        return;
+      }
+      if (!mounted) return;
       // 整轮完成给予中等震动，与单词完成反馈保持一致。
       HapticFeedback.mediumImpact();
       // 作废尚未结束的奖励发音代次，防止旧请求随后覆盖完成页状态。
@@ -898,8 +894,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       });
       // 整局已经结束，彻底停表，避免完成页期间定时器继续空转。
       _stopElapsedTimer();
-      // 最后一题记录已经成功提交，整轮不再属于未完成历史。
-      unawaited(_finishSession());
       // 停止可能仍在播放的答对奖励音频。
       unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
       return;
@@ -908,8 +902,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     setState(() {
       // 保持 widget.words 原始顺序，只把下标向后移动一位。
       _wordIndex++;
-      // 换到新单词，手表重新掐表。
-      _wordStartedAt = DateTime.now();
       // 每个新单词都从拼写阶段开始。
       _stage = ListeningMeaningStage.word;
       // 词性下标回到第一项。
@@ -1007,10 +999,16 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 例如 hard 有 1 个单词选择和 6 个释义选择，所以这里必须生成 7 格。
     // 正文仍会在 _MeaningStage 中按词性重新聚合，避免同一词性重复显示多个标签。
     var flatIndex = 0;
-    final shown = <String>{};
+    // 这里**绝对不能再按释义文字去重**（历史上有一个 `shown` 集合）。
+    // steps 的下标就是本页 `_meaningIndex` 的坐标系，而 `_meaningIndex` 走的
+    // `_availableMeanings`（即 [Word.verbMergedMeanings]）只在动词词性内部合并，
+    // 非动词的同一句中文一律保留成独立小题。这里多去一次重，steps 就比
+    // `_availableMeanings` 少一格，此后每一格整体错位——光标停在后一条含义上、
+    // 答对时揭开的是下一条，最后一条含义永远揭不开，槽位数也凭空少一个。
+    // 真实例子：close 的 `v. 接近` 与 `adv. 接近` 文字相同，`adv.` 行就只剩
+    // 「靠近 / 紧挨着」两个槽位，而实际要答三条。
     for (final group in _currentWord.meaningGroups) {
       for (final meaning in group.meanings) {
-        if (!shown.add(meaning.definition.trim())) continue;
         // _meaningIndex 是所有释义合并后的下标，因此每一条释义都能直接对应
         // steps 中的一格，顶部进度条就会真实反映用户还需要完成几次选择。
         final isDone = _isCurrentWordComplete || _meaningIndex > flatIndex;
@@ -1361,6 +1359,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     return SettlementSummary(
       key: const Key('settlement-listeningMeaning'),
       items: items,
+      isBusy: _isSavingCompletion,
       // 结算页顶部用所有单词明细的实际用时汇总；右上角仍显示页面停留时间。
       aggregatedWordElapsed: Duration(
         seconds: items.fold<int>(
@@ -1368,11 +1367,13 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
           (sum, item) => sum + (item.usedTime?.inSeconds ?? 0),
         ),
       ),
-      onAdjust: (index, adjust) {
+      onAdjust: (index, adjust) async {
         final id = widget.words[index].id;
-        if (id != null) unawaited(widget.progress.adjustSettlement(id, adjust));
+        if (id != null) await widget.progress.adjustSettlement(id, adjust);
       },
       onRetry: () {
+        if (_isSavingCompletion) return;
+        setState(() => _isSavingCompletion = true);
         unawaited(
           widget.progress
               .commitSettlement()
@@ -1381,7 +1382,10 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
               })
               .catchError((Object error) {
                 debugPrint('提交听音辨义结算失败：$error');
-                if (mounted) Toast.show(context, '保存结算失败，请重试');
+                if (mounted) {
+                  setState(() => _isSavingCompletion = false);
+                  Toast.show(context, '保存结算失败，请重试：$error');
+                }
               }),
         );
       },

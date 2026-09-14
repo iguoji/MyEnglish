@@ -407,8 +407,7 @@ class SettingsStore extends ChangeNotifier {
   ///
   /// 修改并持久化每日复习目标；负数一律钳制为 0。
   ///
-  /// 注意：改这个数字会让今天已经开着的每一局都对不上新词库，
-  /// 调用方需要接着中断全部进行中的会话（见 SessionStore.abortActiveSessions）。
+  /// 首页收到通知后调整每日计划；已经开始的练习继续使用原试卷和原进度。
   Future<void> setDailyGoal(int value) async {
     final normalized = value < 0 ? 0 : value;
     if (_values.dailyGoal == normalized) return;
@@ -456,11 +455,10 @@ class SettingsStore extends ChangeNotifier {
   }
 
   ///
-  /// 修改并持久化连对变易阈值；至少 1 次（0 或负数会让原生按 0 取模而崩溃）。
+  /// 修改并持久化连对变易阈值；至少 1 次。
   ///
-  /// 该值决定「连续答对多少轮后单词难度自动 -1」。结算算法本身在原生
-  /// [WordsDatabase.settleWord] 里，它直接读 settings 表的同一个键，所以这里
-  /// 只负责把用户选的值存好，不参与任何数学运算。
+  /// 达到阈值后，每次继续答对都建议难度减一；建议由 StudyRepository
+  /// 根据已落实的历史成绩生成，这里只保存偏好。
   Future<void> setStreakToEasier(int value) async {
     final normalized = value < 1 ? 1 : value;
     if (_values.streakToEasier == normalized) return;
@@ -473,7 +471,7 @@ class SettingsStore extends ChangeNotifier {
   /// 清空全部设置，恢复到首次安装的默认值。
   Future<void> clearAll() async {
     await _listeningWrite;
-    // 原生软删除 settings 表全部行；channel 为 null 时（纯测试）只重置内存。
+    // 原生只重置偏好及独立播放清单，保留答题会话的内容副本。
     await _channel?.invokeMethod<void>('clearSettings');
     _values = const _Values();
     // 通知设置面板、首页副标题与 MaterialApp 同步刷新（主题会切回 Light）。
@@ -489,18 +487,10 @@ class SettingsStore extends ChangeNotifier {
     await _listeningWrite;
     // 内存模式（测试或旧原生壳）没有通道可读，保持现状即可。
     if (_channel == null) return;
-    try {
-      final rows = await _channel.invokeMapMethod<String, Object?>(
-        'getSettings',
-      );
-      _values = _Values.fromRows(rows ?? const <String, Object?>{});
-      notifyListeners();
-    } on PlatformException catch (error) {
-      // 单次重载失败不阻断导入，界面继续使用旧值。
-      debugPrint('本地设置重载失败，沿用当前设置：$error');
-    } on MissingPluginException catch (error) {
-      debugPrint('本地设置通道未注册，跳过重载：$error');
-    }
+    final rows = await _channel.invokeMapMethod<String, Object?>('getSettings');
+    // 调用方必须知道刷新失败，不能在仍显示旧偏好时报告“设置已全部恢复”。
+    _values = _Values.fromRows(rows ?? const <String, Object?>{});
+    notifyListeners();
   }
 
   ///

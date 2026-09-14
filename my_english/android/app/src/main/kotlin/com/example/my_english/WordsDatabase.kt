@@ -125,7 +125,7 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
         "SELECT value FROM settings WHERE key=? AND deleted_at IS NULL", listOf(key),
     ).firstOrNull()?.get("value")?.toString()?.toIntOrNull() ?: default
 
-    /** 重置偏好不会清除进行中会话的快照和播放状态。 */
+    /** 重置偏好及随身听清单，保留答题会话的历史内容副本。 */
     fun clearSettings() = transaction {
         val now = System.currentTimeMillis()
         writableDatabase.execSQL(
@@ -155,7 +155,7 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
         ) }.groupBy { it.long("word_id") }
         return source.map { row -> row + mapOf(
             "confusions" to strings(row["confusions"]),
-            "syllables" to strings(row["syllables"]),
+            "syllables" to textArray(row["syllables"]),
             "meanings" to (meanings[row.long("id")] ?: emptyList()).map { it + ("confusions" to strings(it["confusions"])) },
         ) }
     }
@@ -181,7 +181,7 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
         val difficulty = (payload["difficulty"] as? Number)?.toLong() ?: 0L
         require(difficulty >= 0) { "难度不能小于零" }
         return mapOf("spelling" to spelling, "difficulty" to difficulty,
-            "confusions" to strings(payload["confusions"]), "syllables" to strings(payload["syllables"]),
+            "confusions" to strings(payload["confusions"]), "syllables" to textArray(payload["syllables"]),
             "reviewed_at" to (payload["reviewed_at"] as? Number)?.toLong())
     }
 
@@ -208,7 +208,7 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
 
     fun saveWordConfusions(id: Long, raw: Any?) { update("words", id, mapOf("confusions" to strings(raw))) }
     fun saveMeaningConfusions(id: Long, raw: Any?) { update("word_meanings", id, mapOf("confusions" to strings(raw))) }
-    fun saveWordSyllables(id: Long, raw: Any?) { update("words", id, mapOf("syllables" to strings(raw))) }
+    fun saveWordSyllables(id: Long, raw: Any?) { update("words", id, mapOf("syllables" to textArray(raw))) }
 
     /**
      * 两层选词，排序逐项对应《功能描述.md》「优选单词」那一节。
@@ -270,7 +270,8 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
                 val result = row.entries.associate { it.key.toString() to it.value }.toMutableMap()
                 require((result["id"] as? Number)?.toLong()?.let { it > 0 } == true) { "$table 第 ${index + 1} 行编号无效" }
                 for (column in StudySchema.arrayColumns[table] ?: emptySet()) {
-                    if (result[column] != null) result[column] = strings(result[column])
+                    // 完整恢复保留原顺序和重复元素；音节等列表不能按候选词去重。
+                    if (result[column] != null) result[column] = textArray(result[column])
                 }
                 for (column in listOf("created_at", "updated_at", "deleted_at", "reviewed_at")) {
                     if (column in columns && result[column] != null) require(result[column] is Number && (result[column] as Number).toDouble() == (result[column] as Number).toLong().toDouble()) { "$table.$column 必须是毫秒整数" }
@@ -328,12 +329,17 @@ private fun unwrap(value: Any?): Any? = when (value) {
     is JSONObject -> value.keys().asSequence().associateWith { unwrap(value.get(it)) }
     else -> value
 }
-internal fun strings(raw: Any?): List<String> {
+/** 只校验文本数组；备份和音节需要逐项保留，重复片段也有意义。 */
+internal fun textArray(raw: Any?): List<String> {
     val decoded = if (raw is String) decode(raw) else raw
     if (decoded == null) return emptyList()
     require(decoded is List<*> && decoded.all { it is String }) { "文本数组格式不正确" }
-    return decoded.map { (it as String).trim() }.filter { it.isNotEmpty() }.distinct()
+    return decoded.map { it as String }
 }
+
+/** 候选与单次答案按文本去重；不要用于需要保留重复项的有序资料。 */
+internal fun strings(raw: Any?): List<String> =
+    textArray(raw).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
 /** 批量写入只替换参数，省去每道题重复生成 SQL 和 ContentValues。 */
 internal class BatchInserter(private val statement: SQLiteStatement, private val count: Int) : Closeable {

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../common/theme.dart';
 // 计时格式化（mm:ss），和顶栏右上角计时是同一个函数，保证口径一致。
 import '../common/date.dart';
+import '../common/toast.dart';
 // 结算结果属于业务模型，页面只负责把它画出来。
 import '../models/settlement.dart';
 
@@ -212,10 +213,8 @@ class SettlementWordItem {
 ///    两个都不传时，在 demo 预览里自动返回上一屏。
 ///
 /// 它是「状态自管」的：内部按列表维护每一行的当前难度与是否手动改过，
-/// 点按钮即时刷新本行与顶部胶囊。需要把手动结果回写库时，传 [onAdjust]
-/// 回调即可，组件不关心持久化细节。
-///
-/// 目前通过 `DemoPage` 的 `body` 进入预览（首页「开始复习」临时入口）。
+/// 保存成功后刷新本行与顶部胶囊；失败则保留原值并提示，避免显示尚未保存的难度。
+/// 实际写入由 [onAdjust] 提供，演示页不传时只更新本地显示。
 ///
 class SettlementSummary extends StatefulWidget {
   ///
@@ -227,6 +226,7 @@ class SettlementSummary extends StatefulWidget {
     required this.items,
     this.aggregatedWordElapsed,
     this.showTotalElapsed = true,
+    this.isBusy = false,
     this.onAdjust,
     this.onRetry,
     this.onConfirm,
@@ -250,9 +250,12 @@ class SettlementSummary extends StatefulWidget {
   /// 地拆到单词层级。
   final bool showTotalElapsed;
 
+  /// 页面正在提交整局结算时，暂停所有调整和离开按钮。
+  final bool isBusy;
+
   ///
-  /// 用户手动调整某行难度后的通知；由调用方决定是否落库。
-  final void Function(int index, DifficultyAdjust adjust)? onAdjust;
+  /// 用户手动调整某行难度的保存动作；成功完成后才确认页面上的新值。
+  final Future<void> Function(int index, DifficultyAdjust adjust)? onAdjust;
 
   ///
   /// 底部「再来一次」按钮的点击回调：整轮重做一遍。
@@ -283,6 +286,7 @@ class _SettlementSummaryState extends State<SettlementSummary> {
   ///
   /// 每一行当前的难度状态（初始 = 系统自动结论）。
   late final List<DifficultyAdjust> _adjusts;
+  bool _isSavingAdjustment = false;
 
   @override
   void initState() {
@@ -293,18 +297,26 @@ class _SettlementSummaryState extends State<SettlementSummary> {
 
   ///
   /// 用户点某行按钮：沿循环切到下一态。
-  void _cycle(int index) {
-    setState(() {
-      _adjusts[index] = _nextAdjust(_adjusts[index]);
-    });
-    // 把结果上报给调用方（如需要落库）；不传回调就只更新界面。
-    widget.onAdjust?.call(index, _adjusts[index]);
+  Future<void> _cycle(int index) async {
+    if (_isSavingAdjustment || widget.isBusy) return;
+    final next = _nextAdjust(_adjusts[index]);
+    setState(() => _isSavingAdjustment = true);
+    try {
+      await widget.onAdjust?.call(index, next);
+      if (mounted) setState(() => _adjusts[index] = next);
+    } catch (error) {
+      debugPrint('保存难度调整失败：$error');
+      if (mounted) Toast.show(context, '难度调整未保存，请重试');
+    } finally {
+      if (mounted) setState(() => _isSavingAdjustment = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final canInteract = !widget.isBusy && !_isSavingAdjustment;
 
     // 实时汇总四种计数，顶部胶囊依赖它们。
     var harder = 0; // 难度上升 = 变难
@@ -362,7 +374,7 @@ class _SettlementSummaryState extends State<SettlementSummary> {
         _SettlementRow(
           item: widget.items[i],
           adjust: _adjusts[i],
-          onCycle: () => _cycle(i),
+          onCycle: canInteract ? () => _cycle(i) : null,
           tokens: tokens,
           textTheme: textTheme,
         ),
@@ -410,7 +422,10 @@ class _SettlementSummaryState extends State<SettlementSummary> {
                 // 白底 + 大圆角，与顶部统计胶囊同款描边，成组成套。
                 color: tokens.card,
                 borderRadius: BorderRadius.circular(AppRadius.roundedLg),
-                border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
+                border: Border.all(
+                  color: tokens.rowBorder,
+                  width: AppStroke.thin,
+                ),
               ),
               // 裁掉超出圆角的内容（滚动时子项不会顶到圆角外）。
               child: ClipRRect(
@@ -440,6 +455,7 @@ class _SettlementSummaryState extends State<SettlementSummary> {
             AppSpace.pBase,
           ),
           child: _BottomActions(
+            enabled: canInteract,
             onRetry: widget.onRetry,
             onBackHome: widget.onConfirm,
             tokens: tokens,
@@ -816,7 +832,7 @@ class _SettlementRow extends StatelessWidget {
 
   ///
   /// 点击右侧按钮：请求切到下一难度态。
-  final VoidCallback onCycle;
+  final VoidCallback? onCycle;
 
   ///
   /// 当前主题色板。
@@ -923,7 +939,7 @@ class _DifficultyButton extends StatelessWidget {
 
   ///
   /// 点击回调。
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   ///
   /// 当前主题色板。
@@ -976,11 +992,15 @@ class _BottomActions extends StatelessWidget {
   ///
   /// 创建底部操作区。
   const _BottomActions({
+    required this.enabled,
     required this.onRetry,
     required this.onBackHome,
     required this.tokens,
     required this.textTheme,
   });
+
+  /// 保存中的按钮真正禁用，不能回退到演示页的默认返回行为。
+  final bool enabled;
 
   ///
   /// 「再来一次」点击回调：整轮重做。
@@ -1010,7 +1030,9 @@ class _BottomActions extends StatelessWidget {
           Expanded(
             child: OutlinedButton.icon(
               key: const Key('settlement-retry'),
-              onPressed: onRetry ?? () => Navigator.of(context).maybePop(),
+              onPressed: enabled
+                  ? onRetry ?? () => Navigator.of(context).maybePop()
+                  : null,
               // Tabler 的刷新图标表达「重来一遍」，与听音辨义「再试一次」一致。
               icon: const Icon(AppGlyph.retry, size: AppIcon.i16),
               label: const Text('再来一次'),
@@ -1031,7 +1053,9 @@ class _BottomActions extends StatelessWidget {
           Expanded(
             child: FilledButton.icon(
               key: const Key('settlement-back-home'),
-              onPressed: onBackHome ?? () => Navigator.of(context).maybePop(),
+              onPressed: enabled
+                  ? onBackHome ?? () => Navigator.of(context).maybePop()
+                  : null,
               // 房子图标表达「回到首页」。
               icon: const Icon(AppGlyph.home, size: AppIcon.i16),
               label: const Text('返回首页'),

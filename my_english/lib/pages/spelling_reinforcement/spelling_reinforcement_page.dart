@@ -51,7 +51,14 @@ final RegExp _englishLetterPattern = RegExp(r'^[A-Za-z]$');
 class SpellingWordOutcome {
   ///
   /// 创建一条单词结果。
-  const SpellingWordOutcome({required this.spelling, required this.wrongCount});
+  const SpellingWordOutcome({
+    required this.wordId,
+    required this.spelling,
+    required this.wrongCount,
+  });
+
+  /// 拼写可以相同，结算仍必须认各自的单词编号。
+  final int wordId;
 
   ///
   /// 单词拼写。
@@ -167,14 +174,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 本局已经过去的毫秒数；只在页面处于前台且未结算时累加。
   int _elapsedMs = 0;
-
-  ///
-  /// 当前这个单词是「几点几分几秒」开始答题的。
-  ///
-  /// 生活化解释：右上角那个计时器是**整局**的，退后台会停、切页面也会停；
-  /// 这一块是另一只独立的手表，专门掐「这个单词我盯着看了多久」。
-  /// 结算页每行右边那个用时就是拿「现在」减它算出来的。
-  DateTime _wordStartedAt = DateTime.now();
 
   ///
   /// 本局是否已经把全部单词走完一遍。
@@ -308,12 +307,12 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 重来。这是刻意的取舍：为了半个单词而维护一份快照并不划算。
   void _restoreProgress() {
     _elapsedMs = _progress.session.elapsed * 1000;
-    _wordStartedAt = DateTime.now();
     var next = 0;
     for (final word in widget.words) {
       if (!_progress.progressOf(word.id!).spellingDone) break;
       _outcomes.add(
         SpellingWordOutcome(
+          wordId: word.id!,
           spelling: word.spelling,
           wrongCount: _progress.allRecords
               .where((record) => record.wordId == word.id && !record.isCorrect)
@@ -609,12 +608,13 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     if (!mounted) return;
     // 先把这个词的结果定格下来（结算页统计与「需加强」名单都靠它）。
     final outcome = SpellingWordOutcome(
+      wordId: _currentWord.id!,
       spelling: _currentWord.spelling,
       wrongCount: _currentWrong,
     );
     // 这个词尘埃落定，先把结算草稿真正写入队列，再切换题目或显示结算页。
     // 这样 finishSession 写入待结算标记时不会撞在尚未生成草稿的时间窗口里。
-    await _recordCurrentWord(outcome);
+    await _recordCurrentWord();
     if (!mounted) return;
 
     final isLast = _wordIndex + 1 >= _total;
@@ -628,8 +628,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
         _inputLocked = true;
       } else {
         _wordIndex += 1;
-        // 换到新单词，手表重新掐表。
-        _wordStartedAt = DateTime.now();
         // 进入新词前先清空输入，避免旧单词的字母闪现一帧。
         _typedLetters.clear();
         _typedEntryTokens.clear();
@@ -676,18 +674,14 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 「对 / 错」在每次点击的当下就已经逐次写进了会话记录，这里只负责结算。
   /// 结算会看「本局这个词有没有点错过」，一次都没错才算这一轮答对。
-  Future<void> _recordCurrentWord(SpellingWordOutcome outcome) async {
+  Future<void> _recordCurrentWord() async {
     // 恢复进度后重复走到同一个词不该再算一次，用集合挡住。
     if (!_recordedIndexes.add(_wordIndex)) return;
     final wordId = _currentWord.id;
     // 没有主键的临时数据跳过。
     if (wordId == null) return;
     try {
-      await _progress.settle(
-        wordId,
-        // 本词用时 = 现在 − 这个单词开始答题的那一刻。
-        usedTime: DateTime.now().difference(_wordStartedAt),
-      );
+      await _progress.settle(wordId);
     } catch (error) {
       // 结算失败不该打断正在进行的一局；集合里放回去，后面还有机会补算。
       _recordedIndexes.remove(_wordIndex);
@@ -715,14 +709,10 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 给这一局结算。
   ///
-  /// 判定规则和另两个模块一致：只要把这一局的单词全部走完一遍（[_completed]
-  /// 为 true）就算「完成」，中途答错只影响结算页展示和单词个体难度，
-  /// 不再影响整局成败。中途退出没走完才算「失败」。
-  Future<void> _finishSession() => _progress.finish(
-    perfect: _completed,
-    cursor: _outcomes.length,
-    elapsed: _elapsedSeconds,
-  );
+  /// 全部单词完成后才调用；保存成功之后再展示结算页。
+  /// 中途答错只影响单词结果，普通退出保留进行中的会话。
+  Future<void> _finishSession() =>
+      _progress.finish(cursor: _outcomes.length, elapsed: _elapsedSeconds);
 
   ///
   /// App 前后台切换：退后台停表停声并保存，回前台再继续。
@@ -1146,12 +1136,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   Widget _buildSummary(AppTokens tokens) {
     final items = <SettlementWordItem>[];
     for (final outcome in _outcomes) {
-      final word = widget.words.firstWhere(
-        (item) => item.spelling == outcome.spelling,
-        orElse: () => widget.words.first,
-      );
-      final id = word.id;
-      final draft = id == null ? null : _progress.settlementFor(id);
+      final word = widget.words.firstWhere((item) => item.id == outcome.wordId);
+      final draft = _progress.settlementFor(outcome.wordId);
       final correct = draft?.isCorrect ?? outcome.wrongCount == 0;
       items.add(
         SettlementWordItem(
@@ -1172,6 +1158,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     return SettlementSummary(
       key: const Key('settlement-spelling'),
       items: items,
+      isBusy: _isCommittingSummary,
       // 结算页顶部用所有单词明细的实际用时汇总；右上角仍显示页面停留时间。
       aggregatedWordElapsed: Duration(
         seconds: items.fold<int>(
@@ -1179,14 +1166,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
           (sum, item) => sum + (item.usedTime?.inSeconds ?? 0),
         ),
       ),
-      onAdjust: (index, adjust) {
-        final word = widget.words.firstWhere(
-          (item) => item.spelling == items[index].word,
-          orElse: () => widget.words.first,
-        );
-        final id = word.id;
-        if (id != null) unawaited(_progress.adjustSettlement(id, adjust));
-      },
+      onAdjust: (index, adjust) =>
+          _progress.adjustSettlement(_outcomes[index].wordId, adjust),
       onRetry: () => unawaited(_leaveSummary(retry: true)),
       onConfirm: _leaveSummary,
     );
@@ -1199,13 +1180,16 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       return;
     }
     if (_isCommittingSummary) return;
-    _isCommittingSummary = true;
+    setState(() => _isCommittingSummary = true);
     try {
       await _progress.commitSettlement();
       if (mounted) Navigator.of(context).pop(retry);
     } catch (error) {
-      _isCommittingSummary = false;
       debugPrint('提交拼写巩固结算失败：$error');
+      if (mounted) {
+        setState(() => _isCommittingSummary = false);
+        Toast.show(context, '保存结算失败，请重试：$error');
+      }
     }
   }
 

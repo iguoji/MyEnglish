@@ -216,7 +216,7 @@ class Session {
   /// 关联的每日计划编号；自测没有计划。
   final int? wordSetId;
 
-  /// 本局固定的答题顺序（已解码的原始数组）。
+  /// 原生根据大小题表生成的答题顺序视图，不是单独保存的编号数组。
   final List<Object?> items;
 
   /// 当前进度：普通模块是 [items] 的外层索引；词义连连是已完成的配对数。
@@ -325,7 +325,7 @@ class Session {
     final module = ReviewModule.tryFromStorageKey(map['module']?.toString());
     if (module == null) throw FormatException('会话模块无法识别：${map['module']}');
 
-    // 数据列表以 JSON 文本保存，元素形状因模块而异，这里只还原成原始数组。
+    // 正式接口直接返回大小题的顺序视图；历史调用的 JSON 字符串仍可读取。
     final rawItems = map['items'];
     final decodedItems = rawItems is List
         ? rawItems
@@ -339,7 +339,7 @@ class Session {
       module: module,
       kind: SessionKind.fromCode(map['kind']),
       status: SessionStatus.fromCode(map['status']),
-      // 词库编号可空：巩固局横跨两天，或来源词库已被跨天清理。
+      // 自测不关联每日计划，因此计划编号可以为空。
       wordSetId: map['word_set_id'] is num
           ? (map['word_set_id']! as num).toInt()
           : null,
