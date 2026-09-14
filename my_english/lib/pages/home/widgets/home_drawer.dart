@@ -172,7 +172,7 @@ class HomeDrawer extends StatelessWidget {
                       ),
                       // 10. “学习设置”分区标题，字号比普通菜单项小 2px。
                       const _SectionLabel('学习设置'),
-                      // 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习。
+                      // 11~15. 卡片包裹：口语发音 + 单词分隔 + 每日复习 + 连对变易。
                       // 卡片有 padding、无边框、有背景色（tokens.expand）。
                       _SettingsCard(settings: settings),
                     ],
@@ -723,43 +723,6 @@ class _SettingsCardState extends State<_SettingsCard> {
   }
 
   ///
-  /// 保存中文释义分隔符，并沿用口音设置相同的失败提示流程。
-  Future<void> _setDefinitionSeparator(DefinitionSeparator value) async {
-    // 已有设置正在写入时忽略并发点击，避免磁盘值与界面选择交错。
-    if (_isSaving) return;
-    // 进入保存状态后其他持久化选项会暂时拒绝重复操作。
-    setState(() => _isSaving = true);
-    try {
-      // 等待 Android SharedPreferences 明确返回写入成功。
-      await widget.settings.setDefinitionSeparator(value);
-    } catch (error) {
-      // 页面仍存在时把原生错误展示给用户。
-      if (mounted) _showSaveError(error);
-    } finally {
-      // 面板可能已关闭，因此先检查 mounted 再恢复状态。
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  ///
-  /// 保存文字大小档位，流程与口音、分隔符完全一致。
-  ///
-  /// 这一项落盘成功后，全站文字会立刻按新倍数重排——不是只有这张卡片变，
-  /// 而是首页、词库、四个练习页一起变，因为放大是挂在 App 最外层的。
-  Future<void> _setFontScale(AppFontScale value) async {
-    // 已有设置正在写入时忽略并发点击。
-    if (_isSaving) return;
-    setState(() => _isSaving = true);
-    try {
-      await widget.settings.setFontScale(value);
-    } catch (error) {
-      if (mounted) _showSaveError(error);
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  ///
   /// 统一显示设置保存错误。
   void _showSaveError(Object error) {
     // Toast 基于根 Overlay，层级高于 Drawer。
@@ -806,32 +769,10 @@ class _SettingsCardState extends State<_SettingsCard> {
                   onTap: (accent) => unawaited(_setAccent(accent)),
                 ),
               ),
-              // 13. 单词分隔 + 、/，/；分段选择器。
-              _SettingRow(
-                label: '单词分隔',
-                // 中间行画分隔线，与下方每日复习分隔。
-                showDivider: true,
-                horizontalPadding: AppSpace.p2,
-                control: _SeparatorControl(
-                  settings: widget.settings,
-                  onTap: (separator) =>
-                      unawaited(_setDefinitionSeparator(separator)),
-                ),
-              ),
-              // 14. 字体大小 + 标准/大/特大分段选择器（俗称老年版开关）。
-              _SettingRow(
-                label: '字体大小',
-                showDivider: true,
-                horizontalPadding: AppSpace.p2,
-                control: _FontScaleControl(
-                  settings: widget.settings,
-                  onTap: (scale) => unawaited(_setFontScale(scale)),
-                ),
-              ),
-              // 15. 每日复习步进器（不再是最后一行，下方接词义连连）。
+              // 15. 每日复习步进器。
               _DailyGoalRow(settings: widget.settings),
-              // 16. 词义连连倒计时步进器（卡片内最后一行，不画分隔线）。
-              _MeaningMatchDurationRow(settings: widget.settings),
+              // 16. 连对变易步进器：连续答对多少轮后单词难度自动 -1（默认 5）。
+              _StreakToEasierRow(settings: widget.settings),
             ],
           );
         },
@@ -915,166 +856,6 @@ class _AccentControl extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-///
-/// 单词分隔分段选择器：、/，/；。
-///
-/// 轨道宽度与口语发音一致 [_kSettingControlWidth]，三个段钮均分。
-///
-class _SeparatorControl extends StatelessWidget {
-  ///
-  /// 接收设置 Store 与选择回调。
-  const _SeparatorControl({required this.settings, required this.onTap});
-
-  ///
-  /// 全局设置 Store，读取当前分隔符。
-  final SettingsStore settings;
-
-  ///
-  /// 点击某个分隔符后的回调。
-  final void Function(DefinitionSeparator) onTap;
-
-  ///
-  /// 输出固定宽轨道 + 三个段钮。
-  @override
-  Widget build(BuildContext context) {
-    // 读取当前明暗对应的设计令牌。
-    final tokens = AppTokens.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      // 与口语发音等宽。
-      width: _kSettingControlWidth,
-      // 高度取分段轨道那一档（`controlTrackHeight`），与口语发音 / 每日复习统一。
-      height: HomeDrawerLayout.controlTrackHeight,
-      // 四周内边距与口语发音那一行一致（`p2`）。
-      padding: const EdgeInsets.all(AppSpace.p2),
-      decoration: BoxDecoration(
-        color: tokens.sub,
-        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
-      ),
-      child: Row(
-        // 三个段钮均分轨道宽度。
-        children: [
-          for (final separator in DefinitionSeparator.values)
-            Expanded(
-              child: InkWell(
-                // key 供 Widget 测试和自动化准确选择标点。
-                key: Key('definition-separator-${separator.storageValue}'),
-                onTap: () => onTap(separator),
-                borderRadius: BorderRadius.circular(AppRadius.rounded),
-                child: Container(
-                  height: HomeDrawerLayout.controlSegmentHeight,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    // 当前符号使用卡片底浮起，其他符号保持透明。
-                    color: settings.definitionSeparator == separator
-                        ? tokens.card
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(AppRadius.rounded),
-                  ),
-                  child: Text(
-                    separator.symbol,
-                    style: textTheme.fs5Semibold.copyWith(
-                      color: settings.definitionSeparator == separator
-                          ? AppTokens.primary
-                          : tokens.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-///
-/// 字体大小分段选择器：标准 / 大 / 特大。
-///
-/// 轨道宽度与口语发音、单词分隔一致 [_kSettingControlWidth]，三个段钮均分。
-///
-/// 这个控件有一处和兄弟控件不同的处理：段钮里的文字包了一层 [FittedBox]。
-/// 原因是它本身就是「调字号」的开关——选到特大之后，连它自己的三个段钮文字
-/// 也会跟着变大，而轨道宽度是固定的。包一层之后文字最多缩着显示，
-/// 不会把「特大」两个字挤掉一半。
-///
-class _FontScaleControl extends StatelessWidget {
-  ///
-  /// 接收设置 Store 与选择回调。
-  const _FontScaleControl({required this.settings, required this.onTap});
-
-  ///
-  /// 全局设置 Store，读取当前档位。
-  final SettingsStore settings;
-
-  ///
-  /// 点击某个档位后的回调。
-  final void Function(AppFontScale) onTap;
-
-  ///
-  /// 输出固定宽轨道 + 三个段钮。
-  @override
-  Widget build(BuildContext context) {
-    // 读取当前明暗对应的设计令牌。
-    final tokens = AppTokens.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      // 与口语发音等宽。
-      width: _kSettingControlWidth,
-      // 高度取分段轨道那一档（`controlTrackHeight`），与其余三种控件统一。
-      height: HomeDrawerLayout.controlTrackHeight,
-      // 四周内边距与口语发音那一行一致（`p2`）。
-      padding: const EdgeInsets.all(AppSpace.p2),
-      decoration: BoxDecoration(
-        color: tokens.sub,
-        borderRadius: BorderRadius.circular(AppRadius.roundedLg),
-      ),
-      child: Row(
-        // 三个段钮均分轨道宽度。
-        children: [
-          for (final scale in AppFontScale.values)
-            Expanded(child: _segment(scale, tokens, textTheme)),
-        ],
-      ),
-    );
-  }
-
-  ///
-  /// 输出一个段钮：当前档位浮起并转成品牌蓝，其余保持透明。
-  ///
-  /// 文字样式表由 build 取一次再递进来：本方法没有自己的 context，
-  /// 三个段钮各自再取一遍反而更绕。
-  Widget _segment(AppFontScale scale, AppTokens tokens, TextTheme textTheme) {
-    // 是否为当前生效的档位。
-    final isActive = settings.fontScale == scale;
-    return InkWell(
-      // key 供 Widget 测试和自动化准确选择档位。
-      key: Key('font-scale-${scale.storageValue}'),
-      onTap: () => onTap(scale),
-      borderRadius: BorderRadius.circular(AppRadius.rounded),
-      child: Container(
-        height: HomeDrawerLayout.controlSegmentHeight,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          // 当前档位使用卡片底浮起。
-          color: isActive ? tokens.card : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.rounded),
-        ),
-        // scaleDown 只在放不下时才缩小，正常字号下不影响观感。
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            scale.label,
-            style: textTheme.fs6Semibold.copyWith(
-              color: isActive ? AppTokens.primary : tokens.textSecondary,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -1215,49 +996,48 @@ class _DailyGoalRowState extends State<_DailyGoalRow> {
 }
 
 ///
-/// 词义连连倒计时的步进器行：步长 30、默认 150，读写全局设置 meaningMatchDuration。
+/// 连对变易的步进器行：步长 1、默认 5，读写全局设置 [SettingsStore.streakToEasier]。
 ///
-/// 交互与“每日复习”完全一致（减/加按钮 + 当前值），只是改动的是词义连连的倒计时秒数。
-///
-class _MeaningMatchDurationRow extends StatefulWidget {
+/// 含义通俗讲：连续答对多少轮，单词难度就自动 -1。所以数字调小 = 更容易变易
+/// （更早降难度），调大 = 更难变易。交互与「每日复习 / 词义连连」完全一致
+/// （减/加按钮 + 当前值），只是读写的是「连对变易」这一项。
+class _StreakToEasierRow extends StatefulWidget {
   ///
   /// 接收全局设置 Store。
-  const _MeaningMatchDurationRow({required this.settings});
+  const _StreakToEasierRow({required this.settings});
 
   ///
-  /// 全局设置 Store，读取与修改词义连连倒计时。
+  /// 全局设置 Store，读取与修改连对变易阈值。
   final SettingsStore settings;
 
   ///
-  /// 创建局部状态，避免连续点击造成多个 SharedPreferences 写入交错。
+  /// 创建局部状态，避免连续点击造成多次写入交错。
   @override
-  State<_MeaningMatchDurationRow> createState() =>
-      _MeaningMatchDurationRowState();
+  State<_StreakToEasierRow> createState() => _StreakToEasierRowState();
 }
 
 ///
-/// 管理词义连连倒计时步进按钮的异步保存状态。
-///
-class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
+/// 管理连对变易步进按钮的异步保存状态。
+class _StreakToEasierRowState extends State<_StreakToEasierRow> {
   ///
   /// true 表示正在等待 Android 确认磁盘写入。
   bool _isSaving = false;
 
   ///
-  /// 把倒计时增加或减少一个步长（30 秒），并统一处理保存失败。
+  /// 把阈值增加或减少一个步长（1），并统一处理保存失败。
   Future<void> _change(int delta) async {
     // 保存期间忽略重复点击，避免较慢设备上发生写入顺序倒置。
     if (_isSaving) return;
     // 禁用两个按钮，直到本次写入结束。
     setState(() => _isSaving = true);
     try {
-      // 基于当前已确认的秒数计算新值；Store 会把负数钳制为 0。
-      await widget.settings.setMeaningMatchDuration(
-        widget.settings.meaningMatchDuration + delta,
+      // 基于当前已确认的阈值计算新值；Store 会把 <1 的值钳制为 1。
+      await widget.settings.setStreakToEasier(
+        widget.settings.streakToEasier + delta,
       );
     } catch (error) {
       // 写入失败时 Store 不改变内存值，并向用户说明原因。
-      if (mounted) Toast.show(context, '词义连连倒计时保存失败：$error');
+      if (mounted) Toast.show(context, '连对变易保存失败：$error');
     } finally {
       // 抽屉仍在组件树中时恢复按钮。
       if (mounted) setState(() => _isSaving = false);
@@ -1265,41 +1045,45 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
   }
 
   ///
-  /// 输出 52 高的步进器行。
+  /// 输出步进器行。
   @override
   Widget build(BuildContext context) {
     // 读取当前明暗对应的设计令牌。
     final tokens = AppTokens.of(context);
     final textTheme = Theme.of(context).textTheme;
-    // ListenableBuilder 让秒数值变化后只刷新本行。
+    // ListenableBuilder 让阈值变化后只刷新本行。
     return ListenableBuilder(
-      // 监听同一个全局 SettingsStore。
       listenable: widget.settings,
-      // 根据最新秒数重新构建。
       builder: (context, child) {
+        // 阈值下限为 1：到达下限时禁用减按钮，避免无意义的写盘。
+        final atFloor = widget.settings.streakToEasier <= 1;
         return _SettingRow(
-          label: '词义连连',
-          // 卡片内最后一行，不画分隔线。
-          showDivider: false,
+          label: '连对变易',
+          // 下方还有“词义连连”行，这里画分隔线把两行隔开。
+          showDivider: true,
           // 右侧容器：与每日复习等宽的步进轨道。
           horizontalPadding: AppSpace.p2,
           control: Container(
             // 与每日复习等宽。
             width: _kSettingControlWidth,
-            // 高度取分段轨道那一档（`controlTrackHeight`），与每日复习统一。
+            // 高度取分段轨道那一档（controlTrackHeight），与每日复习统一。
             height: HomeDrawerLayout.controlTrackHeight,
             padding: const EdgeInsets.all(AppSpace.p2),
             decoration: BoxDecoration(
+              // 同样的背景色。
               color: tokens.sub,
+              // 同样的圆角。
               borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             child: Row(
               children: [
-                // 减 30：去掉边框，仅图标。
+                // 减 1：去掉边框，仅图标；到下限(1)时禁用。
                 Expanded(
                   child: InkWell(
-                    key: const Key('meaning-match-minus'),
-                    onTap: _isSaving ? null : () => unawaited(_change(-30)),
+                    key: const Key('streak-to-easier-minus'),
+                    onTap: _isSaving || atFloor
+                        ? null
+                        : () => unawaited(_change(-1)),
                     borderRadius: BorderRadius.circular(AppRadius.rounded),
                     child: Container(
                       height: HomeDrawerLayout.controlSegmentHeight,
@@ -1308,7 +1092,7 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
                     ),
                   ),
                 ),
-                // 当前秒数（默认 150）。
+                // 当前阈值（默认 5）。
                 Container(
                   constraints: const BoxConstraints(
                     minWidth: HomeDrawerLayout.stepperValueMinWidth,
@@ -1316,18 +1100,18 @@ class _MeaningMatchDurationRowState extends State<_MeaningMatchDurationRow> {
                   height: HomeDrawerLayout.controlSegmentHeight,
                   alignment: Alignment.center,
                   child: Text(
-                    widget.settings.meaningMatchDuration.toString(),
+                    widget.settings.streakToEasier.toString(),
                     style: textTheme.fs5Semibold.copyWith(
                       // 等宽数字避免加减时宽度跳动。
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
-                // 加 30：去掉边框，仅图标。
+                // 加 1：去掉边框，仅图标。
                 Expanded(
                   child: InkWell(
-                    key: const Key('meaning-match-plus'),
-                    onTap: _isSaving ? null : () => unawaited(_change(30)),
+                    key: const Key('streak-to-easier-plus'),
+                    onTap: _isSaving ? null : () => unawaited(_change(1)),
                     borderRadius: BorderRadius.circular(AppRadius.rounded),
                     child: Container(
                       height: HomeDrawerLayout.controlSegmentHeight,

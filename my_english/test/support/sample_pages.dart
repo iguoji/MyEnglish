@@ -22,6 +22,8 @@ import 'package:my_english/widgets/module_scaffold.dart';
 // 内存 Store，避免 Widget 测试触碰原生通道。
 import 'memory_session_store.dart';
 import 'memory_word_store.dart';
+// 会话装配件：按真实规则编一份完整试卷，页面才看得到题目。
+import 'session_fixture.dart';
 
 ///
 /// 「整页级」检查共用的样本页面清单。
@@ -102,14 +104,20 @@ List<SamplePage> samplePages() => <SamplePage>[
   SamplePage(
     slug: 'home',
     title: '首页',
-    build: () => HomePage(
-      store: MemoryWordStore(sampleWords()),
-      settings: SettingsStore.inMemory(),
-      audioPlayer: SilentAudioPlayer(),
-      sessionStore: MemorySessionStore(),
-      // 时间也是一个注入项：钉死它，首页那两张基准截图才不会每天自己变。
-      clock: () => sampleNow,
-    ),
+    // 首页要读「今日计划」，而计划里缺词时得回去问词库补缺——会话库与词表
+    // 必须是同一个词库的两半，只挂会话库的话首页会报「没有挂词表 Store」，
+    // 截下来的就是一张「读取今日词库失败」的错误态。
+    build: () {
+      final wordStore = MemoryWordStore(sampleWords());
+      return HomePage(
+        store: wordStore,
+        settings: SettingsStore.inMemory(),
+        audioPlayer: SilentAudioPlayer(),
+        sessionStore: MemorySessionStore()..wordStore = wordStore,
+        // 时间也是一个注入项：钉死它，首页那两张基准截图才不会每天自己变。
+        clock: () => sampleNow,
+      );
+    },
   ),
   SamplePage(
     slug: 'listening',
@@ -214,33 +222,31 @@ Word _word(int id, int meaningId, String spelling, String pos, String def) =>
 ///
 /// 造一局「刚开始」的会话进度出口。
 ///
-/// 词义连连的数据列表是 `[单词id, 含义id]` 成对，看义选词是一串含义主键，
-/// 其余模块是单词主键；这里按模块分别给出，与页面真实读取的口径一致。
+/// 关键在于这一局必须是**完整的**：一局练习在库里是四层——会话 → 大题 →
+/// 小题 → 考察对象，另外还带一份开局那一刻的词库快照。页面读的是 `session.groups`
+/// 与 `session.snapshotWords`，只塞一个 `items` 的话页面会看到一份空试卷：
+/// 词义连连会直接抛 `RangeError`（红屏），看义选词会以为「全答完了」跳到结算页，
+/// 基准截图就成了一堆错误状态。所以这里走 [buildSession]，与真实开局同一套编题规则。
+///
+/// [seed] 钉死随机源：词义连连的分组与看义选词的干扰项都带随机性，
+/// 不钉的话每次跑出来的图都不一样。
+///
+/// `corpusWords` 同样不能省：候选词是按词库现算的，缺了它 [QuestionOptions] 会去问
+/// 原生通道要整份词库，而 Widget 测试里那条通道没有实现——候选区会一直空着。
 SessionProgress sampleProgress(ReviewModule module, List<Word> words) {
-  final items = switch (module) {
-    ReviewModule.meaningMatch => <List<int>>[
-      for (final word in words) <int>[word.id!, word.allMeanings.single.id!],
-    ],
-    ReviewModule.meaningWordChoice => <int>[
-      for (final word in words) word.allMeanings.single.id!,
-    ],
-    _ => <int>[for (final word in words) word.id!],
-  };
+  final session = buildSession(
+    id: 1,
+    module: module,
+    words: words,
+    date: '2026-09-05',
+    seed: 1,
+  );
+  final store = MemorySessionStore()..seedSession(session);
   return SessionProgress(
-    store: MemorySessionStore(),
-    session: Session(
-      id: 1,
-      module: module,
-      kind: SessionKind.daily,
-      status: SessionStatus.active,
-      wordSetId: 1,
-      items: items,
-      cursor: 0,
-      elapsed: 0,
-      date: '2026-09-05',
-      createdAt: DateTime.utc(2026, 9, 5),
-    ),
+    store: store,
+    session: session,
     records: const <SessionRecord>[],
+    corpusWords: words,
   );
 }
 

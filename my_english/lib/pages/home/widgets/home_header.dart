@@ -37,7 +37,7 @@ class HomeHeader extends StatelessWidget {
   final int dailyGoal;
 
   ///
-  /// 今日复习已完成的单词数（去重），来自真实 record，显示在副标题里。
+  /// 今日复习已完成的单词数（去重），来自已落实的结算，显示在副标题里。
   final int reviewCount;
 
   ///
@@ -76,7 +76,7 @@ class HomeHeader extends StatelessWidget {
               const SizedBox(height: AppSpace.p1),
               // 第二行按设计稿显示收录统计与今日复习进度。
               Text(
-                // 今日复习数来自真实记录：今天已听音辨义（按词去重）的单词数 / 每日目标。
+                // 今日复习数来自真实记录：今天已结算（按词去重）的单词数 / 每日目标。
                 '已收录 $wordCount 个单词 · 今日复习 $reviewCount/$dailyGoal',
                 // 副标题走正文档（14），只把颜色降到次要灰。
                 // 字号、字重、行距全部继承主题，这里不重复设置。

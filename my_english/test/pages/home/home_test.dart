@@ -16,6 +16,8 @@ import 'package:my_english/common/date.dart';
 import 'package:my_english/pages/home/home.dart';
 // 引入全局 Meaning 与 Word 模型。
 import 'package:my_english/models/session.dart';
+// 恢复用例需要手工拼一条带完整大题/小题的会话。
+import 'package:my_english/models/session_question.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入两个学习页，核对它们收到的单词快照与首页完全一致。
@@ -76,7 +78,6 @@ void main() {
     // 入口与内嵌设置全部出现：原"设置"项已被可直接操作的内嵌设置取代。
     expect(find.text('添加单词'), findsOneWidget);
     expect(find.text('口语发音'), findsOneWidget);
-    expect(find.text('单词分隔'), findsOneWidget);
     expect(find.text('每日复习'), findsOneWidget);
     expect(find.text('数据导出'), findsOneWidget);
     // 页脚只显示 Github 与邮箱两个图标，不再有文字。
@@ -154,7 +155,6 @@ void main() {
       await tester.pumpAndSettle();
       // 三项设置标题都存在（黑暗模式开关已移至顶部图标按钮）。
       expect(find.text('口语发音'), findsOneWidget);
-      expect(find.text('单词分隔'), findsOneWidget);
       expect(find.text('每日复习'), findsOneWidget);
       // 默认值：美式、全角分号、Light、50。
       expect(settings.accent, PronunciationAccent.american);
@@ -169,12 +169,6 @@ void main() {
       await tester.tap(find.byKey(const Key('accent-british')));
       await tester.pump();
       expect(settings.accent, PronunciationAccent.british);
-      // 切换为中文全角逗号。
-      await tester.tap(
-        find.byKey(const Key('definition-separator-full_width_comma')),
-      );
-      await tester.pump();
-      expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
       // 点击顶部主题切换图标，从 Light 切到 Dark。
       await tester.tap(find.byKey(const Key('theme-toggle')));
       await tester.pumpAndSettle();
@@ -406,23 +400,16 @@ void main() {
     // 物理像素换算成 Flutter 使用的逻辑宽度。
     final logicalWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
-    // 列表宽度覆盖整个逻辑屏幕。
+    // 列表宽度覆盖整个逻辑屏幕（词库面板同样左右贴边）。
     expect(tester.getSize(listFinder).width, logicalWidth);
-    // 物理高度同样换算成逻辑高度。
-    final logicalHeight =
-        tester.view.physicalSize.height / tester.view.devicePixelRatio;
-    // Expanded 让列表一直长到底部学习操作栏为止：列表底边正好接上
-    // 「随身听 / 听音辨义」那一条，两者之间不留任何空隙。
-    final learningBar = find.byKey(const Key('word-library-learning-bar'));
+    // 列表向下一直撑到词库面板底部。新版首页把列表放进底部抽屉，学习入口是
+    // 悬浮在列表上方的一层，不占列表高度；因此列表底边应当正好落在面板底边上、
+    // 中间不留任何空隙（原来「列表底边接住底部操作栏」的旧几何已不适用）。
+    final surfaceFinder = find.byKey(const Key('word-library-surface'));
+    expect(surfaceFinder, findsOneWidget);
     expect(
       tester.getBottomRight(listFinder).dy,
-      tester.getTopLeft(learningBar).dy,
-    );
-    // 操作栏下面只剩 SafeArea 给系统手势区留的呼吸位（p3 档），
-    // 也就是说列表下方除了这条操作栏没有别的东西。
-    expect(
-      tester.getBottomRight(learningBar).dy,
-      logicalHeight - AppSpace.p3,
+      tester.getBottomRight(surfaceFinder).dy,
     );
 
     // 清理页面。
@@ -448,11 +435,20 @@ void main() {
     );
     // 两者必须共享同一个控制器，拖动才会真正改变列表位置。
     expect(scrollbar.controller, same(scrollView.controller));
-    // 学习入口已移到列表外部，末尾只保留 p3 档的正常呼吸空间。
+    // 学习入口以悬浮胶囊形式压在列表底部，列表末尾必须留出「能滚到胶囊上方」
+    // 的余量，否则最后一行会被胶囊挡住。这条余量随悬浮入口高度与安全区一起变化，
+    // 这里直接引用生产代码的同一公式（悬浮入口总高 + 安全区底边），
+    // 避免把某个巧合数字抄进测试——以后调胶囊高度，测试跟着一起动。
+    final scrollViewElement = tester.element(
+      find.byKey(const Key('word-list-scroll-view')),
+    );
+    final safeBottom = MediaQuery.of(scrollViewElement).padding.bottom;
     final bottomPadding = scrollView.slivers.last as SliverPadding;
     expect(
       bottomPadding.padding,
-      const EdgeInsets.only(bottom: AppSpace.p3),
+      EdgeInsets.only(
+        bottom: WordLibraryLayout.learningOverlayExtent + safeBottom,
+      ),
     );
 
     // 清理页面。
@@ -1487,99 +1483,128 @@ void main() {
     // 打开首页（两个单词）。
     await _pumpHome(tester);
 
-    // 不再显示悬浮“学习”按钮，两个入口固定在单词列表底部安全区。
+    // 不再有悬浮「学习」按钮，学习入口已全部收进词库底部的胶囊里。
     expect(find.text('学习'), findsNothing);
-    expect(find.text('随身听 · 2'), findsOneWidget);
-    expect(find.text('听音辨义 · 2'), findsOneWidget);
-    // 没有本地未完成会话时，右侧不能预留空的继续按钮或间距。
-    expect(
-      find.byKey(const Key('word-library-listening-continue')),
-      findsNothing,
+    // 胶囊上方那行词数按当前模块显示；默认模块是随身听，等于全部可见词数 2。
+    final countFinder = find.byKey(const Key('word-library-target-count'));
+    expect(countFinder, findsOneWidget);
+    expect(tester.widget<Text>(countFinder).data, '2 个单词');
+    // 模块切换与开始入口都在胶囊内，各出现一次。
+    expect(find.byKey(const Key('word-library-module-switch')), findsOneWidget);
+    expect(find.byKey(const Key('word-library-module-start')), findsOneWidget);
+    // 没有可继续的会话时，继续入口虽然占据固定位置，但处于禁用状态，
+    // 不会给出可点的假入口（旧版「按模块各留一个继续按钮」的结构已不复存在）。
+    final continueFinder = find.byKey(
+      const Key('word-library-module-continue'),
     );
-    expect(
-      find.byKey(const Key('word-library-listening-meaning-continue')),
-      findsNothing,
-    );
+    expect(continueFinder, findsOneWidget);
+    // 禁用态的直接证据：key 挂在可点击的 InkWell 上，禁用时它的 onTap 为 null。
+    expect(tester.widget<InkWell>(continueFinder).onTap, isNull);
 
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('flat learning actions expose and restore saved sessions', (
+  testWidgets('module continue restores a saved self-test in historical order', (
     tester,
   ) async {
-    // 两种学习方式都准备一条进行中的会话；随身听列表故意使用与首页相反的顺序。
-    final sessionStore = MemorySessionStore();
-    final listeningSessionId = await sessionStore.createSession(
-      module: ReviewModule.listening,
-      kind: SessionKind.reinforce,
-      wordSetId: null,
-      items: const <int>[2, 1],
-      date: todayKey(),
-    );
-    // 随身听已播到第 2 个（index 1），验证继续能恢复到历史顺序的中间位置。
-    await sessionStore.updateProgress(
-      sessionId: listeningSessionId,
-      cursor: 1,
-      elapsed: 0,
-    );
-    await sessionStore.createSession(
-      module: ReviewModule.listeningMeaning,
-      kind: SessionKind.reinforce,
-      wordSetId: null,
-      items: const <int>[1, 2],
-      date: todayKey(),
-    );
-    await _pumpHome(tester, sessionStore: sessionStore);
-
-    // 两个平铺入口的右侧都直接显示独立继续按钮。
-    final playerAction = tester.getRect(
-      find.byKey(const Key('word-library-listening-action')),
-    );
-    final playerContinue = tester.getRect(
-      find.byKey(const Key('word-library-listening-continue')),
-    );
-    expect(
-      find.byKey(const Key('word-library-listening-meaning-continue')),
-      findsOneWidget,
-    );
-    // 继续按钮固定在随身听入口的最右侧，并保持 40 像素独立点击宽度。
-    // 入口外框有 1 像素描边，按钮画在描边内侧，所以右边缘正好差这 1 像素。
-    expect(playerContinue.right, closeTo(playerAction.right - 1, 0.1));
-    expect(playerContinue.width, 40);
-
-    // 点击随身听继续后，恢复列表必须使用历史顺序，而非首页当前顺序。
-    await tester.tap(find.byKey(const Key('word-library-listening-continue')));
-    await tester.pumpAndSettle();
-    final listeningPage = tester.widget<ListeningPage>(
-      find.byType(ListeningPage),
-    );
-    expect(
-      listeningPage.words.map((word) => word.id).toList(growable: false),
-      <int?>[2, 1],
-    );
-    expect(find.text('2 / 2'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  // 验证未勾选时，随身听和听音辨义都接收首页当前完整列表顺序。
-  testWidgets('learning pages receive the same full ordered snapshot', (
-    tester,
-  ) async {
-    // 故意使用与字母升序不同的原始顺序，避免测试仅因默认数据巧合通过。
+    // 新版首页里随身听的续播清单由设置维护，只有四个自测模块的会话才从会话库
+    // 读取；因此这里给「听音辨义」准备一条进行中的会话，故意用与首页相反的
+    // 顺序，验证「继续」按历史顺序恢复，而不是按当前首页顺序。
+    //
+    // 词库给 6 个词：听音辨义开局要凑出 4 个不同候选，词太少会凑不齐而报错，
+    // 所以不能沿用默认的两词样本。
     final words = <Word>[
       Word(id: 21, spelling: 'zebra'),
       Word(id: 22, spelling: 'apple'),
       Word(id: 23, spelling: 'middle'),
+      Word(id: 24, spelling: 'banana'),
+      Word(id: 25, spelling: 'cherry'),
+      Word(id: 26, spelling: 'grape'),
+    ];
+    final sessionStore = MemorySessionStore(
+      initialSessions: <Session>[
+        _resumableSelfTestSession(
+          module: ReviewModule.listeningMeaning,
+          // 历史顺序故意与首页可见顺序（22、24、25、26、23、21）不同。
+          words: <Word>[
+            words[5],
+            words[0],
+            words[3],
+            words[2],
+            words[1],
+            words[4],
+          ],
+          date: todayKey(),
+        ),
+      ],
+    );
+    await _pumpHome(tester, words: words, sessionStore: sessionStore);
+
+    // 默认模块是随身听，其续播入口由设置驱动、此时为空，继续按钮处于禁用
+    // （key 挂在可点击的 InkWell 上，禁用时 onTap 为 null）。
+    expect(
+      tester
+          .widget<InkWell>(
+            find.byKey(const Key('word-library-module-continue')),
+          )
+          .onTap,
+      isNull,
+    );
+
+    // 展开模块菜单并切到「听音辨义」。
+    await tester.tap(find.byKey(const Key('word-library-module-switch')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('word-library-mode-listening_meaning')),
+    );
+    await tester.pumpAndSettle();
+
+    // 切到听音辨义后，会话库里那条进行中的会话让继续按钮变为可用。
+    final continueFinder = find.byKey(
+      const Key('word-library-module-continue'),
+    );
+    expect(tester.widget<InkWell>(continueFinder).onTap, isNotNull);
+
+    // 点击继续后，恢复列表必须使用历史顺序，而非首页当前顺序。
+    await tester.tap(continueFinder);
+    await tester.pumpAndSettle();
+    final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
+      find.byType(ListeningMeaningPage),
+    );
+    expect(
+      listeningMeaningPage.words.map((word) => word.id).toList(growable: false),
+      <int?>[26, 21, 24, 23, 22, 25],
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 验证未勾选时随身听拿到首页当前完整列表顺序，而自测模块保持不可开局。
+  testWidgets('unselected listening uses the full list while self-tests stay blocked', (
+    tester,
+  ) async {
+    // 画布加高让 6 行全部渲染，_visibleWordIds 才能读到完整顺序（列表是惰性
+    // 构建的，视口外的行不会建出来）；故意打乱原始顺序，避免测试仅因默认数据
+    // 巧合通过。
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final words = <Word>[
+      Word(id: 21, spelling: 'zebra'),
+      Word(id: 22, spelling: 'apple'),
+      Word(id: 23, spelling: 'middle'),
+      Word(id: 24, spelling: 'banana'),
+      Word(id: 25, spelling: 'cherry'),
+      Word(id: 26, spelling: 'grape'),
     ];
     // 渲染首页；默认排序已对齐“字母”规则，直接进入字母升序。
     await _pumpHome(tester, words: words);
-    // 当前首页列表应为 apple、middle、zebra。
-    expect(_visibleWordIds(tester), <int?>[22, 23, 21]);
+    // 当前首页列表应为 apple、banana、cherry、grape、middle、zebra。
+    expect(_visibleWordIds(tester), <int?>[22, 24, 25, 26, 23, 21]);
 
-    // 从底部平铺入口进入随身听。
-    await tester.tap(find.byKey(const Key('word-library-listening-action')));
+    // 从模块胶囊的「开始」进入随身听（默认模块即随身听）。
+    await tester.tap(find.byKey(const Key('word-library-module-start')));
     await tester.pumpAndSettle();
     // 直接读取随身听 Widget 接收的 Word 对象顺序。
     final listeningPage = tester.widget<ListeningPage>(
@@ -1587,26 +1612,37 @@ void main() {
     );
     expect(
       listeningPage.words.map((word) => word.id).toList(growable: false),
-      <int?>[22, 23, 21],
+      <int?>[22, 24, 25, 26, 23, 21],
     );
     // 返回首页。
     await tester.tap(find.byKey(const Key('close-listening')));
     await tester.pumpAndSettle();
 
-    // 从另一个平铺入口进入听音辨义。
+    // 展开模块菜单，切到「听音辨义」。
+    await tester.tap(find.byKey(const Key('word-library-module-switch')));
+    await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const Key('word-library-listening-meaning-action')),
+      find.byKey(const Key('word-library-mode-listening_meaning')),
     );
     await tester.pumpAndSettle();
-    // 听音辨义的真正学习列表必须与刚才的随身听完全相同。
-    final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
-      find.byType(ListeningMeaningPage),
+    // 自测和随身听的口径不同：随身听可以「没勾选就用全部」，
+    // 自测必须先圈定要测的词，没勾选时可选词数为 0、开始按钮保持禁用，
+    // 不会悄悄拿整库开一局。
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('word-library-target-count')))
+          .data,
+      '0 个单词',
     );
     expect(
-      listeningMeaningPage.words.map((word) => word.id).toList(growable: false),
-      <int?>[22, 23, 21],
+      tester
+          .widget<InkWell>(find.byKey(const Key('word-library-module-start')))
+          .onTap,
+      isNull,
     );
-    // 销毁学习页并停止测试音频。
+    // 点了也进不去：页面上不该出现听音辨义。
+    expect(find.byType(ListeningMeaningPage), findsNothing);
+    // 销毁页面并停止测试音频。
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1614,43 +1650,61 @@ void main() {
   testWidgets('selected learning snapshot preserves visible list order', (
     tester,
   ) async {
-    // 原数据与上一用例一致。
+    // 自测要求至少 5 个单词才能开局，这里用 6 个；加高画布让 6 行全部渲染，
+    // 才能逐行点选（列表惰性构建，视口外的行点不到）。
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     final words = <Word>[
       Word(id: 21, spelling: 'zebra'),
       Word(id: 22, spelling: 'apple'),
       Word(id: 23, spelling: 'middle'),
+      Word(id: 24, spelling: 'banana'),
+      Word(id: 25, spelling: 'cherry'),
+      Word(id: 26, spelling: 'grape'),
     ];
     // 打开首页；默认排序已对齐“字母”规则，直接进入字母升序。
     await _pumpHome(tester, words: words);
     // 进入选择模式。
     await tester.tap(find.byKey(const Key('toggle-select-mode')));
     await tester.pump();
-    // 故意先勾选列表底部 zebra，再勾选中间 middle。
-    await tester.tap(find.text('zebra'));
-    await tester.pump();
-    await tester.tap(find.text('middle'));
-    await tester.pump();
-    expect(find.text('已选 2'), findsOneWidget);
+    // 故意用打乱的点击顺序勾选 5 个（跳过 banana），验证结果按首页顺序排。
+    for (final spelling in <String>[
+      'zebra',
+      'middle',
+      'grape',
+      'apple',
+      'cherry',
+    ]) {
+      await tester.tap(find.text(spelling));
+      await tester.pump();
+    }
+    expect(find.text('已选 5'), findsOneWidget);
 
-    // 打开随身听。
-    await tester.tap(find.byKey(const Key('word-library-listening-action')));
+    // 从模块胶囊的「开始」打开随身听（默认模块即随身听）。
+    await tester.tap(find.byKey(const Key('word-library-module-start')));
     await tester.pumpAndSettle();
-    // 不能使用点击顺序 zebra、middle，而必须使用首页顺序 middle、zebra。
+    // 不能使用点击顺序，而必须使用首页可见顺序（apple、cherry、grape、
+    // middle、zebra 对应的编号 22、25、26、23、21），并剔除未选的 banana。
     final listeningPage = tester.widget<ListeningPage>(
       find.byType(ListeningPage),
     );
     expect(
       listeningPage.words.map((word) => word.id).toList(growable: false),
-      <int?>[23, 21],
+      <int?>[22, 25, 26, 23, 21],
     );
     // 返回首页。
     await tester.tap(find.byKey(const Key('close-listening')));
     await tester.pumpAndSettle();
 
-    // 打开听音辨义。
+    // 展开模块菜单，切到「听音辨义」后再打开。
+    await tester.tap(find.byKey(const Key('word-library-module-switch')));
+    await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const Key('word-library-listening-meaning-action')),
+      find.byKey(const Key('word-library-mode-listening_meaning')),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('word-library-module-start')));
     await tester.pumpAndSettle();
     // 听音辨义收到的学习列表必须与随身听一致。
     final listeningMeaningPage = tester.widget<ListeningMeaningPage>(
@@ -1658,7 +1712,7 @@ void main() {
     );
     expect(
       listeningMeaningPage.words.map((word) => word.id).toList(growable: false),
-      <int?>[23, 21],
+      <int?>[22, 25, 26, 23, 21],
     );
     // 清理页面。
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1680,6 +1734,9 @@ void main() {
           home: HomePage(
             store: const _ThrowingWordStore(),
             audioPlayer: _SilentAudioPlayer(),
+            // 启动链会先「中止过期会话」再读取单词；注入内存会话库，
+            // 避免测试里走真实原生通道而卡住启动链、迟迟到不了错误态。
+            sessionStore: MemorySessionStore(),
           ),
         ),
       );
@@ -1691,7 +1748,13 @@ void main() {
         find.byKey(const Key('word-library-sheet')),
       );
       (sheetState as dynamic).expand();
-      await tester.pumpAndSettle();
+      // 这里刻意不用 pumpAndSettle：错误详情是 SelectableText，它内部的
+      // EditableText 会常驻一个光标闪烁动画控制器，帧管线永远等不到「静止」，
+      // pumpAndSettle 必然超时。改用若干次带时长的 pump：既推完「中止旧会话 →
+      // 并发读取单词」这条异步启动链，也让抽屉滑入动画（250 毫秒）走完。
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
 
       // 保留用户可理解的错误标题。
       expect(find.text('单词数据加载失败'), findsOneWidget);
@@ -1775,6 +1838,12 @@ Future<void> _pumpHome(
   MemorySessionStore? sessionStore,
   bool expandWordLibrary = true,
 }) async {
+  // 首页要读「今日计划」，计划里缺词时会回头问词库补缺——会话库与词表必须是
+  // 同一个词库的两半。只挂会话库的话首页会打印「读取今日词库失败：没有挂词表
+  // Store」，每个用例都刷一行；更糟的是它截下来的是错误态而不是正常态。
+  final wordStore = _MemoryWordStore(words ?? _sampleWords());
+  final sessions = sessionStore ?? MemorySessionStore();
+  sessions.wordStore ??= wordStore;
   // MaterialApp 提供 TextField 等组件所需的 Material 环境。
   await tester.pumpWidget(
     MaterialApp(
@@ -1786,12 +1855,12 @@ Future<void> _pumpHome(
         // UniqueKey 强制每次 pump 创建全新 State；否则同一用例内换数据重
         // 新渲染时，Flutter 会复用旧 State 并保留旧 Store 与旧单词列表。
         key: UniqueKey(),
-        store: _MemoryWordStore(words ?? _sampleWords()),
+        store: wordStore,
         settings: settings,
         // 默认注入静音播放器，避免点击行时访问不存在的原生通道。
         audioPlayer: audioPlayer ?? _SilentAudioPlayer(),
         // 默认使用空内存会话，避免 Widget 测试依赖 Android MethodChannel。
-        sessionStore: sessionStore ?? MemorySessionStore(),
+        sessionStore: sessions,
       ),
     ),
   );
@@ -1857,6 +1926,71 @@ List<Word> _sampleWords() {
     // 第二条没有难度。
     Word(id: 2, spelling: 'abandon', createdAt: DateTime(2026, 7, 26)),
   ];
+}
+
+///
+/// 造一条「进行中」的自测会话，供「继续」恢复用例使用。
+///
+/// 生活化解释：新版首页恢复一局时，是按会话里记下的**大题/小题顺序**去拿单词，
+/// 而不是只看 `items` 这一列投影；开局当时的单词也一并存在快照里，恢复不再回头
+/// 读可能已被编辑的现有词库。所以只填 `items` 是拿不到单词的，这里把大题、小题
+/// 和单词快照都补齐，恢复页面才能按历史顺序 [words] 重建列表。
+///
+/// 直接收 [Word] 而不是编号：调用方给的词库不一定就是默认样本，按编号去别处查表
+/// 会查不到词、快照变空，测试就变成在验证「词库为空」的假象。
+Session _resumableSelfTestSession({
+  required ReviewModule module,
+  required List<Word> words,
+  required String date,
+}) {
+  // 投影列与快照顺序都跟着传入的 words 走，两者保持一致。
+  final wordIds = <int?>[for (final word in words) word.id];
+  return Session(
+    id: 9001,
+    module: module,
+    kind: SessionKind.selfTest,
+    status: SessionStatus.active,
+    wordSetId: null,
+    items: List<Object?>.unmodifiable(wordIds),
+    // 已作答到第 2 个，模拟「恢复到历史进度中间」的现场。
+    cursor: 1,
+    elapsed: 0,
+    date: date,
+    groups: <SessionMainQuestion>[
+      SessionMainQuestion(
+        id: 1,
+        no: 1,
+        phase: 1,
+        retryCount: 0,
+        questions: <SessionSubQuestion>[
+          // 小题的 wordId 是非空主键，而 Word.id 可空（新建未落库时为空），
+          // 这里断言非空：用例传入的都是已落库的词，为空说明 fixture 造错了。
+          for (var i = 0; i < words.length; i++)
+            SessionSubQuestion(
+              id: i + 1,
+              mainQuestionId: 1,
+              no: i + 1,
+              // 题目类型 100 = 单选；答案类型 1 = 答案是「单词」（英文）。
+              //
+              // 这一档必须给对：答案类型为 1 时，听音辨义的四个候选是从词库里
+              // 找外观相似的英文拼写，哪怕词库很小也有兜底词池；若给 0（无答案
+              // 类型），它会转去按「含义」凑候选，而 fixture 的词没有含义，
+              // 候选池为空就直接抛「无法生成四个不同的候选」，把恢复用例带偏成
+              // 在验证候选生成失败。真实会话里「选出正确的单词」就是答案类型 1。
+              type: 100,
+              contentType: 1,
+              answerType: 1,
+              content: const <String>[],
+              answers: const <String>[],
+              details: <SessionQuestionDetail>[
+                SessionQuestionDetail(wordId: words[i].id!),
+              ],
+            ),
+        ],
+      ),
+    ],
+    snapshotWords: List<Word>.unmodifiable(words),
+  );
 }
 
 ///

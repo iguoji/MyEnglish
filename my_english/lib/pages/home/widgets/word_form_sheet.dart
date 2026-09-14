@@ -760,7 +760,8 @@ class _WordFormSheetState extends State<_WordFormSheet> {
             key: Key('meaning-input-$index'),
             height: WordFormLayout.meaningInputHeight,
             decoration: BoxDecoration(
-              border: Border.all(color: tokens.inputBorder),
+              // 与白底卡片、候选词、描边按钮同一档控件描边。
+              border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
               borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             child: Row(

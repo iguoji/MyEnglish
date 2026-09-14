@@ -38,7 +38,7 @@ extension TrendRangeLabel on TrendRange {
 ///
 /// 顶部仪表盘第一块：时间范围 tab + 平滑趋势曲线。
 ///
-/// 数据来自原生 record 表的真实聚合（每天「0 错 0 提醒」的去重单词数）：
+/// 数据来自原生会话表的真实聚合（每天累计复习时长，单位秒）：
 /// 进入页面时先渲染"空数据"（全 0 的水平直线），异步查询完成后由
 /// [TrendChart] 内部把节点平滑滑动到目标位置。
 ///
@@ -48,8 +48,19 @@ class ReviewTrendChart extends StatefulWidget {
   const ReviewTrendChart({
     required this.refreshToken,
     this.clock = DateTime.now,
+    this.sessionStore,
     super.key,
   });
+
+  ///
+  /// 复习数据的来源；不传就用正式的原生库。
+  ///
+  /// 生活化解释：曲线要查「这几天每天复习了多久」，正式 App 里这件事走原生
+  /// SQLite。以前这里写死 `LocalSessionStore.instance`，于是 Widget 测试里必然
+  /// 打印一条 `MissingPluginException`，曲线也只能一直是贴底的零线——
+  /// 测试根本看不到「有数据时曲线长什么样」。加一个可注入的口子，正式路径
+  /// 一点没变（不传就是原来的行为）。
+  final SessionStore? sessionStore;
 
   ///
   /// 首页传入的回刷序号。
@@ -160,35 +171,30 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
   ///
   /// 按范围查询真实数据并组装成曲线节点。
   ///
-  /// 7天 / 30天都使用日粒度，走 [ReviewRecordStore.getDailyMasteredCounts]。
-  /// 「掌握量」口径比旧「复习量」更严：只要 0 错 0 提醒的记录。
+  /// 7天 / 30天共用会话表的每日累计复习秒数（elapsed_seconds 按日期汇总）。
   Future<List<TrendDataPoint>> _loadPoints(TrendRange range) async {
     final today = widget.clock();
-    final store = LocalSessionStore.instance;
+    final store = widget.sessionStore ?? LocalSessionStore.instance;
 
     switch (range) {
       case TrendRange.week:
         // 7 天：今天往前数 6 天到今天，每天一个节点。
         final since = today.subtract(const Duration(days: _nodeCount - 1));
-        final counts = await store.getDailyCounts(
-          correctOnly: true,
-          since: _dateKey(since),
-        );
+        final durations = await store.getDailyDurations(since: _dateKey(since));
         return [
           for (var i = 0; i < _nodeCount; i++)
             () {
               final d = today.subtract(Duration(days: _nodeCount - 1 - i));
               return TrendDataPoint(
                 label: _dayLabel(today, d),
-                value: (counts[_dateKey(d)] ?? 0).toDouble(),
+                value: (durations[_dateKey(d)] ?? 0).toDouble(),
               );
             }(),
         ];
 
       case TrendRange.month:
         // 30 天：跨度 30 天，7 个节点按天数均分（含首尾端点）。
-        final counts = await store.getDailyCounts(
-          correctOnly: true,
+        final durations = await store.getDailyDurations(
           since: _dateKey(today.subtract(const Duration(days: 30))),
         );
         return [
@@ -199,7 +205,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
               final d = today.subtract(Duration(days: dayOffset));
               return TrendDataPoint(
                 label: _dayLabel(today, d),
-                value: (counts[_dateKey(d)] ?? 0).toDouble(),
+                value: (durations[_dateKey(d)] ?? 0).toDouble(),
               );
             }(),
         ];
@@ -259,7 +265,7 @@ class _ReviewTrendChartState extends State<ReviewTrendChart> {
                     borderRadius: BorderRadius.circular(AppRadius.roundedPill),
                   ),
                   child: Text(
-                    '掌握量',
+                    '复习时间',
                     // 蓝色徽章上的白字，比时间选择器小一档。
                     style: textTheme.fs6Semibold.copyWith(color: Colors.white),
                   ),

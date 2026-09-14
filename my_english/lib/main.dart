@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'app.dart';
 // 引入全局设置 Store；启动时要先从 Android 本地存储读取它。
 import 'store/settings.dart';
+import 'store/session.dart';
 // 引入 Dart 侧日志入口：未捕获异常与关键事件会写进单日运行日志。
 import 'services/app_log.dart';
 
@@ -31,6 +32,15 @@ Future<void> main() async {
   };
   // 等待本地设置读取完成，避免先闪一次 Light 再突然切换 Dark。
   final settings = await SettingsStore.load();
+  // 进程被系统回收时，结算页可能来不及点击按钮；先补结算再显示首页，
+  // 避免首页读取到尚未应用的难度或把旧会话误判成新的巩固局。
+  try {
+    await LocalSessionStore.instance.recoverPendingSettlements();
+  } catch (error, stackTrace) {
+    // 恢复失败不阻断启动；首页再次进入前后台时还会重试一次。
+    debugPrint('启动时补结算失败：$error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
   // 应用不附带默认词库；runApp 直接进入首页，用户可手动添加或导入自己的数据。
   runApp(MainApp(settings: settings));
 }

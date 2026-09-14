@@ -16,6 +16,8 @@ import 'checkin_heatmap_card.dart';
 import 'review_mode_grid.dart';
 // 复习模块标识与三态进度模型。
 import '../../../../models/session.dart';
+// 会话库接口：趋势曲线与打卡日历都从这里取复习数据。
+import '../../../../store/session.dart';
 
 ///
 /// 首页上层仪表盘：问候 → 统计 → 趋势曲线 → 打卡卡片 → 复习模式入口。
@@ -34,6 +36,8 @@ class HomeDashboard extends StatelessWidget {
     required this.refreshToken,
     required this.onMenuPressed,
     required this.onOpenModule,
+    this.onStartReviewTap,
+    this.sessionStore,
     super.key,
   });
 
@@ -72,6 +76,17 @@ class HomeDashboard extends StatelessWidget {
 
   /// 点击任意一张复习模块卡片；由首页统一判断该开哪一局。
   final ValueChanged<ReviewModule> onOpenModule;
+
+  /// 点击「开始复习」标题文字（组件演示页的临时入口），不传则不响应。
+  final VoidCallback? onStartReviewTap;
+
+  ///
+  /// 复习数据的来源；不传就用正式的原生库。
+  ///
+  /// 生活化解释：这一屏有两块要查复习数据——顶部的趋势曲线和下面的打卡日历。
+  /// 它们都只认这一个口子，测试注入内存库之后，两块看到的才是同一份数据；
+  /// 正式 App 不传，两块各自回落到原生库，行为与以前完全一样。
+  final SessionStore? sessionStore;
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +127,11 @@ class HomeDashboard extends StatelessWidget {
           // 图内部自行把 tabs 与节点文字约束在安全边界内，
           // 只有曲线、渐变、分割线突破边界抵达屏幕边缘。
           // refreshToken 变化时曲线会重新查库，复习完返回首页即可看到新数据。
-          ReviewTrendChart(refreshToken: refreshToken, clock: clock),
+          ReviewTrendChart(
+            refreshToken: refreshToken,
+            clock: clock,
+            sessionStore: sessionStore,
+          ),
           const SizedBox(height: AppSpace.pBase),
           // 30 天打卡质量卡片（留在安全边界内）；传入每日目标用于分档。
           Padding(
@@ -121,9 +140,10 @@ class HomeDashboard extends StatelessWidget {
               dailyGoal: dailyGoal,
               refreshToken: refreshToken,
               clock: clock,
+              sessionStore: sessionStore,
             ),
           ),
-          const SizedBox(height: AppSpace.pBase),
+          const SizedBox(height: AppSpace.p2),
           // 复习模式入口（留在安全边界内）。
           Padding(
             padding: horizontalPadding,
@@ -131,9 +151,10 @@ class HomeDashboard extends StatelessWidget {
               moduleStates: reviewModuleStates,
               dailyGoal: reviewModeDailyGoal,
               onOpenModule: onOpenModule,
+              onStartReviewTap: onStartReviewTap,
             ),
           ),
-          const SizedBox(height: AppSpace.pBase),
+          const SizedBox(height: AppSpace.p3),
           // 底部上滑提示：与曲线图、热力图、复习模块同级，排在它们之后、
           // 停靠在列表底部；用左右两条短分割线把文字夹在中间，字体与颜色沿用
           // 「每个模块描述」同款小字，而不是固定在屏幕底部的悬浮层。

@@ -336,6 +336,23 @@ abstract final class WordFormLayout {
 /// 词库抽屉：从底部升起、占屏幕大半高度的那张面板。
 ///
 abstract final class WordLibraryLayout {
+  /// 悬浮胶囊的尺寸和底部位置；三段共用一个外轮廓。
+  static const double learningCapsuleWidth = 280 * 2 / 3;
+  static const double learningCapsuleHeight = 48;
+  static const double learningSideWidth = AppSize.touchTarget;
+  static const double learningDividerHeight = 18;
+  static const double learningCountHeight = 24;
+  static const double learningCountGap = AppSpace.p2;
+  static const double learningBottom = AppSpace.pBase;
+
+  /// 仅用作列表末尾的滚动留白，入口本身不参与列表占位。
+  static const double learningOverlayExtent =
+      learningCapsuleHeight +
+      learningCountHeight +
+      learningCountGap +
+      learningBottom +
+      AppSpace.p2;
+
   ///
   /// 面板展开后的高度，按屏幕高度的比例算。
   ///
@@ -498,4 +515,26 @@ abstract final class TrendChartLayout {
   ///
   /// 日期文字与基准分割线之间的距离。
   static const double axisLabelGap = AppSpace.p1;
+
+  ///
+  /// 选中数据点上方那个数值气泡的衬底，向左右各扩出去多少。
+  ///
+  /// 衬底是一张与卡片同色的圆角底板：曲线从节点穿过时会掠到数值文字，
+  /// 没有它的话「10分钟」最前面的「1」会直接压在线上。横向只扩一点点，
+  /// 是为了让底板看起来仍然像「贴在数字背后」而不是一块明显的色块。
+  static const double valuePlatePadX = 4;
+
+  ///
+  /// 同一张衬底向上下各扩出去多少。
+  ///
+  /// 比横向小一档：数字上下本来就有行高留白，扩多了会把相邻的节点盖住。
+  static const double valuePlatePadY = 2;
+
+  ///
+  /// 数值气泡衬底的圆角半径。
+  ///
+  /// 底板只有一行字那么高，圆角再大就会把上下两边削成尖角。
+  /// 这一档刻意介于 [AppRadius.roundedSm] 与 [AppRadius.rounded] 之间，
+  /// 不进总表——它只服务这一处衬底，搬过去也不会让别的东西跟着变。
+  static const double valuePlateRadius = 4;
 }

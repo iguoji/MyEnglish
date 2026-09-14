@@ -1,12 +1,5 @@
-///
-/// 「今天要背的这一批词」。
-///
-/// 全部复习模块共用同一份，所以一天通常只有一条——只有当你改了
-/// 「每日复习」的数量时才会新建一条，永远取当天最新的那条。
-///
-/// [tomorrowWordIds] 只服务于「今天的巩固局」：主线过关之后再进模块，
-/// 抽的是「今天随机一半 + 明天一半」。第二天会重新按规则选词建库，
-/// 不会复用昨天存下来的这份明日列表。
+/// 按日期唯一的计划视图；成员实际保存在计划单词表中。
+/// 每次获取按最新每日目标补缺，今日和明日列表来自各自的计划。
 class WordSet {
   ///
   /// 创建一份复习词库。
@@ -18,21 +11,23 @@ class WordSet {
     required this.date,
     this.createdAt,
     this.updatedAt,
+    this.hardWordIds = const <int>[],
   });
+
+  /// 成员的难词身份由计划单词表固定保存，补词后不靠数组位置猜分类。
+  final List<int> hardWordIds;
 
   /// 自增主键。
   final int id;
 
   ///
-  /// 创建这份词库时「每日复习」设置的数量。
-  ///
-  /// 用它和当前设置一比就知道要不要补词或截断，不必先解析整个数组。
+  /// 当前计划中的实际单词数量，目标数量始终读取全局设置。
   final int wordCount;
 
   /// 今日单词主键快照，顺序不可变。
   final List<int> todayWordIds;
 
-  /// 明日单词主键快照，只给今天的巩固局用。
+  /// 已预建的明日计划成员；第二天继续使用同一份计划。
   final List<int> tomorrowWordIds;
 
   /// 设备本地日期，格式固定为 yyyy-MM-dd。
@@ -67,6 +62,10 @@ class WordSet {
       date: date,
       createdAt: _readTime(map['created_at']),
       updatedAt: _readTime(map['updated_at']),
+      hardWordIds: _readIds(
+        map['hard_word_ids'] ?? const <int>[],
+        'hard_word_ids',
+      ),
     );
   }
 

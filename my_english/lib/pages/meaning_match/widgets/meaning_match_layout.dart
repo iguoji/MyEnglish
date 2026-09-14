@@ -40,22 +40,6 @@ abstract final class MeaningMatchLayout {
   static const double boardVerticalInset = AppSpace.p3;
 
   ///
-  /// 倒计时进入“危险色 + 呼吸动画”的阈值秒数（原型 `timeLeft <= 10`）。
-  static const int countdownDangerSeconds = 10;
-
-  ///
-  /// 倒计时呼吸动画一个来回的时长（原型 `pulseDanger 0.8s infinite`）。
-  static const int pulseDurationMs = AppDuration.ms800;
-
-  ///
-  /// 呼吸动画放大到的最大倍数（原型 `scale(1.06)`）。
-  static const double pulseMaxScale = 1.06;
-
-  ///
-  /// 呼吸动画最淡时的不透明度（原型 `opacity: 0.8`）。
-  static const double pulseMinOpacity = AppAlpha.a80;
-
-  ///
   /// 相邻候选词卡片之间的纵向距离（原型 `.left-col { gap: 12px }`）。
   static const double sectionGap = AppSpace.p3;
 
@@ -197,12 +181,12 @@ abstract final class MeaningMatchLayout {
   static const int connectDurationMs = AppDuration.ms350;
 
   ///
-  /// 一组全部匹配后切换到下一组的延迟（原型 `setTimeout(..., 600)`，600 并入 800）。
-  static const int groupAdvanceDelayMs = AppDuration.ms800;
+  /// 一组全部匹配后保留绿线反馈的时间，结束后淡出并换轮。
+  static const int groupAdvanceDelayMs = AppDuration.ms350;
 
   ///
-  /// 切换到下一组时整块棋盘的淡入时长（原型 `fadeIn 0.25s`）。
-  static const int fadeDurationMs = AppDuration.ms250;
+  /// 下一组棋盘的淡入时长；旧棋盘先退出，避免连线锚点同时重复出现。
+  static const int fadeDurationMs = AppDuration.ms160;
 
   ///
   /// 淡入时棋盘从下方上移的距离（原型 `translateY(4px)` → `translateY(0)`）。

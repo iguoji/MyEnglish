@@ -55,6 +55,12 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
 
+        getByName("profile") {
+            // 性能采集包同样使用现有签名，可直接覆盖开发包并保留手机数据。
+            // Flutter 的 profile 提前编译 Dart，同时保留必要的性能诊断能力。
+            signingConfig = signingConfigs.getByName("release")
+        }
+
         release {
             // Release 继续使用正式签名，保证以后发布的 APK 可以覆盖旧正式版。
             signingConfig = signingConfigs.getByName("release")

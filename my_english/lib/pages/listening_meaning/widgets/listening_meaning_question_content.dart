@@ -1,4 +1,5 @@
-import 'dart:async';
+import '../../../widgets/question_content_transition.dart';
+import '../../../widgets/audio_playback_capsule.dart';
 
 import 'package:flutter/material.dart';
 
@@ -6,7 +7,6 @@ import '../../../common/theme.dart';
 import '../../../widgets/audio_speaker_button.dart';
 import '../../../widgets/letter_slot.dart';
 import '../../../widgets/pos_meaning_panel.dart';
-import '../../spelling_reinforcement/widgets/spelling_layout.dart';
 import 'listening_meaning_layout.dart';
 
 ///
@@ -145,19 +145,14 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         color: tokens.card,
-        border: Border.all(color: tokens.border),
+        // 与候选词、描边按钮、输入框同一档控件描边；白卡只靠这一圈线立在灰底上，
+        // 不再叠投影。
+        border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
         // 正文白卡的圆角走本页尺寸表：拼写巩固与看义选词的注释都写着「与听音辨义
         // 题目卡一致」，现在这句话真的指着同一个常量了。
         borderRadius: BorderRadius.circular(
           ListeningMeaningLayout.bodyCardRadius,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: tokens.cardShadow,
-            offset: const Offset(0, AppShadow.cardOffsetY),
-            blurRadius: AppShadow.cardBlur,
-          ),
-        ],
       ),
       // IntrinsicHeight 会把父级提供的最小卡片高度传给内容列；
       // 内容较少时正文区吃掉剩余空间，内容较多时仍会自然增高并允许外层滚动。
@@ -173,22 +168,25 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
                 // 四边同值，用 `EdgeInsets.all` 简写。
                 padding: const EdgeInsets.all(AppSpace.pBase),
                 child: Center(
-                  child: revealWholeWord
-                      ? _MeaningStage(
-                          spelling: spelling,
-                          isPlaying: isPlaying,
-                          onSpeakerTap: onSpeakerTap,
-                          steps: steps,
-                          definitionSeparator: definitionSeparator,
-                          accentLabel: accentLabel,
-                          tokens: tokens,
-                        )
-                      : _ListenStage(
-                          spelling: spelling,
-                          isPlaying: isPlaying,
-                          onSpeakerTap: onSpeakerTap,
-                          tokens: tokens,
-                        ),
+                  child: QuestionContentTransition(
+                    contentKey: (spelling, revealWholeWord),
+                    child: revealWholeWord
+                        ? _MeaningStage(
+                            spelling: spelling,
+                            isPlaying: isPlaying,
+                            onSpeakerTap: onSpeakerTap,
+                            steps: steps,
+                            definitionSeparator: definitionSeparator,
+                            accentLabel: accentLabel,
+                            tokens: tokens,
+                          )
+                        : _ListenStage(
+                            spelling: spelling,
+                            isPlaying: isPlaying,
+                            onSpeakerTap: onSpeakerTap,
+                            tokens: tokens,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -402,7 +400,7 @@ class _MeaningStage extends StatelessWidget {
         // 上方间距与下方分割线的 26px 上边距保持一致，让播音胶囊在单词与释义
         // 之间处于均衡的位置，不会视觉上贴近其中一侧。
         const SizedBox(height: AppSpace.pBase),
-        _ListeningMeaningPlaybackCapsule(
+        AudioPlaybackCapsule(
           key: const Key('listening-meaning-playback-status'),
           isPlaying: isPlaying,
           onTap: onSpeakerTap,
@@ -455,205 +453,6 @@ class _MeaningRowBuilder {
 /// 播放状态只驱动一组低频声纹，不依赖页面的业务定时器；这样正文滚动、切题
 /// 和系统返回时，胶囊都能自行停止动画，不会把状态更新泄漏到已离场页面。
 ///
-class _ListeningMeaningPlaybackCapsule extends StatefulWidget {
-  const _ListeningMeaningPlaybackCapsule({
-    required this.isPlaying,
-    required this.onTap,
-    required this.accentLabel,
-    super.key,
-  });
-
-  final bool isPlaying;
-  final VoidCallback onTap;
-  final String accentLabel;
-
-  @override
-  State<_ListeningMeaningPlaybackCapsule> createState() =>
-      _ListeningMeaningPlaybackCapsuleState();
-}
-
-class _ListeningMeaningPlaybackCapsuleState
-    extends State<_ListeningMeaningPlaybackCapsule> {
-  final ValueNotifier<double> _waveProgress = ValueNotifier<double>(0);
-  Timer? _waveTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.isPlaying) _startWaveTimer();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ListeningMeaningPlaybackCapsule oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying == oldWidget.isPlaying) return;
-    if (widget.isPlaying) {
-      _startWaveTimer();
-    } else {
-      _stopWaveTimer();
-    }
-  }
-
-  void _startWaveTimer() {
-    if (_waveTimer != null) return;
-    _waveTimer = Timer.periodic(
-      const Duration(milliseconds: SpellingLayout.waveTickMs),
-      (_) {
-        if (!mounted || !widget.isPlaying) return;
-        _waveProgress.value = (_waveProgress.value + 0.12) % 1;
-      },
-    );
-  }
-
-  void _stopWaveTimer() {
-    _waveTimer?.cancel();
-    _waveTimer = null;
-    _waveProgress.value = 0;
-  }
-
-  @override
-  void dispose() {
-    _waveTimer?.cancel();
-    _waveProgress.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = AppTokens.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    final statusLabel = widget.isPlaying ? '播放中' : '点击播放';
-    final waveColor = widget.isPlaying ? AppTokens.primary : tokens.muted;
-
-    return Semantics(
-      button: true,
-      label: '播放发音',
-      child: SizedBox(
-        width: SpellingLayout.playbackWidth,
-        child: Material(
-          // 胶囊底色用专门的 capsule 令牌，不再借用页面底色 page：
-          // 两者数值相同，但页面底色以后要是变了，胶囊不该跟着变。
-          color: tokens.capsule,
-          borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SpellingLayout.playbackCirclePadding,
-                SpellingLayout.playbackVerticalPadding,
-                SpellingLayout.playbackTextPaddingRight,
-                SpellingLayout.playbackVerticalPadding,
-              ),
-              child: Row(
-                children: [
-                  AudioSpeakerButton(
-                    isPlaying: widget.isPlaying,
-                    onTap: widget.onTap,
-                    size: SpellingLayout.playbackCircleSize,
-                    iconSize: SpellingLayout.playbackIconSize,
-                  ),
-                  const SizedBox(width: SpellingLayout.playbackContentGap),
-                  SizedBox(
-                    width: SpellingLayout.playbackTextWidth,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: SpellingLayout.waveHeight,
-                          child: ValueListenableBuilder<double>(
-                            valueListenable: _waveProgress,
-                            builder: (context, progress, _) => Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                for (
-                                  var index = 0;
-                                  index < SpellingLayout.waveBarCount;
-                                  index += 1
-                                )
-                                  _PlaybackWaveBar(
-                                    color: waveColor,
-                                    height: _waveHeight(index, progress),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: SpellingLayout.playbackLabelGap),
-                        AnimatedSwitcher(
-                          duration: const Duration(
-                            milliseconds: AppDuration.ms160,
-                          ),
-                          // 用 Align(centerLeft) 把状态文字钉在左侧：
-                          // AnimatedSwitcher 默认 Stack alignment.center，
-                          // 切换「点击播放」↔「播放中」时文字宽度变窄，
-                          // 没有 Align 的话 Stack 会按最大子宽度居中叠放，
-                          // 短文本看起来会向左/右跳一段。
-                          // 拼写巩固的胶囊早就包了 Align，这里补上同一层
-                          // 包裹，两个页面的胶囊从此行为完全一致。
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '${widget.accentLabel} · $statusLabel',
-                              key: ValueKey(
-                                '${widget.accentLabel}-$statusLabel',
-                              ),
-                              maxLines: 1,
-                              softWrap: false,
-                              style: textTheme.fs6Semibold.copyWith(
-                                color: AppTokens.primary.withValues(
-                                  alpha: AppAlpha.a70,
-                                ),
-                                // 这一处刻意比全站字距宽得多，几个字才拉得开。
-                                letterSpacing:
-                                    SpellingLayout.playbackLabelLetterSpacing,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  double _waveHeight(int index, double progress) {
-    if (!widget.isPlaying) return SpellingLayout.waveIdleHeights[index];
-    final phase = (progress + index * 0.17) % 1;
-    final pulse = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
-    return SpellingLayout.waveMinHeight +
-        SpellingLayout.waveMaxExtraHeight * (0.35 + pulse * 0.65);
-  }
-}
-
-/// 播音胶囊中的单根声纹竖条。
-class _PlaybackWaveBar extends StatelessWidget {
-  const _PlaybackWaveBar({required this.color, required this.height});
-
-  final Color color;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: SpellingLayout.waveBarWidth,
-    height: height,
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-      ),
-    ),
-  );
-}
-
 /// 判断是否为 ASCII 英文字母；遮罩只为字母生成短线。
 bool _isEnglishLetter(String character) =>
     RegExp(r'^[A-Za-z]$').hasMatch(character);

@@ -16,7 +16,23 @@ class SessionRecord {
     required this.meaningId,
     required this.input,
     required this.isCorrect,
+    this.questionId,
+    this.groupId,
+    this.attemptNo = 1,
+    this.targetWordIds = const <int>[],
+    this.targetMeaningIds = const <int>[],
+    this.answerValues = const <String>[],
   });
+
+  /// 具体题号、所属大题及尝试遍次，重复内容不会混用答题记录。
+  final int? questionId;
+  final int? groupId;
+  final int attemptNo;
+  final List<int> targetWordIds;
+  final List<int> targetMeaningIds;
+  final List<String> answerValues;
+  List<String> get answers =>
+      answerValues.isEmpty ? <String>[input] : answerValues;
 
   /// 自增主键；同一局内 id 越大表示点得越晚。
   final int id;
@@ -56,6 +72,21 @@ class SessionRecord {
           ? (map['meaning_id']! as num).toInt()
           : null,
       input: map['input']?.toString() ?? '',
+      answerValues: <String>[
+        for (final value in map['answers'] as List? ?? const [])
+          value.toString(),
+      ],
+      questionId: (map['question_id'] as num?)?.toInt(),
+      groupId: (map['group_id'] as num?)?.toInt(),
+      attemptNo: (map['attempt_no'] as num?)?.toInt() ?? 1,
+      targetWordIds: <int>[
+        for (final id in map['target_word_ids'] as List? ?? const [])
+          (id as num).toInt(),
+      ],
+      targetMeaningIds: <int>[
+        for (final id in map['target_meaning_ids'] as List? ?? const [])
+          (id as num).toInt(),
+      ],
       // 原生用 0/1，测试也允许直接返回 bool。
       isCorrect:
           map['result'] == true ||
@@ -77,6 +108,7 @@ class WordProgress {
     required this.wrongInputsByMeaning,
     required this.spellingWrongInputs,
     required this.hasAnyWrong,
+    this.wrongCount = 0,
   });
 
   ///
@@ -100,6 +132,15 @@ class WordProgress {
   final bool hasAnyWrong;
 
   ///
+  /// 这一局这个词一共点错过几次。
+  ///
+  /// 生活化解释：白卡底部那句「本题已答错 N 次」数的是**整个单词**（拼写那步
+  /// 加所有释义）累计点错几回，不是只数当前这一小问。[wrongInputsByMeaning] 与
+  /// [spellingWrongInputs] 只能说明「哪几个候选该置灰」，它们的长度只在当前
+  /// 小问内才有意义，所以单独留这一个总数，页面重进后照样能把 N 显示回来。
+  final int wrongCount;
+
+  ///
   /// 今天这个词还没被碰过时使用的空现场。
   static const WordProgress empty = WordProgress(
     answeredMeaningIds: <int>{},
@@ -107,6 +148,7 @@ class WordProgress {
     wrongInputsByMeaning: <int, Set<String>>{},
     spellingWrongInputs: <String>{},
     hasAnyWrong: false,
+    wrongCount: 0,
   );
 
   ///
@@ -120,11 +162,18 @@ class WordProgress {
     final spellingWrong = <String>{};
     var spellingDone = false;
     var hasAnyWrong = false;
+    var wrongCount = 0;
 
     for (final record in records) {
       // 只看这个单词的记录，其余跳过。
-      if (record.wordId != wordId) continue;
-      if (!record.isCorrect) hasAnyWrong = true;
+      if (record.wordId != wordId && !record.targetWordIds.contains(wordId)) {
+        continue;
+      }
+      if (!record.isCorrect) {
+        hasAnyWrong = true;
+        // 每条答错记录就是一次点错，直接累加就是「本题已答错几次」。
+        wrongCount += 1;
+      }
 
       final meaningId = record.meaningId;
       if (meaningId == null) {
@@ -138,8 +187,11 @@ class WordProgress {
       }
       if (record.isCorrect) {
         answered.add(meaningId);
+        answered.addAll(record.targetMeaningIds);
       } else if (record.input.isNotEmpty) {
-        (wrongByMeaning[meaningId] ??= <String>{}).add(record.input);
+        for (final id in <int>{meaningId, ...record.targetMeaningIds}) {
+          (wrongByMeaning[id] ??= <String>{}).add(record.input);
+        }
       }
     }
 
@@ -149,6 +201,7 @@ class WordProgress {
       wrongInputsByMeaning: Map<int, Set<String>>.unmodifiable(wrongByMeaning),
       spellingWrongInputs: Set<String>.unmodifiable(spellingWrong),
       hasAnyWrong: hasAnyWrong,
+      wrongCount: wrongCount,
     );
   }
 }
@@ -167,7 +220,18 @@ class SettleResult {
     required this.difficultyBefore,
     required this.difficultyAfter,
     required this.reviewedAt,
+    this.recentResults = const <bool?>[],
+    this.suggestedAdjustment,
+    this.adjustment,
+    this.manual = false,
+    this.usedTimeSeconds = 0,
   });
+
+  /// 当前词的结算明细直接随结果返回，换词不用再取整局所有草稿。
+  final int? suggestedAdjustment;
+  final int? adjustment;
+  final bool manual;
+  final int usedTimeSeconds;
 
   /// 这一轮有没有一次都没错。
   final bool isCorrect;
@@ -189,6 +253,9 @@ class SettleResult {
   /// 本次推进到的复习时间；巩固局不推进，为 null。
   final DateTime? reviewedAt;
 
+  /// 最近几轮的整体结果，最新一轮排在最前。
+  final List<bool?> recentResults;
+
   ///
   /// 难度相对上一次的变化量。
   int get difficultyDelta => difficultyAfter - difficultyBefore;
@@ -206,9 +273,29 @@ class SettleResult {
       difficultyBefore: _readInt(map['difficulty_before']),
       difficultyAfter: _readInt(map['difficulty_after']),
       reviewedAt: map['reviewed_at'] is num && (map['reviewed_at']! as num) != 0
-          ? DateTime.fromMillisecondsSinceEpoch((map['reviewed_at']! as num).toInt())
+          ? DateTime.fromMillisecondsSinceEpoch(
+              (map['reviewed_at']! as num).toInt(),
+            )
           : null,
+      recentResults: _readRecentResults(map['recent_results']),
+      suggestedAdjustment: (map['suggested_adjustment'] as num?)?.toInt(),
+      adjustment: (map['adjustment'] as num?)?.toInt(),
+      manual: map['operation'] == 2,
+      usedTimeSeconds: _readInt(map['used_time']),
     );
+  }
+
+  static List<bool?> _readRecentResults(Object? value) {
+    if (value is! List) return const <bool?>[];
+    return <bool?>[
+      for (final item in value.take(5))
+        if (item is bool)
+          item
+        else if (item is num)
+          item.toInt() == 1
+        else
+          null,
+    ];
   }
 
   ///

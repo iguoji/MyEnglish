@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../models/listening_playback.dart';
+
 // material.dart 提供 ChangeNotifier 和 ThemeMode，管理全局设置通知与主题模式。
 import 'package:flutter/material.dart';
 // services.dart 提供 MethodChannel，让 Dart 读写原生 settings 表。
@@ -203,6 +207,9 @@ class SettingsStore extends ChangeNotifier {
   /// 当前全部设置值；只允许通过下面的 setter 修改。
   _Values _values;
 
+  /// 随身听保存按调用顺序排队，暂停、退出等迟到写入不会倒退播放进度。
+  Future<void> _listeningWrite = Future<void>.value();
+
   // ---- settings 表里的键名；改这里等于改数据库，务必谨慎 ----------------
 
   /// 发音口音。
@@ -220,9 +227,6 @@ class SettingsStore extends ChangeNotifier {
   /// 每日复习目标数量。
   static const String keyDailyGoal = 'dailyGoal';
 
-  /// 词义连连每局倒计时秒数。
-  static const String keyMeaningMatchDuration = 'meaningMatchDuration';
-
   /// 随身听：每个单词重复播放几遍。
   static const String keyListeningRepeat = 'listeningRepeat';
 
@@ -234,6 +238,12 @@ class SettingsStore extends ChangeNotifier {
 
   /// 随身听：是否默认展开全部释义。
   static const String keyListeningRevealAll = 'listeningRevealAll';
+
+  /// 随身听唯一的编号清单和续播位置，不属于任何会话。
+  static const String keyListeningPlayback = 'listeningPlayback';
+
+  /// 连对变易：连续答对多少轮后单词难度 -1（默认 5）。
+  static const String keyStreakToEasier = 'streakToEasier';
 
   ///
   /// App 启动时调用：先读取 settings 表，再创建可供页面监听的 Store。
@@ -274,11 +284,12 @@ class SettingsStore extends ChangeNotifier {
     DefinitionSeparator definitionSeparator =
         DefinitionSeparator.fullWidthSemicolon,
     int dailyGoal = 50,
-    int meaningMatchDuration = 150,
     int listeningRepeat = 2,
     int listeningInterval = 2,
     bool listeningLoop = true,
     bool listeningRevealAll = false,
+    ListeningPlayback listeningPlayback = ListeningPlayback.empty,
+    int streakToEasier = 5,
   }) {
     // channel=null 时 setter 只更新内存并通知页面。
     return SettingsStore._(
@@ -289,13 +300,13 @@ class SettingsStore extends ChangeNotifier {
         fontScale: fontScale,
         definitionSeparator: definitionSeparator,
         dailyGoal: dailyGoal < 0 ? 0 : dailyGoal,
-        meaningMatchDuration: meaningMatchDuration < 0
-            ? 0
-            : meaningMatchDuration,
         listeningRepeat: listeningRepeat.clamp(1, 9),
         listeningInterval: listeningInterval < 0 ? 0 : listeningInterval,
         listeningLoop: listeningLoop,
         listeningRevealAll: listeningRevealAll,
+        listeningPlayback: listeningPlayback,
+        // 负数钳制为 0（下限 1 由 setter 保证，这里仅兜底）。
+        streakToEasier: streakToEasier < 0 ? 0 : streakToEasier,
       ),
     );
   }
@@ -320,9 +331,6 @@ class SettingsStore extends ChangeNotifier {
   /// 每日复习目标。
   int get dailyGoal => _values.dailyGoal;
 
-  /// 词义连连每局倒计时秒数。
-  int get meaningMatchDuration => _values.meaningMatchDuration;
-
   /// 随身听每个单词重复播放几遍。
   int get listeningRepeat => _values.listeningRepeat;
 
@@ -334,6 +342,46 @@ class SettingsStore extends ChangeNotifier {
 
   /// 随身听是否默认展开全部释义。
   bool get listeningRevealAll => _values.listeningRevealAll;
+
+  ListeningPlayback get listeningPlayback => _values.listeningPlayback;
+
+  /// 明确开始新清单才替换列表；先保存这一个小设置，再进入播放页面。
+  Future<ListeningPlayback> startListening(Iterable<int> wordIds) {
+    final playback = ListeningPlayback.start(wordIds);
+    if (!playback.hasWords) throw ArgumentError('随身听至少需要一个单词');
+    return _queueListeningWrite(() async {
+      await _write(keyListeningPlayback, jsonEncode(playback.toMap()), 'json');
+      _values = _values.copyWith(listeningPlayback: playback);
+      notifyListeners();
+      return playback;
+    });
+  }
+
+  /// 正常播放仅更新同一份设置。旧清单的退出保存不得覆盖后来新建的清单。
+  Future<void> saveListeningPlayback(ListeningPlayback playback) =>
+      _queueListeningWrite(() async {
+        if (playback.revision != listeningPlayback.revision) return;
+        await _write(
+          keyListeningPlayback,
+          jsonEncode(playback.toMap()),
+          'json',
+        );
+        _values = _values.copyWith(listeningPlayback: playback);
+        // 秒级播放进度由播放器自己显示，不广播主题设置通知，避免整棵 App 重建。
+      });
+
+  Future<T> _queueListeningWrite<T>(Future<T> Function() action) {
+    final result = _listeningWrite.then<T>((_) => action());
+    // 当前调用仍收到真实错误；尾部恢复为可用状态，让后续暂停保存能够重试。
+    _listeningWrite = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
+  }
+
+  /// 连对变易阈值：连续答对多少轮后单词难度 -1（默认 5）。
+  int get streakToEasier => _values.streakToEasier;
 
   // ---- 修改 -------------------------------------------------------------
 
@@ -357,27 +405,6 @@ class SettingsStore extends ChangeNotifier {
   }
 
   ///
-  /// 修改并持久化文字大小档位；通知后全站文字立即按新倍数重排。
-  ///
-  /// 和主题切换是同一种机制：这里只改一个档位值，页面本身一行都不用动，
-  /// 由 App 最外层的文字缩放器统一放大（见 `lib/app.dart`）。
-  Future<void> setFontScale(AppFontScale value) async {
-    if (_values.fontScale == value) return;
-    await _write(keyFontScale, value.storageValue, 'string');
-    _values = _values.copyWith(fontScale: value);
-    notifyListeners();
-  }
-
-  ///
-  /// 修改并持久化中文释义分隔符；成功后全部释义文本立即刷新。
-  Future<void> setDefinitionSeparator(DefinitionSeparator value) async {
-    if (_values.definitionSeparator == value) return;
-    await _write(keyDefinitionSeparator, value.storageValue, 'string');
-    _values = _values.copyWith(definitionSeparator: value);
-    notifyListeners();
-  }
-
-  ///
   /// 修改并持久化每日复习目标；负数一律钳制为 0。
   ///
   /// 注意：改这个数字会让今天已经开着的每一局都对不上新词库，
@@ -387,19 +414,6 @@ class SettingsStore extends ChangeNotifier {
     if (_values.dailyGoal == normalized) return;
     await _write(keyDailyGoal, normalized.toString(), 'int');
     _values = _values.copyWith(dailyGoal: normalized);
-    notifyListeners();
-  }
-
-  ///
-  /// 修改并持久化词义连连每局倒计时秒数；负数一律钳制为 0。
-  ///
-  /// 该值与游戏内点击倒计时 `+30s` 共用：点击加时既延长当前局剩余时间，
-  /// 也把全局默认值同步抬高，下一次进入词义连连会从更高的值开始。
-  Future<void> setMeaningMatchDuration(int value) async {
-    final normalized = value < 0 ? 0 : value;
-    if (_values.meaningMatchDuration == normalized) return;
-    await _write(keyMeaningMatchDuration, normalized.toString(), 'int');
-    _values = _values.copyWith(meaningMatchDuration: normalized);
     notifyListeners();
   }
 
@@ -442,8 +456,23 @@ class SettingsStore extends ChangeNotifier {
   }
 
   ///
+  /// 修改并持久化连对变易阈值；至少 1 次（0 或负数会让原生按 0 取模而崩溃）。
+  ///
+  /// 该值决定「连续答对多少轮后单词难度自动 -1」。结算算法本身在原生
+  /// [WordsDatabase.settleWord] 里，它直接读 settings 表的同一个键，所以这里
+  /// 只负责把用户选的值存好，不参与任何数学运算。
+  Future<void> setStreakToEasier(int value) async {
+    final normalized = value < 1 ? 1 : value;
+    if (_values.streakToEasier == normalized) return;
+    await _write(keyStreakToEasier, normalized.toString(), 'int');
+    _values = _values.copyWith(streakToEasier: normalized);
+    notifyListeners();
+  }
+
+  ///
   /// 清空全部设置，恢复到首次安装的默认值。
   Future<void> clearAll() async {
+    await _listeningWrite;
     // 原生软删除 settings 表全部行；channel 为 null 时（纯测试）只重置内存。
     await _channel?.invokeMethod<void>('clearSettings');
     _values = const _Values();
@@ -457,6 +486,7 @@ class SettingsStore extends ChangeNotifier {
   /// 供「导入完整备份」后调用：备份里携带设置时，界面需要跟随导入后的
   /// 内容同步，而不是继续显示导入前的旧值。
   Future<void> reload() async {
+    await _listeningWrite;
     // 内存模式（测试或旧原生壳）没有通道可读，保持现状即可。
     if (_channel == null) return;
     try {
@@ -499,11 +529,12 @@ class _Values {
     this.fontScale = AppFontScale.standard,
     this.definitionSeparator = DefinitionSeparator.fullWidthSemicolon,
     this.dailyGoal = 50,
-    this.meaningMatchDuration = 150,
     this.listeningRepeat = 2,
     this.listeningInterval = 2,
     this.listeningLoop = true,
     this.listeningRevealAll = false,
+    this.listeningPlayback = ListeningPlayback.empty,
+    this.streakToEasier = 5,
   });
 
   final PronunciationAccent accent;
@@ -511,11 +542,13 @@ class _Values {
   final AppFontScale fontScale;
   final DefinitionSeparator definitionSeparator;
   final int dailyGoal;
-  final int meaningMatchDuration;
   final int listeningRepeat;
   final int listeningInterval;
   final bool listeningLoop;
   final bool listeningRevealAll;
+  final ListeningPlayback listeningPlayback;
+  // 连对变易阈值：连续答对多少轮后单词难度 -1（首次安装默认 5）。
+  final int streakToEasier;
 
   ///
   /// 从原生返回的 `{ key: {value, type} }` 组装快照。
@@ -542,6 +575,17 @@ class _Values {
       _ => fallback,
     };
 
+    ListeningPlayback playback() {
+      try {
+        return ListeningPlayback.fromJson(
+          text(SettingsStore.keyListeningPlayback),
+        );
+      } on FormatException catch (error) {
+        debugPrint('随身听播放状态无法恢复：$error');
+        return ListeningPlayback.empty;
+      }
+    }
+
     return _Values(
       // 只有明确保存 british 才使用英式，其余值都采用默认美式。
       accent: text(SettingsStore.keyAccent) == 'british'
@@ -551,25 +595,21 @@ class _Values {
       theme: text(SettingsStore.keyTheme) == 'dark'
           ? AppThemePreference.dark
           : AppThemePreference.light,
-      fontScale: switch (text(SettingsStore.keyFontScale)) {
-        'large' => AppFontScale.large,
-        'huge' => AppFontScale.huge,
-        // 未知值与缺失值都回落标准档：字太大读不下去也好过 App 起不来。
-        _ => AppFontScale.standard,
-      },
-      definitionSeparator: switch (text(SettingsStore.keyDefinitionSeparator)) {
-        'ideographic_comma' => DefinitionSeparator.ideographicComma,
-        'full_width_comma' => DefinitionSeparator.fullWidthComma,
-        // 未知值与缺失值都安全回退分号（首次安装的默认值）。
-        _ => DefinitionSeparator.fullWidthSemicolon,
-      },
+      // 字体大小设置已取消：全站统一使用「标准」档，不再读取已保存的档位。
+      fontScale: AppFontScale.standard,
+      // 单词分隔符设置已取消：全站统一使用全角分号，不再读取已保存的分隔符。
+      definitionSeparator: DefinitionSeparator.fullWidthSemicolon,
       dailyGoal: number(SettingsStore.keyDailyGoal, 50),
-      meaningMatchDuration: number(SettingsStore.keyMeaningMatchDuration, 150),
       // 重复遍数是 1～9，0 遍等于不播放，没有意义。
       listeningRepeat: number(SettingsStore.keyListeningRepeat, 2).clamp(1, 9),
       listeningInterval: number(SettingsStore.keyListeningInterval, 2),
       listeningLoop: flag(SettingsStore.keyListeningLoop, true),
       listeningRevealAll: flag(SettingsStore.keyListeningRevealAll, false),
+      listeningPlayback: playback(),
+      streakToEasier: number(
+        SettingsStore.keyStreakToEasier,
+        5,
+      ).clamp(1, 1 << 31),
     );
   }
 
@@ -581,21 +621,23 @@ class _Values {
     AppFontScale? fontScale,
     DefinitionSeparator? definitionSeparator,
     int? dailyGoal,
-    int? meaningMatchDuration,
     int? listeningRepeat,
     int? listeningInterval,
     bool? listeningLoop,
     bool? listeningRevealAll,
+    ListeningPlayback? listeningPlayback,
+    int? streakToEasier,
   }) => _Values(
     accent: accent ?? this.accent,
     theme: theme ?? this.theme,
     fontScale: fontScale ?? this.fontScale,
     definitionSeparator: definitionSeparator ?? this.definitionSeparator,
     dailyGoal: dailyGoal ?? this.dailyGoal,
-    meaningMatchDuration: meaningMatchDuration ?? this.meaningMatchDuration,
     listeningRepeat: listeningRepeat ?? this.listeningRepeat,
     listeningInterval: listeningInterval ?? this.listeningInterval,
     listeningLoop: listeningLoop ?? this.listeningLoop,
     listeningRevealAll: listeningRevealAll ?? this.listeningRevealAll,
+    listeningPlayback: listeningPlayback ?? this.listeningPlayback,
+    streakToEasier: streakToEasier ?? this.streakToEasier,
   );
 }

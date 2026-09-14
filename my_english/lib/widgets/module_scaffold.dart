@@ -164,6 +164,8 @@ class ModuleScaffold extends StatelessWidget {
     this.footerBorderColor,
     this.systemUiOverlayStyle,
     this.canPop = true,
+    this.onSettingsRequested,
+    this.onPopInvokedWithResult,
     super.key,
   });
 
@@ -202,6 +204,12 @@ class ModuleScaffold extends StatelessWidget {
   ///
   /// 传 false 会把返回手势拦住，用在「成绩正在写库」这类中途退出就丢数据的时刻。
   final bool canPop;
+
+  /// 只有声明设置的模块才接收上滑；列表正常滚动优先。
+  final VoidCallback? onSettingsRequested;
+
+  /// 系统返回手势被拦截后的回调；结算页用它先提交草稿再退出。
+  final PopInvokedWithResultCallback<Object?>? onPopInvokedWithResult;
 
   ///
   /// 把三个插槽拼成一页。
@@ -250,11 +258,36 @@ class ModuleScaffold extends StatelessWidget {
     }
 
     // 六个页面共用 AppTokens.page 这一个底色，切模块时背景不跳。
-    final Widget page = Scaffold(backgroundColor: tokens.page, body: content);
+    final Widget page = Scaffold(
+      backgroundColor: tokens.page,
+      body: onSettingsRequested == null
+          ? content
+          : NotificationListener<OverscrollNotification>(
+              onNotification: (notification) {
+                if (notification.dragDetails != null &&
+                    notification.overscroll > 12) {
+                  onSettingsRequested!();
+                }
+                return false;
+              },
+              child: GestureDetector(
+                onVerticalDragEnd: (details) {
+                  if ((details.primaryVelocity ?? 0) < -350) {
+                    onSettingsRequested!();
+                  }
+                },
+                child: content,
+              ),
+            ),
+    );
 
     // PopScope 一直挂着而不是「需要时才套一层」：树的形状保持不变，
     // canPop 翻转时正文里的动画和输入状态才不会被连根重建。
-    final Widget guarded = PopScope<Object?>(canPop: canPop, child: page);
+    final Widget guarded = PopScope<Object?>(
+      canPop: canPop,
+      onPopInvokedWithResult: onPopInvokedWithResult,
+      child: page,
+    );
 
     if (systemUiOverlayStyle == null) {
       return guarded;
@@ -303,7 +336,10 @@ class ModuleHeader extends StatelessWidget {
   final Widget? leading;
 
   ///
-  /// 右侧插槽：四个复习模块放 [ModuleTimeLabel]，随身听放设置键，可以不传。
+  /// 右侧插槽：五个模块都放 [ModuleTimeLabel]（本页已用时长），可以不传。
+  ///
+  /// 注意它**不是**设置入口。设置面板由 [onSettingsRequested] 接管，入口是
+  /// 正文上滑/下拉越界这个手势；随身听以前把设置键放在这里，后来让给了用时。
   final Widget? trailing;
 
   ///
@@ -312,8 +348,6 @@ class ModuleHeader extends StatelessWidget {
 
   ///
   /// 进度条已完成那一段的颜色，默认品牌蓝。
-  ///
-  /// 词义连连在最后 10 秒把它整条换成危险红，和倒计时文字同步告警。
   final Color? progressColor;
 
   ///
@@ -507,9 +541,8 @@ class ModuleProgressLabel extends StatelessWidget {
 ///
 /// 顶栏右上角的时间。
 ///
-/// 四个复习模块都用这一份：看义选词、听音辨义、拼写巩固显示本局已用时间，
-/// 词义连连显示剩余时间。字号与中间的主进度相同但**不加粗**——时间是次要信息，
-/// 不该和主进度抢视觉权重。
+/// 四个答题模块显示页面停留期间的累计时间。字号与中间的主进度相同但**不加粗**——
+/// 时间是次要信息，不该和主进度抢视觉权重。
 ///
 class ModuleTimeLabel extends StatelessWidget {
   ///
@@ -528,8 +561,7 @@ class ModuleTimeLabel extends StatelessWidget {
   ///
   /// 文字颜色，不传时用主题里的次要文字色。
   ///
-  /// 只有词义连连会传：它的倒计时会随剩余时间从灰转橙转红。默认那一档取的正是
-  /// 这里的次要文字色，所以四个模块的「正常状态」颜色本来就是同一个。
+  /// 不传时使用当前主题的次要文字色；需要状态提示的页面可传入专属颜色。
   final Color? color;
 
   ///
@@ -589,7 +621,7 @@ class ModuleSummaryView extends StatelessWidget {
   ///
   /// 顶部圆形底盘里的图标。
   ///
-  /// 四个模块统一后都传「对勾」，超时结算（词义连连）也可以传时钟等失败语义图标。
+  /// 四个模块统一后都传「对勾」；如果未来新增失败结算，也可以传其它语义图标。
   final IconData icon;
 
   ///
@@ -685,6 +717,7 @@ class ModuleSummaryView extends StatelessWidget {
     );
   }
 }
+
 ///
 /// 结算页的 2×2 统计卡（ModuleSummaryStatCard）与「需加强」名单
 /// （ModuleSummaryWeakEntry / ModuleSummaryWeakList / _ModuleSummaryWeakChip）

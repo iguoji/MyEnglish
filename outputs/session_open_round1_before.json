@@ -1,0 +1,480 @@
+{
+  "source_commit": "0c09b4b",
+  "device": "emulator-5554",
+  "mode": "debug",
+  "word_count": 1130,
+  "phase": "before",
+  "samples": [
+    {
+      "recorded_at": "2026-09-13 18:07:36.702",
+      "tag": "study_open_native",
+      "trace_id": "1789294055960388-3",
+      "scope": "repository_create",
+      "marks_us": {
+        "start": 0,
+        "transaction_started": 739,
+        "existing_session_handled": 10919,
+        "source_validated": 49472,
+        "snapshot_saved": 190429,
+        "questions_saved": 290372,
+        "session_read_back": 314909,
+        "existing_log_written": 315465,
+        "transaction_committed": 469060
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:36.762",
+      "tag": "study_open_native",
+      "trace_id": "1789294055960388-3",
+      "scope": "channel_createStudySession",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 742,
+        "action_finished": 470186,
+        "reply_sent": 530131
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:37.335",
+      "tag": "study_open",
+      "trace_id": "1789294055960388-3",
+      "module": "listening",
+      "words": 1130,
+      "mode": "debug",
+      "outcome": "ready",
+      "marks_us": {
+        "tap": 0,
+        "frame_yielded": 76391,
+        "targets_ready": 76873,
+        "paper_ready": 110178,
+        "request_encoded": 222694,
+        "reply_received": 802448,
+        "reply_decoded": 900573,
+        "entry_ready": 900717,
+        "controller_ready": 901768,
+        "page_init": 954597,
+        "page_framework_frame": 1006631,
+        "route_visible": 1006647,
+        "controls_ready": 1006649,
+        "content_visible": 1186323,
+        "interactive_framework_frame": 1187731
+      },
+      "frames": {
+        "page": {
+          "raster_finish_us": 1007462,
+          "build_us": 52815,
+          "raster_us": 779
+        },
+        "interactive": {
+          "raster_finish_us": 1304611,
+          "build_us": 1312,
+          "raster_us": 31397
+        }
+      },
+      "details": {
+        "request_bytes": 706922,
+        "reply_bytes": 1000036
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:47.911",
+      "tag": "study_open_native",
+      "trace_id": "1789294067448782-4",
+      "scope": "repository_create",
+      "marks_us": {
+        "start": 0,
+        "transaction_started": 96,
+        "existing_session_handled": 1408,
+        "source_validated": 39316,
+        "snapshot_saved": 145508,
+        "questions_saved": 202386,
+        "session_read_back": 241214,
+        "existing_log_written": 241866,
+        "transaction_committed": 301716
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:47.993",
+      "tag": "study_open_native",
+      "trace_id": "1789294067448782-4",
+      "scope": "channel_createStudySession",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 694,
+        "action_finished": 302743,
+        "reply_sent": 355344
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:48.578",
+      "tag": "study_open",
+      "trace_id": "1789294067448782-4",
+      "module": "listening",
+      "words": 1130,
+      "mode": "debug",
+      "outcome": "ready",
+      "marks_us": {
+        "tap": 0,
+        "frame_yielded": 18802,
+        "targets_ready": 19142,
+        "paper_ready": 52286,
+        "request_encoded": 123714,
+        "reply_received": 515490,
+        "reply_decoded": 627060,
+        "entry_ready": 627508,
+        "controller_ready": 628173,
+        "page_init": 644848,
+        "page_framework_frame": 678384,
+        "route_visible": 678416,
+        "controls_ready": 678420,
+        "content_visible": 858369,
+        "interactive_framework_frame": 859602
+      },
+      "frames": {
+        "page": {
+          "raster_finish_us": 702730,
+          "build_us": 37270,
+          "raster_us": 19321
+        },
+        "interactive": {
+          "raster_finish_us": 1028591,
+          "build_us": 1351,
+          "raster_us": 31772
+        }
+      },
+      "details": {
+        "request_bytes": 706922,
+        "reply_bytes": 1000036
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:56.671",
+      "tag": "study_open_native",
+      "trace_id": "1789294075898692-5",
+      "scope": "repository_create",
+      "marks_us": {
+        "start": 0,
+        "transaction_started": 157,
+        "existing_session_handled": 1147,
+        "source_validated": 59311,
+        "snapshot_saved": 166223,
+        "questions_saved": 472271,
+        "session_read_back": 510145,
+        "existing_log_written": 510913,
+        "transaction_committed": 602243
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:56.762",
+      "tag": "study_open_native",
+      "trace_id": "1789294075898692-5",
+      "scope": "channel_createStudySession",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 1342,
+        "action_finished": 604105,
+        "reply_sent": 694796
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:07:57.237",
+      "tag": "study_open",
+      "trace_id": "1789294075898692-5",
+      "module": "listening",
+      "words": 1130,
+      "mode": "debug",
+      "outcome": "ready",
+      "marks_us": {
+        "tap": 0,
+        "frame_yielded": 20938,
+        "targets_ready": 21323,
+        "paper_ready": 31871,
+        "request_encoded": 116264,
+        "reply_received": 863858,
+        "reply_decoded": 980144,
+        "entry_ready": 980381,
+        "controller_ready": 980984,
+        "page_init": 989624,
+        "page_framework_frame": 1030709,
+        "route_visible": 1030726,
+        "controls_ready": 1030728,
+        "content_visible": 1206033,
+        "interactive_framework_frame": 1207478
+      },
+      "frames": {
+        "page": {
+          "raster_finish_us": 1032190,
+          "build_us": 41822,
+          "raster_us": 1410
+        },
+        "interactive": {
+          "raster_finish_us": 1289336,
+          "build_us": 1047,
+          "raster_us": 82345
+        }
+      },
+      "details": {
+        "request_bytes": 706922,
+        "reply_bytes": 1000036
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:20.768",
+      "tag": "study_open_native",
+      "trace_id": "1789294099198964-6",
+      "scope": "repository_create",
+      "marks_us": {
+        "start": 0,
+        "transaction_started": 612,
+        "existing_session_handled": 2429,
+        "source_validated": 109044,
+        "snapshot_saved": 278049,
+        "questions_saved": 708909,
+        "session_read_back": 1013977,
+        "existing_log_written": 1014510,
+        "transaction_committed": 1138871
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:21.120",
+      "tag": "study_open_native",
+      "trace_id": "1789294099198964-6",
+      "scope": "channel_createStudySession",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 45786,
+        "action_finished": 1185379,
+        "reply_sent": 1537227
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:21.701",
+      "tag": "study_open_native",
+      "trace_id": "1789294099198964-6",
+      "scope": "channel_saveQuestionDistractors",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 3156,
+        "action_finished": 49377,
+        "reply_sent": 49581
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:22.021",
+      "tag": "study_open",
+      "trace_id": "1789294099198964-6",
+      "module": "listening_meaning",
+      "words": 1130,
+      "mode": "debug",
+      "outcome": "ready",
+      "marks_us": {
+        "tap": 0,
+        "frame_yielded": 43762,
+        "targets_ready": 44174,
+        "paper_ready": 146571,
+        "request_encoded": 272348,
+        "reply_received": 1921866,
+        "reply_decoded": 2390055,
+        "entry_ready": 2390343,
+        "controller_ready": 2404568,
+        "page_init": 2422499,
+        "page_framework_frame": 2446050,
+        "route_visible": 2446065,
+        "options_prepare_started": 2446083,
+        "options_generated": 2446197,
+        "options_saved": 2522092,
+        "controls_ready": 2522285,
+        "content_visible": 2622334,
+        "interactive_framework_frame": 2623633
+      },
+      "frames": {
+        "page": {
+          "raster_finish_us": 2456879,
+          "build_us": 23722,
+          "raster_us": 9830
+        },
+        "interactive": {
+          "raster_finish_us": 2778088,
+          "build_us": 1224,
+          "raster_us": 86284
+        }
+      },
+      "details": {
+        "request_bytes": 1483724,
+        "reply_bytes": 3203971
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:30.772",
+      "tag": "study_open_native",
+      "trace_id": "1789294109352695-7",
+      "scope": "repository_create",
+      "marks_us": {
+        "start": 0,
+        "transaction_started": 110,
+        "existing_session_handled": 864,
+        "source_validated": 38739,
+        "snapshot_saved": 139892,
+        "questions_saved": 602837,
+        "session_read_back": 983870,
+        "existing_log_written": 984583,
+        "transaction_committed": 1095251
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:30.997",
+      "tag": "study_open_native",
+      "trace_id": "1789294109352695-7",
+      "scope": "channel_createStudySession",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 304,
+        "action_finished": 1096001,
+        "reply_sent": 1320105
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:31.388",
+      "tag": "study_open_native",
+      "trace_id": "1789294109352695-7",
+      "scope": "channel_saveQuestionDistractors",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 971,
+        "action_finished": 34934,
+        "reply_sent": 35099
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:31.734",
+      "tag": "study_open",
+      "trace_id": "1789294109352695-7",
+      "module": "listening_meaning",
+      "words": 1130,
+      "mode": "debug",
+      "outcome": "ready",
+      "marks_us": {
+        "tap": 0,
+        "frame_yielded": 12056,
+        "targets_ready": 12457,
+        "paper_ready": 83370,
+        "request_encoded": 169646,
+        "reply_received": 1644444,
+        "reply_decoded": 1957948,
+        "entry_ready": 1958179,
+        "controller_ready": 1960183,
+        "page_init": 1971308,
+        "page_framework_frame": 1998485,
+        "route_visible": 1998504,
+        "options_prepare_started": 1998522,
+        "options_generated": 1998602,
+        "options_saved": 2086462,
+        "controls_ready": 2087014,
+        "content_visible": 2202968,
+        "interactive_framework_frame": 2210517
+      },
+      "frames": {
+        "page": {
+          "raster_finish_us": 2031882,
+          "build_us": 27805,
+          "raster_us": 29739
+        },
+        "interactive": {
+          "raster_finish_us": 2373439,
+          "build_us": 3740,
+          "raster_us": 30291
+        }
+      },
+      "details": {
+        "request_bytes": 1483724,
+        "reply_bytes": 3203971
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:40.535",
+      "tag": "study_open_native",
+      "trace_id": "1789294119102441-8",
+      "scope": "repository_create",
+      "marks_us": {
+        "start": 0,
+        "transaction_started": 478,
+        "existing_session_handled": 2252,
+        "source_validated": 54511,
+        "snapshot_saved": 204466,
+        "questions_saved": 616425,
+        "session_read_back": 952309,
+        "existing_log_written": 953127,
+        "transaction_committed": 1072581
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:40.772",
+      "tag": "study_open_native",
+      "trace_id": "1789294119102441-8",
+      "scope": "channel_createStudySession",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 1095,
+        "action_finished": 1074203,
+        "reply_sent": 1311174
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:41.284",
+      "tag": "study_open_native",
+      "trace_id": "1789294119102441-8",
+      "scope": "channel_saveQuestionDistractors",
+      "marks_us": {
+        "start": 0,
+        "dequeued": 294,
+        "action_finished": 39553,
+        "reply_sent": 39750
+      }
+    },
+    {
+      "recorded_at": "2026-09-13 18:08:41.560",
+      "tag": "study_open",
+      "trace_id": "1789294119102441-8",
+      "module": "listening_meaning",
+      "words": 1130,
+      "mode": "debug",
+      "outcome": "ready",
+      "marks_us": {
+        "tap": 0,
+        "frame_yielded": 28047,
+        "targets_ready": 28395,
+        "paper_ready": 134178,
+        "request_encoded": 246270,
+        "reply_received": 1679781,
+        "reply_decoded": 2099182,
+        "entry_ready": 2099592,
+        "controller_ready": 2106072,
+        "page_init": 2126229,
+        "page_framework_frame": 2140847,
+        "route_visible": 2140860,
+        "options_prepare_started": 2140875,
+        "options_generated": 2140957,
+        "options_saved": 2238289,
+        "controls_ready": 2238477,
+        "content_visible": 2318241,
+        "interactive_framework_frame": 2320892
+      },
+      "frames": {
+        "page": {
+          "raster_finish_us": 2182965,
+          "build_us": 15581,
+          "raster_us": 41863
+        },
+        "interactive": {
+          "raster_finish_us": 2442509,
+          "build_us": 2427,
+          "raster_us": 121877
+        }
+      },
+      "details": {
+        "request_bytes": 1483724,
+        "reply_bytes": 3203971
+      }
+    }
+  ]
+}

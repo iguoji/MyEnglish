@@ -11,9 +11,8 @@ import 'package:my_english/common/theme.dart';
 // Tabler 图标用于确认播放状态没有回退成文字符号。
 import 'package:tabler_icons_plus/tabler_icons_plus.dart';
 
-// 引入单词、会话模型与进度出口。
-import 'package:my_english/models/session.dart';
-import 'package:my_english/models/session_record.dart';
+// 引入单词和独立播放状态。
+import 'package:my_english/models/listening_playback.dart';
 import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 引入随身听页面。
@@ -22,11 +21,8 @@ import 'package:my_english/pages/listening/listening_page.dart';
 import 'package:my_english/pages/listening/widgets/listening_layout.dart';
 // 引入音频接口与设置（口音、释义分隔符、播放偏好都在设置表）。
 import 'package:my_english/services/word_audio.dart';
-import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/store/settings.dart';
-
-// 测试用内存会话 Store。
-import '../../support/memory_session_store.dart';
+import 'package:my_english/widgets/module_scaffold.dart';
 
 ///
 /// 注册随身听页面的布局、播放和恢复交互测试。
@@ -35,9 +31,8 @@ void main() {
     tester,
   ) async {
     final audio = _ImmediateAudioPlayer();
-    // 2.0 起播放偏好（含释义分隔符）全部住在设置表。
+    // 2.0 起播放偏好全部住在设置表。
     final settings = SettingsStore.inMemory();
-    await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
     await tester.pumpWidget(
       MaterialApp(
         // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
@@ -145,7 +140,7 @@ void main() {
     await tester.pump();
     expect(find.text('ability'), findsWidgets);
     // 同一词性的中文定义使用设置的分隔符连接在一个 Text 中（此处为全角逗号）。
-    expect(find.text('能力，才能'), findsOneWidget);
+    expect(find.text('能力；才能'), findsOneWidget);
     expect(find.text('能力'), findsNothing);
     expect(find.text('才能'), findsNothing);
     expect(find.byIcon(TablerIcons.eye), findsOneWidget);
@@ -160,10 +155,9 @@ void main() {
       tester.getTopLeft(find.byIcon(TablerIcons.chevronLeft)).dx,
       closeTo(ListeningLayout.pageInset, 0.01),
     );
-    // 设置图标的可见画布保持贴齐右侧同一档边距。
+    // 顶栏右侧现为播放用时，保持与返回按钮相同的页面边距。
     expect(
-      // getBottomRight(...).dx 就是可见设置图标最右侧的横坐标。
-      tester.getBottomRight(find.byIcon(TablerIcons.settings)).dx,
+      tester.getBottomRight(find.byType(ModuleTimeLabel)).dx,
       // 800 是 flutter_test 的默认画布宽度，减去一档页面留白就是目标右边缘。
       closeTo(800 - ListeningLayout.pageInset, 0.01),
     );
@@ -184,7 +178,11 @@ void main() {
     expect(find.byIcon(TablerIcons.playerPlay), findsOneWidget);
 
     // 设置面板完整包含三项原型设置。
-    await tester.tap(find.byKey(const Key('open-listening-settings')));
+    await tester.fling(
+      find.byKey(const Key('listening-answer-card')),
+      const Offset(0, -180),
+      1000,
+    );
     await tester.pumpAndSettle();
     expect(find.text('播放次数'), findsOneWidget);
     expect(find.text('播放间隔(秒)'), findsOneWidget);
@@ -273,26 +271,15 @@ void main() {
   testWidgets('listening restores the persisted playback position', (
     tester,
   ) async {
-    // 历史会话停在第二个词（cursor=1），展开释义偏好来自设置表。
-    final store = MemorySessionStore();
-    final settings = SettingsStore.inMemory();
-    await settings.setListeningRevealAll(true);
-    final session = Session(
-      id: 1,
-      module: ReviewModule.listening,
-      kind: SessionKind.daily,
-      status: SessionStatus.active,
-      wordSetId: 1,
-      items: const <int>[1, 2],
-      cursor: 1,
-      elapsed: 0,
-      date: '2026-08-29',
-      createdAt: DateTime.now(),
-    );
-    final progress = SessionProgress(
-      store: store,
-      session: session,
-      records: const <SessionRecord>[],
+    // 清单停在第二个词（cursor=1），位置与播放偏好都由设置恢复。
+    final settings = SettingsStore.inMemory(
+      listeningRevealAll: true,
+      listeningPlayback: const ListeningPlayback(
+        revision: 'saved-playlist',
+        wordIds: [1, 2],
+        cursor: 1,
+        isPlaying: true,
+      ),
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -303,7 +290,6 @@ void main() {
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
           settings: settings,
-          progress: progress,
         ),
       ),
     );
@@ -313,14 +299,14 @@ void main() {
     expect(find.text('2 / 2'), findsOneWidget);
     expect(find.byIcon(TablerIcons.eye), findsOneWidget);
     // 进入页面即保存一次「播到第几个」。
-    expect(store.progressWrites, isNotEmpty);
-    expect(store.progressWrites.last.cursor, 1);
+    expect(settings.listeningPlayback.cursor, 1);
 
-    // 主动回到上一个词后，页面立即把新下标保存进会话。
+    // 主动回到上一个词后，原清单的位置更新，不产生另一份播放记录。
     await tester.tap(find.text('上一个'));
     await tester.pump();
     expect(find.text('1 / 2'), findsOneWidget);
-    expect(store.progressWrites.last.cursor, 0);
+    expect(settings.listeningPlayback.cursor, 0);
+    expect(settings.listeningPlayback.revision, 'saved-playlist');
 
     // 销毁页面并释放控制器。
     await tester.pumpWidget(const SizedBox.shrink());

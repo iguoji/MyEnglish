@@ -123,6 +123,39 @@ class WordsDatabaseImportTest {
         assertEquals(100L, longColumn("meanings", "id", "id = ?", 100))
     }
 
+    /** 新版词义连连按轮次保存：首页总题数必须统计所有配对，而不是轮次数。 */
+    @Test
+    fun meaningMatchNestedItems_reportsPairCount() {
+        val date = "2026-08-29"
+        db.createSession(
+            module = "meaning_match",
+            kind = WordsDatabase.KIND_DAILY,
+            wordSetId = null,
+            itemsJson = "[[[1,101],[2,102],[3,103],[4,104],[5,105]],[[6,106],[7,107]] ]",
+            date = date,
+        )
+
+        val state = db.getTodaySessionStates(date).single()
+        // 两轮棋盘共 7 对，进度条分母必须是 7，不能错误显示成 2。
+        assertEquals(7, state["total"])
+    }
+
+    /** 旧版词义连连扁平配对数组仍按顶层配对数兼容统计。 */
+    @Test
+    fun meaningMatchLegacyFlatItems_reportsPairCount() {
+        val date = "2026-08-29"
+        db.createSession(
+            module = "meaning_match",
+            kind = WordsDatabase.KIND_DAILY,
+            wordSetId = null,
+            itemsJson = "[[1,101],[2,102],[3,103]]",
+            date = date,
+        )
+
+        val state = db.getTodaySessionStates(date).single()
+        assertEquals(3, state["total"])
+    }
+
     // ---- 测试辅助 ------------------------------------------------------
 
     private fun baseBackup(): MutableMap<String, Any?> = mutableMapOf(

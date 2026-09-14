@@ -1,3 +1,4 @@
+import '../../widgets/audio_playback_capsule.dart';
 // dart:async 提供计时器、自动发音延迟与 unawaited（落盘不阻塞交互）。
 import 'dart:async';
 // material.dart 提供全屏页面、进度条与按钮。
@@ -14,6 +15,7 @@ import '../../common/date.dart';
 import '../../common/toast.dart';
 // 引入单词数据模型，首页会把当天固定词单传进来。
 import '../../models/word.dart';
+import '../../models/settlement.dart';
 // 引入音频播放接口，与首页、随身听共用同一个实现。
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
@@ -26,8 +28,8 @@ import 'widgets/spelling_layout.dart';
 import '../../widgets/qwerty_keyboard.dart';
 // 引入模块页面模板：上中下三段骨架、顶栏三个插槽与结算页共用版式。
 import '../../widgets/module_scaffold.dart';
+import '../../widgets/settlement_summary.dart';
 // 复用听音辨义模块的公共扬声器按钮，避免多个页面各自维护一套样式。
-import '../../widgets/audio_speaker_button.dart';
 // 引入公共「词性及含义」面板，与听音辨义共用同一套版式。
 import '../../widgets/letter_slot.dart';
 import '../../widgets/pos_meaning_panel.dart';
@@ -65,32 +67,6 @@ class SpellingWordOutcome {
 }
 
 /// 播放状态声纹中的单根圆角竖条。
-class _PlaybackWaveBar extends StatelessWidget {
-  /// 创建声纹竖条。
-  const _PlaybackWaveBar({required this.color, required this.height});
-
-  /// 竖条颜色：空闲时为弱化灰，播放时使用主题蓝色。
-  final Color color;
-
-  /// 当前动画帧的竖条高度。
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    // 声纹相位已经由父级低频定时器控制，这里只绘制当前帧。
-    // 不再为每根竖条创建 AnimatedContainer，避免 21 个隐式动画叠加占用 CPU。
-    return SizedBox(
-      width: SpellingLayout.waveBarWidth,
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-        ),
-      ),
-    );
-  }
-}
 
 ///
 /// 拼写巩固页面。
@@ -188,16 +164,24 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   final List<SpellingWordOutcome> _outcomes = <SpellingWordOutcome>[];
 
   ///
-  /// 本局累计答错次数（跨单词累加），决定结算页「拼错几次」的统计。
-  int _errors = 0;
-
   ///
   /// 本局已经过去的毫秒数；只在页面处于前台且未结算时累加。
   int _elapsedMs = 0;
 
   ///
+  /// 当前这个单词是「几点几分几秒」开始答题的。
+  ///
+  /// 生活化解释：右上角那个计时器是**整局**的，退后台会停、切页面也会停；
+  /// 这一块是另一只独立的手表，专门掐「这个单词我盯着看了多久」。
+  /// 结算页每行右边那个用时就是拿「现在」减它算出来的。
+  DateTime _wordStartedAt = DateTime.now();
+
+  ///
   /// 本局是否已经把全部单词走完一遍。
   bool _completed = false;
+
+  /// 结算草稿正在提交时锁住两个离开入口，避免重复应用难度。
+  bool _isCommittingSummary = false;
 
   ///
   /// 是否正在准备当前单词。
@@ -257,10 +241,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 不使用逐帧 AnimationController：声纹是装饰性反馈，每秒更新约 12 次
   /// 已足够流畅，却能明显减少模拟器持续重绘造成的 CPU 占用。
-  final ValueNotifier<double> _waveProgress = ValueNotifier<double>(0);
 
   /// 声纹低频刷新定时器；只有真实播放时才运行。
-  Timer? _waveTimer;
 
   ///
   /// 本局进度的落盘出口，在 initState 里创建一次。
@@ -283,14 +265,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   ///
   /// 是否展示结算页。
   bool get _showSummary => _completed;
-
-  ///
-  /// 需要加强的单词：错过或被揭示过答案的那些。
-  ///
-  /// 结算页简化后不再列名单，只用来判断「这一组有没有全对」——一句话
-  /// 副标题据此换成「全部一次拼对」或「共 N 个 · 拼错 X 次」。
-  List<SpellingWordOutcome> get _weakOutcomes =>
-      _outcomes.where((outcome) => !outcome.isPerfect).toList(growable: false);
 
   ///
   /// 顶栏中间显示的「第几个」：结算时显示总数，答题时显示当前序号。
@@ -316,40 +290,12 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     );
     // 先恢复历史进度（可能直接恢复到已结算状态），再准备当前单词。
     _restoreProgress();
-    if (!_showSummary) {
+    if (!_showSummary && _outcomes.length < _total) {
       unawaited(_prepareCurrentWord(autoSpeak: true, keepProgress: true));
       _startElapsedTimer();
     } else {
-      _preparing = false;
+      _preparing = !_completed;
     }
-  }
-
-  /// 启动低频声纹动画，避免空闲页面持续占用绘制资源。
-  void _startWaveTimer() {
-    if (_waveTimer != null) return;
-    _waveTimer = Timer.periodic(
-      const Duration(milliseconds: SpellingLayout.waveTickMs),
-      (_) {
-        if (!mounted || !_isPlaying) return;
-        _waveProgress.value = (_waveProgress.value + 0.12) % 1;
-      },
-    );
-  }
-
-  /// 只停止声纹刷新，不触碰声纹进度。
-  ///
-  /// 页面退出时 Flutter 可能正在构建导航层，此时修改 [_waveProgress]
-  /// 会通知 ValueListenableBuilder 重新构建，从而触发「build 期间 setState」
-  /// 异常。因此退出生命周期只能取消定时器，不能重置监听值。
-  void _cancelWaveTimer() {
-    _waveTimer?.cancel();
-    _waveTimer = null;
-  }
-
-  /// 停止声纹刷新并把下一次播放从统一的起点开始。
-  void _stopWaveTimer() {
-    _cancelWaveTimer();
-    _waveProgress.value = 0;
   }
 
   ///
@@ -361,40 +307,45 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 唯一恢复不了的是「当前这个词已经拼了一半」——重进会从这个词的开头
   /// 重来。这是刻意的取舍：为了半个单词而维护一份快照并不划算。
   void _restoreProgress() {
-    final session = _progress.session;
-    // 当前单词下标；夹在合法区间内，防止词库变动后越界。
-    _wordIndex = session.cursor.clamp(0, _total - 1);
-    _elapsedMs = session.elapsed * 1000;
-    // 累计错误由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
-    _errors = _progress.wrongCount;
-
-    // 回放已完成单词的结果：一个词只要在记录里出现过「答对」，就算走完了。
-    for (
-      var index = 0;
-      index < _wordIndex && index < widget.words.length;
-      index += 1
-    ) {
-      final word = widget.words[index];
-      final wordId = word.id;
-      if (wordId == null) continue;
-      final wordProgress = _progress.progressOf(wordId);
+    _elapsedMs = _progress.session.elapsed * 1000;
+    _wordStartedAt = DateTime.now();
+    var next = 0;
+    for (final word in widget.words) {
+      if (!_progress.progressOf(word.id!).spellingDone) break;
       _outcomes.add(
         SpellingWordOutcome(
           spelling: word.spelling,
-          // 这个词在本局错过几次，直接数记录。
           wrongCount: _progress.allRecords
-              .where((record) => record.wordId == wordId && !record.isCorrect)
+              .where((record) => record.wordId == word.id && !record.isCorrect)
               .length,
         ),
       );
-      // 已经结算过的词不再重复结算。
-      if (wordProgress.answeredMeaningIds.isNotEmpty ||
-          wordProgress.spellingDone) {
-        _recordedIndexes.add(index);
-      }
+      _recordedIndexes.add(next++);
     }
-    // 全部走完就直接进结算页。
-    _completed = _outcomes.length >= _total;
+    _wordIndex = next.clamp(0, _total - 1);
+    _currentWrong = _progress.allRecords
+        .where(
+          (record) => record.wordId == _currentWord.id && !record.isCorrect,
+        )
+        .length;
+    if (next >= _total) {
+      _preparing = true;
+      unawaited(_finishRecoveredSession());
+    }
+  }
+
+  Future<void> _finishRecoveredSession() async {
+    try {
+      await _finishSession();
+      if (mounted) {
+        setState(() {
+          _completed = true;
+          _preparing = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) Toast.show(context, '结算保存失败，重新进入可继续：$error');
+    }
   }
 
   ///
@@ -416,6 +367,8 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       _preparing = false;
       _autoFillNonLetters();
     });
+    final question = _progress.questionFor(wordId: _currentWord.id);
+    if (question != null) _progress.activateQuestion(question.id);
     if (autoSpeak) _scheduleAutoSpeak();
   }
 
@@ -516,10 +469,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 不能出现“图标已经停了、声纹还在跳”这种状态错位。
   void _setPlaybackState(bool isPlaying) {
     if (isPlaying) {
-      _startWaveTimer();
-    } else {
-      _stopWaveTimer();
-    }
+    } else {}
     if (mounted) setState(() => _isPlaying = isPlaying);
   }
 
@@ -582,9 +532,20 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 处理一次整词答错：累计错误、整行抖动、保留红色提示后清空重试。
   ///
   /// 反馈不会在抖动结束时立刻消失，而是总计保留 1 秒，让用户看清错误信息。
-  void _onWrongAnswer({required String input}) {
+  Future<void> _onWrongAnswer({required String input}) async {
+    _inputLocked = true;
+    try {
+      await _recordAttempt(input: input, isCorrect: false);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _inputLocked = false);
+        Toast.show(context, '答案保存失败：$error');
+      }
+      return;
+    }
+    if (!mounted) return;
+    _progress.pauseQuestion();
     setState(() {
-      _errors += 1;
       _currentWrong += 1;
       _showWrongFeedback = true;
       _showCorrectFeedback = false;
@@ -593,7 +554,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _shakeController.forward(from: 0);
     // 轻微震动：整词检查失败时给一次反馈，而不是每个错误字母都震动。
     unawaited(HapticFeedback.selectionClick());
-    unawaited(_recordAttempt(input: input, isCorrect: false));
+
     unawaited(_persist());
     _unlockTimer?.cancel();
     _unlockTimer = Timer(
@@ -607,16 +568,29 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
           _showWrongFeedback = false;
           _inputLocked = false;
         });
+        final question = _progress.questionFor(wordId: _currentWord.id);
+        if (question != null) _progress.activateQuestion(question.id);
       },
     );
   }
 
   ///
   /// 当前单词拼对：记一条、锁住输入、保留 1 秒成功反馈再进下一个词。
-  void _onWordSolved() {
+  Future<void> _onWordSolved() async {
+    _inputLocked = true;
+    try {
+      await _recordAttempt(input: _typedLetters.join(), isCorrect: true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _inputLocked = false);
+        Toast.show(context, '答案保存失败：$error');
+      }
+      return;
+    }
+    if (!mounted) return;
     // 拼对也留痕：没有这一条，本局这个词在数据库里就等于「没练过」，
     // 首页的今日复习数与打卡热力图都统计不到它。
-    unawaited(_recordAttempt(input: _currentWord.spelling, isCorrect: true));
+
     setState(() {
       _showCorrectFeedback = true;
       _showWrongFeedback = false;
@@ -631,15 +605,17 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
 
   ///
   /// 结束当前单词并推进：写记录、清状态，还有词就准备下一个，否则结算。
-  void _goToNextWord() {
+  Future<void> _goToNextWord() async {
     if (!mounted) return;
     // 先把这个词的结果定格下来（结算页统计与「需加强」名单都靠它）。
     final outcome = SpellingWordOutcome(
       spelling: _currentWord.spelling,
       wrongCount: _currentWrong,
     );
-    // 这个词尘埃落定，给它结算难度。
-    unawaited(_recordCurrentWord(outcome));
+    // 这个词尘埃落定，先把结算草稿真正写入队列，再切换题目或显示结算页。
+    // 这样 finishSession 写入待结算标记时不会撞在尚未生成草稿的时间窗口里。
+    await _recordCurrentWord(outcome);
+    if (!mounted) return;
 
     final isLast = _wordIndex + 1 >= _total;
     setState(() {
@@ -649,9 +625,11 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
       _showWrongFeedback = false;
       _inputLocked = false;
       if (isLast) {
-        _completed = true;
+        _inputLocked = true;
       } else {
         _wordIndex += 1;
+        // 换到新单词，手表重新掐表。
+        _wordStartedAt = DateTime.now();
         // 进入新词前先清空输入，避免旧单词的字母闪现一帧。
         _typedLetters.clear();
         _typedEntryTokens.clear();
@@ -661,7 +639,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     if (isLast) {
       // 整局已经结束，彻底停表，避免结算页期间定时器继续空转。
       _stopElapsedTimer();
-      unawaited(_finishSession());
+      await _finishRecoveredSession();
       return;
     }
     unawaited(_prepareCurrentWord(autoSpeak: true));
@@ -685,16 +663,12 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     final wordId = _currentWord.id;
     // 没有主键无法落库；它通常只会出现在尚未保存的测试数据中。
     if (wordId == null) return;
-    try {
-      await _progress.record(
-        wordId: wordId,
-        input: input,
-        isCorrect: isCorrect,
-      );
-    } catch (error) {
-      // 写记录失败不该打断答题，最多这一次点击没留痕。
-      debugPrint('写入拼写巩固点击记录失败：$error');
-    }
+    await _progress.record(
+      wordId: wordId,
+      input: input,
+      isCorrect: isCorrect,
+      elapsed: _elapsedSeconds,
+    );
   }
 
   ///
@@ -709,7 +683,11 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     // 没有主键的临时数据跳过。
     if (wordId == null) return;
     try {
-      await _progress.settle(wordId);
+      await _progress.settle(
+        wordId,
+        // 本词用时 = 现在 − 这个单词开始答题的那一刻。
+        usedTime: DateTime.now().difference(_wordStartedAt),
+      );
     } catch (error) {
       // 结算失败不该打断正在进行的一局；集合里放回去，后面还有机会补算。
       _recordedIndexes.remove(_wordIndex);
@@ -751,11 +729,9 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (!_showSummary && _isPlaying) _startWaveTimer();
       if (!_showSummary) _startElapsedTimer();
       return;
     }
-    _stopWaveTimer();
     _stopElapsedTimer();
     _autoSpeakTimer?.cancel();
     // 退后台时作废正在进行的播放请求。
@@ -773,7 +749,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _stopElapsedTimer();
     // deactivate 发生在导航转场的构建阶段，只取消定时器，避免通知
     // 仍挂在树上的 ValueListenableBuilder 立即重建。
-    _cancelWaveTimer();
     super.deactivate();
   }
 
@@ -782,13 +757,13 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   void activate() {
     super.activate();
     if (!_showSummary) {
-      if (_isPlaying) _startWaveTimer();
       _startElapsedTimer();
     }
   }
 
   @override
   void dispose() {
+    _progress.detach();
     // 注销生命周期监听，避免后台回调访问已释放页面。
     WidgetsBinding.instance.removeObserver(this);
     _stopElapsedTimer();
@@ -797,8 +772,6 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     _autoSpeakTimer?.cancel();
     _shakeController.dispose();
     // dispose 也可能发生在导航层构建期间，不能在这里修改监听值。
-    _cancelWaveTimer();
-    _waveProgress.dispose();
     // 离场即停声，避免退回首页后还在念这个单词。
     unawaited(widget.audioPlayer.stop().catchError((Object _) {}));
     // 停表并保存当前进度；completed 也会在此落盘（首页据此显示状态）。
@@ -837,12 +810,16 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     );
 
     return ModuleScaffold(
+      canPop: !_showSummary,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _showSummary) unawaited(_leaveSummary());
+      },
       header: ModuleHeader(
         leading: ModuleIconButton(
           key: const Key('close-spelling'),
           icon: AppGlyph.back,
           alignment: Alignment.centerLeft,
-          onTap: () => Navigator.pop(context),
+          onTap: _leaveSummary,
         ),
         title: ModuleProgressLabel(
           textKey: const Key('spelling-progress-label'),
@@ -907,17 +884,15 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 ),
                 decoration: BoxDecoration(
                   color: tokens.card,
-                  border: Border.all(color: tokens.border),
+                  // 与候选词、描边按钮、输入框同一档控件描边；白卡只靠这一圈线
+                  // 立在灰底上，不再叠投影。
+                  border: Border.all(
+                    color: tokens.rowBorder,
+                    width: AppStroke.thin,
+                  ),
                   borderRadius: BorderRadius.circular(
                     SpellingLayout.bodyCardRadius,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: tokens.cardShadow,
-                      offset: const Offset(0, AppShadow.cardOffsetY),
-                      blurRadius: AppShadow.cardBlur,
-                    ),
-                  ],
                 ),
                 child: Center(
                   child: Column(
@@ -942,143 +917,18 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 原型右侧上方是音标；应用的单词模型没有音标字段，因此这里改成长条状
   /// 声纹。播放时声纹从左到右错开起伏，未播放时保留低矮静态形态，且上下
   /// 两行共用固定宽度，避免状态文字变化时胶囊发生横向跳动。
-  Widget _buildPlaybackStatus(AppTokens tokens) {
-    final textTheme = Theme.of(context).textTheme;
-    // 这里直接读取首页传入的全局口音设置，并使用设置面板里的中文名称，
-    // 避免播放按钮显示的口音和真正播放的音频不一致。
-    final accentLabel = widget.accent.label;
-    final statusLabel = _isPlaying ? '播放中' : '点击播放';
-    final waveColors = _isPlaying
-        ? List<Color>.filled(SpellingLayout.waveBarCount, AppTokens.primary)
-        : List<Color>.filled(SpellingLayout.waveBarCount, tokens.muted);
-
-    return Padding(
-      padding: const EdgeInsets.only(
-        top: SpellingLayout.playbackSectionTop,
-        bottom: SpellingLayout.playbackSectionBottom,
-      ),
-      child: Semantics(
-        button: true,
-        label: '播放发音',
-        child: SizedBox(
-          width: SpellingLayout.playbackWidth,
-          child: Material(
-            // 原型仅在 hover 时显示这层浅灰背景；移动端没有 hover，
-            // 因此把同一层浅底色常驻，明确勾勒出胶囊点击区域。
-            // 这里用 capsule 令牌而不是 page：胶囊躺在白卡上，与页面底色无关。
-            color: tokens.capsule,
-            borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-            child: InkWell(
-              key: const Key('spelling-playback-status'),
-              onTap: () => unawaited(_playAudio()),
-              borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  SpellingLayout.playbackCirclePadding,
-                  SpellingLayout.playbackVerticalPadding,
-                  SpellingLayout.playbackTextPaddingRight,
-                  SpellingLayout.playbackVerticalPadding,
-                ),
-                child: Row(
-                  // 胶囊宽度固定，内容从左侧开始排布；播放状态变化时不会
-                  // 因为文字宽度或声纹动画而在胶囊中来回跳动。
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    _buildPlaybackSpeaker(),
-                    const SizedBox(width: SpellingLayout.playbackContentGap),
-                    SizedBox(
-                      width: SpellingLayout.playbackTextWidth,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: SpellingLayout.playbackTextWidth,
-                            height: SpellingLayout.waveHeight,
-                            child: ValueListenableBuilder<double>(
-                              valueListenable: _waveProgress,
-                              builder: (context, progress, _) {
-                                return Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    for (
-                                      var index = 0;
-                                      index < SpellingLayout.waveBarCount;
-                                      index += 1
-                                    )
-                                      _PlaybackWaveBar(
-                                        color: waveColors[index],
-                                        height: _waveHeight(index, progress),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(
-                            height: SpellingLayout.playbackLabelGap,
-                          ),
-                          AnimatedSwitcher(
-                            duration: const Duration(
-                              milliseconds: AppDuration.ms160,
-                            ),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '$accentLabel · $statusLabel',
-                                key: ValueKey('$accentLabel-$statusLabel'),
-                                maxLines: 1,
-                                softWrap: false,
-                                style: textTheme.fs6Semibold.copyWith(
-                                  color: AppTokens.primary.withValues(
-                                    alpha: AppAlpha.a70,
-                                  ),
-                                  // 这一处刻意比全站字距宽得多，几个字才拉得开。
-                                  letterSpacing:
-                                      SpellingLayout.playbackLabelLetterSpacing,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建播放圆形区域。
-  ///
-  /// 这里直接复用听音辨义模块的公共按钮：圆形浅蓝底，播放中切换为
-  /// Tabler 双声波图标。声纹动画仍由胶囊右侧单独负责。
-  Widget _buildPlaybackSpeaker() {
-    return AudioSpeakerButton(
-      key: const Key('spelling-playback-speaker'),
+  Widget _buildPlaybackStatus(AppTokens tokens) => Padding(
+    padding: const EdgeInsets.only(
+      top: SpellingLayout.playbackSectionTop,
+      bottom: SpellingLayout.playbackSectionBottom,
+    ),
+    child: AudioPlaybackCapsule(
+      key: const Key('spelling-playback-status'),
       isPlaying: _isPlaying,
       onTap: () => unawaited(_playAudio()),
-      size: SpellingLayout.playbackCircleSize,
-      iconSize: SpellingLayout.playbackIconSize,
-    );
-  }
-
-  /// 根据动画进度计算每根声纹高度；不同起始相位让整排条纹不会整齐同跳。
-  double _waveHeight(int index, double progress) {
-    if (!_isPlaying) {
-      return SpellingLayout.waveIdleHeights[index];
-    }
-    final phase = (progress + index * 0.17) % 1;
-    final pulse = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
-    return SpellingLayout.waveMinHeight +
-        SpellingLayout.waveMaxExtraHeight * (0.35 + pulse * 0.65);
-  }
+      accentLabel: widget.accent.label,
+    ),
+  );
 
   ///
   /// 构建 `听音拼写2.html` 中从 Meaning 标题开始的完整含义区域。
@@ -1294,18 +1144,69 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
   /// 2×2 统计卡与「需加强」名单已随结算页统一走简单显示而下线，唯一保留的
   /// 信息是「全对 / 拼错几次」——对复习类应用来说，副标题一句话足够交代。
   Widget _buildSummary(AppTokens tokens) {
-    final weak = _weakOutcomes;
-    return ModuleSummaryView(
-      icon: AppGlyph.correct,
-      color: AppTokens.success,
-      title: '拼写完成',
-      subtitle: weak.isEmpty
-          ? '本组 $_total 个单词全部一次拼对'
-          : '共 $_total 个单词 · 拼错 $_errors 次',
-      actionLabel: '返回',
-      actionKey: const Key('finish-spelling'),
-      onAction: () => Navigator.pop(context),
+    final items = <SettlementWordItem>[];
+    for (final outcome in _outcomes) {
+      final word = widget.words.firstWhere(
+        (item) => item.spelling == outcome.spelling,
+        orElse: () => widget.words.first,
+      );
+      final id = word.id;
+      final draft = id == null ? null : _progress.settlementFor(id);
+      final correct = draft?.isCorrect ?? outcome.wrongCount == 0;
+      items.add(
+        SettlementWordItem(
+          word: outcome.spelling,
+          isCorrect: correct,
+          usedTime: Duration(seconds: draft?.usedTimeSeconds ?? 0),
+          // 本轮开始时的难度：草稿里记着就用草稿的，拿不到就退回到单词当前的难度。
+          difficultyBefore: draft?.difficultyBefore ?? word.difficulty,
+          recentResults:
+              draft?.recentResults ?? <bool?>[correct, null, null, null, null],
+          streak: draft != null && draft.streak > 0 ? draft.streak : null,
+          initialAdjust: difficultyAdjustFromDelta(
+            draft?.suggestedAdjustment ?? 0,
+          ),
+        ),
+      );
+    }
+    return SettlementSummary(
+      key: const Key('settlement-spelling'),
+      items: items,
+      // 结算页顶部用所有单词明细的实际用时汇总；右上角仍显示页面停留时间。
+      aggregatedWordElapsed: Duration(
+        seconds: items.fold<int>(
+          0,
+          (sum, item) => sum + (item.usedTime?.inSeconds ?? 0),
+        ),
+      ),
+      onAdjust: (index, adjust) {
+        final word = widget.words.firstWhere(
+          (item) => item.spelling == items[index].word,
+          orElse: () => widget.words.first,
+        );
+        final id = word.id;
+        if (id != null) unawaited(_progress.adjustSettlement(id, adjust));
+      },
+      onRetry: () => unawaited(_leaveSummary(retry: true)),
+      onConfirm: _leaveSummary,
     );
+  }
+
+  /// 提交结算草稿后离开本页；重开信号交给首页处理。
+  Future<void> _leaveSummary({bool retry = false}) async {
+    if (!_showSummary) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (_isCommittingSummary) return;
+    _isCommittingSummary = true;
+    try {
+      await _progress.commitSettlement();
+      if (mounted) Navigator.of(context).pop(retry);
+    } catch (error) {
+      _isCommittingSummary = false;
+      debugPrint('提交拼写巩固结算失败：$error');
+    }
   }
 
   ///

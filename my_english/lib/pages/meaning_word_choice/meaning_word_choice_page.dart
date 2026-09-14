@@ -1,3 +1,6 @@
+import '../../widgets/question_content_transition.dart';
+import '../../widgets/choice_option_grid.dart';
+import '../../common/toast.dart';
 // dart:async 提供 Timer，用于结算页展示本局用时。
 import 'dart:async';
 // dart:math 提供 max，读取快照时防止负数进度。
@@ -14,6 +17,7 @@ import '../../common/theme.dart';
 import '../../common/date.dart';
 // 引入单词模型。
 import '../../models/word.dart';
+import '../../models/settlement.dart';
 // 引入音频播放接口：点击候选词或已答出的单词时朗读。
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
@@ -21,6 +25,7 @@ import '../../store/settings.dart';
 // 引入全 App 共用的「下划线字母格」，与拼写巩固是同一个组件。
 // 引入模块页面模板：上中下三段骨架、顶栏三个插槽与结算页共用版式。
 import '../../widgets/module_scaffold.dart';
+import '../../widgets/settlement_summary.dart';
 import '../../widgets/letter_slot.dart';
 // 引入复习模块共用的进度出口：负责把快照落进今天的会话。
 import '../review/services/session_progress.dart';
@@ -118,17 +123,25 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// 每轮答错次数（下标对齐 [_rounds]），结算页副标题判断「是否全对」用。
   List<int> _roundWrongCounts = <int>[];
 
-  /// 已写过复习记录的单词主键，防止续玩后重复写入。
-  final Set<int> _recordedWordIds = <int>{};
-
-  /// 本局累计答错次数；同时是会话的 wrongTotal。
-  int _errors = 0;
-
   /// 本局累计用时（毫秒），结算页展示用。
   int _elapsedMs = 0;
 
   /// 是否已把全部含义走完一遍（进入结算页）。
   bool _completed = false;
+  bool _savingAnswer = false;
+  MeaningWordChoiceCandidate? _pendingChoice;
+  int _candidateGeneration = 0;
+
+  /// 新一轮的候选词是否还在读库。
+  ///
+  /// 换轮时不再先把候选区清空——那一清一填会让底部整块塌成 0 高再长回来，
+  /// 上方的白卡跟着被顶上去又压下来，看起来就像「整块元素被显示/隐藏」。
+  /// 现在旧候选留在原地，等新的读回来直接原地替换（文字交叉淡入），
+  /// 这一段过渡期用这个标记把点击挡掉，免得误判成上一轮的答案。
+  bool _candidatesPending = false;
+
+  /// 结算草稿正在提交时锁住离开入口，避免重复应用难度。
+  bool _isCommittingSummary = false;
 
   /// 计时器：每秒把用时累加 1 秒。
   Timer? _elapsedTimer;
@@ -199,77 +212,35 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// 直接还原；「哪些轮已经答完、当前这轮点错过哪些候选」则回放点击记录得出。
   /// 这样就不存在「快照结构变了旧数据没法恢复」的问题。
   void _restoreProgress() {
-    // 数据列表就是打乱后的答题顺序，开局时已经定好并落库。
-    _rounds = MeaningWordChoiceRoundBuilder.buildRoundsFromMeaningIds(
-      _progress.session.idItems,
+    _rounds = MeaningWordChoiceRoundBuilder.buildSessionRounds(
+      _progress.session,
       widget.words,
     );
-    if (_rounds.isEmpty) return;
     _roundWrongCounts = List<int>.filled(_rounds.length, 0);
-
-    // 已用时间来自会话字段，单位是秒。
     _elapsedMs = _progress.session.elapsed * 1000;
-    // 累计答错数由记录直接数出来：错完就退、退完再进，不能刷出一局「全对」。
-    _errors = _progress.wrongCount;
-
-    // 回放记录：按「哪条含义答对了哪些词」推进轮次，按「哪条含义点错了谁」置灰候选。
-    //
-    // 一道含义可能匹配多个单词（如 eat 与 feed 都有「吃」），所以答对要记到
-    // 「词」这一层而不是「含义」这一层：只选出其中一个词就退出，重进时这轮
-    // 不能算完成，剩下的词还得继续选。
-    final answeredWordsByMeaning = <int, Set<int>>{};
-    final wrongByMeaning = <int, Set<int>>{};
-    for (final record in _progress.allRecords) {
-      final meaningId = record.meaningId;
-      if (meaningId == null) continue;
-      if (record.isCorrect) {
-        (answeredWordsByMeaning[meaningId] ??= <int>{}).add(record.wordId);
-      } else {
-        (wrongByMeaning[meaningId] ??= <int>{}).add(record.wordId);
+    var firstIncomplete = _rounds.length;
+    for (var index = 0; index < _rounds.length; index++) {
+      final round = _rounds[index];
+      final records = _progress.allRecords.where(
+        (record) => record.questionId == round.questionId,
+      );
+      _roundWrongCounts[index] = records
+          .where((record) => !record.isCorrect)
+          .length;
+      final picked = records
+          .where((record) => record.isCorrect)
+          .expand((record) => record.answers)
+          .map((text) => text.trim().toLowerCase())
+          .toSet();
+      final complete = round.matchIds.every(
+        (id) => picked.contains(_wordsById[id]!.spelling.trim().toLowerCase()),
+      );
+      if (!complete && firstIncomplete == _rounds.length) {
+        firstIncomplete = index;
       }
     }
-
-    // 找到第一轮「还有匹配词没答对」的，就是当前轮。
-    //
-    // 顺带把**每一轮**（含已经整轮答完、直接跳过去的历史轮）点错的次数都回填
-    // 进 [_roundWrongCounts]：只回填当前轮的话，中途退出前那几轮的失误会在
-    // 结算页「全部一次选对」的统计里凭空消失——明明错过一次，退出再进后却
-    // 显示成本组从头到尾零失误。
-    var index = 0;
-    while (index < _rounds.length) {
-      final round = _rounds[index];
-      _roundWrongCounts[index] =
-          (wrongByMeaning[round.meaningId] ?? const <int>{}).length;
-      final answered = answeredWordsByMeaning[round.meaningId] ?? const <int>{};
-      if (!round.matchIds.every(answered.contains)) break;
-      _recordedWordIds.addAll(round.matchIds);
-      index += 1;
-    }
-    _roundIndex = index;
-    // 全部答完 = 这一局已经走完一遍。
-    if (_roundIndex >= _rounds.length) {
-      _completed = true;
-      // 补盖收尾章：最后一轮答完后的「切轮停顿」（1.2 秒）里退出时，整局收尾
-      // （finish）可能没来得及执行，会话会一直挂在「进行中」——首页永远差一格、
-      // 今日主线也永远判不了完成。回放已经证明全部走完，这里直接补盖一次；
-      // finish 自带防重，即使正常路径早已盖过也不会有副作用。
-      unawaited(
-        _progress.finish(
-          perfect: true,
-          cursor: _rounds.length,
-          elapsed: _elapsedSeconds,
-        ),
-      );
-      return;
-    }
-    // 当前轮的现场：已答对的词恢复选中（候选区绿色、气泡照常显示）、
-    // 已点错的候选置灰（答错次数在上面的循环里已经回填过）。
-    final current = _rounds[_roundIndex];
-    _pickedIds = <int>{
-      ...(answeredWordsByMeaning[current.meaningId] ?? const <int>{}),
-    };
-    final wrong = wrongByMeaning[current.meaningId] ?? const <int>{};
-    _disabledIds = <int>{...wrong};
+    _roundIndex = firstIncomplete;
+    if (_allRoundsDone) unawaited(_completeSession());
   }
 
   /// ===== 轮次推进 =====
@@ -279,28 +250,80 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 白卡版不再有「正在输入」的假动画，释义与候选词同时露出；换题时白卡
   /// 自己会淡入上移（见 [_buildQuestionCard]），节奏与听音辨义一致。
-  void _startRound(int index, {bool resume = false}) {
-    // 越界表示全部走完，直接结算。
+  Future<void> _startRound(int index, {bool resume = false}) async {
     if (index >= _rounds.length) {
-      _completeSession();
+      await _completeSession();
       return;
     }
+    final generation = ++_candidateGeneration;
     setState(() {
-      _roundIndex = index;
-      // 续玩时保留回放出来的现场（已选出的、已点错置灰的），不要清空。
-      if (!resume) {
+      // 刻意不清空 _candidates：旧候选留在原位，等下面读回新的再原地替换，
+      // 底部区域的高度全程不变，上方白卡不会被顶来顶去。
+      _candidatesPending = true;
+    });
+    final round = _rounds[index];
+    final question = _progress.questionFor(questionId: round.questionId);
+    if (question == null) {
+      // 题目对不上（数据异常）时立刻解开点击保护，不能把整页锁在旧候选上。
+      setState(() => _candidatesPending = false);
+      return;
+    }
+    try {
+      final options = await _progress.optionsFor(question);
+      if (!mounted || generation != _candidateGeneration) return;
+      final candidates = <MeaningWordChoiceCandidate>[];
+      for (var i = 0; i < options.length; i++) {
+        final text = options[i];
+        final matches = round.matchIds.where(
+          (id) =>
+              _wordsById[id]!.spelling.trim().toLowerCase() ==
+              text.trim().toLowerCase(),
+        );
+        candidates.add(
+          MeaningWordChoiceCandidate(
+            wordId: matches.isEmpty ? -i - 1 : matches.first,
+            spelling: text,
+            isMatch: matches.isNotEmpty,
+          ),
+        );
+      }
+      final records = _progress.allRecords.where(
+        (record) => record.questionId == question.id,
+      );
+      setState(() {
+        _roundIndex = index;
         _pickedIds = <int>{};
         _disabledIds = <int>{};
+        _revealTokens.clear();
+        _candidates = candidates;
+        // 新一轮候选就位，解除点击保护；这一步和 _candidates 在同一次 setState
+        // 里完成，界面不会出现「已换词但仍点不动」的中间态。
+        _candidatesPending = false;
+        for (final record in records) {
+          for (final candidate in candidates) {
+            if (!record.answers.any(
+              (text) =>
+                  text.trim().toLowerCase() ==
+                  candidate.spelling.trim().toLowerCase(),
+            )) {
+              continue;
+            }
+            if (record.isCorrect) {
+              _pickedIds.add(candidate.wordId);
+            } else {
+              _disabledIds.add(candidate.wordId);
+            }
+          }
+        }
+      });
+      await _persist();
+    } catch (error) {
+      // 读候选失败时也要解开保护，否则整页会卡死在「点不动的旧候选」上。
+      if (mounted) {
+        setState(() => _candidatesPending = false);
+        Toast.show(context, '下一题准备失败，返回后可继续：$error');
       }
-      // 恢复出来的已答词不该重播填入动画，所以入场编号一律清空。
-      _revealTokens.clear();
-      // 候选词由服务生成：匹配词不足时用会话内干扰词补齐，按字母升序排列。
-      _candidates = MeaningWordChoiceRoundBuilder.buildCandidates(
-        round: _rounds[index],
-        words: widget.words,
-      );
-    });
-    unawaited(_persist());
+    }
   }
 
   ///
@@ -318,10 +341,12 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
 
   ///
   /// 用户点选一个候选词。
-  void _onCandidateTap(int wordId) {
+  Future<void> _onCandidateTap(int wordId) async {
     // 已禁用或已选出的词不应再被点击。
     if (_disabledIds.contains(wordId) || _pickedIds.contains(wordId)) return;
-    if (_completed) return;
+    // 新一轮候选还在读库：屏幕上是上一轮的词，这一小段不接受点击。
+    if (_candidatesPending) return;
+    if (_completed || _savingAnswer) return;
     // 本轮已答完、正在等切题的这段空档里不再接受点击，
     // 否则用户还能在这 800 毫秒里点中干扰词、白记一次失误。
     if (_currentRoundDone) return;
@@ -338,25 +363,44 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
     if (candidate == null) return;
 
     // 点击候选词立即朗读一次，无论对错都让用户听到这个词。
-    final spelling = _wordsById[wordId]?.spelling ?? '';
+    final spelling = candidate.spelling;
     if (spelling.isNotEmpty) unawaited(_playWordAudio(spelling));
 
+    setState(() {
+      _savingAnswer = true;
+      _pendingChoice = candidate;
+    });
+    if (candidate.isMatch) HapticFeedback.lightImpact();
+    try {
+      await _recordPick(
+        wordId: wordId,
+        spelling: spelling,
+        isCorrect: candidate.isMatch,
+      );
+    } catch (error) {
+      if (mounted) Toast.show(context, '答案保存失败：$error');
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingAnswer = false;
+          _pendingChoice = null;
+        });
+      }
+    }
+    if (!mounted) return;
     if (candidate.isMatch) {
       // 答对：先给一个轻震动反馈（和听音辨义一致），
       // 再给这个词发一张入场票，让它那组字母格把整词填进去。
-      HapticFeedback.lightImpact();
       setState(() {
         _pickedIds.add(wordId);
         _revealTokens[wordId] = _revealSeq += 1;
       });
       // 先记这一次「选对了」，现场恢复靠它判断这一轮答到哪了。
-      unawaited(
-        _recordPick(wordId: wordId, spelling: spelling, isCorrect: true),
-      );
+
       // 该含义的全部匹配词都选出后立即结算。
-      if (_currentRoundDone) {
-        unawaited(_recordRound(_roundIndex));
-      }
+      // 这一轮只写点击记录；所有含义都做完后再统一准备单词结算，
+      // 避免多义词在第一条含义完成时提前降难度。
       // 这一轮全部选对后，稍作停顿再进下一轮：让用户看清刚填进去的单词。
       if (_currentRoundDone) {
         _scheduleNextRound();
@@ -367,14 +411,11 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
       // 答错：该候选词禁用置灰，错误数累计。
       setState(() {
         _disabledIds.add(wordId);
-        _errors += 1;
         _roundWrongCounts[_roundIndex] += 1;
       });
       // 记一条「点错了」：重进时靠它把这个候选继续置灰，
       // 结算也靠它判定这一轮该不该加难度。
-      unawaited(
-        _recordPick(wordId: wordId, spelling: spelling, isCorrect: false),
-      );
+
       unawaited(_persist());
     }
   }
@@ -391,18 +432,13 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }) async {
     // 越界说明这一局已经走完，不该再产生记录。
     if (_roundIndex >= _rounds.length) return;
-    try {
-      await _progress.record(
-        wordId: wordId,
-        meaningId: _rounds[_roundIndex].meaningId,
-        // 记下用户实际点的那个词，回看时能看出把哪两个词搞混了。
-        input: spelling,
-        isCorrect: isCorrect,
-      );
-    } catch (error) {
-      // 写记录失败不该打断答题，最多这一次点击没留痕。
-      debugPrint('写入看义选词点击记录失败：$error');
-    }
+    await _progress.record(
+      wordId: _rounds[_roundIndex].matchIds.first,
+      questionId: _rounds[_roundIndex].questionId,
+      input: spelling,
+      isCorrect: isCorrect,
+      elapsed: _elapsedSeconds,
+    );
   }
 
   ///
@@ -418,41 +454,18 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   }
 
   ///
-  /// 一轮含义答完：给该轮每个匹配单词结算。
-  ///
-  /// 「对 / 错」在点击的当下就已经逐次记进了会话记录，这里只负责结算：
-  /// 结算会看「本局这个词有没有点错过」，据此更新难度与复习时间。
-  /// 已结算过的词由集合挡住，续玩不重复算。
-  Future<void> _recordRound(int index) async {
-    final round = _rounds[index];
-    for (final wordId in round.matchIds) {
-      // 恢复进度后重复走到同一轮不该再算，用集合挡住。
-      if (!_recordedWordIds.add(wordId)) continue;
-      try {
-        await _progress.settle(wordId);
-      } catch (error) {
-        // 结算失败不该打断正在进行的一局；集合里放回去，之后还有机会补算。
-        _recordedWordIds.remove(wordId);
-        debugPrint('看义选词结算单词失败：$error');
-      }
-    }
-    unawaited(_persist());
-  }
-
   ///
   /// 全部含义走完：停表、标记完成并结算这一局。
-  void _completeSession() {
+  Future<void> _completeSession() async {
     // 整局已经结束，彻底停表，避免结算页期间定时器继续空转。
     _stopElapsedTimer();
-    setState(() => _completed = true);
-    // 判定规则与其他模块一致：把全部含义走完一遍即算完成，答错不影响整局成败。
-    unawaited(
-      _progress.finish(
-        perfect: true,
-        cursor: _rounds.length,
-        elapsed: _elapsedSeconds,
-      ),
+    // 只有全部含义都完成后才准备单词结算；多义词因此不会被提前奖励。
+    await _progress.finish(
+      perfect: true,
+      cursor: _rounds.length,
+      elapsed: _elapsedSeconds,
     );
+    if (mounted) setState(() => _completed = true);
   }
 
   /// ===== 持久化 =====
@@ -489,6 +502,8 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
 
   @override
   void dispose() {
+    _progress.detach();
+    _candidateGeneration++;
     WidgetsBinding.instance.removeObserver(this);
     _advanceTimer?.cancel();
     _stopElapsedTimer();
@@ -537,12 +552,16 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
 
     // 上、中、下三段全部交给模块模板排版，四个复习模块顶栏因此严丝合缝。
     return ModuleScaffold(
+      canPop: !_completed,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _completed) unawaited(_leaveSummary());
+      },
       header: ModuleHeader(
         leading: ModuleIconButton(
           key: const Key('close-meaningWordChoice'),
           icon: AppGlyph.back,
           alignment: Alignment.centerLeft,
-          onTap: () => Navigator.of(context).pop(),
+          onTap: _leaveSummary,
         ),
         title: ModuleProgressLabel(
           textKey: const Key('meaning-word-choice-progress-label'),
@@ -557,7 +576,11 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
         progressBarKey: const Key('meaning-word-choice-progress-bar'),
       ),
       // 中段：练完是结算页，练习中是正文白卡。
-      body: _completed ? _buildSummary(tokens) : _buildQuestionCard(tokens),
+      body: _completed
+          ? _buildSummary(tokens)
+          : _allRoundsDone
+          ? const Center(child: CircularProgressIndicator())
+          : _buildQuestionCard(tokens),
       // 下段：候选词区（文档流，一行两个）；结算页没有这一段。
       footer: _completed ? null : _buildCandidates(tokens),
     );
@@ -585,41 +608,31 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
           child: ConstrainedBox(
             // 空间够时白卡撑满正文区；内容更高时白卡自然变高并允许滚动。
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            // 换题时整张卡淡入并轻微上移；同一题内反复重建不会重播（key 未变）。
-            child: TweenAnimationBuilder<double>(
-              key: ValueKey<int>(_roundIndex),
-              tween: Tween<double>(begin: 0, end: 1),
-              duration: const Duration(milliseconds: AppDuration.ms250),
-              curve: Curves.easeOut,
-              builder: (context, value, child) => Opacity(
-                opacity: value,
-                child: Transform.translate(
-                  offset: Offset(0, (1 - value) * 8),
-                  child: child,
+            // 白卡本体**不参与换题动画**：它的位置、描边、底色换一题都不会变，
+            // 让它整张从全透明淡入（原来的做法）看起来就是「页面刷新了一下」。
+            // 换题时留在原地的只有卡里的文字，所以变化的也只是文字本身。
+            child: Container(
+              key: const Key('meaning-word-choice-question-card'),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: MeaningWordChoiceLayout.bodyCardPaddingHorizontal,
+                vertical: MeaningWordChoiceLayout.bodyCardPaddingVertical,
+              ),
+              decoration: BoxDecoration(
+                color: tokens.card,
+                // 与候选词、描边按钮、输入框同一档控件描边；白卡只靠这一圈线
+                // 立在灰底上，不再叠投影。
+                border: Border.all(
+                  color: tokens.rowBorder,
+                  width: AppStroke.thin,
+                ),
+                borderRadius: BorderRadius.circular(
+                  MeaningWordChoiceLayout.bodyCardRadius,
                 ),
               ),
-              child: Container(
-                key: const Key('meaning-word-choice-question-card'),
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: MeaningWordChoiceLayout.bodyCardPaddingHorizontal,
-                  vertical: MeaningWordChoiceLayout.bodyCardPaddingVertical,
-                ),
-                decoration: BoxDecoration(
-                  color: tokens.card,
-                  border: Border.all(color: tokens.border),
-                  borderRadius: BorderRadius.circular(
-                    MeaningWordChoiceLayout.bodyCardRadius,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: tokens.cardShadow,
-                      offset: const Offset(0, AppShadow.cardOffsetY),
-                      blurRadius: AppShadow.cardBlur,
-                    ),
-                  ],
-                ),
-                child: Center(
+              child: Center(
+                child: QuestionContentTransition(
+                  contentKey: round.questionId ?? _roundIndex,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -848,186 +861,85 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   /// 构建候选词区（文档流，位于正文白卡下方）。
   ///
   /// 布局类似 flex 纵向结构：顶部 + 白卡 + 候选词区；候选词**一行两个**，
-  /// 宽度按可用空间均分。状态用颜色表达：点错的词置灰加删除线；
-  /// 答对的词留在原位、变成词义连连同款的绿色禁用态。
-  Widget _buildCandidates(AppTokens tokens) {
-    // 候选词全部保留（答对的不再移除，只变色）。
-    final visible = _candidates;
-    if (visible.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      // 顶部不留白：候选区与白卡之间的间距只由白卡底部的 bodyVerticalInset 承担，
-      // 避免两段留白叠加成“正文和候选词之间空了一大块”。
-      padding: const EdgeInsets.fromLTRB(
-        MeaningWordChoiceLayout.pageInset,
-        AppSpace.p0,
-        MeaningWordChoiceLayout.pageInset,
-        MeaningWordChoiceLayout.pageInset,
-      ),
-      // 用父级实际宽度算按钮宽度：一行两个，各占 (宽 − 间距) / 2。
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final buttonWidth =
-              (constraints.maxWidth - MeaningWordChoiceLayout.candidateGap) / 2;
-          return Wrap(
-            spacing: MeaningWordChoiceLayout.candidateGap,
-            runSpacing: MeaningWordChoiceLayout.candidateGap,
-            children: <Widget>[
-              for (var index = 0; index < visible.length; index += 1)
-                _buildCandidateButton(
-                  tokens,
-                  visible[index],
-                  index,
-                  buttonWidth,
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  ///
-  /// 构建一个候选词按钮：左侧 A/B/C/D 序号方块 + 单词文本；
-  /// 宽度由 [width] 决定（单列或网格共用）。
-  Widget _buildCandidateButton(
-    AppTokens tokens,
-    MeaningWordChoiceCandidate candidate,
-    int index,
-    double width,
-  ) {
-    final textTheme = Theme.of(context).textTheme;
-    final picked = _pickedIds.contains(candidate.wordId);
-    final disabled = _disabledIds.contains(candidate.wordId);
-    final spelling = _wordsById[candidate.wordId]?.spelling ?? '';
-    // 答对用绿色、点错用灰色，未处理保持卡片底色。
-    final stateColor = picked
-        ? AppTokens.success
-        : disabled
-        ? tokens.textSecondary
-        : null;
-    final background = picked
-        ? AppTokens.success.withValues(alpha: AppAlpha.a10)
-        : disabled
-        ? tokens.sub
-        : tokens.card;
-
-    // 按钮宽度固定，点击画布稳定，布局不随文字长短抖动。
-    final button = Container(
-      key: Key('meaning-word-choice-option-${candidate.wordId}'),
-      width: width,
-      // 高度是「至少 44」而不是「就是 44」。
-      //
-      // 写死 44 有两个后果，都是安静发生的、不报错的：
-      //
-      //   1. 选了「大 / 特大」字号后，单词本身会变高，可高度不变，
-      //      于是单词被 FittedBox 反过来压小——用户明明调大了字，
-      //      候选词却一点没变大；
-      //   2. 就算是标准字号，44 也本来就不够：按钮内容其实是
-      //      「28 的 ABCD 徽章 + 上下 8 的内边距 + 上下 1 的描边」= 46。
-      //      写死 44 的时候，多出来的 2 像素是从徽章身上抠的——
-      //      本该是 28×28 的正方块，实测被压成了 28×26 的扁块。
-      //
-      // 改成最小高度后，按钮取自己算出来的自然高度（标准字号下 46），
-      // 徽章恢复成正方形，字号调大时按钮也跟着一起长高。
-      // 44 这个数保留为「手指可点的下限」：内容再怎么缩也不会低于它。
-      constraints: const BoxConstraints(
-        minHeight: MeaningWordChoiceLayout.candidateHeight,
-      ),
-      // 四边内边距统一：ABCD 距左 / 上 / 下完全等距，视觉对称。
-      padding: const EdgeInsets.all(
-        MeaningWordChoiceLayout.candidateContentInset,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(
-          MeaningWordChoiceLayout.candidateRadius,
-        ),
-        border: Border.all(color: stateColor ?? tokens.rowBorder),
-      ),
-      child: Row(
-        children: [
-          // 序号方块：A/B/C/D，听音辨义候选词同款。
-          Container(
-            width: MeaningWordChoiceLayout.optionBadgeSize,
-            height: MeaningWordChoiceLayout.optionBadgeSize,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: picked
-                  ? AppTokens.success.withValues(alpha: AppAlpha.a14)
-                  : disabled
-                  ? tokens.card
-                  : tokens.sub,
-              border: Border.all(color: stateColor ?? tokens.rowBorder),
-              borderRadius: BorderRadius.circular(
-                MeaningWordChoiceLayout.optionBadgeRadius,
-              ),
-            ),
-            child: Text(
-              String.fromCharCode('A'.codeUnitAt(0) + index),
-              // 序号方块里的字母比同字号标签更重一档，方块小才压得住。
-              style: textTheme.fs6Bold.copyWith(
-                color: stateColor ?? tokens.textSecondary,
-              ),
-            ),
-          ),
-          const SizedBox(width: MeaningWordChoiceLayout.optionBadgeGap),
-          Expanded(
-            // FittedBox 自适应：单词过长时整体等比缩小字号塞进一行，
-            // 而不是截断成省略号让人看不全。中心偏左，紧贴序号徽章。
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                spelling,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.fs4Semibold.copyWith(
-                  color: stateColor ?? tokens.text,
-                  // 点错的词加删除线，一眼看出已排除。
-                  decoration: disabled ? TextDecoration.lineThrough : null,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    // 已禁用（答对或点错）的词不可再点；其余用 InkWell 提供按压反馈。
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: picked || disabled
-            ? null
-            : () => _onCandidateTap(candidate.wordId),
-        borderRadius: BorderRadius.circular(
-          MeaningWordChoiceLayout.candidateRadius,
-        ),
-        child: button,
-      ),
-    );
-  }
-
-  /// ===== 结算页 =====
+  /// 宽度按可用空间均分。与听音辨义共用中性卡面，
+  /// 右侧的 Tabler 对错图标表示作答结果，错项文字适当弱化。
+  Widget _buildCandidates(AppTokens tokens) => ChoiceOptionGrid(
+    options: _candidates.map((candidate) => candidate.spelling).toList(),
+    questionKey: _roundIndex,
+    keyPrefix: 'meaning-word-choice-option',
+    // 新一轮候选还在路上时，屏幕上还是上一轮的词，一律不接受点击。
+    enabled: !_savingAnswer && !_candidatesPending,
+    correct: <String>{
+      if (_pendingChoice?.isMatch == true) _pendingChoice!.spelling,
+      for (final candidate in _candidates)
+        if (_pickedIds.contains(candidate.wordId)) candidate.spelling,
+    },
+    wrong: <String>{
+      if (_pendingChoice?.isMatch == false) _pendingChoice!.spelling,
+      for (final candidate in _candidates)
+        if (_disabledIds.contains(candidate.wordId)) candidate.spelling,
+    },
+    onTap: (text) => _onCandidateTap(
+      _candidates.firstWhere((candidate) => candidate.spelling == text).wordId,
+    ),
+  );
 
   ///
   /// 构建结算页：圆形图标 + 标题 + 一行说明 + 返回按钮的极简收尾。
   Widget _buildSummary(AppTokens tokens) {
-    // 「一次选对」= 整轮没有点错过任何词的轮数，只用来决定副标题说哪句话。
-    final perfectCount = _roundWrongCounts.where((count) => count == 0).length;
-    return ModuleSummaryView(
-      icon: AppGlyph.correct,
-      color: AppTokens.success,
-      title: '看义选词完成',
-      subtitle: perfectCount == _rounds.length
-          ? '本组 ${_rounds.length} 个含义全部一次选对'
-          : '共 ${_rounds.length} 个含义 · 失误 $_errors 次',
-      actionLabel: '返回',
-      actionKey: const Key('finish-meaningWordChoice'),
-      onAction: () => Navigator.of(context).pop(),
+    final items = <SettlementWordItem>[];
+    final seen = <int>{};
+    for (final word in _wordsById.values) {
+      final id = word.id;
+      if (id == null || !seen.add(id)) continue;
+      final draft = _progress.settlementFor(id);
+      final correct = draft?.isCorrect ?? !_progress.progressOf(id).hasAnyWrong;
+      items.add(
+        SettlementWordItem(
+          word: word.spelling,
+          isCorrect: correct,
+          // 看义选词不按单词计时，结算页这一行不显示用时。
+          usedTime: null,
+          // 本轮开始时的难度：草稿里记着就用草稿的，拿不到就退回到单词当前的难度。
+          difficultyBefore: draft?.difficultyBefore ?? word.difficulty,
+          recentResults:
+              draft?.recentResults ?? <bool?>[correct, null, null, null, null],
+          streak: draft != null && draft.streak > 0 ? draft.streak : null,
+          initialAdjust: difficultyAdjustFromDelta(
+            draft?.suggestedAdjustment ?? 0,
+          ),
+        ),
+      );
+    }
+    return SettlementSummary(
+      key: const Key('settlement-meaningWordChoice'),
+      items: items,
+      // 看义选词无法按单词拆分时间，所以结算页不显示用时。
+      showTotalElapsed: false,
+      onAdjust: (index, adjust) {
+        final id = _wordsById.values.elementAt(index).id;
+        if (id != null) unawaited(_progress.adjustSettlement(id, adjust));
+      },
+      onRetry: () => unawaited(_leaveSummary(retry: true)),
+      onConfirm: _leaveSummary,
     );
+  }
+
+  /// 提交结算草稿后离开本页；重开信号交给首页处理。
+  Future<void> _leaveSummary({bool retry = false}) async {
+    if (!_completed) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (_isCommittingSummary) return;
+    _isCommittingSummary = true;
+    try {
+      await _progress.commitSettlement();
+      if (mounted) Navigator.of(context).pop(retry);
+    } catch (error) {
+      _isCommittingSummary = false;
+      debugPrint('提交看义选词结算失败：$error');
+    }
   }
 
   ///

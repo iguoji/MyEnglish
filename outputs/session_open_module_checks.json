@@ -1,0 +1,86 @@
+[
+  {
+    "module": "meaning_match",
+    "open": {
+      "id": "11",
+      "words": 15,
+      "groups": 9,
+      "cursor": "2",
+      "records": 2
+    },
+    "resume": {
+      "id": "11",
+      "words": 15,
+      "groups": 9,
+      "cursor": "2",
+      "records": 2
+    }
+  },
+  {
+    "module": "spelling_reinforcement",
+    "open": {
+      "id": "15",
+      "words": 15,
+      "groups": 1,
+      "cursor": "0",
+      "records": 0
+    },
+    "resume": {
+      "id": "15",
+      "words": 15,
+      "groups": 1,
+      "cursor": "0",
+      "records": 0
+    }
+  },
+  {
+    "module": "meaning_word_choice",
+    "open": {
+      "id": "120",
+      "words": 15,
+      "groups": 1,
+      "cursor": "0",
+      "records": 0
+    },
+    "resume": {
+      "id": "120",
+      "words": 15,
+      "groups": 1,
+      "cursor": "0",
+      "records": 0
+    }
+  },
+  {
+    "module": "listening_meaning",
+    "open": {
+      "id": "9",
+      "words": 15,
+      "groups": 15,
+      "cursor": "2",
+      "records": 13
+    },
+    "resume": {
+      "id": "9",
+      "words": 15,
+      "groups": 15,
+      "cursor": "2",
+      "records": 13
+    }
+  },
+  {
+    "module": "listening",
+    "entry": "library_continue",
+    "session_id": "118",
+    "words": 1130,
+    "cursor": "0",
+    "records": 0
+  },
+  {
+    "module": "listening_meaning",
+    "entry": "library_continue",
+    "session_id": "119",
+    "words": 1130,
+    "cursor": "0",
+    "records": 0
+  }
+]

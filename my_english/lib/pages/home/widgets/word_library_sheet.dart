@@ -26,13 +26,7 @@ class WordLibrarySheet extends StatefulWidget {
     required this.wordSortBar,
     required this.selectionBar,
     required this.listContent,
-    required this.targetCount,
-    required this.hasListeningSession,
-    required this.hasListeningMeaningSession,
-    required this.onOpenListening,
-    required this.onOpenListeningMeaning,
-    required this.onContinueListening,
-    required this.onContinueListeningMeaning,
+    required this.learningBar,
     super.key,
   });
 
@@ -54,26 +48,8 @@ class WordLibrarySheet extends StatefulWidget {
   /// 列表区内容（含加载、错误、空状态与分组列表）。
   final Widget listContent;
 
-  /// 当前筛选或勾选后会进入学习页的单词数量。
-  final int targetCount;
-
-  /// 是否存在尚未完成的随身听进度。
-  final bool hasListeningSession;
-
-  /// 是否存在尚未完成的听音辨义进度。
-  final bool hasListeningMeaningSession;
-
-  /// 从当前词库范围开始一轮新的随身听。
-  final VoidCallback onOpenListening;
-
-  /// 从当前词库范围开始一轮新的听音辨义。
-  final VoidCallback onOpenListeningMeaning;
-
-  /// 继续上一次随身听进度。
-  final VoidCallback onContinueListening;
-
-  /// 继续上一次听音辨义进度。
-  final VoidCallback onContinueListeningMeaning;
+  /// 主播放按钮和自测模式入口，由首页传入同一份选词及恢复状态。
+  final Widget learningBar;
 
   @override
   State<WordLibrarySheet> createState() => _WordLibrarySheetState();
@@ -144,62 +120,60 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
                       ),
                     ],
                   ),
-                  child: Column(
+                  child: Stack(
                     children: [
-                      // 顶部先留 8 像素，不让手柄紧贴圆角边缘；当前交互明确为点击收起。
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppSpace.p2),
-                        child: GestureDetector(
-                          onTap: _toggle,
-                          behavior: HitTestBehavior.opaque,
-                          child: const _DragHandle(),
-                        ),
+                      Column(
+                        children: [
+                          // 顶部先留 8 像素，不让手柄紧贴圆角边缘；当前交互明确为点击收起。
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpace.p2),
+                            child: GestureDetector(
+                              onTap: _toggle,
+                              behavior: HitTestBehavior.opaque,
+                              child: const _DragHandle(),
+                            ),
+                          ),
+                          // header 区：搜索 + 排序。
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpace.pBase,
+                              AppSpace.p1,
+                              AppSpace.pBase,
+                              AppSpace.p2,
+                            ),
+                            child: Column(
+                              children: [
+                                WordSearchField(
+                                  onChanged: widget.onSearchChanged,
+                                ),
+                                // 排序行被两条参考线夹在中间：上面是搜索框底边框，
+                                // 下面是列表顶那条 1px 分隔线。想让排序文字到两侧的
+                                // 视觉距离相等，骨架必须对称：
+                                //   上方 = 本段 p2(8) + 排序项顶内边距 p1(4) = 12
+                                //   下方 = 排序项底内边距 p1(4) + 本区底内边距 p2(8) = 12
+                                // 两侧同为 12，排序行才正好居中；原来这里用 p3(16)，
+                                // 上方是 20、下方是 12，文字就整体偏向了列表那条线。
+                                const SizedBox(height: AppSpace.p2),
+                                widget.wordSortBar,
+                                if (widget.selectionBar is! SizedBox) ...[
+                                  const SizedBox(height: AppSpace.p2),
+                                  widget.selectionBar,
+                                ],
+                              ],
+                            ),
+                          ),
+                          // 列表区填满抽屉剩余高度。
+                          Expanded(child: widget.listContent),
+                        ],
                       ),
-                      // header 区：搜索 + 排序。
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpace.pBase,
-                          AppSpace.p1,
-                          AppSpace.pBase,
-                          AppSpace.p2,
-                        ),
-                        child: Column(
-                          children: [
-                            WordSearchField(onChanged: widget.onSearchChanged),
-                            // 排序行被两条参考线夹在中间：上面是搜索框底边框，
-                            // 下面是列表顶那条 1px 分隔线。想让排序文字到两侧的
-                            // 视觉距离相等，骨架必须对称：
-                            //   上方 = 本段 p2(8) + 排序项顶内边距 p1(4) = 12
-                            //   下方 = 排序项底内边距 p1(4) + 本区底内边距 p2(8) = 12
-                            // 两侧同为 12，排序行才正好居中；原来这里用 p3(16)，
-                            // 上方是 20、下方是 12，文字就整体偏向了列表那条线。
-                            const SizedBox(height: AppSpace.p2),
-                            widget.wordSortBar,
-                            if (widget.selectionBar is! SizedBox) ...[
-                              const SizedBox(height: AppSpace.p2),
-                              widget.selectionBar,
-                            ],
-                          ],
-                        ),
-                      ),
-                      // 列表区填满抽屉剩余高度。
-                      Expanded(child: widget.listContent),
-                      // SafeArea 自动读取系统底部操作区；若外层已经避让过，
-                      // Flutter 会把这部分归零，避免同一安全距离被重复计算。
-                      SafeArea(
-                        top: false,
-                        minimum: const EdgeInsets.only(bottom: AppSpace.p3),
-                        child: _WordLibraryLearningBar(
-                          targetCount: widget.targetCount,
-                          hasListeningSession: widget.hasListeningSession,
-                          hasListeningMeaningSession:
-                              widget.hasListeningMeaningSession,
-                          onOpenListening: widget.onOpenListening,
-                          onOpenListeningMeaning: widget.onOpenListeningMeaning,
-                          onContinueListening: widget.onContinueListening,
-                          onContinueListeningMeaning:
-                              widget.onContinueListeningMeaning,
-                        ),
+                      // 两行入口以面板底部为锚点悬浮，不再挤占列表高度，也没有整条底色。
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom:
+                            MediaQuery.paddingOf(context).bottom +
+                            WordLibraryLayout.learningBottom,
+                        child: Center(child: widget.learningBar),
                       ),
                     ],
                   ),
@@ -207,213 +181,6 @@ class _WordLibrarySheetState extends State<WordLibrarySheet> {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-///
-/// 词库底部学习操作栏：随身听与听音辨义始终左右平铺。
-///
-class _WordLibraryLearningBar extends StatelessWidget {
-  /// 创建底部学习操作栏。
-  const _WordLibraryLearningBar({
-    required this.targetCount,
-    required this.hasListeningSession,
-    required this.hasListeningMeaningSession,
-    required this.onOpenListening,
-    required this.onOpenListeningMeaning,
-    required this.onContinueListening,
-    required this.onContinueListeningMeaning,
-  });
-
-  /// 当前学习范围的单词数量。
-  final int targetCount;
-
-  /// 随身听是否存在可恢复进度。
-  final bool hasListeningSession;
-
-  /// 听音辨义是否存在可恢复进度。
-  final bool hasListeningMeaningSession;
-
-  /// 开始新的随身听。
-  final VoidCallback onOpenListening;
-
-  /// 开始新的听音辨义。
-  final VoidCallback onOpenListeningMeaning;
-
-  /// 继续随身听。
-  final VoidCallback onContinueListening;
-
-  /// 继续听音辨义。
-  final VoidCallback onContinueListeningMeaning;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = AppTokens.of(context);
-    return ColoredBox(
-      // 测试用它定位这一条，确认词库列表正好长到操作栏顶边为止。
-      key: const Key('word-library-learning-bar'),
-      color: tokens.card,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.p3,
-          AppSpace.p2,
-          AppSpace.p3,
-          AppSpace.p3,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _LearningAction(
-                key: const Key('word-library-listening-action'),
-                icon: AppGlyph.moduleListening,
-                label: '随身听',
-                targetCount: targetCount,
-                emphasized: false,
-                hasResume: hasListeningSession,
-                continueKey: const Key('word-library-listening-continue'),
-                onOpen: onOpenListening,
-                onContinue: onContinueListening,
-                tokens: tokens,
-              ),
-            ),
-            const SizedBox(width: AppSpace.p2),
-            Expanded(
-              child: _LearningAction(
-                key: const Key('word-library-listening-meaning-action'),
-                icon: AppGlyph.moduleListeningMeaning,
-                label: '听音辨义',
-                targetCount: targetCount,
-                emphasized: true,
-                hasResume: hasListeningMeaningSession,
-                continueKey: const Key(
-                  'word-library-listening-meaning-continue',
-                ),
-                onOpen: onOpenListeningMeaning,
-                onContinue: onContinueListeningMeaning,
-                tokens: tokens,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-///
-/// 单个学习入口：主区域开始新任务，可选的右侧小区域继续历史进度。
-///
-class _LearningAction extends StatelessWidget {
-  /// 创建一个底部学习入口。
-  const _LearningAction({
-    required this.icon,
-    required this.label,
-    required this.targetCount,
-    required this.emphasized,
-    required this.hasResume,
-    required this.continueKey,
-    required this.onOpen,
-    required this.onContinue,
-    required this.tokens,
-    super.key,
-  });
-
-  /// Tabler 模式图标。
-  final IconData icon;
-
-  /// 模式名称。
-  final String label;
-
-  /// 本次会学习的单词数量。
-  final int targetCount;
-
-  /// 是否使用蓝色主按钮样式。
-  final bool emphasized;
-
-  /// 是否显示继续入口。
-  final bool hasResume;
-
-  /// 继续按钮的稳定标识，测试和无障碍工具无需依赖中文文案查找。
-  final Key continueKey;
-
-  /// 开始新任务。
-  final VoidCallback onOpen;
-
-  /// 继续历史任务。
-  final VoidCallback onContinue;
-
-  /// 当前主题设计令牌。
-  final AppTokens tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final foreground = emphasized ? Colors.white : tokens.text;
-    final background = emphasized ? AppTokens.primary : tokens.card;
-    final borderColor = emphasized ? AppTokens.primary : tokens.border;
-
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(AppRadius.roundedLg),
-      child: Container(
-        height: WordLibraryLayout.modeRowHeight,
-        decoration: BoxDecoration(
-          border: Border.all(color: borderColor),
-          borderRadius: BorderRadius.circular(AppRadius.roundedLg),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: onOpen,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, size: AppIcon.i20, color: foreground),
-                    const SizedBox(width: AppSpace.p2),
-                    Flexible(
-                      child: Text(
-                        '$label · $targetCount',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.fs5Semibold.copyWith(
-                          color: foreground,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (hasResume) ...[
-              // 竖线把“继续”与“重新开始”分开，避免误触时覆盖旧进度。
-              Container(
-                width: AppStroke.thin,
-                height: WordLibraryLayout.modeDividerHeight,
-                color: foreground.withValues(alpha: AppAlpha.a22),
-              ),
-              Tooltip(
-                message: '继续$label',
-                child: InkWell(
-                  key: continueKey,
-                  onTap: onContinue,
-                  child: SizedBox(
-                    width: WordLibraryLayout.continueButtonWidth,
-                    height: WordLibraryLayout.modeRowHeight,
-                    child: Icon(
-                      AppGlyph.play,
-                      size: AppIcon.i16,
-                      color: foreground,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

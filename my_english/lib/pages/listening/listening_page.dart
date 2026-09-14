@@ -1,3 +1,4 @@
+import '../../common/date.dart';
 // dart:async 提供 Future、Timer 与 unawaited，负责播放循环和倒计时。
 import 'dart:async';
 
@@ -11,12 +12,12 @@ import '../../common/theme.dart';
 import '../../common/toast.dart';
 // 引入单词数据模型。
 import '../../models/word.dart';
+import '../../models/listening_playback.dart';
 // 引入可替换的单词发音服务。
 import '../../services/word_audio.dart';
 // 引入口音设置。
 import '../../store/settings.dart';
-// 引入会话进度出口，把当前播放到第几个持久化到 SQLite。
-import '../review/services/session_progress.dart';
+import '../../store/word.dart';
 // 引入答案卡正文组件。
 import 'widgets/listening_answer_content.dart';
 // 引入搜索框、图标按钮、设置行和播放控制按钮。
@@ -39,7 +40,7 @@ class ListeningPage extends StatefulWidget {
     required this.words,
     required this.audioPlayer,
     required this.settings,
-    this.progress,
+    this.wordStore,
     super.key,
   }) : assert(words.length > 0, '随身听至少需要一个单词');
 
@@ -59,10 +60,8 @@ class ListeningPage extends StatefulWidget {
   final SettingsStore settings;
 
   ///
-  /// 本轮会话的进度出口；null 表示不持久化（纯预览或测试）。
-  ///
-  /// 随身听是被动听、没有对错，所以它只写「播到第几个」，不写会话记录。
-  final SessionProgress? progress;
+  /// 播放前按编号读取最新单词，删除的词会自动剔除；演示页可以只使用传入的内容。
+  final WordStore? wordStore;
 
   ///
   /// 创建随身听页面状态。
@@ -75,6 +74,11 @@ class ListeningPage extends StatefulWidget {
 ///
 class _ListeningPageState extends State<ListeningPage>
     with WidgetsBindingObserver {
+  /// 清单顺序固定，内容可以在播放前刷新，删除的词可以从内存清单中移除。
+  late final List<Word> _words;
+  late final ListeningPlayback _playbackBase;
+  bool _saveFailureShown = false;
+
   ///
   /// 播放列表滚动控制器，用于把当前单词自动移动到可见区域。
   final ScrollController _listController = ScrollController();
@@ -94,6 +98,10 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// 两次发音之间仍需等待的秒数。
   int _remainingSeconds = 2;
+  bool _waitingInterval = false;
+  bool _settingsOpen = false;
+  int _elapsedSeconds = 0;
+  Timer? _elapsedTimer;
 
   ///
   /// 当前是否处于自动播放状态。
@@ -141,7 +149,7 @@ class _ListeningPageState extends State<ListeningPage>
 
   ///
   /// 当前正在播放的单词。
-  Word get _currentWord => widget.words[_index];
+  Word get _currentWord => _words[_index];
 
   ///
   /// 页面状态第一次创建时执行一次初始化。
@@ -149,15 +157,18 @@ class _ListeningPageState extends State<ListeningPage>
   void initState() {
     // 先让 Flutter 完成 State 基础初始化。
     super.initState();
+    _words = List<Word>.of(widget.words);
+    _playbackBase = widget.settings.listeningPlayback;
     // 监听 App 前后台变化，后台停止播放并让下次前台播放重新提示 TTS。
     WidgetsBinding.instance.addObserver(this);
     // 注册锁屏/通知栏/蓝牙的媒体控制回调；页面销毁时在 dispose 中注销。
     // 原生 MediaSession 收到的播放/暂停/上一首/下一首会经此回传，由本页驱动播放。
     LocalWordAudioPlayer.setMediaControlHandler(_onMediaControl);
     // “继续”进入时先同步恢复字段，首帧就会直接展示上次停留的单词与设置。
-    _restoreInitialSession();
-    // 新开始会创建记录，继续进入则刷新保存时间；失败不会阻止页面使用。
-    unawaited(_persistSession());
+    _restoreInitialPlayback();
+    _startElapsedTimer();
+    // 新清单已经由入口保存，这里补齐首次显示的播放状态。
+    _savePlayback();
     // 第一帧完成后再开始播放，避免初始化阶段直接调用原生通道。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 页面可能在第一帧回调前已退出，mounted=false 时不能再更新界面。
@@ -172,11 +183,8 @@ class _ListeningPageState extends State<ListeningPage>
   }
 
   ///
-  /// 从会话恢复上次播到第几个；每个字段都限制在当前页面的合法范围内。
-  ///
-  /// 2.0 起随身听的**播放偏好**（重复遍数、间隔、循环、展开释义）住在设置表，
-  /// 由 [ListeningPage.settings] 提供；会话里只留「播到第几个」这一个进度。
-  void _restoreInitialSession() {
+  /// 从设置恢复清单的当前位置及播放状态，每个字段都限制在合法范围内。
+  void _restoreInitialPlayback() {
     // 播放偏好一律来自设置表，这样在哪台设备打开都是同一套习惯。
     _repeat = widget.settings.listeningRepeat;
     _interval = widget.settings.listeningInterval;
@@ -185,13 +193,18 @@ class _ListeningPageState extends State<ListeningPage>
     // 倒计时属于瞬时状态，进入时从完整间隔重新开始，避免显示过期秒数。
     _remainingSeconds = _interval;
 
-    // 全新一轮没有历史进度，保留字段默认值。
-    final session = widget.progress?.session;
-    if (session == null) return;
-    // 当前下标不能超过实际列表长度。
-    _index = session.cursor.clamp(0, widget.words.length - 1);
-    // 已完成会话不会被恢复，因此恢复页始终属于未完成状态。
-    _isFinished = false;
+    // 设置中的同一份清单可跨天续播，恢复不再依赖会话是否仍然进行中。
+    if (_playbackBase.hasWords) _applyPlayback(_playbackBase);
+  }
+
+  void _applyPlayback(ListeningPlayback playback) {
+    _index = _words.isEmpty ? 0 : playback.cursor.clamp(0, _words.length - 1);
+    _completedRepeats = playback.completedRepeats.clamp(0, _repeat);
+    _remainingSeconds = playback.remainingSeconds.clamp(0, _interval);
+    _waitingInterval = playback.waitingInterval;
+    _elapsedSeconds = playback.elapsedSeconds;
+    _isPlaying = playback.isPlaying && _words.isNotEmpty;
+    _isFinished = playback.isFinished;
   }
 
   ///
@@ -205,23 +218,67 @@ class _ListeningPageState extends State<ListeningPage>
     await widget.settings.setListeningLoop(_loop);
   }
 
-  ///
-  /// 把「播到第几个」写回会话表；没有会话（预览/测试）时什么也不做。
-  Future<void> _persistSession() async {
-    final progress = widget.progress;
-    if (progress == null) return;
-    // 随身听没有计时需求，已用时间恒为 0。
-    await progress.save(cursor: _index, elapsed: 0);
+  /// 编号列表和当前位置一起保存；清单只有一份，重播也不创建新记录。
+  ListeningPlayback _capturePlayback() => _playbackBase.copyWith(
+    wordIds: [
+      for (final word in _words)
+        if (word.id != null) word.id!,
+    ],
+    cursor: _index,
+    elapsedSeconds: _elapsedSeconds,
+    completedRepeats: _completedRepeats,
+    remainingSeconds: _remainingSeconds,
+    waitingInterval: _waitingInterval,
+    isPlaying: _isPlaying,
+    isFinished: _isFinished,
+  );
+
+  Future<void> _persistPlayback() async {
+    // 演示页没有已保存的编号清单，不把演示内容写进用户设置。
+    if (!_playbackBase.hasWords) return;
+    await widget.settings.saveListeningPlayback(_capturePlayback());
+    _saveFailureShown = false;
   }
 
-  ///
-  /// 整轮播完后给这一局收尾。
-  ///
-  /// 随身听没有对错，只要走完一遍就算「完成」。
-  Future<void> _deleteSession() async {
-    final progress = widget.progress;
-    if (progress == null) return;
-    await progress.finish(perfect: true, cursor: widget.words.length);
+  /// 暂停、返回等事件不能等待页面重建；写入失败保留明确提示，并允许下一次重试。
+  void _savePlayback() {
+    unawaited(
+      _persistPlayback().catchError((Object error) {
+        debugPrint('随身听进度保存失败：$error');
+        if (mounted && !_saveFailureShown) {
+          _saveFailureShown = true;
+          Toast.show(context, '播放进度保存失败，请稍后重试');
+        }
+      }),
+    );
+  }
+
+  /// 每次真正播放前核对当前词，读取修改后的内容；被删除就原位剔除并尝试下一词。
+  Future<bool> _refreshCurrentWord(int serial) async {
+    final store = widget.wordStore;
+    if (store == null || _currentWord.id == null) return true;
+    final id = _currentWord.id!;
+    final fresh = await store.getByIds([id]);
+    if (!mounted || serial != _playSerial || !_isPlaying) return false;
+    if (fresh.isNotEmpty) {
+      setState(() => _words[_index] = fresh.first);
+      _syncMediaSession();
+      return true;
+    }
+    final remaining = _capturePlayback().retainExisting({
+      for (final word in _words)
+        if (word.id != null && word.id != id) word.id!,
+    }, loop: _loop);
+    setState(() {
+      _words.removeWhere((word) => word.id == id);
+      _applyPlayback(remaining);
+    });
+    await _persistPlayback();
+    if (!mounted || serial != _playSerial) return false;
+    _syncMediaSession();
+    _centerCurrentWord(force: true);
+    if (_words.isEmpty) Toast.show(context, '播放列表中的单词已全部删除');
+    return false;
   }
 
   ///
@@ -236,108 +293,89 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// 按真实音频完成时间执行循环，避免固定 Timer 截断较长发音。
   Future<void> _runPlayback(int serial) async {
-    // 三项条件任一失效就停止这个循环。
-    while (mounted && serial == _playSerial && _isPlaying) {
-      // 音频调用可能被用户中断或因网络失败抛出异常。
+    bool current() =>
+        mounted && serial == _playSerial && _isPlaying && _words.isNotEmpty;
+    while (current()) {
       try {
-        // 播放当前拼写；Future 在原生音频结束后完成。
-        await widget.audioPlayer.play(
-          _currentWord.spelling,
-          widget.settings.accent,
-        );
-        // 播音不附带任何提示：TTS 是轮转队列的正常一员，轮到它出声不代表网络坏了。
-      } on WordAudioTtsUnavailableException catch (error) {
-        // 设备没有可用的离线英语 TTS（且网络发音未能成功兜住）时暂停循环并说明原因，
-        // 避免无引擎的循环无限次失败重试。
-        if (!mounted || serial != _playSerial) return;
-        setState(() => _isPlaying = false);
-        unawaited(_persistSession());
-        // 不带“播放失败”前缀，直接展示原因，方便用户去装语音包或联网。
-        Toast.show(context, error.toString());
-        return;
-      } on WordAudioInterruptedException {
-        // 用户暂停或跳转时 stop 会中断音频，这是正常控制流程。
-      } catch (error) {
-        // 网络或原生播放器失败时暂停，并保留具体错误给用户。
-        if (!mounted || serial != _playSerial) return;
-        setState(() => _isPlaying = false);
-        // 保存暂停状态，用户下次继续时不会立刻再次触发失败音频。
-        unawaited(_persistSession());
-        // Toast 以非阻塞方式显示具体失败原因，层级高于 BottomSheet。
-        Toast.show(context, '播放失败：$error');
-        // 当前循环已经失败，不能继续倒计时或推进单词。
-        return;
-      }
-      // 音频期间发生暂停、跳转或退出时，旧循环直接结束。
-      if (!mounted || serial != _playSerial || !_isPlaying) return;
-
-      // 每次发音结束后执行可见倒计时。
-      for (var second = _interval; second > 0; second--) {
-        // 每一秒开始前再次确认任务没有被新操作取消。
-        if (!mounted || serial != _playSerial || !_isPlaying) return;
-        // 把当前剩余秒数同步到播放列表状态文字。
-        setState(() => _remainingSeconds = second);
-        // 等待一秒；暂停操作可以主动提前结束这次等待。
-        await _waitOneSecond();
-      }
-      // 倒计时结束后仍需确认当前循环没有过期。
-      if (!mounted || serial != _playSerial || !_isPlaying) return;
-
-      // 当前单词完成一次播放。
-      _completedRepeats++;
-      // 达到用户设置的次数后才推进到下一个单词。
-      if (_completedRepeats >= _repeat) {
-        // 播放次数达标后切到下一个单词。
-        _completedRepeats = 0;
-        // 普通情况直接进入列表中的下一项。
-        if (_index + 1 < widget.words.length) {
-          // 一次 setState 同时更新下标和倒计时，避免中间状态被绘制出来。
+        if (!_waitingInterval) {
+          if (!await _refreshCurrentWord(serial)) continue;
+          await widget.audioPlayer.play(
+            _currentWord.spelling,
+            widget.settings.accent,
+          );
+          if (!current()) return;
           setState(() {
-            _index++;
+            _completedRepeats++;
+            _waitingInterval = true;
             _remainingSeconds = _interval;
           });
-          // 新单词出现后把它滚动到播放列表中部。
-          _centerCurrentWord();
-          // 切歌后把新单词同步到锁屏/通知栏。
-          _syncMediaSession();
-        } else if (_loop) {
-          // 循环模式从头开始。
-          setState(() {
-            _index = 0;
-            _remainingSeconds = _interval;
-          });
-          // 回到首词后同步滚动列表。
-          _centerCurrentWord();
-          // 回到首词后同步锁屏/通知栏。
-          _syncMediaSession();
-        } else {
-          // 非循环模式停在最后一个单词。
-          setState(() {
-            _isPlaying = false;
-            _isFinished = true;
-            _remainingSeconds = 0;
-          });
-          // 播完后同步通知栏（显示暂停态、取消 ongoing）。
-          _syncMediaSession();
-          // 非循环模式正常播完即不再属于“未完成”，首页继续入口应立即失效。
-          unawaited(_deleteSession());
-          // 已播完且不循环，结束异步任务。
-          return;
+          await _persistPlayback();
         }
-      } else {
-        // 同一个词继续下一轮播放。
-        setState(() => _remainingSeconds = _interval);
+        // 暂停发生在间隔中时，从剩余秒数继续，不重复播完的那一遍。
+        while (_remainingSeconds > 0 && current()) {
+          await _waitOneSecond();
+          if (!current()) return;
+          setState(() => _remainingSeconds--);
+          await _persistPlayback();
+        }
+        if (!current()) return;
+        if (_completedRepeats >= _repeat) {
+          if (_index + 1 < _words.length || _loop) {
+            setState(() {
+              _index = (_index + 1) % _words.length;
+              _completedRepeats = 0;
+            });
+            _centerCurrentWord();
+          } else {
+            setState(() {
+              _isPlaying = false;
+              _isFinished = true;
+              _waitingInterval = false;
+            });
+            await _persistPlayback();
+            if (!mounted) return;
+            _syncMediaSession();
+            return;
+          }
+        }
+        setState(() {
+          _waitingInterval = false;
+          _remainingSeconds = _interval;
+        });
+        _syncMediaSession();
+        await _persistPlayback();
+      } on WordAudioInterruptedException {
+        if (!current()) return;
+      } catch (error) {
+        if (!current()) return;
+        setState(() => _isPlaying = false);
+        _syncMediaSession();
+        if (mounted) Toast.show(context, '播放已暂停：$error');
+        return;
       }
-      // 每完成一轮发音就保存重复次数或新下标，应用被系统结束时也能从最近位置恢复。
-      unawaited(_persistSession());
     }
+  }
+
+  void _startElapsedTimer() {
+    _elapsedTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _elapsedSeconds++);
+    });
   }
 
   /// App 离开前台时停止音频。
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) return;
-    if (_isPlaying) unawaited(_pausePlayback());
+    if (state == AppLifecycleState.resumed) {
+      _startElapsedTimer();
+      return;
+    }
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
+    if (_isPlaying) {
+      unawaited(_pausePlayback());
+    } else {
+      _savePlayback();
+    }
   }
 
   ///
@@ -389,8 +427,8 @@ class _ListeningPageState extends State<ListeningPage>
     setState(() => _isPlaying = false);
     // 暂停后同步通知栏（图标切暂停、取消 ongoing）。
     _syncMediaSession();
-    // 暂停属于用户明确选择，立即写入会话。
-    unawaited(_persistSession());
+    // 暂停属于用户明确选择，立即写回播放设置。
+    _savePlayback();
     // 原生 stop 可能失败，因此使用 try/catch 隔离底层异常。
     try {
       // 等待原生播放器真正停止。
@@ -403,9 +441,12 @@ class _ListeningPageState extends State<ListeningPage>
 
   ///
   /// 播放/暂停主按钮。
-  void _togglePlayback() {
+  Future<void> _togglePlayback() async {
+    if (_words.isEmpty) return;
     // “已播完”状态再次点击时从第一个单词重新开始。
     if (_isFinished) {
+      _elapsedSeconds = 0;
+      _waitingInterval = false;
       // 一次性恢复全部播放状态。
       setState(() {
         _index = 0;
@@ -416,8 +457,8 @@ class _ListeningPageState extends State<ListeningPage>
       });
       // 把首词滚到中间。
       _centerCurrentWord(force: true);
-      // “重新播放”创建一条新的未完成会话。
-      unawaited(_persistSession());
+      // 重播只重置同一份清单的进度。
+      _savePlayback();
       // 创建新的异步播放任务。
       _startPlaybackLoop();
       // 重播分支结束，避免继续执行普通暂停/播放判断。
@@ -431,7 +472,7 @@ class _ListeningPageState extends State<ListeningPage>
       // 暂停状态点击后先切回播放图标状态。
       setState(() => _isPlaying = true);
       // 恢复播放状态同步写入本地。
-      unawaited(_persistSession());
+      _savePlayback();
       // 再启动新的播放循环。
       _startPlaybackLoop();
     }
@@ -441,7 +482,13 @@ class _ListeningPageState extends State<ListeningPage>
 
   ///
   /// 跳到指定位置并从该词第一轮重新开始。
-  void _jumpTo(int index) {
+  Future<void> _jumpTo(int index) async {
+    if (_words.isEmpty) return;
+    if (_isFinished) {
+      _elapsedSeconds = 0;
+    }
+    _waitingInterval = false;
+    _isPlaying = true;
     // 让旧播放循环失效。
     ++_playSerial;
     // 立即取消旧倒计时。
@@ -451,7 +498,7 @@ class _ListeningPageState extends State<ListeningPage>
     // 更新当前单词及其关联状态。
     setState(() {
       // 限制下标，避免首尾按钮导致数组越界。
-      _index = index.clamp(0, widget.words.length - 1);
+      _index = index.clamp(0, _words.length - 1);
       // 新单词从第 1 次播放重新计数。
       _completedRepeats = 0;
       // 重置间隔倒计时。
@@ -459,14 +506,11 @@ class _ListeningPageState extends State<ListeningPage>
       // 清除上一轮的结束标记。
       _isFinished = false;
       // 跳词后退出搜索结果，恢复完整播放列表。
-      _query = '';
-      // 同步清空 TextField 中实际显示的文字。
-      _queryController.clear();
     });
     // 把新单词滚动到列表中部。
     _centerCurrentWord(force: true);
     // 主动跳词后立即保存目标下标。
-    unawaited(_persistSession());
+    _savePlayback();
     // 跳词后把新单词同步到锁屏/通知栏。
     _syncMediaSession();
     // 原本处于播放状态时才自动续播，暂停状态保持暂停。
@@ -476,6 +520,7 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// 自动把当前项滚动到列表中部。
   void _centerCurrentWord({bool force = false}) {
+    if (_words.isEmpty) return;
     // 等当前帧完成列表布局后，ScrollController 才能读取准确尺寸。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 页面已退出或列表尚未绑定时不执行滚动。
@@ -532,6 +577,12 @@ class _ListeningPageState extends State<ListeningPage>
   /// 测试环境下的音频替身实现为空操作，因此调用不会有副作用；生产环境由
   /// LocalWordAudioPlayer 驱动 Android MediaSession 与 MediaStyle 通知。
   void _syncMediaSession() {
+    if (_words.isEmpty) {
+      unawaited(
+        widget.audioPlayer.releaseMediaSession().catchError((Object _) {}),
+      );
+      return;
+    }
     // 直接交给音频接口，页面不关心底层是原生还是测试替身。
     unawaited(
       widget.audioPlayer.showMediaSession(
@@ -557,150 +608,156 @@ class _ListeningPageState extends State<ListeningPage>
   ///
   /// 打开播放设置面板。
   Future<void> _openSettings() async {
-    await showModalBottomSheet<void>(
-      // 使用当前页面 Navigator 管理弹出与关闭。
-      context: context,
-      // 外层设为透明，真正背景和圆角由内部容器绘制。
-      backgroundColor: Colors.transparent,
-      // 允许面板根据内容和安全区决定高度。
-      isScrollControlled: true,
-      // builder 在独立路由中创建设置面板。
-      builder: (sheetContext) => StatefulBuilder(
-        // 面板状态独立刷新，提交时再同步回页面。
-        builder: (sheetContext, setSheetState) {
-          // 设置面板也必须读取当前亮色或深色主题。
-          final tokens = AppTokens.of(sheetContext);
-          // 面板里的文字同样读主题的文字档位，和页面其余部分是同一套。
-          final textTheme = Theme.of(sheetContext).textTheme;
+    if (_settingsOpen) return;
+    _settingsOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        // 使用当前页面 Navigator 管理弹出与关闭。
+        context: context,
+        // 外层设为透明，真正背景和圆角由内部容器绘制。
+        backgroundColor: Colors.transparent,
+        // 允许面板根据内容和安全区决定高度。
+        isScrollControlled: true,
+        // builder 在独立路由中创建设置面板。
+        builder: (sheetContext) => StatefulBuilder(
+          // 面板状态独立刷新，提交时再同步回页面。
+          builder: (sheetContext, setSheetState) {
+            // 设置面板也必须读取当前亮色或深色主题。
+            final tokens = AppTokens.of(sheetContext);
+            // 面板里的文字同样读主题的文字档位，和页面其余部分是同一套。
+            final textTheme = Theme.of(sheetContext).textTheme;
 
-          ///
-          /// 同时更新播放页状态、恢复缓存和当前设置面板。
-          void update(VoidCallback change) {
-            // 更新页面上正在显示的播放设置。
-            setState(change);
-            // 播放次数、间隔和循环开关是长期习惯而不是某一局的进度，
-            // 2.0 起统一写进设置表，换台设备打开也是同一套。
-            unawaited(_persistListeningPreferences());
-            // 再通知当前弹层路由立即重绘控件值。
-            setSheetState(() {});
-          }
+            ///
+            /// 同时更新播放页状态、恢复缓存和当前设置面板。
+            void update(VoidCallback change) {
+              // 更新页面上正在显示的播放设置。
+              setState(change);
+              // 播放次数、间隔和循环开关是长期习惯而不是某一局的进度，
+              // 2.0 起统一写进设置表，换台设备打开也是同一套。
+              unawaited(_persistListeningPreferences());
+              // 再通知当前弹层路由立即重绘控件值。
+              setSheetState(() {});
+            }
 
-          // Container 绘制底部面板背景、圆角和安全区留白。
-          return Container(
-            key: const Key('listening-settings-sheet'),
-            // 底部额外叠加系统安全区，避免开关被手势条遮挡。
-            padding: EdgeInsets.fromLTRB(
-              0,
-              16,
-              0,
-              20 + MediaQuery.paddingOf(sheetContext).bottom,
-            ),
-            decoration: BoxDecoration(
-              color: tokens.card,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppRadius.roundedXl),
+            // Container 绘制底部面板背景、圆角和安全区留白。
+            return Container(
+              key: const Key('listening-settings-sheet'),
+              // 底部额外叠加系统安全区，避免开关被手势条遮挡。
+              padding: EdgeInsets.fromLTRB(
+                0,
+                16,
+                0,
+                20 + MediaQuery.paddingOf(sheetContext).bottom,
               ),
-            ),
-            // Column 依次放置标题、播放次数、间隔和循环设置。
-            child: Column(
-              // 面板高度只包住实际内容。
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 标题行的左右边距与页面正文同指一档，标题不会比正文更靠边。
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpace.pBase,
-                    AppSpace.p0,
-                    AppSpace.pBase,
-                    AppSpace.p2,
-                  ),
-                  // Row 让“设置”和“完成”分列左右两端。
-                  child: Row(
-                    children: [
-                      // 左侧面板标题。
-                      Text('设置', style: textTheme.fs4Semibold),
-                      // Spacer 占满中间空间，把完成按钮推到右侧。
-                      const Spacer(),
-                      // InkWell 只包住可见文字，不像 TextButton 默认在文字左右添加内边距。
-                      InkWell(
-                        key: const Key('listening-settings-done'),
-                        // 点击“完成”后关闭当前底部设置面板。
-                        onTap: () => Navigator.pop(sheetContext),
-                        // 纯文字操作不显示 Material 默认的按压底色。
-                        overlayColor: const WidgetStatePropertyAll<Color>(
-                          Colors.transparent,
-                        ),
-                        // 关闭水波纹，让交互样式与首页设置面板保持一致。
-                        splashFactory: NoSplash.splashFactory,
-                        // 文字右边缘直接落在标题行的右边距上（同上面那一档）。
-                        child: Text(
-                          '完成',
-                          style: textTheme.fs5Semibold.copyWith(
-                            color: AppTokens.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              decoration: BoxDecoration(
+                color: tokens.card,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.roundedXl),
                 ),
-                // 第一行控制每个单词重复播放次数。
-                ListeningSettingRow(
-                  label: '播放次数',
-                  value: _repeat,
-                  // 已到最小值时传 null，按钮会自动进入禁用色。
-                  onMinus: _repeat > 1 ? () => update(() => _repeat--) : null,
-                  // 已到最大值时同样禁止继续增加。
-                  onPlus: _repeat < 9 ? () => update(() => _repeat++) : null,
-                ),
-                // 第二行控制两次发音之间的秒数。
-                ListeningSettingRow(
-                  label: '播放间隔(秒)',
-                  value: _interval,
-                  onMinus: _interval > 1
-                      ? () => update(() {
-                          // 先减少用户配置的间隔。
-                          _interval--;
-                          // 正在显示的剩余秒数不能大于新的间隔。
-                          _remainingSeconds = _remainingSeconds.clamp(
-                            0,
-                            _interval,
-                          );
-                        })
-                      : null,
-                  onPlus: _interval < 10
-                      ? () => update(() => _interval++)
-                      : null,
-                ),
-                // 第三行是简单的开关，因此直接使用固定高容器。
-                SizedBox(
-                  height: ListeningLayout.settingsRowHeight,
-                  // 左右留白与上面两行一致。
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpace.pBase,
+              ),
+              // Column 依次放置标题、播放次数、间隔和循环设置。
+              child: Column(
+                // 面板高度只包住实际内容。
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 标题行的左右边距与页面正文同指一档，标题不会比正文更靠边。
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.pBase,
+                      AppSpace.p0,
+                      AppSpace.pBase,
+                      AppSpace.p2,
                     ),
-                    // Row 将标签和 Switch 放在两侧。
+                    // Row 让“设置”和“完成”分列左右两端。
                     child: Row(
                       children: [
-                        // 开关标签。
-                        Text('列表循环', style: textTheme.fs5),
-                        // 占满中间区域。
+                        // 左侧面板标题。
+                        Text('设置', style: textTheme.fs4Semibold),
+                        // Spacer 占满中间空间，把完成按钮推到右侧。
                         const Spacer(),
-                        Switch(
-                          key: const Key('listening-loop-switch'),
-                          value: _loop,
-                          onChanged: (value) => update(() => _loop = value),
+                        // InkWell 只包住可见文字，不像 TextButton 默认在文字左右添加内边距。
+                        InkWell(
+                          key: const Key('listening-settings-done'),
+                          // 点击“完成”后关闭当前底部设置面板。
+                          onTap: () => Navigator.pop(sheetContext),
+                          // 纯文字操作不显示 Material 默认的按压底色。
+                          overlayColor: const WidgetStatePropertyAll<Color>(
+                            Colors.transparent,
+                          ),
+                          // 关闭水波纹，让交互样式与首页设置面板保持一致。
+                          splashFactory: NoSplash.splashFactory,
+                          // 文字右边缘直接落在标题行的右边距上（同上面那一档）。
+                          child: Text(
+                            '完成',
+                            style: textTheme.fs5Semibold.copyWith(
+                              color: AppTokens.primary,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+                  // 第一行控制每个单词重复播放次数。
+                  ListeningSettingRow(
+                    label: '播放次数',
+                    value: _repeat,
+                    // 已到最小值时传 null，按钮会自动进入禁用色。
+                    onMinus: _repeat > 1 ? () => update(() => _repeat--) : null,
+                    // 已到最大值时同样禁止继续增加。
+                    onPlus: _repeat < 9 ? () => update(() => _repeat++) : null,
+                  ),
+                  // 第二行控制两次发音之间的秒数。
+                  ListeningSettingRow(
+                    label: '播放间隔(秒)',
+                    value: _interval,
+                    onMinus: _interval > 1
+                        ? () => update(() {
+                            // 先减少用户配置的间隔。
+                            _interval--;
+                            // 正在显示的剩余秒数不能大于新的间隔。
+                            _remainingSeconds = _remainingSeconds.clamp(
+                              0,
+                              _interval,
+                            );
+                          })
+                        : null,
+                    onPlus: _interval < 10
+                        ? () => update(() => _interval++)
+                        : null,
+                  ),
+                  // 第三行是简单的开关，因此直接使用固定高容器。
+                  SizedBox(
+                    height: ListeningLayout.settingsRowHeight,
+                    // 左右留白与上面两行一致。
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.pBase,
+                      ),
+                      // Row 将标签和 Switch 放在两侧。
+                      child: Row(
+                        children: [
+                          // 开关标签。
+                          Text('列表循环', style: textTheme.fs5),
+                          // 占满中间区域。
+                          const Spacer(),
+                          Switch(
+                            key: const Key('listening-loop-switch'),
+                            value: _loop,
+                            onChanged: (value) => update(() => _loop = value),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      _settingsOpen = false;
+    }
   }
 
   ///
@@ -715,6 +772,8 @@ class _ListeningPageState extends State<ListeningPage>
   /// 界面刷新抢同一帧，表现在手势返回上就是卡顿、不跟手。
   @override
   void deactivate() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = null;
     // 序号自增后，正在跑的 _runPlayback 循环下一次检查即退出，不再播放新词。
     ++_playSerial;
     // 取消每秒倒计时定时器，停止每秒 setState 更新剩余秒数，释放主线程。
@@ -725,10 +784,11 @@ class _ListeningPageState extends State<ListeningPage>
 
   @override
   void dispose() {
+    _elapsedTimer?.cancel();
     // 页面销毁前注销生命周期监听，避免回调命中已销毁 State。
     WidgetsBinding.instance.removeObserver(this);
-    // 系统返回或路由销毁前补写最终状态；正常播完已经删会话，不能在这里重新创建。
-    if (!_isFinished) unawaited(_persistSession());
+    // 返回时保存最后一个播放位置；播完的清单也保留，可直接重播。
+    _savePlayback();
     // 注销锁屏/通知栏的媒体控制回调，避免回传事件命中已销毁的页面。
     LocalWordAudioPlayer.setMediaControlHandler(null);
     // 收起锁屏/通知栏媒体控制并停用原生 MediaSession。
@@ -755,28 +815,49 @@ class _ListeningPageState extends State<ListeningPage>
   Widget build(BuildContext context) {
     // tokens 是当前主题对应的一组颜色变量。
     final tokens = AppTokens.of(context);
+    if (_words.isEmpty) {
+      return ModuleScaffold(
+        header: ModuleHeader(
+          leading: ModuleIconButton(
+            key: const Key('close-listening'),
+            icon: AppGlyph.back,
+            alignment: Alignment.centerLeft,
+            onTap: () => Navigator.pop(context),
+          ),
+          title: const ModuleProgressLabel(current: 0, total: 0),
+          trailing: ModuleTimeLabel(text: formatTimerSeconds(_elapsedSeconds)),
+          progress: 0,
+        ),
+        body: Center(
+          child: Text(
+            '播放列表已空，请返回词库重新选择',
+            style: Theme.of(context).textTheme.fs5,
+          ),
+        ),
+        footer: const SizedBox.shrink(),
+      );
+    }
     // 当前下标从 0 开始，因此加 1 后再除以总数得到进度条需要的 0～1 比例。
-    final progress = (_index + 1) / widget.words.length;
+    final progress = (_index + 1) / _words.length;
     // 搜索统一忽略首尾空格和英文大小写。
     final normalizedQuery = _query.trim().toLowerCase();
     // record 同时保存原列表下标和单词，过滤后点击仍能跳回真实播放位置。
     final filtered = <({int index, Word word})>[
       // 遍历父页面传入的完整播放列表。
-      for (var index = 0; index < widget.words.length; index++)
+      for (var index = 0; index < _words.length; index++)
         // 没有关键词时全部保留，否则只保留拼写中包含关键词的单词。
         if (normalizedQuery.isEmpty ||
-            widget.words[index].spelling.toLowerCase().contains(
-              normalizedQuery,
-            ))
+            _words[index].spelling.toLowerCase().contains(normalizedQuery))
           // 把真实下标和当前单词一起放进过滤结果。
-          (index: index, word: widget.words[index]),
+          (index: index, word: _words[index]),
     ];
     // “常显”或“手指正在按住”任一条件成立时都展示真实答案。
     final showAnswer = _revealAll || _isPeeking;
 
     // 页面骨架交给模块模板：上段顶栏、中段正文、下段播放控制区。
     return ModuleScaffold(
-      // 上：五个模块共用的顶栏。随身听右上角放的不是时间而是设置键。
+      onSettingsRequested: _openSettings,
+      // 上：五个模块共用的顶栏。五个模块的右上角都是「用时」，随身听也不例外。
       header: ModuleHeader(
         // 返回键的点击画布直接贴在页面左右留白那一档上，不做任何负偏移。
         leading: ModuleIconButton(
@@ -786,17 +867,9 @@ class _ListeningPageState extends State<ListeningPage>
           onTap: () => Navigator.pop(context),
         ),
         // 中间的「第几个 / 总数」与四个复习模块读同一份组件，格式与字号必然一致。
-        title: ModuleProgressLabel(
-          current: _index + 1,
-          total: widget.words.length,
-        ),
-        // 设置键与返回键共用同一块 34 像素画布，图标贴右边界。
-        trailing: ModuleIconButton(
-          key: const Key('open-listening-settings'),
-          icon: AppGlyph.settings,
-          alignment: Alignment.centerRight,
-          onTap: _openSettings,
-        ),
+        title: ModuleProgressLabel(current: _index + 1, total: _words.length),
+        // 用时标签与返回键共用同一块 34 像素画布，文字贴右边界。
+        trailing: ModuleTimeLabel(text: formatTimerSeconds(_elapsedSeconds)),
         progress: progress,
       ),
       // 中：播放列表卡片固定高度，答案卡吃掉剩下的全部高度。
@@ -820,10 +893,13 @@ class _ListeningPageState extends State<ListeningPage>
     );
   }
 
-  // 顶栏（返回键 + 中间「第几个 / 总数」+ 右上角设置键 + 进度条）原来由本页的
+  // 顶栏（返回键 + 中间「第几个 / 总数」+ 右上角用时 + 进度条）原来由本页的
   // `_buildHeader` 亲手拼装，现在整块交给模块模板 `lib/widgets/module_scaffold.dart`
   // 的 [ModuleHeader]。随身听是这套顶栏的「原版」，四个复习模块当初是照它抄的，
   // 抄件与原件从此读同一份代码，切换模块时顶部再不会跳。
+  //
+  // 设置面板不再占顶栏的右侧插槽（那里让给了用时），改为在正文上滑/下拉越界时
+  // 打开，入口由 `ModuleScaffold.onSettingsRequested` 统一接管。
 
   ///
   /// 构建搜索工具栏与播放列表。
@@ -844,7 +920,8 @@ class _ListeningPageState extends State<ListeningPage>
       decoration: BoxDecoration(
         color: tokens.card,
         borderRadius: BorderRadius.circular(ListeningLayout.cardRadius),
-        border: Border.all(color: tokens.border),
+        // 与候选词、描边按钮、输入框同一档控件描边。
+        border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
       ),
       // 裁掉列表行背景可能越过圆角的部分。
       clipBehavior: Clip.antiAlias,
@@ -1008,7 +1085,7 @@ class _ListeningPageState extends State<ListeningPage>
           shape: RoundedRectangleBorder(
             // 四个角共用布局尺寸表中的统一圆角。
             borderRadius: BorderRadius.circular(ListeningLayout.cardRadius),
-            side: BorderSide(color: tokens.border),
+            side: BorderSide(color: tokens.rowBorder, width: AppStroke.thin),
           ),
           // 内容按同一个圆角轮廓裁剪，抗锯齿保证圆角边缘平滑完整。
           clipBehavior: Clip.antiAlias,
@@ -1055,7 +1132,7 @@ class _ListeningPageState extends State<ListeningPage>
                       widget.settings.setListeningRevealAll(_revealAll),
                     );
                     // 下次继续时保持用户当前的答案显示偏好。
-                    unawaited(_persistSession());
+                    _savePlayback();
                   },
                 ),
               ),

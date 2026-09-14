@@ -24,7 +24,8 @@ class Word {
     this.reviewedAt,
     this.createdAt,
     this.updatedAt,
-  }) : meanings = buildMeaningGroups(meanings);
+  }) :       rawMeanings = List<Meaning>.unmodifiable(meanings),
+       meanings = buildMeaningGroups(meanings, verbOnlyMerge: true);
 
   ///
   /// SQLite 自增主键。
@@ -50,6 +51,9 @@ class Word {
   /// 词性的先后是「在数据库里首次出现的顺序」，组内顺序是排序值从大到小。
   /// 整理规则见 [buildMeaningGroups]。
   final Map<String, List<Meaning>> meanings;
+
+  /// 原始含义记录用于保存与题目关联，展示合并不能丢掉 vi. / vt. 的编号。
+  final List<Meaning> rawMeanings;
 
   ///
   /// 难度，最小 0 且没有上限；答错 +1，连对满 5 的倍数 -1。
@@ -89,9 +93,30 @@ class Word {
   /// 摊平成一维的全部释义，顺序 = 词性分组顺序 + 组内顺序。
   ///
   /// 出题、统计、找混淆项这类「不关心词性、只要全部含义」的地方用它。
-  List<Meaning> get allMeanings => <Meaning>[
-    for (final group in meanings.values) ...group,
-  ];
+  /// 注意：它会跨词性按释义去重（非动词相同中文也会并掉），所以只适合
+  /// 「随便合并」的词义连连 / 看义选词，以及干扰项候选池。
+  List<Meaning> get allMeanings {
+    final seen = <String>{};
+    return <Meaning>[
+      for (final group in meanings.values)
+        for (final meaning in group)
+          if (seen.add(meaning.definition.trim())) meaning,
+    ];
+  }
+
+  ///
+  /// 摊平成一维的全部释义，但只在**动词词性内**按释义去重。
+  ///
+  /// 与 [allMeanings] 的区别：[allMeanings] 跨词性去重（非动词相同中文也并掉），
+  /// 本 getter 只在主词性为 `v.` 的动词里合并（vi./vt. 并成 `vi. vt.`、光杆 `v.` 减精确组），
+  /// 非动词的相同中文全部保留为独立条目。「只能动词合并」的听音辨义抽题时用它，
+  /// 不影响「随便合并」的词义连连 / 看义选词（它们继续用 [allMeanings]）。
+  List<Meaning> get verbMergedMeanings {
+    final groups = buildMeaningGroups(rawMeanings, verbOnlyMerge: true);
+    return <Meaning>[
+      for (final group in groups.values) ...group,
+    ];
+  }
 
   ///
   /// 按词性分好的展示分组，界面照着一组画一行。
@@ -170,7 +195,9 @@ class Word {
         );
       } on FormatException catch (error) {
         // 在原始异常前补充数组位置，方便定位具体坏数据。
-        throw FormatException('Word.meanings 第 ${index + 1} 项错误：${error.message}');
+        throw FormatException(
+          'Word.meanings 第 ${index + 1} 项错误：${error.message}',
+        );
       }
     }
     // 排序值越大越靠前；原生已经按这个顺序返回，这里再兜底一次，
@@ -207,7 +234,7 @@ class Word {
     'id': id,
     'spelling': spelling,
     // 释义按当前顺序传出，排序值由原生自动发放。
-    'meanings': allMeanings.map((meaning) => meaning.toMap()).toList(),
+    'meanings': rawMeanings.map((meaning) => meaning.toMap()).toList(),
     'difficulty': difficulty,
     'confusions': List<String>.from(confusions),
     'syllables': List<String>.from(syllables),
@@ -227,7 +254,11 @@ class Word {
   ///
   /// 返回按表单结果编辑后的副本，供「修改单词」提交时使用。
   Word edited({required String spelling, required List<Meaning> meanings}) =>
-      copyWith(spelling: spelling, meanings: meanings, updatedAt: DateTime.now());
+      copyWith(
+        spelling: spelling,
+        meanings: meanings,
+        updatedAt: DateTime.now(),
+      );
 
   ///
   /// 转成纯数据结构（嵌套 Map / List），给导出和排查问题用。
@@ -267,7 +298,7 @@ class Word {
   }) => Word(
     id: id,
     spelling: spelling ?? this.spelling,
-    meanings: meanings ?? allMeanings,
+    meanings: meanings ?? rawMeanings,
     difficulty: difficulty ?? this.difficulty,
     confusions: confusions ?? this.confusions,
     syllables: syllables ?? this.syllables,

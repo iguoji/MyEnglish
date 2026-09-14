@@ -431,7 +431,8 @@ class _LearningAction extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.p3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.roundedXxl),
-            border: Border.all(color: tokens.border),
+            // 与白底卡片、候选词、输入框同一档控件描边。
+            border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

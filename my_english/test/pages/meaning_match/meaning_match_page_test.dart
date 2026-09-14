@@ -2,14 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// 引入设计令牌，核对倒计时三阶段的颜色。
+// 引入设计令牌，核对候选卡状态样式。
 import 'package:my_english/common/theme.dart';
 // 被测页面与依赖模型。
 import 'package:my_english/models/session.dart';
 import 'package:my_english/models/session_record.dart';
 import 'package:my_english/models/word.dart';
 import 'package:my_english/models/meaning.dart';
-import 'package:my_english/store/settings.dart';
 import 'package:my_english/pages/meaning_match/meaning_match_page.dart';
 // 页面尺寸表：连对后的淡化比例现在从这里读，不再在测试里写死数字。
 import 'package:my_english/pages/meaning_match/widgets/meaning_match_layout.dart';
@@ -17,6 +16,8 @@ import 'package:my_english/pages/review/services/session_progress.dart';
 
 // 测试用内存 Store，避免触碰 MethodChannel。
 import '../../support/memory_session_store.dart';
+// 测试用会话装配件：按真实规则编好棋盘再组装会话。
+import '../../support/session_fixture.dart';
 
 ///
 /// 构造一个仅含单条释义的单词，便于测试中确定“某单词对应哪条含义”。
@@ -43,22 +44,19 @@ List<Word> _fiveWords() => [
 ///
 /// 按词表构造一局「进行中」的词义连连会话。
 ///
-/// 数据列表元素是 [单词id, 含义id] 数对；词表只有一组（5 对）时就是单组棋盘。
+/// 一局练习在库里是**四层**（会话 → 大题 → 小题 → 考察对象），页面读的是
+/// `session.groups` 里编好的棋盘；数据列表（items）只是「这一局有几题」的
+/// 便宜投影，单独填它会让页面拿到一份空棋盘。所以这里调生产代码的编题规则，
+/// 把真正的试卷装配出来。
 ///
 Session _session(List<Word> words, {int cursor = 0, int elapsed = 0}) =>
-    Session(
+    buildSession(
       id: 1,
       module: ReviewModule.meaningMatch,
-      kind: SessionKind.daily,
-      status: SessionStatus.active,
-      wordSetId: 1,
-      items: <List<int>>[
-        for (final word in words) <int>[word.id!, word.allMeanings.single.id!],
-      ],
+      words: words,
+      date: '2026-08-29',
       cursor: cursor,
       elapsed: elapsed,
-      date: '2026-08-29',
-      createdAt: DateTime.now(),
     );
 
 ///
@@ -71,11 +69,14 @@ Future<void> _pumpPage(
   required List<Word> words,
   List<SessionRecord> records = const <SessionRecord>[],
   int elapsed = 0,
-  SettingsStore? settings,
 }) async {
+  final store = MemorySessionStore();
+  final session = _session(words, elapsed: elapsed);
+  // 会话必须登记进 Store：答题、保存进度、结算都按编号回查这一局。
+  store.seedSession(session);
   final progress = SessionProgress(
-    store: MemorySessionStore(),
-    session: _session(words, elapsed: elapsed),
+    store: store,
+    session: session,
     records: records,
   );
   await tester.pumpWidget(
@@ -83,32 +84,12 @@ Future<void> _pumpPage(
       // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
       // 槽位取，缺了它读到的会是 Material 自带的默认字号。
       theme: AppTheme.light,
-      home: MeaningMatchPage(
-        words: words,
-        title: '词义连连',
-        progress: progress,
-        settings: settings,
-      ),
+      home: MeaningMatchPage(words: words, title: '词义连连', progress: progress),
     ),
   );
-  // 跑一帧让 initState 完成、倒计时与棋盘建好。
+  // 跑一帧让 initState 完成、累计用时与棋盘建好。
   await tester.pump();
 }
-
-///
-/// 取出右上角倒计时文字当前的颜色。
-///
-/// 倒计时外层的 InkWell 挂着 key，Text 在里面的动画层之下，
-/// 因此按“后代中的 Text”来取。
-Color _countdownColor(WidgetTester tester) => tester
-    .widget<Text>(
-      find.descendant(
-        of: find.byKey(const Key('meaning-match-countdown')),
-        matching: find.byType(Text),
-      ),
-    )
-    .style!
-    .color!;
 
 ///
 /// 取出某张候选卡「卡片本体」的装饰（底色 + 描边）。
@@ -137,38 +118,11 @@ Color _cardBorderColor(WidgetTester tester, Key cardKey) =>
     (_cardDecoration(tester, cardKey).border! as Border).top.color;
 
 void main() {
-  testWidgets('页面能正常构建并显示 150 秒倒计时与 0/5 计数', (WidgetTester tester) async {
+  testWidgets('页面正常构建：显示累计用时、0/5 进度且不再显示倒计时', (WidgetTester tester) async {
     await _pumpPage(tester, words: _fiveWords());
-    // 顶栏计数初始为 0 / 5（5 个单词 = 5 对）。
     expect(find.text('0 / 5'), findsOneWidget);
-    // 倒计时取自全局默认 150 秒 -> 02:30。
-    expect(find.text('02:30'), findsOneWidget);
-  });
-
-  testWidgets('点击倒计时 +30 秒：显示变 03:00 且写入全局设置', (WidgetTester tester) async {
-    final settings = SettingsStore.inMemory();
-    await _pumpPage(tester, words: _fiveWords(), settings: settings);
-    // 点击右上角倒计时。
-    await tester.tap(find.byKey(const Key('meaning-match-countdown')));
-    await tester.pump();
-    // 当前剩余 180 秒 -> 03:00。
-    expect(find.text('03:00'), findsOneWidget);
-    // 同时全局设置也 +30（150 -> 180）。
-    expect(settings.meaningMatchDuration, 180);
-  });
-
-  testWidgets('倒计时按剩余比例分三档颜色：默认灰 → 警告橙 → 危险红', (WidgetTester tester) async {
-    await _pumpPage(tester, words: _fiveWords());
-    // 起步 150 秒，剩余 100%：与其他三个模块右上角计时同一个默认灰。
-    expect(_countdownColor(tester), AppTokens.light.textMedium);
-
-    // 走掉 55 秒 → 还剩 95 秒，占总时长 63%（低于三分之二）：转警告橙。
-    await tester.pump(const Duration(seconds: 55));
-    expect(_countdownColor(tester), AppTokens.warning);
-
-    // 再走 55 秒 → 还剩 40 秒，占总时长 27%（低于三分之一）：转危险红。
-    await tester.pump(const Duration(seconds: 55));
-    expect(_countdownColor(tester), AppTokens.danger);
+    expect(find.text('00:00'), findsOneWidget);
+    expect(find.byKey(const Key('meaning-match-countdown')), findsNothing);
   });
 
   testWidgets('正确配对：左卡点 apple 再点其释义苹果，计数变为 1/5', (WidgetTester tester) async {
@@ -294,8 +248,12 @@ void main() {
     expect(find.text('1 / 5'), findsOneWidget);
   });
 
-  testWidgets('会话续玩：回放记录恢复已匹配 1 对与剩余 90 秒', (WidgetTester tester) async {
+  testWidgets('会话续玩：回放记录恢复已匹配 1 对与累计用时', (WidgetTester tester) async {
     // 用户此前连对了 apple ↔ 苹果，用时 60 秒后退出。
+    //
+    // 恢复靠的是「记录挂在哪道小题上」：页面拿左卡小题的编号去记录里找，
+    // 再用记录里实际点中的文本反查右卡。所以这条记录必须带上真实的小题编号——
+    // 试卷按词表顺序编题、小题编号从 1 连续排，apple 那道就是 1 号。
     await _pumpPage(
       tester,
       words: _fiveWords(),
@@ -307,12 +265,13 @@ void main() {
           meaningId: 101,
           input: '苹果',
           isCorrect: true,
+          questionId: 1,
         ),
       ],
     );
     // 续玩恢复计数 1/5。
     expect(find.text('1 / 5'), findsOneWidget);
-    // 续玩恢复剩余 90 秒（150 − 60）-> 01:30。
-    expect(find.text('01:30'), findsOneWidget);
+    // 续玩恢复累计用时 60 秒 -> 01:00。
+    expect(find.text('01:00'), findsOneWidget);
   });
 }

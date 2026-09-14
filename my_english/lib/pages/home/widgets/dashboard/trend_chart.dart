@@ -10,6 +10,67 @@ import '../../../../common/theme.dart';
 import '../home_layout.dart';
 
 ///
+/// 时间轴标签的横轴中心坐标。
+///
+/// 先按等距排好时间文字：第一个文字左边缘贴安全边界、最后一个文字右边缘贴安全
+/// 边界，文字之间间距相等；曲线节点再对齐到各文字的中心。
+/// 同一张图里标签格式一致（都是 "M.DD"），各文字等宽，因此"文字中心等距"与
+/// "文字边缘等距"等价，首末文字自然落在安全距离内。
+///
+/// 节点因此不再贴安全边界——这是为换取"时间文字等距且贴边"做的妥协（需求明确接受）。
+List<double> _timeLabelCenters(
+  double width,
+  double edgeInset,
+  List<String> labels,
+) {
+  const style = TextStyle(fontSize: AppFont.fs6);
+  final measurer = TextPainter(textDirection: TextDirection.ltr);
+  var firstHalf = 0.0;
+  var lastHalf = 0.0;
+  if (labels.isNotEmpty) {
+    measurer.text = TextSpan(text: labels.first, style: style);
+    measurer.layout();
+    firstHalf = measurer.width / 2;
+    measurer.text = TextSpan(text: labels.last, style: style);
+    measurer.layout();
+    lastHalf = measurer.width / 2;
+  }
+  final n = labels.length;
+  if (n == 0) return const [];
+  final startCenter = edgeInset + firstHalf;
+  final endCenter = width - edgeInset - lastHalf;
+  // 屏幕过窄放不下全部标签时退化成整段均分，避免负步长把节点挤到边界外。
+  if (endCenter <= startCenter) {
+    final step = n == 1 ? 0.0 : (width - 2 * edgeInset) / (n - 1);
+    return List<double>.generate(n, (i) => edgeInset + i * step);
+  }
+  final step = (endCenter - startCenter) / (n - 1);
+  return List<double>.generate(n, (i) => startCenter + i * step);
+}
+
+///
+/// 把秒数格式化成"复习时间"文字：不足 1 小时显示分钟，否则显示小时。
+/// 整数直接取整，非整数四舍五入保留一位小数。
+///
+/// 例外：显示出来是 0 的时候不带单位，只写一个「0」。带着单位却没有内容的
+/// 「0分钟」读起来很别扭——用户看到的就是「这里写了点什么，但其实是零」。
+/// 除了 0 秒，不足三秒的零头（如 1 秒 → 0.0167 分钟）四舍五入后同样是 0，
+/// 一并按「0」处理，避免同一个毛病在边界上又冒出来。
+String _formatReviewDuration(double seconds) {
+  String trim(double value) {
+    final rounded = (value * 10).round() / 10;
+    final isInteger = (rounded * 10).round() % 10 == 0;
+    return isInteger
+        ? rounded.toInt().toString()
+        : rounded.toStringAsFixed(1);
+  }
+
+  if (seconds >= 3600) return '${trim(seconds / 3600)}小时';
+  final minutes = trim(seconds / 60);
+  return minutes == '0' ? '0' : '$minutes分钟';
+}
+
+///
 /// 曲线图单个数据点。
 ///
 /// 把"横轴文字"与"纵轴数值"打包成一个对象：外部只要传入形如
@@ -214,15 +275,17 @@ class _TrendChartState extends State<TrendChart>
     final w = size.width;
     final n = widget.data.length;
     // 与画笔使用完全相同的横坐标公式，保证点到哪就是画在哪。
-    final x0 = widget.edgeInset;
-    final x1 = w - widget.edgeInset;
-    final step = n == 1 ? 0.0 : (x1 - x0) / (n - 1);
+    final xs = _timeLabelCenters(
+      w,
+      widget.edgeInset,
+      widget.data.map((d) => d.label).toList(),
+    );
 
     // 找横向距离最近的节点。
     var best = 0;
     var bestDx = double.infinity;
     for (var i = 0; i < n; i++) {
-      final dx = (details.localPosition.dx - (x0 + i * step)).abs();
+      final dx = (details.localPosition.dx - xs[i]).abs();
       if (dx < bestDx) {
         bestDx = dx;
         best = i;
@@ -230,6 +293,7 @@ class _TrendChartState extends State<TrendChart>
     }
 
     // 放大的命中半径：至少 32 逻辑像素，或节点间距的一半。
+    final step = n > 1 ? (xs.last - xs.first) / (n - 1) : 0.0;
     final threshold = math.max(32.0, n > 1 ? step / 2 : 32.0);
     if (bestDx <= threshold && best != _selectedIndex) {
       setState(() => _selectedIndex = best);
@@ -368,14 +432,12 @@ class _TrendChartPainter extends CustomPainter {
     final minV = minValue;
     final maxV = maxValue == minValue ? minValue + 1 : maxValue;
 
-    // 横坐标：节点排列在安全边界 [edgeInset, w-edgeInset] 内，首尾贴边界线。
+    // 横坐标：先按等距排好时间文字（首末贴安全边界），节点再对齐到文字中心。
     final n = data.length;
-    final x0 = edgeInset;
-    final x1 = w - edgeInset;
-    final step = n == 1 ? 0.0 : (x1 - x0) / (n - 1);
-    final xs = List<double>.generate(
-      n,
-      (i) => n == 1 ? (x0 + x1) / 2 : x0 + i * step,
+    final xs = _timeLabelCenters(
+      w,
+      edgeInset,
+      data.map((d) => d.label).toList(),
     );
 
     // 纵坐标映射：把"归一化数值"换算成画布上的 y 坐标。
@@ -469,9 +531,10 @@ class _TrendChartPainter extends CustomPainter {
     // 绘制发生在 CustomPainter 里，这里根本拿不到 context；二是那些档统一带
     // 1.43 的行高，而下面这些坐标是拿 `painter.height` 反推出来的，行高一变
     // 数值气泡和横轴日期就会整体挪位。字号仍然引用总表台阶。
+    // 复习时间：不足 1 小时显示分钟，否则显示小时；整数取整、非整数保留一位小数；
+    // 结果为 0 时只写一个「0」，不带单位（见 _formatReviewDuration 的说明）。
     final valueSpan = TextSpan(
-      // 四舍五入取整显示。
-      text: data[selectedIndex].value.round().toString(),
+      text: _formatReviewDuration(data[selectedIndex].value),
       style: TextStyle(
         fontSize: AppFont.fs5,
         fontWeight: AppWeight.bold,
@@ -482,50 +545,73 @@ class _TrendChartPainter extends CustomPainter {
       text: valueSpan,
       textDirection: TextDirection.ltr,
     )..layout();
-    // 水平：以节点为中心；贴边节点做钳制，避免文字画出屏幕。
-    final valueDx = (xs[selectedIndex] - valuePainter.width / 2).clamp(
-      2.0,
-      w - valuePainter.width - 2.0,
-    );
-    // 垂直：位于节点上方 6px；节点已在顶部时钳制到 0，防止裁切。
+    // 数值背后垫一张与卡片同色的圆角底板：曲线从节点穿过时往往会掠过文字
+    // 下方（尤其选中点是「谷底」、两侧曲线向上扬起时），没有底板的话，
+    // 像「10分钟」最前面的「1」会直接压在曲线上、看不清。底板把这一段曲线
+    // 遮掉，文字始终清晰——和 Tabler 图表里数值气泡的衬底同理。
+    //
+    // 衬底的横向尺寸必须先算出来：用户看到的「白底容器」是衬底而不是文字，
+    // 与屏幕边缘的安全距离要按衬底的外沿算，文字得把左右各一圈衬底让出去。
+    const platePadX = TrendChartLayout.valuePlatePadX;
+    const platePadY = TrendChartLayout.valuePlatePadY;
+    // 水平：以节点为中心，但把整块衬底（不是文字）钳制在安全边界之内。
+    // 衬底左右各比文字宽 platePadX，所以文字坐标的可用范围是
+    // [pBase + platePadX, 画布宽 - pBase - platePadX - 文字宽]——
+    // 这样首、末节点被选中时，白底容器与屏幕左右边缘至少留出 AppSpace.pBase，
+    // 不会紧贴屏幕边（原来的 2px 只是「不让文字被裁掉」，视觉上仍然贴边）。
+    final minValueDx = AppSpace.pBase + platePadX;
+    final maxValueDx = w - AppSpace.pBase - platePadX - valuePainter.width;
+    final valueDx = maxValueDx < minValueDx
+        // 屏幕窄到两个安全边界之间放不下这块衬底时改为居中：
+        // 既不会画出宽度为负的衬底，也不会踩到 clamp「下界大于上界」的断言。
+        ? (w - valuePainter.width) / 2
+        : (xs[selectedIndex] - valuePainter.width / 2).clamp(
+            minValueDx,
+            maxValueDx,
+          );
+    // 垂直：位于节点上方一小段距离；节点已在顶部时钳制到 0，防止裁切。
     final valueDy =
         (ys[selectedIndex] -
                 valuePainter.height -
                 TrendChartLayout.valueLabelGap)
             .clamp(0.0, double.infinity);
+    final plateRect = Rect.fromLTWH(
+      valueDx - platePadX,
+      valueDy - platePadY,
+      valuePainter.width + platePadX * 2,
+      valuePainter.height + platePadY * 2,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        plateRect,
+        const Radius.circular(TrendChartLayout.valuePlateRadius),
+      ),
+      Paint()..color = bg,
+    );
     valuePainter.paint(canvas, Offset(valueDx, valueDy));
 
     // 横轴标签：绘制全部节点的 label（7 个数据点就显示 7 个日期/文字）。
-    // 首个在安全边界处左对齐、末个右对齐，避免贴边文字被裁切；中间居中。
+    // 文字以中心对齐到节点横坐标：先定时间文字、节点再跟随，因此首末文字
+    // 左/右边缘正好落在安全边界上，文字之间等距，节点也与之对齐。
     // 同上：画布文字保持显式样式，颜色仍由外部传入的令牌决定。
     final labelStyle = TextStyle(fontSize: AppFont.fs6, color: axisLabel);
-    void drawLabel(String text, double x, TextAlign align) {
+    void drawLabel(String text, double centerX) {
       final span = TextSpan(text: text, style: labelStyle);
       final painter = TextPainter(
         text: span,
         textDirection: TextDirection.ltr,
-        textAlign: align,
+        textAlign: TextAlign.center,
       )..layout();
-      // 根据对齐方式算出文字左边缘 x，使其整体居中/贴左/贴右。
-      final dx = switch (align) {
-        TextAlign.left => x,
-        TextAlign.right => x - painter.width,
-        _ => x - painter.width / 2,
-      };
       // 标签画在分割线下方 4px 处（即底部预留区内）。
       painter.paint(
         canvas,
-        Offset(dx, dividerY + TrendChartLayout.axisLabelGap),
+        Offset(centerX - painter.width / 2,
+            dividerY + TrendChartLayout.axisLabelGap),
       );
     }
 
     for (var i = 0; i < n; i++) {
-      final align = i == 0
-          ? TextAlign.left
-          : i == n - 1
-          ? TextAlign.right
-          : TextAlign.center;
-      drawLabel(data[i].label, xs[i], align);
+      drawLabel(data[i].label, xs[i]);
     }
   }
 

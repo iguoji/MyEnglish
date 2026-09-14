@@ -1,3 +1,4 @@
+import '../../../widgets/audio_playback_capsule.dart';
 // 引入设计令牌总表：本表只负责给页面里的元素起业务名字，
 // 具体数值一律引用总表的台阶（相当于页面专属 CSS 继承基础 CSS）。
 import '../../../common/design/design.dart';
@@ -91,10 +92,11 @@ abstract final class SpellingLayout {
   ///
   /// 指到总表 [AppSize.speakerButton]：听音辨义释义阶段也有一颗同样大的播音圆，
   /// 那一页原先直接引用本表这一档——一个模块的样式挂在另一个模块的表上。
-  static const double playbackCircleSize = AppSize.speakerButton;
+  static const double playbackCircleSize =
+      AudioCapsuleLayout.playbackCircleSize;
 
   /// 播放胶囊的固定总宽度；播放状态切换时外框不会横向变化。
-  static const double playbackWidth = 196;
+  static const double playbackWidth = AudioCapsuleLayout.playbackWidth;
 
   ///
   /// 胶囊文字区的固定宽度——声纹与状态文字共用同一宽度,保证两行"看起来一样长"。
@@ -104,81 +106,66 @@ abstract final class SpellingLayout {
   /// 字号、letterSpacing 1.2）且左右都不顶到胶囊内壁。原值 92 在真机字体下会让尾字
   /// 「放」被 RichText 默认的 `Clip.hardEdge` 硬切掉一点甚至小半，统一加大到 108
   /// 留出 10% 以上的安全余量；切换到更短的「播放中」时也仍然稳稳居中，不会顶到右壁。
-  static const double playbackTextWidth = 108;
+  static const double playbackTextWidth = AudioCapsuleLayout.playbackTextWidth;
 
   /// 播放圆形区域内 Tabler 扬声器图标的字号。
-  static const double playbackIconSize = AppIcon.i20;
+  static const double playbackIconSize = AudioCapsuleLayout.playbackIconSize;
 
   /// 胶囊左侧留白，对应原型的 `pl-1.5`。
-  static const double playbackCirclePadding = AppSpace.p2;
+  static const double playbackCirclePadding =
+      AudioCapsuleLayout.playbackCirclePadding;
 
   /// 胶囊上下留白，对应原型的 `py-1.5`。
-  static const double playbackVerticalPadding = AppSpace.p2;
+  static const double playbackVerticalPadding =
+      AudioCapsuleLayout.playbackVerticalPadding;
 
   /// 胶囊右侧留白，对应原型的 `pr-4`。
-  static const double playbackTextPaddingRight = AppSpace.p3;
+  static const double playbackTextPaddingRight =
+      AudioCapsuleLayout.playbackTextPaddingRight;
 
   /// 播放圆形区域与右侧内容的间距，对应原型的 `gap-3`。
-  static const double playbackContentGap = AppSpace.p3;
+  static const double playbackContentGap =
+      AudioCapsuleLayout.playbackContentGap;
 
   /// 声纹总高度；比原型音标更克制，避免播放胶囊视觉重心过高。
-  static const double waveHeight = 12;
+  static const double waveHeight = AudioCapsuleLayout.waveHeight;
 
   /// 声纹竖条数量；数量增加后，声纹长度接近下方状态文字。
-  static const int waveBarCount = 21;
+  static const int waveBarCount = AudioCapsuleLayout.waveBarCount;
 
   /// 声纹竖条宽度，对应原型均衡器的 `w-[2.5px]`。
-  static const double waveBarWidth = 2.5;
+  static const double waveBarWidth = AudioCapsuleLayout.waveBarWidth;
 
   /// 播放状态声纹的低频刷新间隔。
   ///
   /// 声纹不承载内容，只是告诉用户“正在播放”。每 100 毫秒换一帧（收敛前是 84），
   /// 视觉上仍然连续，同时避免模拟器以每秒 60 帧持续重绘整页。
-  static const int waveTickMs = AppDuration.ms100;
+  static const int waveTickMs = AudioCapsuleLayout.waveTickMs;
 
   /// 未播放时静态声纹的高度，保持组件仍有“可播放”提示。
   ///
   /// 这 21 个数是一整条声纹的「侧影」，高低起伏本身就是造型的一部分，
   /// 所以不像间距、字号那样往偶数台阶上归并——把 3、7、9、11 挨个改成
   /// 相邻的偶数，声纹的高低差就被抹平了，看着更像一排整齐的栅栏而不是声波。
-  static const List<double> waveIdleHeights = <double>[
-    3,
-    4,
-    6,
-    8,
-    10,
-    8,
-    6,
-    4,
-    6,
-    8,
-    11,
-    9,
-    6,
-    4,
-    7,
-    9,
-    8,
-    6,
-    4,
-    3,
-    3,
-  ];
+  static const List<double> waveIdleHeights =
+      AudioCapsuleLayout.waveIdleHeights;
 
   /// 播放时每根声纹竖条的最低高度。
   ///
   /// 取值刻意等于上面静态侧影里最短的那一根：这样从「没播放」切到「正在播放」
   /// 的那一瞬间，最矮的竖条不会先跳一下再开始起伏。
-  static const double waveMinHeight = 3;
+  static const double waveMinHeight = AudioCapsuleLayout.waveMinHeight;
 
   /// 动态声纹在基础高度上允许增加的最大高度。
-  static const double waveMaxExtraHeight = 8;
+  static const double waveMaxExtraHeight =
+      AudioCapsuleLayout.waveMaxExtraHeight;
 
   /// 播放状态文字与声纹之间的间距。
-  static const double playbackLabelGap = AppSpace.p1;
+  static const double playbackLabelGap = AudioCapsuleLayout.playbackLabelGap;
 
   /// 播放状态文字字母间距，对应原型的 `tracking-[0.12em]`。
-  static const double playbackLabelLetterSpacing = 1.2;
+  static const double playbackLabelLetterSpacing =
+      AudioCapsuleLayout.playbackLabelLetterSpacing;
 
   // 字母格（下划线 + 光标 + 入场动画）已抽成通用组件
   // `lib/widgets/letter_slot.dart`，原来的 `spellingLetter*` /
@@ -212,13 +199,12 @@ abstract final class SpellingLayout {
   ///
   /// 拼写成功后切到下一个词的停顿时长。
   ///
-  /// 与答错提示共用 1 秒：无论答对还是答错，用户都有同样的时间看清反馈，
-  /// 不会因为答对了就立刻翻到下一题。
-  static const int wordAdvanceDelayMs = wrongFeedbackDurationMs;
+  /// 答对后短暂停留，让反馈可见又不拖慢连续答题；答错仍保留更长的纠正时间。
+  static const int wordAdvanceDelayMs = AppDuration.ms350;
 
   ///
-  /// 进入单词后自动发音的延迟（原型 `setTimeout(speakCurrent, 350)`）。
-  static const int autoSpeakDelayMs = AppDuration.ms350;
+  /// 新词显示后短暂停顿再发音，尽快衔接下一次拼写。
+  static const int autoSpeakDelayMs = AppDuration.ms100;
 
   ///
   /// 结算页那一整块（`summary*` 九档、`weakChip*` 四档）已经搬进模块模板的

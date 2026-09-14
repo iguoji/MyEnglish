@@ -1,3 +1,5 @@
+import '../../services/self_test_policy.dart';
+import 'widgets/word_library_learning_bar.dart';
 // dart:async 提供 Timer 和 unawaited，分别用于搜索防抖和触发异步任务。
 import 'dart:async';
 // convert 提供 jsonDecode / JsonEncoder，用于解析导入 JSON 与生成导出 JSON。
@@ -5,6 +7,8 @@ import 'dart:convert';
 
 // material.dart 提供页面、布局、加载指示器和按钮等 Flutter UI 组件。
 import 'package:flutter/material.dart';
+// kDebugMode：用来判断当前是不是 debug 构建，让「开始复习」的临时入口只在调试包里可点。
+import 'package:flutter/foundation.dart';
 // url_launcher 用于点击仓库地址时用系统默认浏览器打开外部链接。
 import 'package:url_launcher/url_launcher.dart';
 // services 提供剪贴板，用于点击作者邮箱时把内容复制到系统剪贴板。
@@ -30,6 +34,7 @@ import '../../services/word_audio_cache.dart';
 import '../../services/file_io.dart';
 // 运行日志：导入导出清空等数据操作留痕，方便日后复查时间线。
 import '../../services/app_log.dart';
+import '../../services/study_open_timing.dart';
 // 全屏听音辨义页。
 import '../listening_meaning/listening_meaning_page.dart';
 // 全屏随身听页。
@@ -40,6 +45,10 @@ import '../meaning_match/meaning_match_page.dart';
 import '../spelling_reinforcement/spelling_reinforcement_page.dart';
 // 看义选词页：看中文含义，从候选词里选出匹配的英文单词。
 import '../meaning_word_choice/meaning_word_choice_page.dart';
+// 组件演示页（demo）：复用复习模块框架的空壳，用来预览各类 UI 组件。
+import '../demo/demo_page.dart';
+// 结算状态页公共组件：demo 首页「开始复习」当前演示的就是它。
+import '../../widgets/settlement_summary.dart';
 // 设置 Store 提供持久化口音、主题与每日复习目标。
 import '../../store/settings.dart';
 // 单词 Store 同样放在页面目录之外，其他页面可以直接复用。
@@ -52,6 +61,8 @@ import '../review/services/review_flow.dart';
 import '../review/services/session_progress.dart';
 // 引入全站统一的二次确认对话框：删除单词、清空数据都弹它。
 import '../../widgets/app_confirm_dialog.dart';
+// 一局还没准备好时的过渡屏：词库底部随手开一局要等一秒多，先跳页再等它。
+import '../../widgets/session_gate.dart';
 // 右侧抽屉菜单。
 import 'widgets/home_drawer.dart';
 // 添加/修改单词表单。
@@ -184,8 +195,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _searchDebounce;
 
   ///
-  /// 单词加载超时定时器；页面提前关闭时必须主动取消，避免留下仍在等待的任务。
-  Timer? _loadTimeout;
+  /// 每次重新加载都领取一个编号，迟到的旧请求不能覆盖新请求的数据。
+  int _wordLoadGeneration = 0;
 
   ///
   /// 页面最终使用的单词 Store，在 initState 中完成一次赋值。
@@ -263,14 +274,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Set<Word> _expandedWords = <Word>{};
 
   ///
-  /// 选择模式下被勾选的 Word 对象集合。
-  final Set<Word> _selectedWords = <Word>{};
+  /// 勾选状态只记录单词编号；返回刷新、更新混淆词后仍认得同一个单词。
+  final Set<int> _selectedWordIds = <int>{};
 
   ///
-  /// 今天还挂着「进行中」的随身听 / 听音辨义会话，用来显示词库底部的「继续」。
+  /// 今天还挂着「进行中」的四种自测会话，用来显示词库底部的「继续」。
   ///
   /// 只看今天：会话表按日期组织，昨天没练完的局启动时已经收成「中断」。
   var _resumableSessions = const <ReviewModule, Session>{};
+  ReviewModule _libraryModule = ReviewModule.listening;
+  bool _libraryActionBusy = false;
 
   ///
   /// 当前处于下载或播放状态的具体 Word 对象。
@@ -352,15 +365,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 监听设置变化，让副标题的复习目标即时刷新。
     _settings.addListener(_handleExternalChange);
     // 异步加载全部 Word/Meaning；方法内部完成 setState。
-    unawaited(_loadWords());
+    unawaited(_loadInitialData());
     // 读取今日复习数量，让副标题的「今日复习 X/目标」显示真实数据而非写死的 0。
-    unawaited(_loadReviewProgress());
+
     // 若今天已经建过词库，先恢复它供首页展示。
-    unawaited(_loadDailyWordSet());
+
     // 独立读取未完成会话，不让辅助数据阻塞首页单词列表首屏。
-    unawaited(_loadResumableSessions());
+
     // 跨天后昨天没打完的局挂着没有意义，启动时统一收成「中断」。
-    unawaited(_abortStaleReviewSessions());
   }
 
   ///
@@ -368,8 +380,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 生活化解释：昨天做到一半退出去了，今天再打开 App，那一局已经没有意义
   /// ——今天有今天的词库。不收掉的话，数据库里会攒下一堆永远不会结束的局。
+  /// 先落实上次已完成的结算，再读取词库和计划，避免首屏读到旧难度和旧统计。
+  Future<void> _loadInitialData() async {
+    await _abortStaleReviewSessions();
+    if (!mounted) return;
+    await Future.wait<void>(<Future<void>>[
+      _loadWords(),
+      _loadReviewProgress(),
+      _loadDailyWordSet(),
+      _loadResumableSessions(),
+    ]);
+  }
+
+  Future<void> _refreshAfterResume() async {
+    await _abortStaleReviewSessions();
+    if (mounted) await _refreshReviewDashboard();
+  }
+
   Future<void> _abortStaleReviewSessions() async {
     try {
+      // 进程被系统直接回收时，结算页没有机会点击“返回首页”；启动先把
+      // 仍挂着的草稿应用掉，避免用户看到完成状态却一直没有更新难度。
+      await _sessionStore.recoverPendingSettlements();
       // 会话表按日期组织；开局时会拿今天的日期查，昨天那些查不到也就不会被续上。
       // 这里把它们统一收成「中断」，免得数据库里攒下一堆永远不会结束的局。
       await _sessionStore.abortStaleSessions(todayKey());
@@ -384,7 +416,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _handleExternalChange() {
     // 页面已卸载时不再处理任何状态。
     if (!mounted) return;
-    // 每日复习量变了：今天这批词要重新算，所有进行中的会话必须强行中断。
+    // 每日数量变化只维护计划，已经开始的会话继续使用快照。
     if (_lastKnownDailyGoal != _settings.dailyGoal) {
       _lastKnownDailyGoal = _settings.dailyGoal;
       unawaited(_handleDailyGoalChanged());
@@ -396,17 +428,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 用户改了「每日复习」数量后的收尾。
   ///
-  /// 按《复习模块》的约定，数量一变就强行中断所有模块的会话：旧的那一局
-  /// 已经代表不了今天的任务了。词库本身不在这里改——下次点开任意模块时，
-  /// [ReviewFlow.resolveWordSet] 会按新数量截取或补足。
+  /// 当天计划按新数量补足或缩减，正在进行的试卷与已完成标记都保留。
   Future<void> _handleDailyGoalChanged() async {
-    try {
-      // onlyStale 为 false 表示今天的局也一起收掉。
-      await _sessionStore.abortActiveSessions();
-    } catch (error) {
-      // 即使这里失败也不会出错：下次开局时流程会发现单词对不上，照样中断重开。
-      debugPrint('中断复习会话失败：$error');
-    }
     if (!mounted) return;
     // 内存里缓存的旧词库数量已经不对，清掉让下次开局重新读取。
     setState(() => _dailyWordSet = null);
@@ -448,9 +471,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 业务约定：难度 0 与"无难度"(null) 是同一概念，内部必须合并成同一个组，
     // 不能像以前那样把 0 显示成"难度 0"、把 null 显示成"无难度"分成两个区块。
     // 因此先把每个单词的难度按 null→0 归一成 int，再收集去重。
-    final values = <int>{
-      for (final word in _allWords) word.difficulty,
-    }.toList()..sort((a, b) => b.compareTo(a));
+    final values = <int>{for (final word in _allWords) word.difficulty}.toList()
+      ..sort((a, b) => b.compareTo(a));
     // 逐个难度生成区块；分区筛选与单词归属都用 (difficulty ?? 0) 比较。
     for (final value in values) {
       sections.add(
@@ -487,6 +509,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 从 Store 一次读取全部本地单词（带加载与错误界面）。
   Future<void> _loadWords() async {
+    final generation = ++_wordLoadGeneration;
+    final watch = Stopwatch()..start();
+    var reportedSlow = false;
     // 重试时立即切回加载状态并清空旧错误。
     setState(() {
       // 显示进度指示器。
@@ -495,85 +520,68 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _loadError = null;
     });
 
-    // 保存“本次请求”的 Timer；finally 只清理它，不会误伤之后可能发起的新请求。
-    Timer? requestTimeout;
-    try {
-      // Completer 用于手动控制这个异步结果何时完成、成功还是失败。
-      final loadResult = Completer<List<Word>>();
-      // 先取得 Store 的异步结果；数据来自 Android 原生通道（本地 SQLite 持久化）。
-      final storeRequest = _store.getAll();
-      // 如果上一次加载仍残留超时计时，先取消，保证同一页面同时只有一个超时闹钟。
-      _loadTimeout?.cancel();
-      // 单独保存本次 Timer，finally 才不会误取消未来另一轮加载新建的 Timer。
-      final currentTimeout = Timer(const Duration(seconds: 8), () {
-        // Store 已经返回时不能重复完成 Completer。
-        if (loadResult.isCompleted) return;
-        // 原生通道长期不回包时转成可见错误，页面会显示“重新加载”。
-        loadResult.completeError(StateError('数据源读取超时（原生通道无响应）'));
-      });
-      // 把本次 Timer 放进局部引用，供 finally 在成功、异常两种路径统一释放。
-      requestTimeout = currentTimeout;
-      // 保存到字段后，dispose 中才能主动取消它。
-      _loadTimeout = currentTimeout;
-      // Store 成功时把单词列表转交给统一的 loadResult。
-      unawaited(
-        storeRequest.then(
-          (words) {
-            // 超时已经先发生时忽略迟到结果，避免重复完成 Future。
-            if (!loadResult.isCompleted) loadResult.complete(words);
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            // Store 自身失败时保留原始异常与堆栈，方便错误界面和日志定位。
-            if (!loadResult.isCompleted) {
-              loadResult.completeError(error, stackTrace);
+    // 成功处理挂在原始请求上；外层 timeout 只限制调用方等待，不能抛弃迟到数据。
+    // Future.sync 同时接住 Store 同步抛错和异步失败，保持一个错误出口。
+    final operation = Future<List<Word>>.sync(_store.getAll)
+        .then<void>((words) {
+          if (!mounted || generation != _wordLoadGeneration) return;
+          // 一次写入全部数据并结束加载状态。
+          setState(() {
+            // 保存本地 SQLite 持久化返回的 Word/Meaning（App 仅此一种数据来源）。
+            _allWords = words;
+            // 数据重载后清除已经不存在的展开、选中与滑动状态。
+            _expandedWords.removeWhere((word) => !words.contains(word));
+            _selectedWordIds.retainAll(words.map((word) => word.id));
+            if (_swipedWord != null && !words.contains(_swipedWord)) {
+              _swipedWord = null;
             }
-          },
-        ),
-      );
-      // await 等待这个 Future 完成，后续 UI 逻辑无需区分数据来自成功路径还是超时路径。
-      final words = await loadResult.future;
-      // 页面可能在查询期间被关闭；mounted=false 时不能再 setState。
-      if (!mounted) return;
-      // 一次写入全部数据并结束加载状态。
-      setState(() {
-        // 保存本地 SQLite 持久化返回的 Word/Meaning（App 仅此一种数据来源）。
-        _allWords = words;
-        // 数据重载后清除已经不存在的展开、选中与滑动状态。
-        _expandedWords.removeWhere((word) => !words.contains(word));
-        _selectedWords.removeWhere((word) => !words.contains(word));
-        if (_swipedWord != null && !words.contains(_swipedWord)) {
-          _swipedWord = null;
-        }
-        // 隐藏加载指示器。
-        _isLoading = false;
-      });
-      // 把最新词库告知离线语音缓存服务，用于计算总数与初始已缓存百分比。
-      // 通道不可用（如单元测试无原生实现）时服务内部会安全回退为 0。
-      unawaited(
-        WordAudioCache.instance.setWordList(
-          words.map((word) => word.spelling).toList(),
-        ),
-      );
-    } catch (error, stackTrace) {
-      // 调试控制台保留完整错误和调用堆栈，真机日志也能直接查到根因。
-      debugPrint('单词数据加载失败：$error');
-      // stackTrace 记录完整调用堆栈，帮助定位具体代码行。
-      debugPrintStack(stackTrace: stackTrace);
-      // 页面已销毁时不再处理错误 UI。
-      if (!mounted) return;
-      // 保存错误并结束加载状态，界面会显示重试按钮。
-      setState(() {
-        // 记录原始异常供调试。
-        _loadError = error;
-        // 隐藏加载动画。
-        _isLoading = false;
-      });
-    } finally {
-      // 无论成功、Store 报错还是超时，本次计时器都必须停止。
-      requestTimeout?.cancel();
-      // 只有字段仍指向本次 Timer 时才清空，避免覆盖后来一轮加载的引用。
-      if (identical(_loadTimeout, requestTimeout)) _loadTimeout = null;
-    }
+            // 隐藏加载指示器。
+            _isLoading = false;
+            _loadError = null;
+          });
+          if (reportedSlow || StudyOpenTiming.enabled) {
+            AppLog.i(
+              'word_load',
+              '${reportedSlow ? '较慢请求已自动完成' : '词库已载入'} words=${words.length} elapsed=${watch.elapsedMilliseconds}ms',
+            );
+          }
+          // 把最新词库告知离线语音缓存服务，用于计算总数与初始已缓存百分比。
+          // 通道不可用（如单元测试无原生实现）时服务内部会安全回退为 0。
+          unawaited(
+            WordAudioCache.instance.setWordList(
+              words.map((word) => word.spelling).toList(),
+            ),
+          );
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          if (!mounted || generation != _wordLoadGeneration) return;
+          // 调试控制台保留完整错误和调用堆栈，真机日志也能直接查到根因。
+          debugPrint('单词数据加载失败：$error');
+          // stackTrace 记录完整调用堆栈，帮助定位具体代码行。
+          debugPrintStack(stackTrace: stackTrace);
+          AppLog.e('word_load', '读取词库失败：$error');
+          // 保存错误并结束加载状态，界面会显示重试按钮。
+          setState(() {
+            // 记录原始异常供调试。
+            _loadError = error;
+            // 隐藏加载动画。
+            _isLoading = false;
+          });
+        })
+        .whenComplete(watch.stop);
+
+    await operation.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () {
+        if (!mounted || generation != _wordLoadGeneration) return;
+        reportedSlow = true;
+        setState(() {
+          _isLoading = false;
+          _loadError = TimeoutException('读取较慢，结果返回后会自动显示，也可以重新加载。');
+        });
+        AppLog.i('word_load', '读取超过8秒，继续接收当前请求的结果');
+      },
+    );
   }
 
   ///
@@ -592,7 +600,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() {
       _allWords = words;
       _expandedWords.removeWhere((word) => !words.contains(word));
-      _selectedWords.removeWhere((word) => !words.contains(word));
+      _selectedWordIds.retainAll(words.map((word) => word.id));
       if (_swipedWord != null && !words.contains(_swipedWord)) {
         _swipedWord = null;
       }
@@ -626,7 +634,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       // 两个查询彼此独立，并发执行让首页数字几乎瞬间到位。
       final results = await Future.wait<Object>(<Future<Object>>[
-        _sessionStore.getTodayCorrectWordCount(todayKey()),
+        _sessionStore.getTodayReviewedWordCount(todayKey()),
         _sessionStore.getTodayModuleStates(todayKey()),
       ]);
       // 页面可能在异步期间被关闭。
@@ -667,7 +675,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await Future.wait<void>(<Future<void>>[
       _loadReviewProgress(),
       _loadDailyWordSet(),
-      _loadResumableSessions(),
+      // 复习结算会在离开结算页后才正式改写 words 表；这里重新读词库，
+      // 让难度分组和搜索结果立即反映刚刚结算的最终值。
+      _refreshWords(),
     ]);
     // 页面可能在等待期间被关闭。
     if (!mounted) return;
@@ -676,11 +686,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 读取今天已经建好的每日词库，只恢复数据，不主动创建。
+  /// 获取今日计划并及时补缺，新增单词不需要等到第二天。
   Future<void> _loadDailyWordSet() async {
     try {
       // null 表示今天还没有点开过任何复习模块。
-      final wordSet = await _sessionStore.getLatestWordSet(todayKey());
+      final wordSet = await _sessionStore.resolvePlan(
+        date: todayKey(),
+        dailyGoal: _settings.dailyGoal,
+      );
       if (!mounted) return;
       // 原生没有返回词库时也要清掉内存旧值，避免跨天后仍显示昨天那批词。
       setState(() => _dailyWordSet = wordSet);
@@ -744,19 +757,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 读取今天还挂着的随身听 / 听音辨义会话，用来决定词库底部要不要显示「继续」。
+  /// 读取今天有实际作答的四种自测会话，决定胶囊里的继续按钮是否启用。
   ///
-  /// 失败时只隐藏「继续」按钮，不影响首页主体。
+  /// 失败时禁用继续按钮，不影响首页主体；每日复习的状态由首页卡片独立展示。
   Future<void> _loadResumableSessions() async {
     try {
       final date = todayKey();
       final found = <ReviewModule, Session>{};
-      // 只有这两个玩法可以从词库底部随手开一局，其余四个走首页卡片。
-      for (final module in <ReviewModule>[
-        ReviewModule.listening,
-        ReviewModule.listeningMeaning,
-      ]) {
-        final session = await _sessionStore.getLatestSession(module, date);
+      // 四个自测分别续接；随身听的清单和进度由设置独立维护。
+      for (final module in ReviewModule.reviewCards) {
+        final session = await _sessionStore.getActiveSession(
+          module,
+          date,
+          selfTest: true,
+          headerOnly: true,
+        );
         if (session != null && session.isActive) found[module] = session;
       }
       if (!mounted) return;
@@ -771,7 +786,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 从词库底部随手开一局（随身听 / 听音辨义）。
+  /// 从词库底部按明确选词创建一局自测。
   ///
   /// 用户当场挑的这批词不属于今天的词库，所以固定按「巩固」算：
   /// 答题照常记录、照常调难度，但不推进复习时间。
@@ -779,184 +794,223 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ReviewModule module,
     List<Word> words,
   ) async {
+    final timing = StudyOpenTiming.start(module.storageKey, words.length);
+    Future<SessionProgress?> open() async {
+      // 先让出当前这一帧再动手。
+      //
+      // 生活化解释：把整库（上千个词）编排成一整张试卷是一段**同步**计算，几千道
+      // 小题就在这一瞬间算完。如果抢在按钮回调里做，跳页动画得等它算完才动，用户
+      // 反而觉得更卡。等这一帧画完再开始，跳页先跑起来、页面上的转圈先转起来，
+      // 重活随后在后台做——`endOfFrame` 在没有帧排队时会自己排一帧，不会卡死。
+      await WidgetsBinding.instance.endOfFrame;
+      timing?.mark('frame_yielded');
+      try {
+        final entry = await _reviewFlow.openAdHoc(
+          module,
+          wordIds: <int>[
+            for (final word in words)
+              if (word.id != null) word.id!,
+          ],
+          date: todayKey(),
+          // 这批单词对象首页手上就有，直接带过去，别再按编号把整库读一遍。
+          preloaded: words,
+        );
+        if (!mounted || entry == null) {
+          timing?.cancel('entry_unavailable');
+          return null;
+        }
+        final progress = SessionProgress(
+          store: _sessionStore,
+          session: entry.session,
+          records: entry.records,
+          corpusWords: _allWords,
+        );
+        timing?.attach(progress);
+        timing?.mark('controller_ready');
+        return progress;
+      } catch (error, stackTrace) {
+        timing?.cancel('entry_failed');
+        debugPrint('打开${module.label}失败：$error');
+        debugPrintStack(stackTrace: stackTrace);
+        if (mounted) Toast.show(context, '打开${module.label}失败，请重试');
+        return null;
+      }
+    }
+
+    return timing == null ? open() : timing.run(open);
+  }
+
+  /// 词库入口串行打开页面，快速重复点击只执行一次，不覆盖刚创建的清单或自测。
+  Future<void> _runLibraryAction(Future<void> Function() action) async {
+    if (_libraryActionBusy) return;
+    setState(() => _libraryActionBusy = true);
     try {
-      final entry = await _reviewFlow.openAdHoc(
-        module,
-        wordIds: <int>[
-          for (final word in words)
-            if (word.id != null) word.id!,
-        ],
-        date: todayKey(),
-      );
-      if (!mounted || entry == null) return null;
-      return SessionProgress(
-        store: _sessionStore,
-        session: entry.session,
-        records: entry.records,
-      );
+      await action();
     } catch (error, stackTrace) {
-      debugPrint('打开${module.label}失败：$error');
+      debugPrint('打开词库学习失败：$error');
       debugPrintStack(stackTrace: stackTrace);
-      if (mounted) Toast.show(context, '打开${module.label}失败，请重试');
-      return null;
+      if (mounted) Toast.show(context, '打开失败，请重试：$error');
+    } finally {
+      if (mounted) setState(() => _libraryActionBusy = false);
     }
   }
 
-  ///
-  /// 按会话的数据列表，从当前最新词库重新组装学习列表。
-  List<Word> _wordsForSession(Session session) {
-    // 当前词库按主键建立索引，编辑后的拼写、释义和难度会自然使用最新值。
-    final wordsById = <int, Word>{
-      for (final word in _allWords)
-        if (word.id != null) word.id!: word,
-    };
-    final ids = session.idItems;
-    // 任一单词已不存在就不能完整恢复旧状态，返回空列表交给点击流程清理。
-    if (ids.any((id) => !wordsById.containsKey(id))) return const <Word>[];
-    // 按持久化的顺序取值，不受首页当前筛选和排序影响。
-    return List<Word>.unmodifiable(ids.map((id) => wordsById[id]!));
-  }
+  /// 新清单只保存编号及初始位置，直接复用词库里已经读取的单词对象进入页面。
+  Future<void> _startListening(List<Word> words) => _runLibraryAction(() async {
+    final valid = [
+      for (final word in words)
+        if (word.id != null) word,
+    ];
+    if (valid.isEmpty) return;
+    await _settings.startListening(valid.map((word) => word.id!));
+    if (!mounted) return;
+    await _showListening(valid);
+  });
 
-  ///
-  /// 打开一轮随身听。
-  Future<void> _openListening(List<Word> words) async {
-    final progress = await _openAdHocSession(ReviewModule.listening, words);
-    if (!mounted || progress == null) return;
+  /// 续播按保存的编号重建顺序；删除项自动跳过，当前位置跟随原来的单词。
+  Future<void> _continueListening() => _runLibraryAction(() async {
+    final saved = _settings.listeningPlayback;
+    if (!saved.hasWords) return;
+    final currentWords = await _store.getByIds(saved.wordIds);
+    if (!mounted) return;
+    final byId = {for (final word in currentWords) word.id!: word};
+    final available = saved.retainExisting(
+      byId.keys.toSet(),
+      loop: _settings.listeningLoop,
+    );
+    await _settings.saveListeningPlayback(available);
+    if (!mounted) return;
+    if (!available.hasWords) {
+      Toast.show(context, '播放列表中的单词已全部删除，请重新选择');
+      return;
+    }
+    await _showListening([for (final id in available.wordIds) byId[id]!]);
+  });
+
+  Future<void> _showListening(List<Word> words) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ListeningPage(
           words: words,
           audioPlayer: _audioPlayer,
           settings: _settings,
-          progress: progress,
-        ),
-      ),
-    );
-    // 页面退出时会补写最终进度；返回后重新读取，让「继续」按钮立即反映结果。
-    if (mounted) await _refreshReviewDashboard();
-  }
-
-  ///
-  /// 词库底部点「听音辨义」：先开一局，再进页面。
-  Future<void> _startListeningMeaning(List<Word> words) async {
-    final progress = await _openAdHocSession(
-      ReviewModule.listeningMeaning,
-      words,
-    );
-    if (!mounted || progress == null) return;
-    await _openListeningMeaning(words, progress: progress);
-  }
-
-  ///
-  /// 打开一轮听音辨义，并保留原有的复习数据定向回刷逻辑。
-  ///
-  /// 两个入口共用这一个方法，区别只在传进来的 [progress] 是哪一局：
-  /// - 词库底部：由 [_openAdHocSession] 现开的一局巩固；
-  /// - 首页复习卡片：由 [ReviewFlow.openModule] 判定出的主线或巩固。
-  Future<void> _openListeningMeaning(
-    List<Word> words, {
-    required SessionProgress progress,
-  }) async {
-    final result = await Navigator.of(context).push<dynamic>(
-      MaterialPageRoute<dynamic>(
-        builder: (_) => ListeningMeaningPage(
-          words: words,
-          corpusWords: _allWords, // 全库语料：为释义混淆词提供共享字候选池。
-          audioPlayer: _audioPlayer,
-          accent: _settings.accent,
-          definitionSeparator: _settings.definitionSeparator.symbol,
-          progress: progress,
           wordStore: _store,
         ),
       ),
     );
+    // 随身听不修改复习数据，只刷新清单的继续入口，不再重算整张仪表盘。
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _startSelfTest(ReviewModule module, List<Word> words) =>
+      _runLibraryAction(() async {
+        final reason = SelfTestPolicy.unavailableReason(words.length);
+        if (reason != null) {
+          Toast.show(context, reason);
+          return;
+        }
+        await _openStudyPage(module, _openAdHocSession(module, words));
+      });
+
+  /// 首页练习和词库自测共用页面路由，只有开局来源不同。
+  Future<void> _openReviewModule(ReviewModule module) async {
+    if (!module.isReviewCard) return;
+    final entry = await _openReviewSession(module);
+    if (!mounted || entry == null) return;
+    await _openStudyPage(
+      module,
+      SessionProgress(
+        store: _sessionStore,
+        session: entry.session,
+        records: entry.records,
+        corpusWords: _allWords,
+      ),
+    );
+  }
+
+  Future<void> _openStudyPage(
+    ReviewModule module,
+    FutureOr<SessionProgress?> pending,
+  ) async {
+    SessionProgress? opened;
+    final result = await Navigator.of(context).push<dynamic>(
+      MaterialPageRoute<dynamic>(
+        builder: (_) => SessionGate<SessionProgress>(
+          pending: pending,
+          onDiscard: (progress) => progress.detach(),
+          builder: (progress) {
+            opened = progress;
+            final words = _orderedSessionWords(progress.session);
+            return switch (module) {
+              ReviewModule.listening => throw StateError('随身听使用独立播放清单'),
+              ReviewModule.listeningMeaning => ListeningMeaningPage(
+                words: words,
+                corpusWords: _allWords,
+                audioPlayer: _audioPlayer,
+                accent: _settings.accent,
+                definitionSeparator: _settings.definitionSeparator.symbol,
+                progress: progress,
+                wordStore: _store,
+              ),
+              ReviewModule.meaningMatch => MeaningMatchPage(
+                words: words,
+                title: module.label,
+                progress: progress,
+                audioPlayer: _audioPlayer,
+                accent: _settings.accent,
+              ),
+              ReviewModule.spellingReinforcement => SpellingReinforcementPage(
+                words: words,
+                title: module.label,
+                progress: progress,
+                audioPlayer: _audioPlayer,
+                accent: _settings.accent,
+                definitionSeparator: _settings.definitionSeparator.symbol,
+              ),
+              ReviewModule.meaningWordChoice => MeaningWordChoicePage(
+                words: words,
+                title: module.label,
+                progress: progress,
+                audioPlayer: _audioPlayer,
+                accent: _settings.accent,
+              ),
+            };
+          },
+        ),
+      ),
+    );
     if (!mounted) return;
-    if (result is List<int>) {
-      // 正常返回（顶部箭头）：页面 pop 时带回 id 列表，只回刷这些单词即可。
-      unawaited(_mergeReviewedWords(result));
-    }
-    // 无论顶部箭头还是手势返回，仪表盘上的进度都必须重算一次：
-    // 头部「今日复习 X/目标」、四张模式卡的三态、趋势曲线与打卡日历。
+    if (result is List<int>) await _mergeReviewedWords(result);
     await _refreshReviewDashboard();
+    if (!mounted || result != true || opened == null) return;
+    if (opened!.session.kind == SessionKind.selfTest) {
+      // 自测的“再来一次”沿用原选词，绝不能误开成首页的每日复习。
+      final words = _orderedSessionWords(opened!.session);
+      final reason = SelfTestPolicy.unavailableReason(words.length);
+      if (reason != null) {
+        Toast.show(context, reason);
+        return;
+      }
+      await _openStudyPage(module, _openAdHocSession(module, words));
+    } else {
+      await _openReviewModule(module);
+    }
   }
 
   ///
-  /// 打开首页四个复习模块。
+  /// 打开组件演示页（demo）。
   ///
-  /// 「今天该进哪一局」全部由 [ReviewFlow] 判断，这里只负责按模块跳到对应页面。
-  Future<void> _openReviewModule(ReviewModule module) async {
-    // 备好今天的词库并拿到这一局：可能是续上的旧局、新的主线，也可能是巩固。
-    final entry = await _openReviewSession(module);
-    if (!mounted || entry == null) return;
-
-    // 页面统一通过进度出口写盘，不直接接触 Store。
-    final progress = SessionProgress(
-      store: _sessionStore,
-      session: entry.session,
-      records: entry.records,
+  /// 临时入口挂在首页「开始复习」标题上：点一下整段字就进到和复习模块同款
+  /// 框架的空白演示页，将来各类 UI 组件（比如结算状态页公共组件）就往里放。
+  /// 这是给开发预览用的，不是正式功能，将来会换成正式路由或调试菜单。
+  Future<void> _openDemoPage() async {
+    // 演示页顶栏是正式复习模块的默认形态（返回键 + 数字进度 + 停留时间 +
+    // 底部进度条）；正文区塞入「结算状态页公共组件」的示例数据，方便直接看样式。
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => DemoPage(body: SettlementSummary.demo()),
+      ),
     );
-    // 按会话的数据列表顺序把单词排好，页面按下标取用。
-    final words = _orderedWords(entry);
-
-    switch (module) {
-      case ReviewModule.listening:
-        // 随身听不出现在复习卡片里，走到这里说明调用方传错了模块。
-        return;
-      case ReviewModule.listeningMeaning:
-        await _openListeningMeaning(words, progress: progress);
-      case ReviewModule.meaningMatch:
-        final playAgain = await Navigator.of(context).push<bool>(
-          MaterialPageRoute<bool>(
-            builder: (_) => MeaningMatchPage(
-              words: words,
-              title: module.label,
-              progress: progress,
-              settings: _settings,
-              audioPlayer: _audioPlayer,
-              accent: _settings.accent,
-            ),
-          ),
-        );
-        if (!mounted) return;
-        // 连完一局回来，三态、头部数字与曲线一起重算。
-        await _refreshReviewDashboard();
-        // 结算页点了「再挑战一次」：由 ReviewFlow 重新判断该开主线还是巩固，
-        // 用户感受上还是点一下就重开，但规则只有一份。
-        if (playAgain == true && mounted) await _openReviewModule(module);
-      case ReviewModule.spellingReinforcement:
-        final playAgain = await Navigator.of(context).push<bool>(
-          MaterialPageRoute<bool>(
-            builder: (_) => SpellingReinforcementPage(
-              words: words,
-              title: module.label,
-              progress: progress,
-              audioPlayer: _audioPlayer,
-              accent: _settings.accent,
-              definitionSeparator: _settings.definitionSeparator.symbol,
-            ),
-          ),
-        );
-        if (!mounted) return;
-        await _refreshReviewDashboard();
-        // 结算页点了「再练一组」：由 ReviewFlow 重新判断该开主线还是巩固。
-        if (playAgain == true && mounted) await _openReviewModule(module);
-      case ReviewModule.meaningWordChoice:
-        final playAgain = await Navigator.of(context).push<bool>(
-          MaterialPageRoute<bool>(
-            builder: (_) => MeaningWordChoicePage(
-              words: words,
-              title: module.label,
-              progress: progress,
-              audioPlayer: _audioPlayer,
-              accent: _settings.accent,
-            ),
-          ),
-        );
-        if (!mounted) return;
-        await _refreshReviewDashboard();
-        // 结算页点了「再来一轮」：由 ReviewFlow 重新判断该开主线还是巩固。
-        if (playAgain == true && mounted) await _openReviewModule(module);
-    }
   }
 
   ///
@@ -964,53 +1018,42 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 看义选词的数据列表是含义主键，没有天然的单词顺序，直接给全部单词即可——
   /// 它本来就要在整个候选池里挑词。
-  List<Word> _orderedWords(ReviewEntry entry) {
-    final session = entry.session;
-    if (session.module == ReviewModule.meaningWordChoice) {
-      return List<Word>.unmodifiable(entry.words.values);
-    }
-    final ids = session.module == ReviewModule.meaningMatch
-        ? session.pairItems.map((pair) => pair.wordId).toList()
-        : session.idItems;
-    // 同一个词可能在数据列表里出现两次（词义连连末组补位），按首次出现去重。
-    final seen = <int>{};
-    return List<Word>.unmodifiable(<Word>[
+  List<Word> _orderedSessionWords(Session session) {
+    final byId = {for (final word in session.snapshotWords) word.id!: word};
+    final ids = <int>{
+      for (final question in session.questions) ...question.wordIds,
+    };
+    return [
       for (final id in ids)
-        if (seen.add(id) && entry.words[id] != null) entry.words[id]!,
-    ]);
+        if (byId[id] != null) byId[id]!,
+    ];
   }
 
-  ///
-  /// 点击「继续」后校验会话并进入对应页面；单词已变动时把这一局收掉。
-  Future<void> _continueLearning(ReviewModule module) async {
-    // 按按钮所属模块读取会话；异步回刷期间它可能已经被完成流程收尾了。
-    final session = _resumableSessions[module];
-    if (session == null) return;
-    final words = _wordsForSession(session);
-    if (words.isEmpty) {
-      // 无法完整组装说明词库已经变化，保留按钮只会让用户反复进入失败。
-      await _sessionStore.finishSession(
-        sessionId: session.id,
-        status: SessionStatus.aborted,
-      );
+  /// 继续旧自测使用原选词，入口的 5–100 词限制只约束新建，保留已有进度。
+  Future<void> _continueSelfTest(ReviewModule module) => _runLibraryAction(
+    () async {
+      final entry = await _reviewFlow.resumeSelf(module, todayKey());
       if (!mounted) return;
-      setState(() {
-        final next = Map<ReviewModule, Session>.from(_resumableSessions);
-        next.remove(module);
-        _resumableSessions = next;
-      });
-      Toast.show(context, '上次学习列表已失效，请重新开始');
-      return;
-    }
-    // 两个入口共用「随手开一局」的流程：会话还在就直接续上，不会重开。
-    if (module == ReviewModule.listening) {
-      await _openListening(words);
-    } else {
-      final progress = await _openAdHocSession(module, words);
-      if (!mounted || progress == null) return;
-      await _openListeningMeaning(words, progress: progress);
-    }
-  }
+      if (entry == null) {
+        // 进度可能已经失效；清掉旧的可恢复标记，让按钮状态与恢复结果一致。
+        setState(() {
+          _resumableSessions = Map<ReviewModule, Session>.of(_resumableSessions)
+            ..remove(module);
+        });
+        Toast.show(context, '当前模块没有可继续的自测进度');
+        return;
+      }
+      await _openStudyPage(
+        module,
+        SessionProgress(
+          store: _sessionStore,
+          session: entry.session,
+          records: entry.records,
+          corpusWords: _allWords,
+        ),
+      );
+    },
+  );
 
   ///
   /// 听音辨义返回后只回刷本次复习涉及的单词，避免重新加载整库。
@@ -1060,10 +1103,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
       // 后台待了一夜再回来，昨天没打完的局要先收成「中断」，
       // 否则今天点开模块会续上昨天那一局。
-      unawaited(_abortStaleReviewSessions());
+      unawaited(_refreshAfterResume());
       // 回到前台时把仪表盘的进度整体重算：今日复习数、每日词库、未完成会话，
       // 以及趋势曲线与打卡日历（跨天或后台产生过记录时保持准确）。
-      unawaited(_refreshReviewDashboard());
+
       // 防止继续执行下面停止逻辑。
       return;
     }
@@ -1126,8 +1169,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _toggleSelected(Word word) {
     // setState 同步刷新勾选框与计数。
     setState(() {
-      final wasSelected = _selectedWords.remove(word);
-      if (!wasSelected) _selectedWords.add(word);
+      final wasSelected = _selectedWordIds.remove(word.id);
+      if (!wasSelected && word.id != null) _selectedWordIds.add(word.id!);
     });
   }
 
@@ -1281,12 +1324,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 尚未实现具体页面的菜单项使用统一提示。
-  void _showComingSoon(String feature) {
-    Toast.show(context, '「$feature」功能正在整理中');
-  }
-
-  ///
   /// 统一的轻提示，全系统使用同一 Toast 接口，层级高于 Drawer/BottomSheet。
   void _showSnackBar(String message) {
     // 系统文件选择器或数据库操作返回时页面可能已销毁，此时不再访问 Overlay。
@@ -1305,47 +1342,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final jsonText = await _fileIo.pickJsonText();
       // 取消选择或读到空文本都直接返回。
       if (jsonText == null || jsonText.isEmpty) return;
-      // 先整体解析一次，原始数组与包含 words 的对象最终都交给 SQLite 动态导入。
       final decoded = jsonDecode(jsonText);
-      final Map<String, Object?> payload;
-      if (decoded is List) {
-        // 旧 words.json 是顶层数组，只包装 words，不制造额外版本信息。
-        // 空数组意味着没有任何内容，直接提示后返回，不做任何改动。
-        if (decoded.isEmpty) {
-          _showSnackBar('文件中没有可导入的数据');
-          return;
-        }
-        payload = <String, Object?>{'words': decoded};
-      } else if (decoded is Map && decoded['words'] is List) {
-        // 完整备份对象除 words 外还带 groups/settings/会话/复习记录等；只接收字符串键。
-        payload = <String, Object?>{
-          for (final entry in decoded.entries)
-            if (entry.key is String) entry.key! as String: entry.value,
-        };
-      } else {
-        throw const FormatException('导入文件必须是单词数组或包含 words 数组的对象');
+      if (decoded is! Map ||
+          decoded['version'] != 3 ||
+          decoded['words'] is! List) {
+        throw const FormatException('请选择 version=3 的完整备份，旧数据需先转换为新格式');
       }
-
-      final words = payload['words'] as List? ?? const <Object?>[];
-      // 只要文件携带词库、分组、设置或任一学习数据中的一种就允许导入；
-      // 纯空对象不做任何改动，避免误触把本机数据整库清空。
-      final hasRestorableData =
-          words.isNotEmpty ||
-          (payload['groups'] as List?)?.isNotEmpty == true ||
-          payload['settings'] is Map ||
-          (payload['daily_word_sets'] as List?)?.isNotEmpty == true ||
-          (payload['review_sessions'] as List?)?.isNotEmpty == true ||
-          (payload['review_records'] as List?)?.isNotEmpty == true ||
-          (payload['learning_sessions'] as List?)?.isNotEmpty == true;
-      if (!hasRestorableData) {
-        _showSnackBar('文件中没有可导入的单词');
-        return;
-      }
-      // 原生层查询 PRAGMA 表结构，存在的字段按类型写入，未知字段自动忽略。
+      final payload = Map<String, Object?>.from(decoded);
+      // 原生先验证十一张表和关联；整份文件要么全部恢复，要么保留原数据。
       await _store.importData(payload);
-      final importedCount = words.length;
-      // 备份里带有设置时，从原生把导入后的值重新读回内存（主题/口音/每日目标）。
-      if (payload['settings'] is Map) await _settings.reload();
+      final importedCount = (payload['words'] as List)
+          .where((row) => row is Map && row['deleted_at'] == null)
+          .length;
+      await _settings.reload();
       // 文件操作期间首页可能已退出，后续不能再更新页面状态或发起页面刷新。
       if (!mounted) return;
       // 原生整库导入会同步清空会话表，首页立即移除两个「继续」按钮。
@@ -1363,11 +1372,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       // 数据操作留痕：整库导入成功，记录单词数量。
       AppLog.i('data', '数据导入完成 words=$importedCount');
-      if (payload['settings'] is Map || payload['review_records'] is List) {
-        _showSnackBar('已导入全部数据（词库/设置/会话/复习等）');
-      } else {
-        _showSnackBar('已导入 $importedCount 个单词');
-      }
+      _showSnackBar('已恢复 $importedCount 个单词及全部计划、会话和设置');
     } on FormatException catch (error) {
       // JSON 结构或字段错误，显示具体原因便于修正文件。
       _showSnackBar('导入失败：${error.message}');
@@ -1498,6 +1503,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 将任意异常转换成用户可见的详情，不再只显示笼统失败文案。
   String _describeLoadError(Object error) {
+    if (error is TimeoutException) return error.message ?? '词库仍在准备，请稍候。';
     // toString 会保留 PlatformException code、JSON offset 和 StateError 信息。
     final details = error.toString();
     // 极少数自定义异常可能返回空文本，此时至少显示运行时类型。
@@ -1512,8 +1518,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     // 取消尚未执行的搜索防抖。
     _searchDebounce?.cancel();
-    // 页面关闭后不再需要加载超时提醒，主动取消可避免测试或真实页面残留计时任务。
-    _loadTimeout?.cancel();
+    // 页面关闭后，正在进行的读数与超时提醒都不能再修改界面。
+    _wordLoadGeneration++;
     // 移除设置监听。
     _settings.removeListener(_handleExternalChange);
     // 只有确实正在播放时才调用 stop，避免独立 Widget 测试访问不存在的原生插件。
@@ -1565,9 +1571,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             children: [
               // 用户首先看到简短结论。
-              const Text(
-                '单词数据加载失败',
-                style: TextStyle(fontWeight: AppWeight.semibold),
+              Text(
+                _loadError is TimeoutException ? '词库仍在准备' : '单词数据加载失败',
+                style: const TextStyle(fontWeight: AppWeight.semibold),
               ),
               // 标题与详情之间留白。
               const SizedBox(height: AppSpace.p2),
@@ -1667,7 +1673,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ],
             ),
           // 操作栏已经位于列表外部，列表末尾只保留正常呼吸空间即可。
-          const SliverPadding(padding: EdgeInsets.only(bottom: AppSpace.p3)),
+          // 悬浮入口覆盖在列表上方，只给最后一行留出可滚到胶囊上方的余量。
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom:
+                  WordLibraryLayout.learningOverlayExtent +
+                  MediaQuery.paddingOf(context).bottom,
+            ),
+          ),
         ],
       ),
     );
@@ -1679,7 +1692,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // 当前分组是否已经全部选中。
     final isAllSelected =
         section.words.isNotEmpty &&
-        section.words.every(_selectedWords.contains);
+        section.words.every((word) => _selectedWordIds.contains(word.id));
     // 返回原有的分组头组件，视觉尺寸与样式不变。
     return _SectionHeader(
       section: section,
@@ -1695,9 +1708,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       onToggleSelect: () => setState(() {
         // 已经全选时整组取消，否则把该组全部加入选择集合。
         if (isAllSelected) {
-          _selectedWords.removeAll(section.words);
+          _selectedWordIds.removeAll(section.words.map((word) => word.id));
         } else {
-          _selectedWords.addAll(section.words);
+          _selectedWordIds.addAll(
+            section.words.map((word) => word.id).whereType<int>(),
+          );
         }
       }),
     );
@@ -1724,7 +1739,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       isPlaying: identical(_playingWord, word),
       // 选择模式与勾选状态。
       selectMode: _selectMode,
-      isSelected: _selectedWords.contains(word),
+      isSelected: _selectedWordIds.contains(word.id),
       // 当前行是否滑开操作区。
       isSwipedOpen: identical(_swipedWord, word),
       // 点击整行：播放并展开 / 勾选 / 收起滑动。
@@ -1791,30 +1806,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           .where((section) => section.words.isNotEmpty)
           .toList();
     }
-    // 当前可见（参与全选与随身听/听音辨义目标）的全部单词。
+    // 当前可见（参与全选与随身听默认列表）的全部单词。
     final visibleWords = <Word>[
       for (final section in shownSections) ...section.words,
     ];
     // 把首页当前顺序冻结成只读快照，页面跳转后不受后续重建中的临时列表影响。
     final visibleWordSnapshot = List<Word>.unmodifiable(visibleWords);
-    // 随身听/听音辨义的目标数量：有勾选用勾选数，否则用全部可见数。
-    final selectedVisible = visibleWords.where(_selectedWords.contains).length;
-    final targetCount = selectedVisible > 0
-        ? selectedVisible
-        : visibleWords.length;
-    // 真正传给学习页面的数据必须保持当前列表顺序；有选择时仅保留勾选项。
-    final learningWords = List<Word>.unmodifiable(
-      selectedVisible > 0
-          ? visibleWordSnapshot.where(_selectedWords.contains)
-          : visibleWordSnapshot,
+    // 已勾选的词不因搜索暂时隐藏而丢失，数量与上方选择栏保持一致。
+    // 依旧按当前“难度分区 + 分区内排序”排队，不使用用户点击勾选的先后顺序。
+    final selectedGroups = <int, List<Word>>{};
+    for (final word in _allWords) {
+      if (_selectedWordIds.contains(word.id)) {
+        selectedGroups.putIfAbsent(word.difficulty, () => []).add(word);
+      }
+    }
+    final selectedLevels = selectedGroups.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+    final selectionSorter = HomeWordSorter(
+      field: _sortField,
+      directions: _sortDirections,
+      query: '',
     );
-    // 只有今天确实有一局没打完时，对应的「继续」按钮才参与布局与动画。
-    final hasListeningSession = _resumableSessions.containsKey(
-      ReviewModule.listening,
-    );
-    final hasListeningMeaningSession = _resumableSessions.containsKey(
-      ReviewModule.listeningMeaning,
-    );
+    final selfTestWords = List<Word>.unmodifiable([
+      for (final level in selectedLevels)
+        ...selectionSorter.filterAndSort(selectedGroups[level]!),
+    ]);
+    final learningWords = selfTestWords.isNotEmpty
+        ? selfTestWords
+        : visibleWordSnapshot;
+    final targetCount = learningWords.length;
+    // 回调与当前显示共用这份模块值，切换后的首帧不会调用上一种玩法。
+    final libraryModule = _libraryModule;
+    final hasResume = libraryModule == ReviewModule.listening
+        ? _settings.listeningPlayback.hasWords
+        : _resumableSessions.containsKey(libraryModule);
     // 复习模块的实际题量以今天已建好的词库为准；词库还没建时先用设置值预告。
     // 词库总量不足目标时（比如只录了 30 个词、目标却是 50），这里显示的是真实的 30。
     final reviewModeDailyGoal = _dailyWordSet?.wordCount ?? _settings.dailyGoal;
@@ -1910,11 +1935,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   reviewModuleStates: _reviewModuleStates,
                   // 回刷序号：数字一变，趋势曲线与打卡日历就重查数据库。
                   refreshToken: _dashboardRefreshToken,
+                  // 仪表盘那两块统计走同一个会话库口子：正式 App 用原生库，
+                  // 测试注入内存库后曲线与日历看到的是同一份数据。
+                  sessionStore: _sessionStore,
                   onMenuPressed: () =>
                       _scaffoldKey.currentState?.openEndDrawer(),
                   // 四个入口共用同一个方法，具体开哪一局由 ReviewFlow 判断。
                   onOpenModule: (module) =>
                       unawaited(_openReviewModule(module)),
+                  // 「开始复习」标题的临时入口：只在 debug 构建里可点，跳到组件演示页（demo）；
+                  // release 包里传 null，使这块标题恢复成纯文字、点不动，避免误触正式功能之外的内容。
+                  onStartReviewTap: kDebugMode
+                      ? () => unawaited(_openDemoPage())
+                      : null,
                 ),
                 // 下层：底部词库抽屉。
                 WordLibrarySheet(
@@ -1946,20 +1979,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     selectLabel: _selectMode ? '完成' : '选择',
                     onToggleSelectMode: () => setState(() {
                       _selectMode = !_selectMode;
-                      _selectedWords.clear();
+                      _selectedWordIds.clear();
                       _swipedWord = null;
                     }),
                   ),
                   selectionBar: _selectMode
                       ? WordSelectionBar(
-                          selectedCount: _selectedWords.length,
+                          selectedCount: _selectedWordIds.length,
                           onSelectAll: () => setState(
-                            () => _selectedWords.addAll(visibleWords),
+                            () => _selectedWordIds.addAll(
+                              visibleWords
+                                  .map((word) => word.id)
+                                  .whereType<int>(),
+                            ),
                           ),
                           onInvertSelection: () => setState(() {
                             for (final word in visibleWords) {
-                              if (!_selectedWords.remove(word)) {
-                                _selectedWords.add(word);
+                              if (!_selectedWordIds.remove(word.id) &&
+                                  word.id != null) {
+                                _selectedWordIds.add(word.id!);
                               }
                             }
                           }),
@@ -1984,27 +2022,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  targetCount: targetCount,
-                  hasListeningSession: hasListeningSession,
-                  hasListeningMeaningSession: hasListeningMeaningSession,
-                  onOpenListening: () {
-                    if (learningWords.isEmpty) {
-                      _showComingSoon('当前列表没有可学习单词');
-                      return;
-                    }
-                    unawaited(_openListening(learningWords));
-                  },
-                  onOpenListeningMeaning: () {
-                    if (learningWords.isEmpty) {
-                      _showComingSoon('当前列表没有可学习单词');
-                      return;
-                    }
-                    unawaited(_startListeningMeaning(learningWords));
-                  },
-                  onContinueListening: () =>
-                      unawaited(_continueLearning(ReviewModule.listening)),
-                  onContinueListeningMeaning: () => unawaited(
-                    _continueLearning(ReviewModule.listeningMeaning),
+                  learningBar: WordLibraryLearningBar(
+                    listeningCount: targetCount,
+                    // 自测的「可选词数」只算勾选的单词：没勾选就是 0，
+                    // 于是被选词下限挡住、开始按钮保持禁用。这是有意为之——
+                    // 自测必须先明确圈定要测的词，不能悄悄用整库开局。
+                    selectedCount: selfTestWords.length,
+                    selectedModule: libraryModule,
+                    hasResume: hasResume,
+                    busy: _libraryActionBusy,
+                    onModuleChanged: (module) =>
+                        setState(() => _libraryModule = module),
+                    onStart: () => unawaited(
+                      // 随身听沿用「勾选了用勾选、没勾选用全部可见单词」；
+                      // 四个自测模块则只认勾选，没勾选不开局。
+                      libraryModule == ReviewModule.listening
+                          ? _startListening(learningWords)
+                          : _startSelfTest(libraryModule, selfTestWords),
+                    ),
+                    onContinue: () => unawaited(
+                      libraryModule == ReviewModule.listening
+                          ? _continueListening()
+                          : _continueSelfTest(libraryModule),
+                    ),
                   ),
                 ),
               ],

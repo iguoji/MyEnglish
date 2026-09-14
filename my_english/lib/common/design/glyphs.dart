@@ -124,6 +124,12 @@ abstract final class AppGlyph {
   static const IconData nextQuestion = TablerIcons.arrowRight;
 
   ///
+  /// 返回首页（房子）。
+  ///
+  /// 用在：结算页底部「返回首页」主按钮，与「再来一次」成对出现。
+  static const IconData home = TablerIcons.home;
+
+  ///
   /// 打卡日历翻到上一个月。
   ///
   /// 和 [back] 是同一个「<」。分开起名是因为一个是「离开这一屏」、
@@ -141,6 +147,9 @@ abstract final class AppGlyph {
   ///
   /// 下拉选择器的收起箭头（朝下的「v」）。
   static const IconData dropdown = TablerIcons.chevronDown;
+
+  /// 词库悬浮入口切换学习模块；仅切换玩法，不代表调整排序。
+  static const IconData switchModule = TablerIcons.switchHorizontal;
 
   ///
   /// 随身听列表「跳到上一个」。
@@ -257,6 +266,33 @@ abstract final class AppGlyph {
   ///
   /// 薄弱点提示（灯泡）。
   static const IconData weakSpot = TablerIcons.bulb;
+
+  // ===== 结算状态页（单词级明细） =====
+
+  ///
+  /// 难度上升（趋势向上箭头）；对应结算统计里的「变难」与按钮的「+1」。
+  ///
+  /// 复用约定：页面里不出现 `TablerIcons.` 前缀，一律写语义名。
+  static const IconData difficultyUp = TablerIcons.trendingUp;
+
+  ///
+  /// 难度下降（趋势向下箭头）；对应结算统计里的「变易」与按钮的「-1」。
+  static const IconData difficultyDown = TablerIcons.trendingDown;
+
+  ///
+  /// 难度不变（减号）；对应结算统计里的「不变」与按钮的「0」。
+  static const IconData difficultyNone = TablerIcons.minus;
+
+  ///
+  /// 「难度从多少变成多少」中间那个向右的箭头。
+  ///
+  /// 为什么不用「→」这个字符：字符跟着文字的基线走，和左右两个数字比会明显偏下，
+  /// 排在小字里更是怎么看怎么歪。换成 Tabler 的细长箭头后，图标在自己的方框里
+  /// 是垂直居中的，配 `Row` 的 `CrossAxisAlignment.center` 就能和两个数字对齐。
+  ///
+  /// 选 `arrowNarrowRight`（细长款）而不是 `arrowRight`（粗款）：这一行是 12 号
+  /// 小字，细箭头和数字的粗细更接近，粗箭头在小尺寸下会糊成一坨。
+  static const IconData difficultyArrow = TablerIcons.arrowNarrowRight;
 
   // ===== 工具与设置 =====
 

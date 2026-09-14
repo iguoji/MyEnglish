@@ -3,6 +3,7 @@ import 'dart:math';
 
 // 引入单词模型，候选词与含义都从会话单词中派生。
 import '../../../models/word.dart';
+import '../../../models/session.dart';
 
 ///
 /// 看义选词的一道题：一个「去重后」的中文含义。
@@ -19,6 +20,7 @@ class MeaningWordChoiceRound {
     required this.definition,
     required this.posGroup,
     required this.matchIds,
+    this.questionId,
   });
 
   ///
@@ -27,6 +29,9 @@ class MeaningWordChoiceRound {
   /// 同一句中文可能属于多个单词，数据列表里只存其中一个作为代表；
   /// 写会话记录时用它，回放记录还原现场时也靠它对上号。
   final int meaningId;
+
+  /// 实际出现的小题编号，同一句中文拆分后各题拥有独立编号。
+  final int? questionId;
 
   ///
   /// 去重后的中文释义文本（已去除首尾空白）。
@@ -50,6 +55,7 @@ class MeaningWordChoiceCandidate {
   const MeaningWordChoiceCandidate({
     required this.wordId,
     required this.isMatch,
+    this.spelling = '',
   });
 
   ///
@@ -59,6 +65,9 @@ class MeaningWordChoiceCandidate {
   ///
   /// 是否当前含义的匹配词（正确答案）。
   final bool isMatch;
+
+  /// 候选是纯文本，混淆拼写不要求存在于词库中。
+  final String spelling;
 }
 
 ///
@@ -69,6 +78,39 @@ class MeaningWordChoiceCandidate {
 /// 2. [buildCandidates]：为某一轮生成候选词（匹配词 + 会话内干扰词）。
 ///
 abstract final class MeaningWordChoiceRoundBuilder {
+  /// 原样读取开局时已拆分并穿插排列的题目，不再按中文重新合并。
+  static List<MeaningWordChoiceRound> buildSessionRounds(
+    Session session,
+    List<Word> words,
+  ) => <MeaningWordChoiceRound>[
+    for (final question in session.questions)
+      MeaningWordChoiceRound(
+        questionId: question.id,
+        meaningId: question.details.first.meaningId ?? question.id,
+        definition: question.content.first,
+        posGroup: (<String>{
+          for (final word in words)
+            for (final meaning in word.rawMeanings)
+              if (question.details.any(
+                (detail) =>
+                    detail.wordId == word.id && detail.meaningId == meaning.id,
+              ))
+                meaning.displayPos,
+        }.toList()..sort()),
+        matchIds: <int>[
+          for (final answer in question.answers)
+            words
+                .firstWhere(
+                  (word) =>
+                      question.wordIds.contains(word.id) &&
+                      word.spelling.trim().toLowerCase() ==
+                          answer.trim().toLowerCase(),
+                )
+                .id!,
+        ],
+      ),
+  ];
+
   ///
   /// 候选词默认数量；匹配词超过它时突破上限。
   static const int defaultCandidateCount = 4;

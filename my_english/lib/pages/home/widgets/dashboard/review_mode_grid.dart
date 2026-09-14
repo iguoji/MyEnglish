@@ -15,10 +15,10 @@ import '../../../../models/session.dart';
 /// 每张卡片显示三种状态之一：
 /// - **待完成**：今天还没开过局，或者上一局中断、失败了；
 /// - **进行中**：今天有一局主线正开着，用户做到一半退了出来；
-/// - **已完成**：今天有一局主线把全部单词操作完了一遍，不论过程中是否答错。
+/// - **已完成**：今天有一局主线把全部题目操作完了一遍，不论过程中是否答错。
 ///
-/// 不再显示百分比：主线的判定标准是「走完一遍才算过」，中间过程的百分比
-/// 既无法预示结果，也可能误导用户。已完成之后再进模块是无限巩固练习，
+/// 不再显示文字百分比：主线的判定标准是「走完一遍才算过」，卡片底部进度条仍
+/// 展示当前会话的题目完成比例。已完成之后再进模块是无限巩固练习，
 /// 卡片会在「已完成」后面补一个「巩固中」的小尾巴。
 ///
 class ReviewModeGrid extends StatelessWidget {
@@ -28,6 +28,7 @@ class ReviewModeGrid extends StatelessWidget {
     required this.moduleStates,
     required this.dailyGoal,
     required this.onOpenModule,
+    this.onStartReviewTap,
     super.key,
   });
 
@@ -43,6 +44,11 @@ class ReviewModeGrid extends StatelessWidget {
   /// 点击任意一张卡片；由首页统一判断该开主线还是开巩固。
   final ValueChanged<ReviewModule> onOpenModule;
 
+  ///
+  /// 点击「开始复习」标题文字；目前仅作为组件演示页（demo）的临时入口，
+  /// 将来会换成正式路由或调试菜单。不传则不响应点击。
+  final VoidCallback? onStartReviewTap;
+
   @override
   Widget build(BuildContext context) {
     final tokens = AppTokens.of(context);
@@ -54,10 +60,23 @@ class ReviewModeGrid extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              '开始复习',
-              // 16 号粗那一档：和候选项同字号，靠字重把区块标题顶出来。
-              style: textTheme.fs4Bold,
+            // 「开始复习」标题：目前挂着组件演示页（demo）的临时入口，
+            // 点一下整段字就跳到和复习模块同款框架的空白演示页。
+            GestureDetector(
+              // 放大点击命中区，让「四个字」容易点中。
+              behavior: HitTestBehavior.opaque,
+              onTap: onStartReviewTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpace.p1,
+                  horizontal: AppSpace.p1,
+                ),
+                child: Text(
+                  '开始复习',
+                  // 16 号粗那一档：和候选项同字号，靠字重把区块标题顶出来。
+                  style: textTheme.fs4Bold,
+                ),
+              ),
             ),
             Flexible(
               child: Text(
@@ -70,7 +89,7 @@ class ReviewModeGrid extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpace.p3),
+        const SizedBox(height: AppSpace.p2),
         // 2×2 网格：两行「IntrinsicHeight + Row(Expanded)」的手动网格。
         // 卡片高度由内容自然撑开、行内取较高者对齐，任何字体缩放下都不会溢出。
         _buildRow(
@@ -182,7 +201,7 @@ class _ModeCard extends StatelessWidget {
         phase == ReviewBarPhase.reinforceActive ||
         phase == ReviewBarPhase.reinforceDone;
     final baseColor = baseGreen ? AppTokens.success : tokens.sub;
-    // 前景叠加层：主线进行中用绿色，巩固用蓝色，按本局已完成单词数比例填充。
+    // 前景叠加层：主线进行中用绿色，巩固用蓝色，按本局已完成题目数比例填充。
     final Color? fillColor;
     final double fillRatio;
     switch (phase) {
@@ -231,8 +250,8 @@ class _ModeCard extends StatelessWidget {
           decoration: BoxDecoration(
             // 显式填上白色卡片底色（深色主题下自动是对应的深色表面）。
             color: tokens.card,
-            // 描边代替阴影：用分隔线色勾出轮廓，不再使用投影。
-            border: Border.all(color: tokens.border),
+            // 描边代替阴影：用全站统一的控件描边勾出轮廓，不再使用投影。
+            border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
             // 只保留一点点圆角。
             borderRadius: BorderRadius.circular(AppRadius.roundedLg),
           ),

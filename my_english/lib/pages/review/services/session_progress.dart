@@ -1,181 +1,419 @@
 import 'dart:async';
 
-import '../../../models/session.dart';
-import '../../../models/session_record.dart';
-import '../../../store/session.dart';
+import 'package:flutter/widgets.dart';
 
-///
-/// 一局答题的「进度出口」。
-///
-/// 页面只管组装自己的状态，落盘的顺序、串行化和结算规则都由它负责。
-///
-/// 1.x 时代这里要区分「长期练习」和「今日任务」两套存储，所以是个抽象接口；
-/// 2.0 起所有模块的所有局都住在同一张会话表里，于是收敛成一个普通类。
-///
-/// **写入是串行的**：进度保存可能被高频触发（每答一题、每滴答一秒），
-/// 并发写同一行会让后发的旧值覆盖先到的新值。这里用一条 Future 链把所有
-/// 写入排成队，保证磁盘上的顺序和调用顺序一致。
-///
-class SessionProgress {
-  ///
-  /// 创建一个进度出口。
+import '../../../models/session.dart';
+import '../../../models/session_question.dart';
+import '../../../models/session_record.dart';
+import '../../../models/settlement.dart';
+import '../../../models/word.dart';
+import '../../../store/session.dart';
+import 'question_options.dart';
+import 'question_builder.dart';
+
+/// 五个页面共用的会话控制器：排队保存、当前遍次、题目用时与统一结算。
+class SessionProgress with WidgetsBindingObserver {
   SessionProgress({
     required this.store,
-    required this.session,
+    required Session session,
     required this.records,
-  });
+    List<Word>? corpusWords,
+  }) : _session = session,
+       _liveRecords = List<SessionRecord>.of(records),
+       _options = QuestionOptions(
+         session: session,
+         store: store,
+         corpusWords: corpusWords,
+       ) {
+    _elapsed = session.elapsed;
+    _indexSession();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
-  ///
-  /// 底层会话 Store。
   final SessionStore store;
-
-  ///
-  /// 当前这一局。
-  final Session session;
-
-  ///
-  /// 进入页面时已经存在的点击记录，用来还原现场。
+  Session _session;
+  Session get session => _session;
   final List<SessionRecord> records;
-
-  ///
-  /// 串行写入队列；null 表示当前没有排队中的写入。
+  final List<SessionRecord> _liveRecords;
+  final QuestionOptions _options;
   Future<void> _queue = Future<void>.value();
+  final Map<int, SettlementDraft> _drafts = {};
+  final Map<int, int> _usedSeconds = {};
+  final Set<int> _dirtyTimes = {};
+  final Map<int, SessionSubQuestion> _questionsById = {};
+  final Map<int, SessionSubQuestion> _nextQuestions = {};
+  final Map<(int, int?), SessionSubQuestion> _questionsByTarget = {};
+  final Map<int, List<SessionRecord>> _recordsByQuestion = {};
+  final Map<int, List<SessionRecord>> _recordsByWord = {};
+  final Set<int> _recordIds = {};
+  (int, int)? _lastQueuedProgress;
 
-  ///
-  /// 已经结算过的单词，避免同一个词在一局里被重复结算。
-  final Set<int> _settled = <int>{};
+  /// 题号索引每次开局/重试只建一次，答题时不反复展开整张试卷。
+  void _indexSession() {
+    _questionsById.clear();
+    _nextQuestions.clear();
+    _questionsByTarget.clear();
+    _usedSeconds.clear();
+    _dirtyTimes.clear();
+    _lastQueuedProgress = null;
+    SessionSubQuestion? previous;
+    for (final q in session.questions) {
+      if (previous != null) _nextQuestions[previous.id] = q;
+      previous = q;
+      _questionsById[q.id] = q;
+      if (q.usedSeconds > 0) _usedSeconds[q.id] = q.usedSeconds;
+      for (final detail in q.details) {
+        _questionsByTarget.putIfAbsent((
+          detail.wordId,
+          detail.meaningId,
+        ), () => q);
+      }
+    }
+    _recordsByQuestion.clear();
+    _recordsByWord.clear();
+    _recordIds.clear();
+    for (final record in _liveRecords) {
+      _indexRecord(record);
+    }
+  }
 
-  ///
-  /// 这一局是否已经收尾；收尾后所有写入一律忽略。
-  bool _finished = false;
+  void _indexRecord(SessionRecord record) {
+    _recordIds.add(record.id);
+    if (record.questionId != null) {
+      (_recordsByQuestion[record.questionId!] ??= []).add(record);
+    }
+    for (final wordId in <int>{record.wordId, ...record.targetWordIds}) {
+      (_recordsByWord[wordId] ??= []).add(record);
+    }
+  }
 
-  ///
-  /// 本局的模块。
+  final Stopwatch _questionClock = Stopwatch();
+  int? _timedQuestion;
+  int _elapsed = 0;
+  bool _timingAllowed = false;
+  bool _readyForSettlement = false;
+  bool _committed = false;
+  bool _commitInFlight = false;
+  bool _detached = false;
+
   ReviewModule get module => session.module;
-
-  ///
-  /// 这一局答题时是否需要推进单词的复习时间。
   bool get updatesReviewedAt => session.updatesReviewedAt;
-
-  ///
-  /// 某个单词在本局的现场：做到哪了、点错过哪些候选。
   WordProgress progressOf(int wordId) =>
-      WordProgress.fromRecords(_liveRecords, wordId);
-
-  ///
-  /// 本局已经产生的全部记录（含进入页面后新写的）。
+      WordProgress.fromRecords(_recordsByWord[wordId] ?? const [], wordId);
   List<SessionRecord> get allRecords =>
       List<SessionRecord>.unmodifiable(_liveRecords);
-
-  ///
-  /// 记录列表的可变副本：新写的记录会追加进来，让现场查询立刻反映最新状态。
-  late final List<SessionRecord> _liveRecords = List<SessionRecord>.of(records);
-
-  ///
-  /// 本局累计错误次数，由记录直接数出来。
+  List<SettlementDraft> get settlementDrafts =>
+      List<SettlementDraft>.unmodifiable(_drafts.values);
+  SettlementDraft? settlementFor(int wordId) => _drafts[wordId];
   int get wrongCount =>
       _liveRecords.where((record) => !record.isCorrect).length;
 
-  ///
-  /// 保存进度：做到第几条、已经花了多少秒。
+  SessionSubQuestion? questionFor({
+    int? wordId,
+    int? meaningId,
+    int? questionId,
+  }) {
+    if (questionId != null) return _questionsById[questionId];
+    return _questionsByTarget[(wordId, meaningId)];
+  }
+
+  /// 候选成功保存后才启用答题；数据加载时间不计入小题答题用时。
+  Future<List<String>> optionsFor(
+    SessionSubQuestion question, {
+    bool refresh = false,
+  }) async {
+    final result = await _options.load(question, refresh: refresh);
+    activateQuestion(question.id);
+    final next = _nextQuestions[question.id];
+    if (next != null && (next.type == 100 || next.type == 200)) {
+      unawaited(
+        Future<void>.delayed(Duration.zero, () async {
+          if (_detached) return;
+          try {
+            await _options.load(next);
+          } catch (_) {
+            /* 真正进入这题时仍可重试并说明错误。 */
+          }
+        }),
+      );
+    }
+    return result;
+  }
+
+  List<String>? cachedOptionsFor(SessionSubQuestion question) =>
+      _options.cached(question);
+
+  void activateQuestion(int questionId) {
+    if (_timedQuestion == questionId && _timingAllowed) return;
+    _captureTime();
+    _timedQuestion = questionId;
+    _timingAllowed = true;
+    _questionClock
+      ..reset()
+      ..start();
+  }
+
+  void pauseQuestion() {
+    _captureTime();
+    _timingAllowed = false;
+    _questionClock.stop();
+  }
+
+  void _captureTime() {
+    final id = _timedQuestion;
+    if (id == null) return;
+    final wholeSeconds = _questionClock.elapsed.inSeconds;
+    if (wholeSeconds > 0) {
+      _usedSeconds[id] = (_usedSeconds[id] ?? 0) + wholeSeconds;
+      _dirtyTimes.add(id);
+      final running = _questionClock.isRunning;
+      _questionClock.reset();
+      if (running) _questionClock.start();
+    }
+  }
+
   Future<void> save({required int cursor, required int elapsed}) {
-    // 已经收尾的局不再接受进度写入，避免结算后又被旧的定时器覆盖回去。
-    if (_finished) return Future<void>.value();
+    if (_committed) return Future<void>.value();
+    _elapsed = elapsed;
+    _captureTime();
+    final sessionId = session.id;
+    final marker = (cursor, elapsed);
+    if (_dirtyTimes.isEmpty && _lastQueuedProgress == marker) {
+      return Future<void>.value();
+    }
+    final times = <int, int>{
+      for (final id in _dirtyTimes) id: _usedSeconds[id]!,
+    };
+    _dirtyTimes.removeAll(times.keys);
+    _lastQueuedProgress = marker;
+    return _enqueue(() async {
+      try {
+        await store.updateProgress(
+          sessionId: sessionId,
+          cursor: cursor,
+          elapsed: elapsed,
+          questionTimes: times,
+        );
+      } catch (_) {
+        _dirtyTimes.addAll(times.keys);
+        if (_lastQueuedProgress == marker) _lastQueuedProgress = null;
+        rethrow;
+      }
+    });
+  }
+
+  Future<void> savePlayback({
+    required int cursor,
+    required int elapsed,
+    required Map<String, Object?> playback,
+  }) {
+    final sessionId = session.id;
     return _enqueue(
-      () => store.updateProgress(
-        sessionId: session.id,
+      () => store.savePlayback(
+        sessionId: sessionId,
         cursor: cursor,
         elapsed: elapsed,
+        playback: playback,
       ),
     );
   }
 
-  ///
-  /// 记一次点击，不论对错。
-  ///
-  /// [meaningId] 为空表示这一步针对整个单词（听音辨义的「选拼写」）。
-  /// [input] 是用户实际点的那个候选词，或者拼错的完整单词。
-  ///
-  /// 随身听没有对错可言，调用会被直接忽略——若也写记录，
-  /// 首页的复习数字和打卡热力图会被「只是听了一遍」灌水。
   Future<void> record({
     required int wordId,
     int? meaningId,
+    int? questionId,
     required String input,
     required bool isCorrect,
+    int? elapsed,
   }) {
-    if (_finished || !module.writesRecords) return Future<void>.value();
-    // 先在内存里补一条，让紧接着的现场查询立刻看到这次点击；
-    // id 用负数占位，它只在内存里用于计数，不会写进数据库。
-    _liveRecords.add(
-      SessionRecord(
-        id: -_liveRecords.length - 1,
-        wordId: wordId,
-        meaningId: meaningId,
-        input: input,
-        isCorrect: isCorrect,
-      ),
+    if (_committed || !module.writesRecords) return Future<void>.value();
+    final question = questionFor(
+      wordId: wordId,
+      meaningId: meaningId,
+      questionId: questionId,
     );
-    return _enqueue(
-      () => store.addRecord(
+    if (question == null) return Future<void>.error(StateError('没有找到本次作答的小题'));
+    if (elapsed != null && elapsed > _elapsed) _elapsed = elapsed;
+    _captureTime();
+    final used = _usedSeconds[question.id] ?? question.usedSeconds;
+    final selected = <String>{
+      for (final record
+          in _recordsByQuestion[question.id] ?? const <SessionRecord>[])
+        if (record.isCorrect)
+          ...record.answers.map((text) => text.trim().toLowerCase()),
+      if (isCorrect) input.trim().toLowerCase(),
+    };
+    final complete =
+        isCorrect &&
+        (question.type != 200 ||
+            question.answers.every(
+              (text) => selected.contains(text.trim().toLowerCase()),
+            ));
+    if (complete) {
+      _timingAllowed = false;
+      _questionClock.stop();
+    }
+    return _enqueue(() async {
+      final record = await store.submitAnswer(
         sessionId: session.id,
-        wordId: wordId,
-        meaningId: meaningId,
-        input: input,
-        isCorrect: isCorrect,
-      ),
-    );
+        questionId: question.id,
+        answers: <String>[input],
+        elapsed: _elapsed,
+        usedSeconds: used,
+      );
+      if (record.isCorrect != isCorrect) {
+        throw StateError('题目答案与页面判断不一致，请重新进入本局');
+      }
+      if (!_recordIds.contains(record.id)) {
+        _liveRecords.add(record);
+        _indexRecord(record);
+      }
+      if (_usedSeconds[question.id] == used) _dirtyTimes.remove(question.id);
+      for (final id in question.wordIds) {
+        _drafts.remove(id);
+      }
+    });
   }
 
-  ///
-  /// 一个单词在本局整个过完一遍后结算：更新难度，必要时推进复习时间。
-  ///
-  /// 同一个词在一局里只会结算一次，重复调用直接返回 null。
-  Future<SettleResult?> settle(int wordId) async {
-    if (_finished || !module.writesRecords) return null;
-    // 已经算过的词不再重复计入连对次数。
-    if (!_settled.add(wordId)) return null;
+  /// 随身听播完后在原页面再次播放，也建立一局新的自测。
+  Future<void> restartListening() => _enqueue(() async {
+    final words = session.snapshotWords;
+    _session = await store.createStudySession(
+      module: ReviewModule.listening,
+      kind: SessionKind.selfTest,
+      planId: null,
+      words: words,
+      groups: ReviewQuestionBuilder.build(ReviewModule.listening, words),
+      date: DateTime.now().toIso8601String().substring(0, 10),
+    );
+    _liveRecords.clear();
+    _indexSession();
+    _readyForSettlement = false;
+    _committed = false;
+    _elapsed = 0;
+  });
+
+  Future<void> retryWord(int wordId) => _enqueue(() async {
+    final group = session.groups.firstWhere(
+      (group) => group.questions.any((q) => q.wordIds.contains(wordId)),
+    );
+    _session = await store.retryGroup(session.id, group.id);
+    _liveRecords
+      ..clear()
+      ..addAll(_session.records);
+    _indexSession();
+    _drafts.remove(wordId);
+    _timedQuestion = null;
+    _timingAllowed = false;
+    _questionClock
+      ..stop()
+      ..reset();
+  });
+
+  Future<SettleResult?> settle(
+    int wordId, {
+    Duration usedTime = Duration.zero,
+  }) async {
+    if (_committed || !module.writesRecords) return null;
     SettleResult? result;
     await _enqueue(() async {
-      result = await store.settleWord(
+      result = await store.prepareSettlement(
         sessionId: session.id,
         wordId: wordId,
-        updateReviewedAt: updatesReviewedAt,
+      );
+      final prepared = result!;
+      _drafts[wordId] = SettlementDraft(
+        sessionId: session.id,
+        wordId: wordId,
+        isCorrect: prepared.isCorrect,
+        streak: prepared.streak,
+        difficultyBefore: prepared.difficultyBefore,
+        suggestedAdjustment:
+            prepared.suggestedAdjustment ?? prepared.difficultyDelta,
+        adjustment: prepared.adjustment ?? prepared.difficultyDelta,
+        manual: prepared.manual,
+        usedTimeSeconds: prepared.usedTimeSeconds,
+        recentResults: prepared.recentResults,
       );
     });
     return result;
   }
 
-  ///
-  /// 给这一局判成败并收尾。
-  ///
-  /// 判定口径（对应《复习模块》文档的「会话结果」）：
-  /// - 完成：这一局的全部条目都操作完了一遍，且一次错都没有；
-  /// - 失败：超时、中途退出，或者过程中错过。
-  ///
-  /// 「中断」不走这里——它只在用户改了每日复习数量时由设置面板批量触发。
-  Future<void> finish({required bool perfect, int? cursor, int? elapsed}) {
-    // 重复收尾会把已经判定的成败改掉，一律忽略。
-    if (_finished) return Future<void>.value();
-    _finished = true;
-    return _enqueue(
-      () => store.finishSession(
-        sessionId: session.id,
-        status: perfect ? SessionStatus.completed : SessionStatus.failed,
-        cursor: cursor,
-        elapsed: elapsed,
-      ),
+  Future<void> adjustSettlement(int wordId, DifficultyAdjust adjust) =>
+      _enqueue(() async {
+        final current = _drafts[wordId];
+        if (_committed || current == null) return;
+        final next = current.copyWithAdjust(adjust);
+        await store.updateSettlementDraft(
+          sessionId: session.id,
+          wordId: wordId,
+          difficultyAfter: next.difficultyAfter,
+          adjustment: next.adjustment,
+          operation: 2,
+        );
+        _drafts[wordId] = next;
+      });
+
+  Future<void> finish({required bool perfect, int? cursor, int? elapsed}) =>
+      _enqueue(() async {
+        if (_readyForSettlement || _committed) return;
+        _captureTime();
+        _questionClock.stop();
+        _timingAllowed = false;
+        await store.finishSession(
+          sessionId: session.id,
+          status: perfect ? SessionStatus.completed : SessionStatus.failed,
+          cursor: cursor,
+          elapsed: elapsed,
+          pendingSettlement: module.writesRecords,
+        );
+        if (module.writesRecords) {
+          final drafts = await store.getSettlementDrafts(session.id);
+          _drafts
+            ..clear()
+            ..addEntries(drafts.map((draft) => MapEntry(draft.wordId, draft)));
+        }
+        _readyForSettlement = true;
+      });
+
+  Future<void> commitSettlement() {
+    if (_committed || !module.writesRecords) return Future<void>.value();
+    if (_commitInFlight) return _queue;
+    _commitInFlight = true;
+    return _enqueue(() => store.finalizeSessionSettlement(session.id)).then(
+      (_) {
+        _committed = true;
+        _commitInFlight = false;
+      },
+      onError: (Object error, StackTrace stack) {
+        _commitInFlight = false;
+        Error.throwWithStackTrace(error, stack);
+      },
     );
   }
 
-  ///
-  /// 把一次写入排进串行队列。
-  ///
-  /// 队列里某一次写入失败不能卡住后面的：catchError 让链条继续往下走，
-  /// 单次失败最多丢一次进度，下一次保存会把最新状态重新写上去。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _timingAllowed && !_detached) {
+      _questionClock.start();
+    } else {
+      _captureTime();
+      _questionClock.stop();
+    }
+  }
+
+  /// 页面销毁时解绑，不让已经关闭的一局继续监听前后台变化。
+  void detach() {
+    if (_detached) return;
+    _detached = true;
+    _captureTime();
+    _questionClock.stop();
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
   Future<void> _enqueue(Future<void> Function() action) {
-    final next = _queue.then((_) => action()).catchError((Object _) {});
-    _queue = next;
+    final next = _queue.then((_) => action());
+    _queue = next.catchError((Object _) {});
     return next;
   }
 }

@@ -57,8 +57,8 @@ abstract final class AppTheme {
             onSurface: tokens.text,
             // onSurfaceVariant 用于日期、placeholder 等次要信息。
             onSurfaceVariant: tokens.textSecondary,
-            // outline 用于输入框等普通边框。
-            outline: tokens.inputBorder,
+            // outline 用于输入框等普通边框，与白底卡片、候选词、描边按钮同一档。
+            outline: tokens.rowBorder,
             // outlineVariant 用于表格这类更轻的分隔线。
             outlineVariant: tokens.border,
             // 深色背景下使用更亮的红色保证可读性。

@@ -204,160 +204,43 @@ class MainActivity : FlutterActivity() {
                         )
                     }
 
-                    // ---- 复习词库 ---------------------------------------
-
-                    // 取某天最新的一条词库；没有则返回 null。
-                    "getLatestWordSet" -> runDatabaseCall(result) {
-                        wordsDatabase.getLatestWordSet(readDate(call.arguments, "getLatestWordSet"))
-                    }
-
-                    // 新建一条词库，返回主键。
-                    "createWordSet" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *> ?: error("createWordSet 缺少参数")
-                        wordsDatabase.createWordSet(
-                            (payload["wordCount"] as? Number)?.toInt() ?: 0,
-                            readLongList(payload["todayWordIds"] ?: emptyList<Any?>(), "todayWordIds"),
-                            readLongList(payload["tomorrowWordIds"] ?: emptyList<Any?>(), "tomorrowWordIds"),
-                            readDate(call.arguments, "createWordSet"),
-                        )
-                    }
-
-                    // ---- 会话 -------------------------------------------
-
-                    // 取某模块某天最新的一条会话。
-                    "getLatestSession" -> runDatabaseCall(result) {
-                        wordsDatabase.getLatestSession(
-                            readModule(call.arguments, "getLatestSession"),
-                            readDate(call.arguments, "getLatestSession"),
-                        )
-                    }
-
-                    // 取某模块某天「已完成的主线会话」，用来判断今日任务过没过关。
-                    "getCompletedDailySession" -> runDatabaseCall(result) {
-                        wordsDatabase.getCompletedDailySession(
-                            readModule(call.arguments, "getCompletedDailySession"),
-                            readDate(call.arguments, "getCompletedDailySession"),
-                        )
-                    }
-
-                    // 首页一次性读出今天全部模块的三态进度与进度条数字。
-                    "getTodaySessionStates" -> runDatabaseCall(result) {
-                        wordsDatabase.getTodaySessionStates(
-                            readDate(call.arguments, "getTodaySessionStates"),
-                        )
-                    }
-
-                    // 新建一局会话，返回主键。
-                    "createSession" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *> ?: error("createSession 缺少参数")
-                        wordsDatabase.createSession(
-                            readModule(call.arguments, "createSession"),
-                            (payload["kind"] as? Number)?.toInt() ?: error("createSession 缺少 kind"),
-                            (payload["wordSetId"] as? Number)?.toLong(),
-                            payload["itemsJson"]?.toString() ?: "[]",
-                            readDate(call.arguments, "createSession"),
-                        )
-                    }
-
-                    // 保存这一局的进度：做到第几条、已经花了多少秒。
-                    "updateSessionProgress" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *>
-                            ?: error("updateSessionProgress 缺少参数")
-                        wordsDatabase.updateSessionProgress(
-                            readLong(call.arguments, "id", "updateSessionProgress"),
-                            (payload["cursor"] as? Number)?.toInt() ?: 0,
-                            (payload["elapsed"] as? Number)?.toInt() ?: 0,
-                        )
-                        null
-                    }
-
-                    // 给这一局判成败：完成 / 中断 / 失败。
-                    "finishSession" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *> ?: error("finishSession 缺少参数")
-                        wordsDatabase.finishSession(
-                            readLong(call.arguments, "id", "finishSession"),
-                            (payload["status"] as? Number)?.toInt() ?: error("finishSession 缺少 status"),
-                            (payload["cursor"] as? Number)?.toInt(),
-                            (payload["elapsed"] as? Number)?.toInt(),
-                        )
-                        null
-                    }
-
-                    // 改了「每日复习」数量时，把全部进行中的会话一次性判为中断。
-                    "abortActiveSessions" -> runDatabaseCall(result) {
-                        wordsDatabase.abortActiveSessions()
-                    }
-
-                    // 启动时把昨天及更早还挂着的会话统一收成中断。
-                    "abortStaleSessions" -> runDatabaseCall(result) {
-                        wordsDatabase.abortStaleSessions(
-                            readDate(call.arguments, "abortStaleSessions"),
-                        )
-                    }
-
-                    // ---- 会话记录 ---------------------------------------
-
-                    // 记一次点击，不论对错；返回记录主键。
-                    "addRecord" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *> ?: error("addRecord 缺少参数")
-                        wordsDatabase.addRecord(
-                            readLong(call.arguments, "sessionId", "addRecord"),
-                            readLong(call.arguments, "wordId", "addRecord"),
-                            (payload["meaningId"] as? Number)?.toLong(),
-                            payload["input"]?.toString().orEmpty(),
-                            (payload["result"] as? Number)?.toInt() ?: error("addRecord 缺少 result"),
-                        )
-                    }
-
-                    // 这个词在本局整个过完一遍后结算：更新难度，必要时推进复习时间。
-                    "settleWord" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *> ?: error("settleWord 缺少参数")
-                        wordsDatabase.settleWord(
-                            readLong(call.arguments, "sessionId", "settleWord"),
-                            readLong(call.arguments, "wordId", "settleWord"),
-                            payload["updateReviewedAt"] == true,
-                        )
-                    }
-
-                    // 读取一局的全部记录，供中途退出后还原现场。
-                    "getSessionRecords" -> runDatabaseCall(result) {
-                        wordsDatabase.getSessionRecords(
-                            readLong(call.arguments, "sessionId", "getSessionRecords"),
-                        )
-                    }
-
-                    // 今天「一次做对」过的不同单词数，首页副标题用。
-                    "getTodayCorrectWordCount" -> runDatabaseCall(result) {
-                        wordsDatabase.getTodayCorrectWordCount(
-                            readDate(call.arguments, "getTodayCorrectWordCount"),
-                        )
-                    }
-
-                    // 今天「一次做对」过的不同单词主键，首页明细列表用。
-                    "getTodayCorrectWordIds" -> runDatabaseCall(result) {
-                        wordsDatabase.getTodayCorrectWordIds(
-                            readDate(call.arguments, "getTodayCorrectWordIds"),
-                        )
-                    }
-
-                    // 按天统计；correctOnly 决定是「掌握量」还是「复习总数」。
-                    "getDailyCounts" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *>
-                        wordsDatabase.getDailyCounts(
-                            payload?.get("since")?.toString(),
-                            payload?.get("correctOnly") == true,
-                        )
-                    }
-
-                    // 按月统计复习单词数（每月按单词去重）。
-                    "getMonthlyCounts" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *>
-                        wordsDatabase.getMonthlyCounts(payload?.get("since")?.toString())
+                    // 学习业务共用一个数据库入口，完整操作在同一队列中执行。
+                    "resolvePlan",
+                    "getPlan",
+                    "getLatestWordSet",
+                    "createStudySession",
+                    "getSession",
+                    "getActiveSession",
+                    "getLatestSession",
+                    "getCompletedDailySession",
+                    "getTodaySessionStates",
+                    "updateSessionProgress",
+                    "submitStudyAnswer",
+                    "retryStudyGroup",
+                    "saveQuestionDistractors",
+                    "prepareSettlement",
+                    "upsertSettlementDraft",
+                    "updateSettlementDraft",
+                    "getSettlementDrafts",
+                    "finishSession",
+                    "finalizeSessionSettlement",
+                    "recoverPendingSettlements",
+                    "abortStaleSessions",
+                    "abortActiveSessions",
+                    "getSessionRecords",
+                    "getTodayReviewedWordCount",
+                    "getTodayReviewedWordIds",
+                    "getDailyCounts",
+                    "getDailyDurations",
+                    "getMonthlyCounts" -> runDatabaseCall(
+                        result, StudyOpenTiming.from(call.arguments, "channel_${call.method}"),
+                    ) {
+                        wordsDatabase.study.call(call.method, call.arguments as? Map<*, *> ?: emptyMap<String, Any?>())
                     }
 
                     // ---- 导入 / 导出 / 清空 -----------------------------
 
-                    // 导出完整备份；时间字段同时给出可读时间与精确毫秒。
+                    // 导出完整备份；时间字段统一保留整数毫秒。
                     "exportData" -> runDatabaseCall(result) {
                         wordsDatabase.exportData()
                     }
@@ -369,7 +252,7 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 清空全部业务数据；设置与离线语音由 Dart 侧另行清空。
+                    // 清空业务表和会话设置；离线语音由 Dart 侧另行清空。
                     "clearAll" -> runDatabaseCall(result) {
                         wordsDatabase.clearAll()
                         null
@@ -400,7 +283,9 @@ class MainActivity : FlutterActivity() {
                             ?: "string"
                         wordsDatabase.setSetting(key, value, type)
                         // 记录设置变更：选词与发音行为都受设置影响，改动留痕方便复查。
-                        AppLog.i("settings", "设置变更 key=$key value=$value type=$type")
+                        // 播放清单等 JSON 可能有上千个编号，日志只记录长度，避免每次续播保存刷屏。
+                        val detail = if (type == "json") "length=${value.length}" else "value=$value"
+                        AppLog.i("settings", "设置变更 key=$key $detail type=$type")
                         null
                     }
 
@@ -700,9 +585,14 @@ class MainActivity : FlutterActivity() {
     }
 
     /** 把数据库动作放入单线程队列，并把结果安全送回 Android 主线程。 */
-    private fun runDatabaseCall(result: MethodChannel.Result, action: () -> Any?) {
+    private fun runDatabaseCall(
+        result: MethodChannel.Result,
+        timing: StudyOpenTiming? = null,
+        action: () -> Any?,
+    ) {
         // 复用统一后台桥接，仅替换执行器和业务错误码。
-        runBackgroundCall(databaseExecutor, result, "WORD_DATABASE_ERROR", action)
+        runBackgroundCall(databaseExecutor, result, "WORD_DATABASE_ERROR", action,
+            backgroundReply = true, timing = timing)
     }
 
     /**
@@ -785,20 +675,33 @@ class MainActivity : FlutterActivity() {
         result: MethodChannel.Result,
         errorCode: String,
         action: () -> Any?,
+        backgroundReply: Boolean = false,
+        timing: StudyOpenTiming? = null,
     ) {
+        fun deliver(callback: () -> Unit) {
+            // MethodChannel.Result 支持任意线程回调；大试卷的编码也留在数据库线程。
+            // 文件选择等 UI 路径仍沿用原来的主线程返回方式。
+            if (backgroundReply) {
+                if (!isDestroyed && acceptsChannelResults) callback()
+            } else postChannelResult(callback)
+        }
         try {
             // executor.execute 类似把耗时任务投递到后台 worker。
             executor.execute {
                 try {
+                    timing?.mark("dequeued")
                     // 在指定后台线程执行真正动作。
                     val value = action()
-                    // MethodChannel 结果回到主线程发送，保持 Android UI 调用约定。
-                    postChannelResult { result.success(value) }
+                    timing?.mark("action_finished")
+                    // 数据回复在后台编码，避免一张大试卷占住界面的动画帧。
+                    deliver { result.success(value) }
+                    timing?.mark("reply_sent")
+                    timing?.write()
                 } catch (exception: Throwable) {
                     // 原生通道出错也写进单日日志，避免「哪里坏了」只能靠真机 logcat 查。
                     AppLog.e(errorCode, exception.message ?: exception.javaClass.simpleName)
                     // 将原生异常转换成 Dart 可捕获的 PlatformException。
-                    postChannelResult {
+                    deliver {
                         // errorCode 让 Dart UI 可以区分数据库、文件或缓存错误。
                         result.error(
                             errorCode,
@@ -813,7 +716,7 @@ class MainActivity : FlutterActivity() {
         } catch (exception: RejectedExecutionException) {
             // Activity 销毁期间执行器可能已经关闭；只在页面仍存活时返回明确错误。
             AppLog.e(errorCode, "后台执行器已关闭")
-            postChannelResult {
+            deliver {
                 result.error(errorCode, "后台执行器已关闭", null)
             }
         }

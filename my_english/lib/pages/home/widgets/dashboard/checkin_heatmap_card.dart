@@ -83,8 +83,19 @@ class CheckinHeatmapCard extends StatefulWidget {
     required this.dailyGoal,
     required this.refreshToken,
     this.clock = DateTime.now,
+    this.sessionStore,
     super.key,
   });
+
+  ///
+  /// 打卡数据的来源；不传就用正式的原生库。
+  ///
+  /// 生活化解释：日历要查「这个月每天复习了多少个词」，正式 App 里这件事走原生
+  /// SQLite。以前这里写死 `LocalSessionStore.instance`，于是 Widget 测试里必然
+  /// 打印一条 `MissingPluginException`，日历也只能是整片「未复习」——
+  /// 测试根本看不到「有复习记录时色块长什么样」。加一个可注入的口子，
+  /// 正式路径一点没变（不传就是原来的行为）。
+  final SessionStore? sessionStore;
 
   /// 每日复习目标（来自首页设置）。
   final int dailyGoal;
@@ -155,10 +166,9 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
       // since 取该月 1 号；原生会把该日期之后的所有天都返回，
       // 下面在 Dart 侧再按"属于该月"过滤一遍。
       // 「复习总数」口径：不论对错都算，只要这天练过的去重单词数。
-      final counts = await LocalSessionStore.instance.getDailyCounts(
-        correctOnly: false,
-        since: _dateKey(month),
-      );
+      final counts =
+          await (widget.sessionStore ?? LocalSessionStore.instance)
+              .getDailyCounts(correctOnly: false, since: _dateKey(month));
       // 异步期间卡片可能已移除或切换了月份。
       if (!mounted || _month != month) return;
       // 该月天数（取下月 0 号即本月最后一天）。
@@ -315,7 +325,8 @@ class _CheckinHeatmapCardState extends State<CheckinHeatmapCard> {
         decoration: BoxDecoration(
           color: tokens.card,
           // 描边代替阴影：浅浅一圈分隔线让卡片在灰底上有轮廓。
-          border: Border.all(color: tokens.border),
+          // 与候选词、描边按钮、输入框共用同一档控件描边，全站一个口径。
+          border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
           // 只保留一点点圆角。
           borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         ),

@@ -28,12 +28,18 @@ List<Word> _words(int count) => <Word>[
 
 ///
 /// 组装一个使用固定随机种子的复习流程，让巩固局抽词结果可复现。
-ReviewFlow _flow(MemoryWordStore wordStore, MemorySessionStore sessionStore) =>
-    ReviewFlow(
-      wordStore: wordStore,
-      sessionStore: sessionStore,
-      random: Random(2026),
-    );
+///
+/// 顺手把同一份词表挂给会话库：原生把「读计划 → 算配额 → 补缺选词」放在一个
+/// SQLite 事务里，内存实现拆成两半，选词那半要问词表 Store 要。
+///
+ReviewFlow _flow(MemoryWordStore wordStore, MemorySessionStore sessionStore) {
+  sessionStore.wordStore = wordStore;
+  return ReviewFlow(
+    wordStore: wordStore,
+    sessionStore: sessionStore,
+    random: Random(2026),
+  );
+}
 
 ///
 /// 验证「创建词库」与「创建会话」两条核心流程（v2.0 会话模型）。
@@ -56,8 +62,10 @@ void main() {
       // 第一层（难词）2 个 + 第二层（久未复习）2 个 = 1..4。
       expect(wordSet!.todayWordIds, <int>[1, 2, 3, 4]);
       expect(wordSet.wordCount, 4);
-      // 明天的词 = 排除今天后最前面的一半（向上取整 2 个）。
-      expect(wordSet.tomorrowWordIds, <int>[5, 6]);
+      // 明天那份计划是**独立的一份**，按同一个目标数量去建，只是排除今天这批：
+      // 所以拿到的是接下来的 4 个（5..8），不是今天的一半。第二天进来时它就是
+      // 「明天的主线」，份量和今天一样。
+      expect(wordSet.tomorrowWordIds, <int>[5, 6, 7, 8]);
       // 词库只建了一次。
       expect(sessionStore.wordSets, hasLength(1));
     });
@@ -79,7 +87,7 @@ void main() {
       expect(sessionStore.wordSets, hasLength(1));
     });
 
-    test('目标调小时从前面截取', () async {
+    test('目标调小时按 40/60 分层配额削减，不会砍光久词', () async {
       final wordStore = MemoryWordStore(_words(10));
       final sessionStore = MemorySessionStore(today: date);
       final flow = _flow(wordStore, sessionStore);
@@ -91,7 +99,11 @@ void main() {
         date: date,
       );
 
-      expect(shrunk!.todayWordIds, <int>[1, 2]);
+      // 目标 5 时计划是难词 1、2 + 久词 3、4、5。目标降到 2 时按 40/60 的配额
+      // 各留一部分：难词留 ceil(2×0.4)=1 个（1），久词留 2-1=1 个（3）。
+      // 如果直接按计划的写入顺序从头截断，留下的会是 1、2 两个难词、久词一个
+      // 不剩——「每日复习 50 改回 15 就全是难词」正是这条规则要避免的。
+      expect(shrunk!.todayWordIds, <int>[1, 3]);
     });
 
     test('目标调大时排除已有单词再补足，绝不补出重复', () async {
@@ -165,19 +177,35 @@ void main() {
       expect(sessionStore.wordSets, hasLength(1));
     });
 
-    test('词库为空或目标为 0 时拿不到词库', () async {
+    test('目标为 0 时连计划都不建；词库为空时计划建得出来但一个词都没有', () async {
+      // 目标为 0：没有「今天要背什么」这回事，连计划行都不该建。
+      final zeroGoalFlow = _flow(
+        MemoryWordStore(<Word>[]),
+        MemorySessionStore(today: date),
+      );
+      expect(
+        await zeroGoalFlow.resolveWordSet(
+          dailyGoal: 0,
+          libraryCount: 5,
+          date: date,
+        ),
+        isNull,
+      );
+
+      // 词库为空、目标却大于 0：计划本身会建出来（词库补上后继续用它），
+      // 只是里面一个词都没有。**「开不了局」由开局流程按空计划判断**，
+      // 不靠这里返回空——否则「先建库、后录词」的用户每次都要重建计划。
       final wordStore = MemoryWordStore(<Word>[]);
       final sessionStore = MemorySessionStore(today: date);
       final flow = _flow(wordStore, sessionStore);
-
-      expect(
-        await flow.resolveWordSet(dailyGoal: 5, libraryCount: 0, date: date),
-        isNull,
+      final plan = await flow.resolveWordSet(
+        dailyGoal: 5,
+        libraryCount: 0,
+        date: date,
       );
-      expect(
-        await flow.resolveWordSet(dailyGoal: 0, libraryCount: 5, date: date),
-        isNull,
-      );
+      expect(plan, isNotNull);
+      expect(plan!.todayWordIds, isEmpty);
+      expect(plan.wordCount, 0);
     });
   });
 
@@ -197,12 +225,13 @@ void main() {
       expect(entry, isNotNull);
       expect(entry!.session.kind, SessionKind.daily);
       expect(entry.session.status, SessionStatus.active);
-      // 听音辨义的数据列表就是单词主键。
-      expect(entry.session.idItems, <int>[1, 2, 3, 4]);
+      // 听音辨义的数据列表就是单词主键；主线题序会把前两层选出的难词按位置
+      // 均匀铺开（4 个词、2 个难词 → 难词落在第 1、3 位），不让难词连成一串。
+      expect(entry.session.idItems, <int>[1, 3, 2, 4]);
       // 主线会话答题要推进复习时间。
       expect(entry.session.updatesReviewedAt, isTrue);
       // 返回的单词与会话顺序严格一致。
-      expect(entry.words.keys.toList(), <int>[1, 2, 3, 4]);
+      expect(entry.words.keys.toList(), <int>[1, 3, 2, 4]);
       // 全新一局没有任何记录。
       expect(entry.isFresh, isTrue);
     });
@@ -263,8 +292,8 @@ void main() {
 
       expect(retry!.session.id, isNot(first.session.id));
       expect(retry.session.kind, SessionKind.daily);
-      // 重来的还是今天这批词，从头再走一遍。
-      expect(retry.session.idItems, <int>[1, 2, 3, 4]);
+      // 重来的还是今天这批词，从头再走一遍；主线题序仍按均衡铺开的规则创建。
+      expect(retry.session.idItems, <int>[1, 3, 2, 4]);
     });
 
     test('主线过关后再进模块，开一局巩固：今天一半 + 明天一半', () async {
@@ -316,12 +345,12 @@ void main() {
       );
     });
 
-    test('词库总量不足两倍目标时，明天的词有多少拿多少，不用今天的补足', () async {
+    test('明天的词不够时用今天剩余的补足，题量不缩水', () async {
       final wordStore = MemoryWordStore(_words(5));
       final sessionStore = MemorySessionStore(today: date);
       final flow = _flow(wordStore, sessionStore);
 
-      // 只有 5 个词、目标 4：明天最多只能凑出 1 个。
+      // 只有 5 个词、目标 4：今天占掉 1..4，明天只剩 5 号这一个可选。
       final daily = await flow.openModule(
         ReviewModule.listeningMeaning,
         dailyGoal: 4,
@@ -339,16 +368,19 @@ void main() {
         date: date,
       );
 
-      // 今天固定随机拿一半 ceil(4×0.5)=2；明天只剩 1 个可选，就只拿 1 个。
-      // 题量因此是 3 而不是 4——明天不够时不拿今天的来补。
-      expect(reinforce!.session.idItems, hasLength(3));
+      // 先按各取一半：今天 ceil(4×0.5)=2 个、明天 4~/2=2 个。明天只有 1 个可选，
+      // 缺的那 1 个再回今天剩余的里补，所以题量仍是 4、不会缩水。
+      // 补的顺序是「先明天、后今天」——明天有货先用明天的，真不够才动今天的存货。
+      expect(reinforce!.session.idItems, hasLength(4));
+      expect(reinforce.session.idItems, contains(5));
+      expect(reinforce.session.idItems.where((id) => id <= 4), hasLength(3));
       expect(
         reinforce.session.idItems.toSet().length,
         reinforce.session.idItems.length,
       );
     });
 
-    test('每日复习量改了以后，旧的进行中主线会被中断并重开', () async {
+    test('每日复习量改了以后，计划按新目标补足，已开始的会话继续用快照', () async {
       final wordStore = MemoryWordStore(_words(10));
       final sessionStore = MemorySessionStore(today: date);
       final flow = _flow(wordStore, sessionStore);
@@ -359,7 +391,7 @@ void main() {
         libraryCount: 10,
         date: date,
       );
-      // 用户把每日复习从 4 改成 6：词库补足，旧局的单词已经代表不了今天的任务。
+      // 用户把每日复习从 4 改成 6。
       final afterChange = await flow.openModule(
         ReviewModule.listeningMeaning,
         dailyGoal: 6,
@@ -367,16 +399,30 @@ void main() {
         date: date,
       );
 
-      expect(afterChange!.session.id, isNot(first!.session.id));
-      expect(afterChange.session.idItems, <int>[1, 2, 3, 4, 5, 6]);
-      // 旧局被收成「中断」，不会永远挂在数据库里。
-      final old = sessionStore.sessions.firstWhere(
-        (item) => item.id == first.session.id,
+      // 已经开着的这一局原样续上：题目是开局那一刻的快照，中途改目标不该把
+      // 用户正在做的题换掉，更不该把进度收成「中断」。
+      expect(afterChange!.session.id, first!.session.id);
+      expect(afterChange.session.idItems, first.session.idItems);
+      expect(
+        sessionStore.sessions
+            .firstWhere((item) => item.id == first.session.id)
+            .status,
+        SessionStatus.active,
       );
-      expect(old.status, SessionStatus.aborted);
+
+      // 计划本身跟着新目标走。注意：**首页是走「刷新看板」那条路**去补计划的
+      // （打开模块时若已有进行中的局会直接续上、不再算计划），所以这里显式
+      // 取一次计划来验证补缺结果。
+      final plan = await flow.resolveWordSet(
+        dailyGoal: 6,
+        libraryCount: 10,
+        date: date,
+      );
+      expect(plan!.todayWordIds, <int>[1, 2, 3, 4, 5, 6]);
+      expect(plan.tomorrowWordIds, <int>[7, 8, 9, 10]);
     });
 
-    test('会话里的单词被删除后，这一局作废并重开', () async {
+    test('会话里的单词被删除后，计划下次取用时补缺，已开的局继续保留', () async {
       final wordStore = MemoryWordStore(_words(10));
       final sessionStore = MemorySessionStore(today: date);
       final flow = _flow(wordStore, sessionStore);
@@ -396,9 +442,20 @@ void main() {
         date: date,
       );
 
-      expect(reopened!.session.id, isNot(first!.session.id));
-      expect(reopened.session.idItems, isNot(contains(2)));
-      expect(reopened.session.idItems, hasLength(4));
+      // 原生删词只软删单词本身，**不动已经开好的局**：题目、词库快照和答题
+      // 进度都留着，所以这里续上的还是同一局，不会被凭空作废。
+      expect(reopened!.session.id, first!.session.id);
+      expect(reopened.session.idItems, first.session.idItems);
+
+      // 计划在下次取用时补缺：2 号被剔除，从剩下的词里补一个 5 号。
+      // 续上的那一局不会触发补缺（有进行中的局就直接返回了），所以这里显式取一次。
+      final plan = await flow.resolveWordSet(
+        dailyGoal: 4,
+        libraryCount: 9,
+        date: date,
+      );
+      expect(plan!.todayWordIds, <int>[1, 3, 4, 5]);
+      expect(plan.todayWordIds, isNot(contains(2)));
     });
 
     test('四个模块共用同一份词库，各自的会话互不影响', () async {
@@ -521,7 +578,7 @@ void main() {
       expect(sessionStore.sessions, isEmpty);
     });
 
-    test('看义选词的数据列表是去重后的含义主键', () async {
+    test('看义选词按释义去重：两个「吃」只出一道题', () async {
       // eat 与 feed 共享「吃」，apple 有「苹果」。
       final wordStore = MemoryWordStore(<Word>[
         Word(
@@ -550,9 +607,22 @@ void main() {
         date: date,
       );
 
-      // 含义主键按释义文本去重：两个「吃」只出一道题，总共 2 道。
-      expect(entry!.session.idItems.toSet(), <int>{101, 103});
-      expect(entry.session.idItems, hasLength(2));
+      // 数据列表是**小题主键**的投影，只用来便宜地问一句「这一局有几题」；
+      // 页面真正读的是试卷（groups）与词库快照。
+      expect(entry!.session.idItems, hasLength(2));
+      // 去重的证据在题干上：两道题分别是「吃」和「苹果」。两个「吃」
+      // （eat / feed）合成一道多选题，不是各出一道。
+      expect(
+        <String>{
+          for (final question in entry.session.questions) ...question.content,
+        },
+        <String>{'吃', '苹果'},
+      );
+      // 看义选词是「给中文选英文」，答案是拼写，所以答案类型是单词。
+      expect(
+        entry.session.questions.every((question) => question.answerType == 1),
+        isTrue,
+      );
     });
   });
 

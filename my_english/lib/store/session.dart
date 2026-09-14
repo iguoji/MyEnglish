@@ -1,151 +1,151 @@
-// convert.dart 提供 jsonEncode，把数据列表编码成原生保存的 JSON 文本。
-import 'dart:convert';
-
-// services.dart 提供 MethodChannel，让 Dart 调用 Android 原生 SQLite。
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-
-// 会话、记录与词库三个模型都由本 Store 负责读写。
 import '../models/session.dart';
 import '../models/session_record.dart';
+import '../models/settlement.dart';
 import '../models/word_set.dart';
+import '../models/word.dart';
+import '../services/study_open_timing.dart';
 
-///
-/// 会话 Store 接口：复习词库、会话、会话记录与统计的读写契约。
-///
-/// 这四块放在一个 Store 里，是因为它们在业务上是同一条链路：
-/// 「今天挑哪批词 → 开哪一局 → 每点一次记一笔 → 汇总成首页的数字」。
-/// 拆开只会让页面同时持有四个 Store，却永远一起用。
-///
+/// 所有模块共用的数据接口，业务写入由 Android 在同一事务中完成。
 abstract interface class SessionStore {
-  // ---- 复习词库 ---------------------------------------------------------
-
-  ///
-  /// 取某天最新的一份词库；当天还没建过则返回 null。
-  Future<WordSet?> getLatestWordSet(String date);
-
-  ///
-  /// 新建一份词库，返回主键。
-  ///
-  /// [wordCount] 是创建时「每日复习」设置的数量，用来和之后的设置比对。
-  Future<int> createWordSet({
-    required int wordCount,
-    required List<int> todayWordIds,
-    required List<int> tomorrowWordIds,
+  /// 按最新目标维护当天计划，并准备明日计划；词库暂时不足时保留目标。
+  Future<WordSet?> resolvePlan({
     required String date,
+    required int dailyGoal,
+    List<int> exclude = const <int>[],
+    bool ensureTomorrow = true,
   });
 
-  // ---- 会话 -------------------------------------------------------------
+  /// 读取整份会话、试卷、词库快照与当前遍次的答题记录。
+  Future<Session?> getSession(int id);
 
-  ///
-  /// 取某模块某天最新的一局；没有则返回 null。
-  Future<Session?> getLatestSession(ReviewModule module, String date);
+  /// 首页练习与自测分别查询；自测还须有已保存答案，刚创建的空局不提供恢复。
+  Future<Session?> getActiveSession(
+    ReviewModule module,
+    String date, {
+    bool selfTest = false,
+    bool headerOnly = false,
+  });
 
-  ///
-  /// 取某模块某天「已完成的主线会话」，用来判断今日任务过没过关。
-  Future<Session?> getCompletedDailySession(ReviewModule module, String date);
+  /// 读取某模块当天最新的自测会话。
+  Future<Session?> getLatestSelfSession(ReviewModule module, String date);
 
-  ///
-  /// 一次读出今天全部模块的三态进度，供首页渲染卡片。
-  ///
-  /// 今天没开过局的模块不会出现在返回值里，调用方按「待完成」补齐。
-  Future<Map<ReviewModule, ReviewModuleState>> getTodayModuleStates(String date);
-
-  ///
-  /// 新建一局会话，返回主键。
-  ///
-  /// [items] 是这一局固定的答题顺序，元素形状按模块而定：
-  /// 一维主键数组，或 `[[单词id, 含义id], ...]` 这样的数对数组。
-  Future<int> createSession({
+  /// 在一次写入中保存会话、试卷和词库副本，返回完整会话。
+  Future<Session> createStudySession({
     required ReviewModule module,
     required SessionKind kind,
-    required int? wordSetId,
-    required List<Object?> items,
+    required int? planId,
+    required List<Word> words,
+    required List<Map<String, Object?>> groups,
     required String date,
   });
 
-  ///
-  /// 保存这一局的进度：做到第几条、已经花了多少秒。
+  /// 按实际小题编号保存文本答案，由本地数据库判对并推进题内进度。
+  Future<SessionRecord> submitAnswer({
+    required int sessionId,
+    required int questionId,
+    required List<String> answers,
+    int elapsed = 0,
+    int usedSeconds = 0,
+  });
+
+  /// 听音辨义整词进入新一遍，旧答案保留但不再参与本遍结算。
+  Future<Session> retryGroup(int sessionId, int groupId);
+
+  /// 一起保存题目混淆选项、来源混淆字段和会话副本；不保存候选顺序。
+  Future<void> saveQuestionDistractors({
+    required int sessionId,
+    required int questionId,
+    required List<String> distractors,
+    required List<Map<String, Object?>> sources,
+  });
+
+  /// 保存当前播放位置、完成遍数、剩余间隔及暂停状态。
+  Future<void> savePlayback({
+    required int sessionId,
+    required int cursor,
+    required int elapsed,
+    required Map<String, Object?> playback,
+  });
+
+  /// 只读取已经存在的计划视图；需要补缺时使用 resolvePlan。
+  Future<WordSet?> getLatestWordSet(String date);
+
+  /// 读取首页某模块当天最新会话，不混入自测。
+  Future<Session?> getLatestSession(ReviewModule module, String date);
+
+  /// 判断当天是否已经完成过这个模块的复习。
+  Future<Session?> getCompletedDailySession(ReviewModule module, String date);
+
+  /// 从会话及题目游标取得首页模块状态和进度。
+  Future<Map<ReviewModule, ReviewModuleState>> getTodayModuleStates(
+    String date,
+  );
+
+  /// 把页面进度映射到大题、小题游标，并保存前台停留和各题答题用时。
   Future<void> updateProgress({
     required int sessionId,
     required int cursor,
     required int elapsed,
+    Map<int, int> questionTimes = const <int, int>{},
   });
 
-  ///
-  /// 给这一局判成败。
+  /// 核对所有题目完成后准备整局结算；普通退出不调用本方法。
   Future<void> finishSession({
     required int sessionId,
     required SessionStatus status,
     int? cursor,
     int? elapsed,
+    bool pendingSettlement = false,
   });
 
-  ///
-  /// 中断「不是今天」的进行中会话，返回被中断的局数。
-  ///
-  /// 跨天后昨天没打完的局挂着没有意义——今天有今天的词库。
-  /// 今天的进度完整保留。
+  /// 核对某词全部题目并保存结算草稿，暂不修改难度。
+  Future<SettleResult> prepareSettlement({
+    required int sessionId,
+    required int wordId,
+  });
+
+  /// 保存用户手动选择的难度变化，等待正式落实。
+  Future<void> updateSettlementDraft({
+    required int sessionId,
+    required int wordId,
+    required int difficultyAfter,
+    required int adjustment,
+    required int operation,
+  });
+
+  /// 读取本局结算及派生的最近表现、连对次数和实际用时。
+  Future<List<SettlementDraft>> getSettlementDrafts(int sessionId);
+
+  /// 一次落实本局结算，重复调用只产生一次难度变化。
+  Future<void> finalizeSessionSettlement(int sessionId);
+
+  /// 启动时落实已完成但尚未提交的结算。
+  Future<int> recoverPendingSettlements();
+
+  /// 中断跨天后仍未完成的会话，保留历史记录。
   Future<int> abortStaleSessions(String today);
 
-  ///
-  /// 中断全部进行中的会话，返回被中断的局数。
-  ///
-  /// 用户改了「每日复习」数量时调用：今天这批词的数量变了，
-  /// 正在进行的每一局都对不上新词库，只能整体作废重来。
+  /// 维护操作中断进行中的会话；修改每日目标不调用它。
   Future<int> abortActiveSessions();
 
-  // ---- 会话记录 ---------------------------------------------------------
-
-  ///
-  /// 记一次点击，不论对错。
-  ///
-  /// [meaningId] 为空表示这一步针对整个单词（听音辨义的「选拼写」）。
-  /// [input] 是用户实际点的那个候选词，或者拼错的完整单词。
-  Future<void> addRecord({
-    required int sessionId,
-    required int wordId,
-    int? meaningId,
-    required String input,
-    required bool isCorrect,
-  });
-
-  ///
-  /// 一个单词在本局整个过完一遍后结算：更新难度，必要时推进复习时间。
-  ///
-  /// 判定口径是「本局本词有没有点错过」——一次都没错才算这一轮答对。
-  Future<SettleResult> settleWord({
-    required int sessionId,
-    required int wordId,
-    required bool updateReviewedAt,
-  });
-
-  ///
-  /// 读取一局的全部记录，供中途退出后还原现场。
+  /// 读取每个大题当前遍次的答案，保留具体小题编号。
   Future<List<SessionRecord>> getSessionRecords(int sessionId);
 
-  // ---- 统计 -------------------------------------------------------------
+  /// 从已落实结算按日期和单词去重，答错也算练过。
+  Future<int> getTodayReviewedWordCount(String date);
 
-  ///
-  /// 今天「一次做对」过的不同单词数。
-  ///
-  /// 口径：这个词今天有过记录，且今天从来没在任何一局里点错过。
-  /// 首页副标题「今日复习 X / 目标」用的就是它。
-  Future<int> getTodayCorrectWordCount(String date);
+  /// 读取当天已落实结算涉及的不同单词编号。
+  Future<List<int>> getTodayReviewedWordIds(String date);
 
-  ///
-  /// 今天「一次做对」过的不同单词主键，供首页明细列表使用。
-  Future<List<int>> getTodayCorrectWordIds(String date);
-
-  ///
-  /// 按天统计单词数（每天按单词去重）。
-  ///
-  /// [correctOnly] 为 true 时只算「这一天一次都没错过」的词（趋势曲线的掌握量）；
-  /// 为 false 时不论对错，练了就算（打卡热力图的复习总数）。
-  /// 没有记录的日期不会出现在结果里，调用方按需补 0。
+  /// 顶部、曲线和热力图共用的每日已复习词数。
   Future<Map<String, int>> getDailyCounts({String? since, bool correctOnly});
 
-  ///
-  /// 按月统计复习单词数（每月按单词去重）。
+  /// 曲线（复习时间）共用的每日累计复习时长（秒）：会话表 elapsed_seconds 的每日汇总。
+  Future<Map<String, int>> getDailyDurations({String? since});
+
+  /// 按月统计已落实结算中的不同单词。
   Future<Map<String, int>> getMonthlyCounts({String? since});
 }
 
@@ -172,6 +172,167 @@ class LocalSessionStore implements SessionStore {
   /// 读写数据用的原生通道。
   final MethodChannel _channel;
 
+  @override
+  Future<WordSet?> resolvePlan({
+    required String date,
+    required int dailyGoal,
+    List<int> exclude = const <int>[],
+    bool ensureTomorrow = true,
+  }) async {
+    final row = await _channel
+        .invokeMapMethod<Object?, Object?>('resolvePlan', <String, Object?>{
+          'date': date,
+          'dailyGoal': dailyGoal,
+          'exclude': exclude,
+          'ensureTomorrow': ensureTomorrow,
+        });
+    return row == null ? null : WordSet.fromMap(row);
+  }
+
+  Future<Session?> _sessionCall(
+    String method,
+    Map<String, Object?> payload,
+  ) async {
+    final timing = method == 'createStudySession'
+        ? StudyOpenTiming.current
+        : null;
+    if (timing != null) payload = {...payload, '_open_trace_id': timing.id};
+    if (!identical(_channel.codec, const StandardMethodCodec())) {
+      final row = await _channel.invokeMapMethod<Object?, Object?>(
+        method,
+        _sessionArguments(payload),
+      );
+      return row == null ? null : Session.fromMap(row);
+    }
+    final words = payload['words'];
+    final input = (method: method, arguments: payload);
+    final encoded = words is List && words.length >= 128
+        ? await compute(
+            _encodeSessionCall,
+            input,
+            debugLabel: 'encode-study-session',
+          )
+        : _encodeSessionCall(input);
+    timing?.mark('request_encoded');
+    timing?.detail('request_bytes', encoded.lengthInBytes);
+    final reply = await _channel.binaryMessenger.send(_channel.name, encoded);
+    timing?.mark('reply_received');
+    if (reply == null) throw MissingPluginException('未找到学习数据接口 $method');
+    timing?.detail('reply_bytes', reply.lengthInBytes);
+    // 解包几千道题及构造词义分组也放到工作线程，页面过渡不被大回包打断。
+    final session = reply.lengthInBytes >= 65536
+        ? await compute(
+            _decodeSessionReply,
+            reply,
+            debugLabel: 'decode-study-session',
+          )
+        : _decodeSessionReply(reply);
+    timing?.mark('reply_decoded');
+    return session;
+  }
+
+  @override
+  Future<Session?> getSession(int id) => _sessionCall('getSession', {'id': id});
+
+  @override
+  Future<Session?> getActiveSession(
+    ReviewModule module,
+    String date, {
+    bool selfTest = false,
+    bool headerOnly = false,
+  }) => _sessionCall('getActiveSession', {
+    'module': module.storageKey,
+    'date': date,
+    'selfTest': selfTest,
+    'headerOnly': headerOnly,
+  });
+
+  @override
+  Future<Session?> getLatestSelfSession(ReviewModule module, String date) =>
+      _sessionCall('getLatestSession', {
+        'module': module.storageKey,
+        'date': date,
+        'selfTest': true,
+      });
+
+  @override
+  Future<Session> createStudySession({
+    required ReviewModule module,
+    required SessionKind kind,
+    required int? planId,
+    required List<Word> words,
+    required List<Map<String, Object?>> groups,
+    required String date,
+  }) async {
+    final session = await _sessionCall('createStudySession', {
+      'module': module.storageKey,
+      'kind': kind.code,
+      'planId': planId,
+      'words': words,
+      'groups': groups,
+      'date': date,
+    });
+    if (session == null) throw StateError('新建会话未返回试卷');
+    return session;
+  }
+
+  @override
+  Future<SessionRecord> submitAnswer({
+    required int sessionId,
+    required int questionId,
+    required List<String> answers,
+    int elapsed = 0,
+    int usedSeconds = 0,
+  }) async {
+    final row = await _channel
+        .invokeMapMethod<Object?, Object?>('submitStudyAnswer', {
+          'sessionId': sessionId,
+          'questionId': questionId,
+          'answers': answers,
+          'elapsed': elapsed,
+          'usedSeconds': usedSeconds,
+        });
+    if (row == null) throw StateError('本次答案未保存');
+    return SessionRecord.fromMap(row);
+  }
+
+  @override
+  Future<Session> retryGroup(int sessionId, int groupId) async {
+    final session = await _sessionCall('retryStudyGroup', {
+      'sessionId': sessionId,
+      'groupId': groupId,
+    });
+    if (session == null) throw StateError('重试后的试卷未保存');
+    return session;
+  }
+
+  @override
+  Future<void> saveQuestionDistractors({
+    required int sessionId,
+    required int questionId,
+    required List<String> distractors,
+    required List<Map<String, Object?>> sources,
+  }) => _channel.invokeMethod<void>('saveQuestionDistractors', {
+    if (StudyOpenTiming.current case final timing?) '_open_trace_id': timing.id,
+    'sessionId': sessionId,
+    'questionId': questionId,
+    'distractors': distractors,
+    'sources': sources,
+  });
+
+  @override
+  Future<void> savePlayback({
+    required int sessionId,
+    required int cursor,
+    required int elapsed,
+    required Map<String, Object?> playback,
+  }) => _channel.invokeMethod<void>('updateSessionProgress', {
+    'id': sessionId,
+    'cursor': cursor,
+    'elapsed': elapsed,
+    'playback': playback,
+  });
+
   // ---- 复习词库 ---------------------------------------------------------
 
   @override
@@ -183,26 +344,6 @@ class LocalSessionStore implements SessionStore {
     // null 表示当天还没建过词库，这是正常状态而不是错误。
     if (row == null) return null;
     return WordSet.fromMap(row);
-  }
-
-  @override
-  Future<int> createWordSet({
-    required int wordCount,
-    required List<int> todayWordIds,
-    required List<int> tomorrowWordIds,
-    required String date,
-  }) async {
-    final id = await _channel.invokeMethod<int>(
-      'createWordSet',
-      <String, Object?>{
-        'wordCount': wordCount,
-        'todayWordIds': todayWordIds,
-        'tomorrowWordIds': tomorrowWordIds,
-        'date': date,
-      },
-    );
-    if (id == null) throw StateError('SQLite 创建复习词库后没有返回主键');
-    return id;
   }
 
   // ---- 会话 -------------------------------------------------------------
@@ -221,14 +362,7 @@ class LocalSessionStore implements SessionStore {
     String method,
     ReviewModule module,
     String date,
-  ) async {
-    final row = await _channel.invokeMapMethod<Object?, Object?>(
-      method,
-      <String, Object?>{'module': module.storageKey, 'date': date},
-    );
-    if (row == null) return null;
-    return Session.fromMap(row);
-  }
+  ) => _sessionCall(method, {'module': module.storageKey, 'date': date});
 
   @override
   Future<Map<ReviewModule, ReviewModuleState>> getTodayModuleStates(
@@ -253,37 +387,18 @@ class LocalSessionStore implements SessionStore {
   }
 
   @override
-  Future<int> createSession({
-    required ReviewModule module,
-    required SessionKind kind,
-    required int? wordSetId,
-    required List<Object?> items,
-    required String date,
-  }) async {
-    final id = await _channel.invokeMethod<int>(
-      'createSession',
-      <String, Object?>{
-        'module': module.storageKey,
-        'kind': kind.code,
-        'wordSetId': wordSetId,
-        // 数据列表的元素形状因模块而异，统一编码成 JSON 文本再存。
-        'itemsJson': jsonEncode(items),
-        'date': date,
-      },
-    );
-    if (id == null) throw StateError('SQLite 创建会话后没有返回主键');
-    return id;
-  }
-
-  @override
   Future<void> updateProgress({
     required int sessionId,
     required int cursor,
     required int elapsed,
+    Map<int, int> questionTimes = const <int, int>{},
   }) => _channel.invokeMethod<void>('updateSessionProgress', <String, Object?>{
     'id': sessionId,
     'cursor': cursor,
     'elapsed': elapsed,
+    'questionTimes': questionTimes.map(
+      (id, seconds) => MapEntry(id.toString(), seconds),
+    ),
   });
 
   @override
@@ -292,12 +407,20 @@ class LocalSessionStore implements SessionStore {
     required SessionStatus status,
     int? cursor,
     int? elapsed,
+    bool pendingSettlement = false,
   }) => _channel.invokeMethod<void>('finishSession', <String, Object?>{
     'id': sessionId,
     'status': status.code,
     'cursor': cursor,
     'elapsed': elapsed,
+    'pendingSettlement': pendingSettlement,
   });
+
+  @override
+  Future<int> recoverPendingSettlements() async {
+    final count = await _channel.invokeMethod<int>('recoverPendingSettlements');
+    return count ?? 0;
+  }
 
   @override
   Future<int> abortStaleSessions(String today) async {
@@ -319,36 +442,88 @@ class LocalSessionStore implements SessionStore {
   // ---- 会话记录 ---------------------------------------------------------
 
   @override
-  Future<void> addRecord({
+  Future<SettleResult> prepareSettlement({
     required int sessionId,
     required int wordId,
-    int? meaningId,
-    required String input,
-    required bool isCorrect,
-  }) => _channel.invokeMethod<void>('addRecord', <String, Object?>{
+  }) async {
+    final row = await _channel.invokeMapMethod<Object?, Object?>(
+      'prepareSettlement',
+      <String, Object?>{'sessionId': sessionId, 'wordId': wordId},
+    );
+    if (row == null) throw StateError('原生没有返回单词结算建议');
+    return SettleResult.fromMap(row);
+  }
+
+  @override
+  Future<void> updateSettlementDraft({
+    required int sessionId,
+    required int wordId,
+    required int difficultyAfter,
+    required int adjustment,
+    required int operation,
+  }) => _channel.invokeMethod<void>('updateSettlementDraft', <String, Object?>{
     'sessionId': sessionId,
     'wordId': wordId,
-    'meaningId': meaningId,
-    'input': input,
-    'result': isCorrect ? 1 : 0,
+    'difficultyAfter': difficultyAfter,
+    'adjustment': adjustment,
+    'operation': operation,
   });
 
   @override
-  Future<SettleResult> settleWord({
-    required int sessionId,
-    required int wordId,
-    required bool updateReviewedAt,
-  }) async {
-    final row = await _channel.invokeMapMethod<Object?, Object?>(
-      'settleWord',
-      <String, Object?>{
-        'sessionId': sessionId,
-        'wordId': wordId,
-        'updateReviewedAt': updateReviewedAt,
-      },
+  Future<List<SettlementDraft>> getSettlementDrafts(int sessionId) async {
+    final rows = await _channel.invokeListMethod<Object?>(
+      'getSettlementDrafts',
+      <String, Object?>{'sessionId': sessionId},
     );
-    if (row == null) throw StateError('原生没有返回单词结算结果');
-    return SettleResult.fromMap(row);
+    if (rows == null) return const <SettlementDraft>[];
+    return List<SettlementDraft>.unmodifiable(
+      rows.whereType<Map>().map(
+        (row) => _settlementDraftFromMap(Map<Object?, Object?>.from(row)),
+      ),
+    );
+  }
+
+  @override
+  Future<void> finalizeSessionSettlement(int sessionId) =>
+      _channel.invokeMethod<void>(
+        'finalizeSessionSettlement',
+        <String, Object?>{'sessionId': sessionId},
+      );
+
+  SettlementDraft _settlementDraftFromMap(Map<Object?, Object?> map) {
+    int readInt(String key) {
+      final value = map[key];
+      return value is num ? value.toInt() : 0;
+    }
+
+    int clampInt(int value, int min, int max) => value.clamp(min, max).toInt();
+
+    final recent = map['recent_results'];
+
+    return SettlementDraft(
+      sessionId: readInt('session_id'),
+      wordId: readInt('word_id'),
+      isCorrect: readInt('is_correct') == 1,
+      streak: readInt('streak'),
+      difficultyBefore: readInt('difficulty_before') < 0
+          ? 0
+          : readInt('difficulty_before'),
+      suggestedAdjustment: clampInt(readInt('suggested_adjustment'), -1, 1),
+      adjustment: clampInt(readInt('adjustment'), -1, 1),
+      manual: readInt('operation') == 2,
+      usedTimeSeconds: clampInt(readInt('used_time'), 0, 1 << 30),
+      recentResults: recent is List
+          ? <bool?>[
+              for (final item in recent.take(5))
+                if (item is bool)
+                  item
+                else if (item is num)
+                  item.toInt() == 1
+                else
+                  null,
+            ]
+          : <bool?>[readInt('is_correct') == 1, null, null, null, null],
+    );
   }
 
   @override
@@ -371,9 +546,9 @@ class LocalSessionStore implements SessionStore {
   // ---- 统计 -------------------------------------------------------------
 
   @override
-  Future<int> getTodayCorrectWordCount(String date) async {
+  Future<int> getTodayReviewedWordCount(String date) async {
     final count = await _channel.invokeMethod<int>(
-      'getTodayCorrectWordCount',
+      'getTodayReviewedWordCount',
       <String, Object?>{'date': date},
     );
     // 原生空返回按 0 处理，避免首页统计中断。
@@ -381,9 +556,9 @@ class LocalSessionStore implements SessionStore {
   }
 
   @override
-  Future<List<int>> getTodayCorrectWordIds(String date) async {
+  Future<List<int>> getTodayReviewedWordIds(String date) async {
     final ids = await _channel.invokeListMethod<int>(
-      'getTodayCorrectWordIds',
+      'getTodayReviewedWordIds',
       <String, Object?>{'date': date},
     );
     return ids == null ? const <int>[] : List<int>.unmodifiable(ids);
@@ -397,6 +572,15 @@ class LocalSessionStore implements SessionStore {
     final rows = await _channel.invokeListMethod<Object?>(
       'getDailyCounts',
       <String, Object?>{'since': since, 'correctOnly': correctOnly},
+    );
+    return _readCounts(rows, 'date');
+  }
+
+  @override
+  Future<Map<String, int>> getDailyDurations({String? since}) async {
+    final rows = await _channel.invokeListMethod<Object?>(
+      'getDailyDurations',
+      <String, Object?>{'since': since},
     );
     return _readCounts(rows, 'date');
   }
@@ -425,4 +609,26 @@ class LocalSessionStore implements SessionStore {
     }
     return counts;
   }
+}
+
+Map<String, Object?> _sessionArguments(Map<String, Object?> arguments) {
+  final words = arguments['words'];
+  if (words is! List<Word>) return arguments;
+  return <String, Object?>{
+    ...arguments,
+    'words': words.map((word) => word.toMap()).toList(),
+  };
+}
+
+ByteData _encodeSessionCall(
+  ({String method, Map<String, Object?> arguments}) input,
+) => const StandardMethodCodec().encodeMethodCall(
+  MethodCall(input.method, _sessionArguments(input.arguments)),
+);
+
+Session? _decodeSessionReply(ByteData reply) {
+  final decoded = const StandardMethodCodec().decodeEnvelope(reply);
+  return decoded == null
+      ? null
+      : Session.fromMap(Map<Object?, Object?>.from(decoded as Map));
 }

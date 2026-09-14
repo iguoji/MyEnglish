@@ -39,8 +39,10 @@ class WordSearchField extends StatelessWidget {
         decoration: BoxDecoration(
           // 输入框与卡片同底色。
           color: tokens.card,
-          // 四周使用 Tabler 风格的一像素浅色边框。
-          border: Border.all(color: tokens.inputBorder),
+          // 四周使用 Tabler 风格的一像素浅色边框，与白底卡片、候选词、
+          // 描边按钮同一档。输入框不叠投影：它是页面上的一个「洞」，
+          // 加了投影会像一张贴纸。
+          border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
           // 8 像素圆角与设计稿输入框一致。
           borderRadius: BorderRadius.circular(AppRadius.roundedLg),
         ),

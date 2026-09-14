@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import 'session_question.dart';
+import 'session_record.dart';
+import 'word.dart';
+
 ///
 /// 复习模块的稳定标识。
 ///
@@ -16,7 +20,7 @@ enum ReviewModule {
   listeningMeaning('listening_meaning', '听音辨义'),
 
   ///
-  /// 词义连连：左边单词、右边释义，限时连线配对。
+  /// 词义连连：左边单词、右边释义，把本局全部含义逐条连线配对。
   meaningMatch('meaning_match', '词义连连'),
 
   ///
@@ -43,7 +47,7 @@ enum ReviewModule {
   /// 是否出现在首页的复习模块网格里。
   ///
   /// 随身听是被动听、没有对错，不参与「今日主线过没过关」的三态判定，
-  /// 因此仍然只从词库底部进入，但它的进度照样存进同一张会话表。
+  /// 因此仍然只从词库底部进入，播放清单和进度独立保存在设置中。
   bool get isReviewCard => this != ReviewModule.listening;
 
   ///
@@ -89,7 +93,10 @@ enum SessionKind {
   /// 主线过关之后再进模块开的局，单词是「今天随机一半 + 明天一半」。
   /// 答题照样更新难度、照样写记录，但**不推进单词的复习时间**——
   /// 否则明天那批词会被提前消耗掉，明天就选不到它们了。
-  reinforce(2);
+  reinforce(2),
+
+  /// 自选单词练习，与首页复习进度分别保存。
+  selfTest(3);
 
   ///
   /// 绑定数据库存储值。
@@ -122,19 +129,19 @@ enum SessionKind {
 enum SessionStatus {
   ///
   /// 进行中：同一模块同一天最多只有一条。
-  active(1),
+  active(2),
 
   ///
   /// 完成：这一局的全部条目已经操作完一遍，不论过程中是否答错。
-  completed(2),
+  completed(1),
 
   ///
-  /// 中断：用户改了「每日复习」数量，让这一局凑不齐了。
+  /// 中断：跨天清理或明确重新选择自测单词。
   aborted(3),
 
   ///
-  /// 失败：倒计时耗尽或中途退出，没能把全部条目走完。
-  failed(4);
+  /// 失败：由明确的失败动作写入；不限时的词义连连不会因普通退出自动失败。
+  failed(0);
 
   ///
   /// 绑定数据库存储值。
@@ -156,16 +163,10 @@ enum SessionStatus {
   }
 }
 
+/// 一局会话和完整试卷。
 ///
-/// 一局会话。
-///
-/// [items] 是这一局固定的答题顺序，元素形状按模块而定：
-/// - 随身听 / 听音辨义 / 拼写巩固：`[单词id, ...]`
-/// - 词义连连：`[[单词id, 含义id], ...]`
-/// - 看义选词：`[含义id, ...]`
-///
-/// [cursor] 只是 [items] 的**外层**索引。一条条目内部走到哪一步不存在这里，
-/// 而是靠会话记录反查——每点一次都留了痕，所以现场能精确还原。
+/// groups 对应独立的大题、小题表；items / cursor 是供现有页面取词和显示进度的
+/// 查询投影，不再作为 JSON 数组或下标保存到数据库。重复小题以独立 id 区分。
 class Session {
   ///
   /// 创建一局会话。
@@ -181,7 +182,24 @@ class Session {
     required this.date,
     this.createdAt,
     this.updatedAt,
+    this.groups = const <SessionMainQuestion>[],
+    this.snapshotWords = const <Word>[],
+    this.records = const <SessionRecord>[],
+    this.playback = const <String, Object?>{},
+    this.settlementStatus = 0,
+    this.answerSeconds = 0,
   });
+
+  /// 完整试卷及开局时的词库内容，恢复不再读取已被编辑的现有词库。
+  final List<SessionMainQuestion> groups;
+  final List<Word> snapshotWords;
+  final List<SessionRecord> records;
+  final Map<String, Object?> playback;
+  final int settlementStatus;
+  final int answerSeconds;
+  List<SessionSubQuestion> get questions => <SessionSubQuestion>[
+    for (final group in groups) ...group.questions,
+  ];
 
   /// 自增主键。
   final int id;
@@ -189,19 +207,19 @@ class Session {
   /// 所属复习模块。
   final ReviewModule module;
 
-  /// 主线还是巩固。
+  /// 复习、巩固或自测。
   final SessionKind kind;
 
   /// 当前状态。
   final SessionStatus status;
 
-  /// 来源词库编号；巩固局横跨今明两天，不属于任何词库，为空。
+  /// 关联的每日计划编号；自测没有计划。
   final int? wordSetId;
 
   /// 本局固定的答题顺序（已解码的原始数组）。
   final List<Object?> items;
 
-  /// 当前进度：[items] 的外层索引。
+  /// 当前进度：普通模块是 [items] 的外层索引；词义连连是已完成的配对数。
   final int cursor;
 
   /// 本局已用时间，单位秒。
@@ -217,8 +235,12 @@ class Session {
   final DateTime? updatedAt;
 
   ///
-  /// 本局一共几条。
-  int get total => items.length;
+  /// 本局一共几道题。
+  ///
+  /// 普通模块的一条外层元素就是一道题；词义连连的外层元素是一轮棋盘，
+  /// 所以要展开后再数，不能直接返回 [items.length]。
+  int get total =>
+      module == ReviewModule.meaningMatch ? pairItems.length : items.length;
 
   ///
   /// 这一局是否还能继续答题。
@@ -239,20 +261,58 @@ class Session {
   ];
 
   ///
-  /// 把数据列表读成 [单词id, 含义id] 数对（词义连连）。
+  /// 把数据列表读成「按轮次」的 [单词id, 含义id] 数对（词义连连）。
+  ///
+  /// 新会话的 [items] 是嵌套数组，外层每一项就是一轮；旧会话仍是扁平数组，
+  /// 这里按旧页面的每轮 5 对规则切块，保证历史数据至少可以被读取。
+  List<List<({int wordId, int meaningId})>> get pairRounds {
+    if (items.isEmpty) return const <List<({int wordId, int meaningId})>>[];
+
+    // 新格式：每个外层元素是一轮，轮内元素才是 [wordId, meaningId]。
+    final isNested = items.every(
+      (item) => item is List && (item.isEmpty || item.first is List),
+    );
+    if (isNested) {
+      return List<List<({int wordId, int meaningId})>>.unmodifiable(
+        items.map(_parsePairRound),
+      );
+    }
+
+    // 旧格式：扁平 pair 列表按 5 对切块，仅作为兼容读取，不会用于新建会话。
+    final flat = _parsePairRound(items);
+    return List<List<({int wordId, int meaningId})>>.unmodifiable(
+      <List<({int wordId, int meaningId})>>[
+        for (var start = 0; start < flat.length; start += 5)
+          flat.sublist(start, (start + 5).clamp(0, flat.length)),
+      ],
+    );
+  }
+
+  /// 把按轮次保存的配对摊平，供按单词查找、恢复和首页排序使用。
   List<({int wordId, int meaningId})> get pairItems =>
-      <({int wordId, int meaningId})>[
-        for (final item in items)
-          if (item is List && item.length >= 2 && item[0] is num && item[1] is num)
-            (
-              wordId: (item[0]! as num).toInt(),
-              meaningId: (item[1]! as num).toInt(),
-            )
-          else
-            throw FormatException(
-              '${module.label}的数据列表元素必须是 [单词id, 含义id]，实际为：$item',
-            ),
-      ];
+      <({int wordId, int meaningId})>[for (final round in pairRounds) ...round];
+
+  /// 解析一轮 `[单词id, 含义id]`；数据损坏时明确抛错，不悄悄换题。
+  List<({int wordId, int meaningId})> _parsePairRound(Object? rawRound) {
+    if (rawRound is! List) {
+      throw FormatException('${module.label}的配对轮次必须是数组，实际为：$rawRound');
+    }
+    return <({int wordId, int meaningId})>[
+      for (final item in rawRound)
+        if (item is List &&
+            item.length >= 2 &&
+            item[0] is num &&
+            item[1] is num)
+          (
+            wordId: (item[0]! as num).toInt(),
+            meaningId: (item[1]! as num).toInt(),
+          )
+        else
+          throw FormatException(
+            '${module.label}的配对元素必须是 [单词id, 含义id]，实际为：$item',
+          ),
+    ];
+  }
 
   ///
   /// 把原生返回的一行数据转换成强类型模型。
@@ -266,7 +326,10 @@ class Session {
     if (module == null) throw FormatException('会话模块无法识别：${map['module']}');
 
     // 数据列表以 JSON 文本保存，元素形状因模块而异，这里只还原成原始数组。
-    final decodedItems = jsonDecode(map['items']?.toString() ?? '[]');
+    final rawItems = map['items'];
+    final decodedItems = rawItems is List
+        ? rawItems
+        : jsonDecode(rawItems?.toString() ?? '[]');
     if (decodedItems is! List) {
       throw const FormatException('会话的数据列表必须是数组');
     }
@@ -277,13 +340,32 @@ class Session {
       kind: SessionKind.fromCode(map['kind']),
       status: SessionStatus.fromCode(map['status']),
       // 词库编号可空：巩固局横跨两天，或来源词库已被跨天清理。
-      wordSetId: map['word_set_id'] is num ? (map['word_set_id']! as num).toInt() : null,
+      wordSetId: map['word_set_id'] is num
+          ? (map['word_set_id']! as num).toInt()
+          : null,
       items: List<Object?>.unmodifiable(decodedItems),
       cursor: _readInt(map['cursor']),
       elapsed: _readInt(map['elapsed']),
       date: map['date']?.toString() ?? '',
       createdAt: _readTime(map['created_at']),
       updatedAt: _readTime(map['updated_at']),
+      groups: <SessionMainQuestion>[
+        for (final row in map['groups'] as List? ?? const [])
+          SessionMainQuestion.fromMap(Map<Object?, Object?>.from(row as Map)),
+      ],
+      snapshotWords: <Word>[
+        for (final row in map['words'] as List? ?? const [])
+          Word.fromMap(Map<Object?, Object?>.from(row as Map)),
+      ],
+      records: <SessionRecord>[
+        for (final row in map['records'] as List? ?? const [])
+          SessionRecord.fromMap(Map<Object?, Object?>.from(row as Map)),
+      ],
+      playback: map['playback'] is Map
+          ? Map<String, Object?>.from(map['playback'] as Map)
+          : const <String, Object?>{},
+      settlementStatus: _readInt(map['settlement_status']),
+      answerSeconds: _readInt(map['answer_seconds']),
     );
   }
 

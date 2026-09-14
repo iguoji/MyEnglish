@@ -136,14 +136,17 @@ CREATE INDEX word_sets_date
 -- 5. 会话表 —— 一个模块的一局
 --
 -- items（数据列表）是 JSON 数组，形状按模块而定：
---   随身听     [单词id, ...]
---   听音辨义   [单词id, ...]
---   词义连连   [[单词id, 含义id], ...]
---   拼写巩固   [单词id, ...]
---   看义选词   [含义id, ...]
+--   随身听 / 听音辨义 / 拼写巩固   [单词id, ...]
+--   词义连连（新）                  [[[单词id, 含义id], ...], ...]
+--   词义连连（旧）                  [[单词id, 含义id], ...]
+--   看义选词                         [含义id, ...]
 --
--- cursor 是 items 的外层索引；一条 item 内部走到哪一步不存这里，
--- 靠会话记录表反查（每点一次都有记录，所以能精确还原）。
+-- 词义连连新格式的最外层每一项是一轮棋盘，轮次边界随会话保存；
+-- 旧版扁平配对数组只用于兼容读取，新建会话不会再写入旧格式。
+--
+-- cursor 对普通模块是 items 的外层索引；词义连连页面实际保存已完成的配对数。
+-- 一条 item 内部走到哪一步不存这里，靠会话记录表反查（每点一次都有记录，
+-- 所以能精确还原）。
 -- ---------------------------------------------------------------------------
 CREATE TABLE sessions (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,6 +160,8 @@ CREATE TABLE sessions (
     cursor      INTEGER NOT NULL DEFAULT 0 CHECK (cursor >= 0),
     -- 所用时间，单位秒
     elapsed     INTEGER NOT NULL DEFAULT 0 CHECK (elapsed >= 0),
+    -- 1 表示已经进入结算页但草稿尚未应用；启动时会自动补结算
+    settlement_pending INTEGER NOT NULL DEFAULT 0 CHECK (settlement_pending IN (0, 1)),
     date        TEXT    NOT NULL,
     created_at  INTEGER NOT NULL,
     updated_at  INTEGER NOT NULL,
@@ -175,7 +180,34 @@ CREATE INDEX sessions_status
 
 
 -- ---------------------------------------------------------------------------
--- 6. 会话记录表 —— 每点一次就写一条
+-- 6. 会话结算表 —— 单词完成时先保存，离开结算页时再应用
+-- ---------------------------------------------------------------------------
+CREATE TABLE session_settlements (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id            INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    word_id               INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    difficulty_before     INTEGER NOT NULL CHECK (difficulty_before >= 0),
+    difficulty_after      INTEGER NOT NULL CHECK (difficulty_after >= 0),
+    suggested_adjustment  INTEGER NOT NULL CHECK (suggested_adjustment BETWEEN -1 AND 1),
+    adjustment            INTEGER NOT NULL CHECK (adjustment BETWEEN -1 AND 1),
+    -- 1 系统自动，2 用户手动
+    operation             INTEGER NOT NULL CHECK (operation IN (1, 2)),
+    is_correct             INTEGER NOT NULL CHECK (is_correct IN (0, 1)),
+    streak                 INTEGER NOT NULL DEFAULT 0 CHECK (streak >= 0),
+    used_time              INTEGER NOT NULL DEFAULT 0 CHECK (used_time >= 0),
+    created_at             INTEGER NOT NULL,
+    updated_at             INTEGER NOT NULL,
+    deleted_at             INTEGER NULL,
+    UNIQUE(session_id, word_id)
+);
+
+CREATE INDEX settlements_session
+    ON session_settlements(session_id, word_id)
+    WHERE deleted_at IS NULL;
+
+
+-- ---------------------------------------------------------------------------
+-- 7. 会话记录表 —— 每点一次就写一条
 --
 -- 这张表是整个新设计的支点：因为「每次点击都留痕」，
 -- 会话中断后的现场（做到第几条、哪几个候选已经点错了）全都能反查出来，

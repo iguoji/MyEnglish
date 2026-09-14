@@ -1,0 +1,118 @@
+{
+  "listening": {
+    "dense": {
+      "samples": [
+        {
+          "full_ms": 1308.226,
+          "processing_ms": 173.811
+        },
+        {
+          "full_ms": 1193.385,
+          "processing_ms": 170.541
+        },
+        {
+          "full_ms": 1711.963,
+          "processing_ms": 266.374
+        },
+        {
+          "full_ms": 1394.728,
+          "processing_ms": 175.344
+        }
+      ],
+      "full_ms": 1351.477,
+      "processing_ms": 174.5775,
+      "bytes": 1000036
+    },
+    "compact": {
+      "samples": [
+        {
+          "full_ms": 1547.103,
+          "processing_ms": 163.011
+        },
+        {
+          "full_ms": 1176.34,
+          "processing_ms": 300.64
+        },
+        {
+          "full_ms": 1559.576,
+          "processing_ms": 207.518
+        },
+        {
+          "full_ms": 1227.681,
+          "processing_ms": 169.717
+        }
+      ],
+      "full_ms": 1387.392,
+      "processing_ms": 188.6175,
+      "bytes": 831590
+    },
+    "saved": {
+      "full_ms": -35.914999999999964,
+      "processing_ms": -14.04000000000002,
+      "bytes": 168446
+    },
+    "saved_percent": {
+      "full_ms": -2.657462909098709,
+      "processing_ms": -8.042273488851668,
+      "bytes": 16.843993616229817
+    }
+  },
+  "listening_meaning": {
+    "dense": {
+      "samples": [
+        {
+          "full_ms": 2970.166,
+          "processing_ms": 901.069
+        },
+        {
+          "full_ms": 2952.209,
+          "processing_ms": 1056.032
+        },
+        {
+          "full_ms": 2517.595,
+          "processing_ms": 832.662
+        },
+        {
+          "full_ms": 2287.405,
+          "processing_ms": 659.578
+        }
+      ],
+      "full_ms": 2734.902,
+      "processing_ms": 866.8655,
+      "bytes": 3203971
+    },
+    "compact": {
+      "samples": [
+        {
+          "full_ms": 2305.236,
+          "processing_ms": 563.369
+        },
+        {
+          "full_ms": 2626.792,
+          "processing_ms": 693.682
+        },
+        {
+          "full_ms": 2229.469,
+          "processing_ms": 584.715
+        },
+        {
+          "full_ms": 2919.05,
+          "processing_ms": 823.316
+        }
+      ],
+      "full_ms": 2466.014,
+      "processing_ms": 639.1985,
+      "bytes": 2224621
+    },
+    "saved": {
+      "full_ms": 268.8879999999999,
+      "processing_ms": 227.66700000000003,
+      "bytes": 979350
+    },
+    "saved_percent": {
+      "full_ms": 9.831723403617385,
+      "processing_ms": 26.26324383655827,
+      "bytes": 30.56675606614417
+    }
+  }
+}

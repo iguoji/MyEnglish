@@ -56,7 +56,9 @@ class Meaning {
   /// 主词性 `n.` 无子词性 → 显示 `n.`；两者都空 → 显示 `*`。
   String get displayPos {
     // 子词性更精确，有就优先用它。
-    final preferred = (subPos ?? '').trim().isNotEmpty ? subPos!.trim() : pos.trim();
+    final preferred = (subPos ?? '').trim().isNotEmpty
+        ? subPos!.trim()
+        : pos.trim();
     // 统一小写，避免旧数据里的 "N." 和 "n." 显示成两种样子。
     final normalized = preferred.toLowerCase();
     // 空词性使用星号占位，避免页面绘制一个看不见但仍占位的标签。
@@ -79,7 +81,8 @@ class Meaning {
       // 新建但未落库的释义允许没有主键。
       id: _readOptionalInt(map['id'], 'Meaning.id'),
       // 嵌套在单词里返回时没有 word_id，继承外层单词的主键。
-      wordId: _readOptionalInt(map['word_id'], 'Meaning.word_id') ?? fallbackWordId,
+      wordId:
+          _readOptionalInt(map['word_id'], 'Meaning.word_id') ?? fallbackWordId,
       // 缺失词性时保存空文本，displayPos 会统一显示星号。
       pos: map['pos']?.toString() ?? '',
       // 子词性可空；空字符串一律归一成 null，避免出现两种「没有」。
@@ -101,7 +104,7 @@ class Meaning {
   Map<String, Object?> toMap() => <String, Object?>{
     'id': id,
     'word_id': wordId,
-    'pos': pos,
+    'pos': pos.trim().isEmpty || pos == '*' ? null : pos,
     'sub_pos': subPos,
     'definition': definition,
     'confusions': List<String>.from(confusions),
@@ -121,16 +124,17 @@ class Meaning {
 
   ///
   /// 返回按表单结果编辑后的副本，供「修改单词」提交时使用。
-  Meaning copyWith({String? pos, String? subPos, String? definition}) => Meaning(
-    id: id,
-    wordId: wordId,
-    pos: pos ?? this.pos,
-    // 子词性允许被清空，所以不能用 `??` —— 那样传 null 会变成「保持原值」。
-    subPos: subPos,
-    definition: definition ?? this.definition,
-    confusions: confusions,
-    sort: sort,
-  );
+  Meaning copyWith({String? pos, String? subPos, String? definition}) =>
+      Meaning(
+        id: id,
+        wordId: wordId,
+        pos: pos ?? this.pos,
+        // 子词性允许被清空，所以不能用 `??` —— 那样传 null 会变成「保持原值」。
+        subPos: subPos,
+        definition: definition ?? this.definition,
+        confusions: confusions,
+        sort: sort,
+      );
 }
 
 ///
@@ -215,7 +219,10 @@ class MeaningGroup {
 /// 4. **光杆 `v.` 减去更精确的动词组**。`v.` 只表示「这是个动词」，
 ///    同一句中文既标 `v.` 又标 `vt.` 时，那条 `v.` 是没整理干净的残留，
 ///    更精确的那个赢。
-Map<String, List<Meaning>> buildMeaningGroups(List<Meaning> meanings) {
+Map<String, List<Meaning>> buildMeaningGroups(
+  List<Meaning> meanings, {
+  bool verbOnlyMerge = false,
+}) {
   // ---- 1 + 2：按词性归组并在组内去重 ----------------------------------
   // LinkedHashMap（Dart 的默认 Map）保留插入顺序，所以词性先后由首次出现决定。
   final grouped = <String, List<Meaning>>{};
@@ -225,8 +232,11 @@ Map<String, List<Meaning>> buildMeaningGroups(List<Meaning> meanings) {
     // 空释义不该出现在任何地方。
     if (text.isEmpty) continue;
     final pos = meaning.displayPos;
+    // 仅在「动词内合并」开启、且这条含义本身是动词（主词性为 v.）时，
+    // 才在同一词性内按释义去重；其余词性（n./adj./adv. 等）的相同中文一律保留，不合并。
+    final dedupe = !verbOnlyMerge || meaning.pos.trim().toLowerCase() == kVerb;
     // 同一词性下这句中文已经收过了，第二条直接跳过。
-    if (!(seenByPos[pos] ??= <String>{}).add(text)) continue;
+    if (dedupe && !(seenByPos[pos] ??= <String>{}).add(text)) continue;
     (grouped[pos] ??= <Meaning>[]).add(meaning);
   }
 
@@ -295,8 +305,7 @@ Map<String, List<Meaning>> _orderGroups(Map<String, List<Meaning>> grouped) {
     if (entry.value.isNotEmpty) ordered[entry.key] = entry.value;
     // 每经过一个 vi./vt.（不论它是否被掏空）就把合并组挪到当前末尾，
     // 于是它最终停在两者中靠后的那个之后。
-    if (hasMerged &&
-        (entry.key == kIntransitive || entry.key == kTransitive)) {
+    if (hasMerged && (entry.key == kIntransitive || entry.key == kTransitive)) {
       ordered.remove(kTransitiveAndIntransitive);
       ordered[kTransitiveAndIntransitive] = merged;
     }
@@ -324,9 +333,8 @@ List<({String pos, String? subPos})> splitPos(String input) {
   final value = input.trim().toLowerCase();
   return switch (value) {
     // 未选词性：主词性存空串，界面照旧显示成 '*'。
-    '' || '*' => const <({String pos, String? subPos})>[
-      (pos: '', subPos: null),
-    ],
+    '' ||
+    '*' => const <({String pos, String? subPos})>[(pos: '', subPos: null)],
     // 动词的三种子类：主词性统一记成 v.，细分降为子词性。
     kIntransitive => const <({String pos, String? subPos})>[
       (pos: kVerb, subPos: kIntransitive),

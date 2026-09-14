@@ -154,6 +154,17 @@ abstract final class AppSize {
   static const double speakerButton = 40;
 
   ///
+  /// 36 · 页面级加载圈的直径。
+  ///
+  /// 生活化解释：整页都还没有内容、只在正中转一个圈时用的尺寸。太小会显得
+  /// 程序没在干活，太大又像出了错。
+  ///
+  /// 它和首页词库列表里那个 20 的小圈（`HomeLayout.loadingIndicatorSize`）
+  /// **不是一档**：那个嵌在列表中间，意思是「这一块还在加载」，尺寸跟着列表走；
+  /// 这一档独占整屏，是「整页都在等」。
+  static const double loadingIndicator = 36;
+
+  ///
   /// 44 · 手指可点的下限。
   ///
   /// 这一档不是某个组件的尺寸，而是一条规矩：可以点的东西不该矮于 44，

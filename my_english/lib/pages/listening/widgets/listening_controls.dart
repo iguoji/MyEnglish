@@ -72,10 +72,10 @@ class ListeningPlaylistSearchField extends StatelessWidget {
           ),
           // 左侧宽度已由 prefixIconConstraints 提供，只给文字右侧保留 8 像素。
           contentPadding: const EdgeInsets.only(right: AppSpace.p2),
-          // 未聚焦时使用普通输入框边框。
+          // 未聚焦时使用普通输入框边框，与白底卡片、候选词、描边按钮同一档。
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.rounded),
-            borderSide: BorderSide(color: tokens.inputBorder),
+            borderSide: BorderSide(color: tokens.rowBorder, width: AppStroke.thin),
           ),
           // 聚焦后只改变边框颜色，不改变宽度、高度或内边距。
           focusedBorder: OutlineInputBorder(
@@ -196,7 +196,7 @@ class _StepButton extends StatelessWidget {
           // Container 绘制按钮的一像素边框。
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: tokens.inputBorder),
+              border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
               borderRadius: BorderRadius.circular(AppRadius.roundedLg),
             ),
             // 禁用状态使用更浅颜色，但图标和画布尺寸保持不变。
@@ -255,8 +255,8 @@ class ListeningSmallIconButton extends StatelessWidget {
         // Container 绘制按钮背景边框。
         child: Container(
           decoration: BoxDecoration(
-            // 边框颜色跟随主题。
-            border: Border.all(color: tokens.inputBorder),
+            // 边框颜色跟随主题，与其它控件描边同一档。
+            border: Border.all(color: tokens.rowBorder, width: AppStroke.thin),
             // 圆角与搜索框一致。
             borderRadius: BorderRadius.circular(AppRadius.rounded),
           ),

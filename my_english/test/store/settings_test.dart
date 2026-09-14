@@ -56,10 +56,9 @@ void main() {
       DefinitionSeparator.fullWidthSemicolon,
     );
     expect(settings.dailyGoal, 35);
-    // 修改回美式、Light、全角逗号和新的每日目标。
+    // 修改回美式、Light 和新的每日目标（分隔符与字号设置已取消，不再可改）。
     await settings.setAccent(PronunciationAccent.american);
     await settings.setTheme(AppThemePreference.light);
-    await settings.setDefinitionSeparator(DefinitionSeparator.fullWidthComma);
     await settings.setDailyGoal(40);
     // MethodCall 未实现相等运算符，必须使用 flutter_test 的 isMethodCall 匹配器。
     // 2.0 起原生统一走 setSetting 单方法，参数携带键、值与类型。
@@ -90,17 +89,6 @@ void main() {
       isMethodCall(
         'setSetting',
         arguments: <String, Object?>{
-          'key': 'definitionSeparator',
-          'value': 'full_width_comma',
-          'type': 'string',
-        },
-      ),
-    );
-    expect(
-      calls[4],
-      isMethodCall(
-        'setSetting',
-        arguments: <String, Object?>{
           'key': 'dailyGoal',
           'value': '40',
           'type': 'int',
@@ -110,7 +98,8 @@ void main() {
     // Store 内存同步更新。
     expect(settings.accent, PronunciationAccent.american);
     expect(settings.theme, AppThemePreference.light);
-    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthComma);
+    // 分隔符已取消，始终为全角分号。
+    expect(settings.definitionSeparator, DefinitionSeparator.fullWidthSemicolon);
     expect(settings.dailyGoal, 40);
     // 释放 ChangeNotifier。
     settings.dispose();
