@@ -18,6 +18,7 @@ __pycache__/
 # 属于可再生数据且体积大，只留在本地，不进版本库。
 memory/MyEnglish-*.json
 memory/audio_test/
+outputs/
 
 # Kotlin/Gradle 编译缓存（android 构建产生，每台机器不同，不纳入版本控制）
 my_english/android/.kotlin/
