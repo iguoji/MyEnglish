@@ -28,7 +28,17 @@
 //    内边距统一负责，不设任何「绝对定位 / 悬浮」。
 //
 // ─────────────────────────────────────────────────────────────────────────
-// 三、对外事件（尽量通用）
+// 三、按键手感（触感）
+// ─────────────────────────────────────────────────────────────────────────
+//  每颗键（字母键和删除键）都在「手指按下」的那一刻震一下，用的是与候选词
+//  点击同一档的轻震动（HapticFeedback.lightImpact）——触屏没有键程，只能靠
+//  震动补上「我按到了」这件事；强度与全站其它「点一下」保持同一档，不会出现
+//  键盘震得比候选词更重的手感断层。
+//
+//  长按删除键进入连发后，每删掉一格再震一次，作为「已经删了几个」的节奏反馈。
+//
+// ─────────────────────────────────────────────────────────────────────────
+// 四、对外事件（尽量通用）
 // ─────────────────────────────────────────────────────────────────────────
 //  [onLetterTap]  点任意一颗字母键（回调参数为小写字母 a~z）。
 //  [onDeleteTap]  单击删除键。
@@ -40,7 +50,7 @@
 //  处理，全由使用页面自己决定，因此任何拼写 / 听写类页面都能直接复用。
 //
 // ─────────────────────────────────────────────────────────────────────────
-// 四、使用示例
+// 五、使用示例
 // ─────────────────────────────────────────────────────────────────────────
 //  QwertyKeyboard(
 //    onLetterTap: (letter) => _appendLetter(letter),   // 拼进当前单词
@@ -57,6 +67,9 @@ import 'dart:async';
 
 // material.dart 提供指针事件、容器、动画与主题。
 import 'package:flutter/material.dart';
+
+// services.dart 提供 HapticFeedback：按下键帽时给一次轻震动。
+import 'package:flutter/services.dart';
 
 // 所有可见图标统一来自 Tabler；删除键默认用 backspace 图标。
 
@@ -251,6 +264,20 @@ class _QwertyKeyboardState extends State<QwertyKeyboard> {
     _deleteHolding = false;
   }
 
+  ///
+  /// 按下键帽时给一次触感反馈。
+  ///
+  /// 生活化解释：触屏没有实体键程，手指按下去没有任何「咔哒」的手感，
+  /// 只能靠一下轻震动补上。这里用的是与候选词点击同一档的轻震动
+  /// （[HapticFeedback.lightImpact]），整个 App 的「点一下」都是同一种手感，
+  /// 不会键盘震得比候选词重、听起来像两个 App。
+  ///
+  /// 不 await：震动只是反馈，绝不能让按键逻辑等它。桌面端、模拟器等没有
+  /// 震动器的平台调用它不会报错，直接忽略即可。
+  void _tapFeedback() {
+    unawaited(HapticFeedback.lightImpact());
+  }
+
   /// 延迟清除按下状态，让非常快的点击也能稳定显示按下反馈。
   void _scheduleKeyRelease() {
     _pressReleaseTimer?.cancel();
@@ -273,12 +300,17 @@ class _QwertyKeyboardState extends State<QwertyKeyboard> {
 
   // ===== 以下为指针状态机：按下 / 滑动 / 抬起 / 取消 =====
 
-  /// 手指按下某颗键：记下起点并让这颗键进入「按下」视觉。
+  /// 手指按下某颗键：记下起点、让这颗键进入「按下」视觉，并给一次震动。
   void _handleKeyDown(String key, Offset position) {
     _pressReleaseTimer?.cancel();
     _pressReleaseTimer = null;
     _downPosition = position;
     _slidOut = false;
+    // 触感必须落在「按下」这一刻，而不是「抬起」那一刻。
+    // 生活化解释：实体键盘是手指先感到键帽下沉、屏幕上才出现字；把震动放在
+    // 按下瞬间，手感和键帽缩小变灰（`.key:active`）是同一个节拍，比等到抬起
+    // 才震更接近真键盘，快速连打时也不会觉得震动慢了半拍。
+    _tapFeedback();
     setState(() => _downKey = key);
   }
 
@@ -475,6 +507,9 @@ class _QwertyKeyboardState extends State<QwertyKeyboard> {
           if (!mounted || _slidOut || _downKey != _kDeleteKeyLabel) return;
           _deleteHolding = true;
           // 进入连发的第一下立刻删一个，之后按周期继续。
+          // 连发期间每一格都补一次震动：手指一直按着时，震动就是「删到第几个了」
+          // 的节奏反馈，和系统键盘按住退格的手感一致。
+          _tapFeedback();
           widget.onDeleteRepeat?.call();
           widget.onDeleteTap?.call();
           _repeatTimer = Timer.periodic(widget.deleteRepeatInterval, (_) {
@@ -484,6 +519,7 @@ class _QwertyKeyboardState extends State<QwertyKeyboard> {
               _repeatTimer = null;
               return;
             }
+            _tapFeedback();
             widget.onDeleteRepeat?.call();
             widget.onDeleteTap?.call();
           });

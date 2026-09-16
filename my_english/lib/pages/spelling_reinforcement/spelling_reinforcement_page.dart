@@ -482,14 +482,40 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     // 已经拼满就不再接受输入（切换单词停顿期间的保险）。
     if (_typedLetters.length >= target.length) return;
     // 这里不比较答案，用户按下什么就先显示什么；整词填完后才一次性检查。
+    // 落格前先按答案对齐大小写：键盘只发小写，答案里的 September 却要求
+    // 首字母大写，这一步让字母格里的字和答案长得一模一样。
+    final slotIndex = _typedLetters.length;
     setState(() {
-      _typedLetters.add(letter);
+      _typedLetters.add(_alignCaseToAnswer(letter, slotIndex));
       _typedEntryTokens.add(_nextLetterEntryToken++);
       // 紧跟其后的空格、连字符自动补上，光标落到下一个真正要输入的字母。
       _autoFillNonLetters();
     });
     unawaited(_persist());
     if (_typedLetters.length >= target.length) _evaluateCurrentWord();
+  }
+
+  ///
+  /// 把用户按下的字母对齐到答案在同一个位置上的大小写。
+  ///
+  /// 生活化解释：26 键键盘只有小写字母、也没有 Shift，但答案里的 September
+  /// 首字母是大写。用户按下 s 时，字母格里必须显示 S——否则会出现「明明拼对了，
+  /// 屏幕上的词却和答案长得不一样」，用户会怀疑自己少按了什么。
+  ///
+  /// 规则只有一条：答案这一格是大写字母，输入就转大写；否则保持小写。
+  /// 用户输错字母时同样按这个规则走：整词检查失败后会清空重来，这半秒里显示
+  /// 大写不会造成任何误解，规则却能保持单一，不用再分「对 / 错」两套。
+  ///
+  /// 对齐后的结果同时用于槽位显示、整词比较（忽略大小写）和落库记录，
+  /// 三者永远一致，数据库里存的也是「September」而不是「september」。
+  String _alignCaseToAnswer(String letter, int index) {
+    final target = _targetSpelling;
+    // 越界理论上不会发生（调用前已确认没拼满），这里只做防御性返回。
+    if (index < 0 || index >= target.length) return letter;
+    final expected = target[index];
+    return expected == expected.toUpperCase()
+        ? letter.toUpperCase()
+        : letter.toLowerCase();
   }
 
   /// 整个单词填完后统一比较，不在输入过程中逐个弹出错误提示。
