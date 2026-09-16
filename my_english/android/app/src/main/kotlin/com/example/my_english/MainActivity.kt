@@ -225,7 +225,7 @@ class MainActivity : FlutterActivity() {
                     "finishSession",
                     "finalizeSessionSettlement",
                     "recoverPendingSettlements",
-                    "abortStaleSessions",
+                    "settleStaleSessions",
                     "abortActiveSessions",
                     "getSessionRecords",
                     "getTodayReviewedWordCount",

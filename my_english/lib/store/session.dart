@@ -124,8 +124,10 @@ abstract interface class SessionStore {
   /// 启动时落实已完成但尚未提交的结算。
   Future<int> recoverPendingSettlements();
 
-  /// 中断跨天后仍未完成的会话，保留历史记录。
-  Future<int> abortStaleSessions(String today);
+  /// 启动或跨天回到前台时收尾昨天及更早还挂在「进行中」的会话：
+  /// 答过题的按已答小题默默结算并落实难度，一条答案都没答过的直接中断。
+  /// 返回本次收尾掉的会话数量。
+  Future<int> settleStaleSessions(String today);
 
   /// 维护操作中断进行中的会话；修改每日目标不调用它。
   Future<int> abortActiveSessions();
@@ -423,12 +425,12 @@ class LocalSessionStore implements SessionStore {
   }
 
   @override
-  Future<int> abortStaleSessions(String today) async {
+  Future<int> settleStaleSessions(String today) async {
     final count = await _channel.invokeMethod<int>(
-      'abortStaleSessions',
+      'settleStaleSessions',
       <String, Object?>{'date': today},
     );
-    // 原生空返回按 0 处理，启动流程不应因清理失败而中断。
+    // 原生空返回按 0 处理，启动流程不应因收尾失败而中断。
     return count ?? 0;
   }
 

@@ -176,7 +176,7 @@ internal class StudyRepository(private val owner: WordsDatabase) {
         "finishSession" -> finish(p)
         "finalizeSessionSettlement" -> finalize(p.long("sessionId"))
         "recoverPendingSettlements" -> rows("SELECT id FROM sessions WHERE status=1 AND settlement_status=0 AND deleted_at IS NULL ORDER BY id").sumOf { finalize(it.long("id")) }
-        "abortStaleSessions" -> abortWhere("date<>?", listOf(p["date"].toString()))
+        "settleStaleSessions" -> closeStale(p["date"].toString())
         "abortActiveSessions" -> abortWhere("1=1", emptyList())
         "getSessionRecords" -> records(p.long("sessionId"))
         "getTodayReviewedWordCount", "getTodayCorrectWordCount" -> reviewedIds(p["date"].toString()).size
@@ -662,7 +662,13 @@ internal class StudyRepository(private val owner: WordsDatabase) {
     private fun history(wordId: Long) = rows("SELECT * FROM session_word_settlements WHERE word_id=? AND apply_status=1 AND deleted_at IS NULL ORDER BY updated_at DESC,id DESC", wordId)
     private fun difficulty(wordId: Long) = one("SELECT difficulty FROM words WHERE id=?", wordId)?.long("difficulty") ?: 0L
 
-    private fun prepare(sid: Long, wordId: Long): Map<String, Any?> {
+    /**
+     * 生成或更新某个单词的结算草稿（只写草稿，暂不改动难度）。
+     *
+     * [partial] 为 true 时用于跨天收尾：只看已经答过的小题，一条没答的词不结算。
+     * 正常流程（用户答完整局点「完成」）保持严格口径，必须整词答完才允许结算。
+     */
+    private fun prepare(sid: Long, wordId: Long, partial: Boolean = false): Map<String, Any?> {
         val s = session(sid)
         require(s.int("settlement_status") == 0 && s.int("requires_answer") == 1 && s.int("status") in listOf(1, 2)) { "会话无需重新结算" }
         val qs = wordQuestions(sid, wordId)
@@ -671,8 +677,19 @@ internal class StudyRepository(private val owner: WordsDatabase) {
             "WHERE d.word_id=? AND g.session_id=? AND a.attempt_no=g.retry_count+1 " +
             "AND d.deleted_at IS NULL AND a.deleted_at IS NULL AND q.deleted_at IS NULL AND g.deleted_at IS NULL ORDER BY a.id", wordId, sid)
             .groupBy { it.long("sub_question_id") }
-        require(qs.isNotEmpty() && qs.all { complete(it, answered[it.long("id")].orEmpty()) }) { "这个词尚未完成全部题目" }
-        val correct = qs.all { q -> answered[q.long("id")].orEmpty().all { it.int("is_correct") == 1 } }
+        if (partial) {
+            // 跨天收尾：这个词至少答过一道小题才有资格结算，否则跳过、难度不动。
+            require(qs.isNotEmpty() && answered.isNotEmpty()) { "这个词还没有任何作答" }
+        } else {
+            require(qs.isNotEmpty() && qs.all { complete(it, answered[it.long("id")].orEmpty()) }) { "这个词尚未完成全部题目" }
+        }
+        // 判对口径：整局答完时看这个词的全部小题；跨天收尾只看已经答过的那部分——
+        // 例如一个词有 10 条释义只答到第 5 条，就按这 5 条判对错（全对才算对）。
+        val correct = if (partial) {
+            answered.values.all { answersOfQuestion -> answersOfQuestion.all { it.int("is_correct") == 1 } }
+        } else {
+            qs.all { q -> answered[q.long("id")].orEmpty().all { it.int("is_correct") == 1 } }
+        }
         val previous = history(wordId)
         val streak = if (correct) previous.takeWhile { it.int("is_correct") == 1 }.size + 1 else 0
         val suggestion = if (!correct) 1 else if (streak >= owner.settingInt("streakToEasier", 5).coerceAtLeast(1)) -1 else 0
@@ -767,6 +784,68 @@ internal class StudyRepository(private val owner: WordsDatabase) {
         for (s in selected) abort(s.long("id"))
         selected.size
     }
+
+    /**
+     * 跨天收尾：把昨天及更早还挂在「进行中」的会话收掉，返回收尾的局数。
+     *
+     * 生活化解释：昨天做到一半退出去了，今天再打开 App，那一局已经没有意义
+     * ——今天有今天的词库。收尾分两种走法：
+     * - 已经作答过的：按「已答小题」当场结算并落实难度，不弹结算页，用户不必回来确认；
+     * - 一条答案都没答过的：没有任何结算依据，直接中断，难度保持不动。
+     * 以前这里一律中断，用户如果还停在昨天的答题页上，接着答就会一路保存失败。
+     */
+    private fun closeStale(date: String): Int {
+        // 日期格式必须先挡住：写错日期会让下面的条件匹配到全部会话。
+        require(owner.validDate(date)) { "收尾日期无效" }
+        val stale = owner.rows("SELECT id FROM sessions WHERE status=2 AND deleted_at IS NULL AND date<>?", listOf(date))
+        var closed = 0
+        for (row in stale) {
+            val sid = row.long("id")
+            try {
+                // 一局一个事务：某一局收尾失败时整体回滚，其它局照常收掉，
+                // 也不会把「收了一半」的会话留在库里。
+                owner.transaction { closeStaleSession(sid) }
+                closed++
+            } catch (error: Throwable) {
+                // 收尾属于启动维护动作，失败只写日志；这一局保持原样，下次启动再收。
+                AppLog.e("study_settlement", "跨天收尾失败 session=$sid：${error.message ?: error.javaClass.simpleName}")
+            }
+        }
+        return closed
+    }
+
+    /** 收尾一局跨天会话：有作答的按已答情况结算，一条答案都没有的直接中断。 */
+    private fun closeStaleSession(sid: Long) {
+        val s = session(sid)
+        // 随身听这类不需要作答的会话没有结算可言，保持原来的中断做法。
+        if (s.int("requires_answer") != 1) {
+            abort(sid)
+            return
+        }
+        val wordIds = answeredWordIds(sid)
+        // 一条答案都没有：没有可结算的依据，难度不能凭空空降一个变化。
+        if (wordIds.isEmpty()) {
+            abort(sid)
+            return
+        }
+        // 只给「答过的小题」写草稿；没答完的词也算数，不必等它答全。
+        for (wordId in wordIds) prepare(sid, wordId, partial = true)
+        // 与正常完成走同一套收尾：收掉全部大题、补齐实际答题用时，再落实难度。
+        for (g in groups(sid)) owner.update("session_main_questions", g.long("id"), mapOf("phase" to 3))
+        owner.update("sessions", sid, mapOf("status" to 1,
+            "answer_seconds" to allQuestions(sid).sumOf { it.int("used_seconds") }))
+        finalize(sid)
+    }
+
+    /** 本局当前遍次里已经留下作答记录的单词编号，按编号升序。 */
+    private fun answeredWordIds(sid: Long) = rows(
+        "SELECT DISTINCT d.word_id FROM session_question_details d " +
+            "JOIN session_sub_questions q ON q.id=d.sub_question_id " +
+            "JOIN session_main_questions g ON g.id=q.main_question_id " +
+            "JOIN session_question_answers a ON a.sub_question_id=q.id " +
+            "WHERE g.session_id=? AND a.attempt_no=g.retry_count+1 AND d.deleted_at IS NULL " +
+            "AND q.deleted_at IS NULL AND g.deleted_at IS NULL AND a.deleted_at IS NULL ORDER BY d.word_id", sid,
+    ).map { it.long("word_id") }.distinct()
 
     private fun reviewedIds(date: String) = rows("SELECT DISTINCT word_id FROM session_word_settlements WHERE apply_status=1 AND deleted_at IS NULL AND date=? ORDER BY word_id", date).map { it.long("word_id") }
     private fun dailyCounts(since: String?) = rows("SELECT date,COUNT(DISTINCT word_id) AS count FROM session_word_settlements WHERE apply_status=1 AND deleted_at IS NULL AND date>=? GROUP BY date ORDER BY date", since ?: "0000-01-01")

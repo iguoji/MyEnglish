@@ -717,15 +717,22 @@ class MemorySessionStore implements SessionStore {
   Future<int> recoverPendingSettlements() async => 0;
 
   @override
-  Future<int> abortStaleSessions(String today) async {
+  Future<int> settleStaleSessions(String today) async {
     var count = 0;
     for (var index = sessions.length - 1; index >= 0; index -= 1) {
       final session = sessions[index];
       // 只收掉「不是今天」的进行中会话，今天的进度完整保留。
-      if (session.status == SessionStatus.active && session.date != today) {
-        sessions[index] = _rebuild(session, status: SessionStatus.aborted);
-        count += 1;
+      if (session.status != SessionStatus.active || session.date == today) {
+        continue;
       }
+      // 与原生同一口径：答过题的按已答情况默默结算，一条答案都没有的直接中断。
+      // 内存假实现只体现「这局最后落到哪个状态」，不重算难度变化。
+      final answered = _currentRecords(session.id).isNotEmpty;
+      sessions[index] = _rebuild(
+        session,
+        status: answered ? SessionStatus.completed : SessionStatus.aborted,
+      );
+      count += 1;
     }
     return count;
   }

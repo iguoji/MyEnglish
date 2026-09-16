@@ -627,7 +627,7 @@ void main() {
   });
 
   group('跨天清理', () {
-    test('昨天没打完的局在启动时被收成中断，今天的局不受影响', () async {
+    test('昨天一条答案都没答的局在启动时被中断，今天的局不受影响', () async {
       final sessionStore = MemorySessionStore(today: date);
       // 手动塞一条昨天的进行中会话。
       sessionStore.sessions.add(
@@ -651,9 +651,9 @@ void main() {
         date: date,
       );
 
-      final aborted = await sessionStore.abortStaleSessions(date);
+      final closed = await sessionStore.settleStaleSessions(date);
 
-      expect(aborted, 1);
+      expect(closed, 1);
       expect(
         sessionStore.sessions.firstWhere((item) => item.id == 99).status,
         SessionStatus.aborted,

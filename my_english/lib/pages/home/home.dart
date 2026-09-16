@@ -270,10 +270,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///
   /// 今天还挂着「进行中」的四种自测会话，用来显示词库底部的「继续」。
   ///
-  /// 只看今天：会话表按日期组织，昨天没练完的局启动时已经收成「中断」。
+  /// 只看今天：会话表按日期组织，昨天没练完的局启动时已经默默结算或中断。
   var _resumableSessions = const <ReviewModule, Session>{};
   ReviewModule _libraryModule = ReviewModule.listening;
   bool _learningActionBusy = false;
+
+  ///
+  /// 四个答题页共用的路由名。
+  ///
+  /// 生活化解释：跨天回到 App 时，首页要把还停在答题页的那一层收掉——那一局
+  /// 已经在后台默默结算完，留在上面继续答只会一路报「保存失败」。带上这个名字，
+  /// 收尾时就能精确地只收答题页，不会顺手把随身听等其它页面一起弹掉。
+  static const String _reviewRouteName = 'review-session';
 
   ///
   /// 当前处于下载或播放状态的具体 Word 对象。
@@ -366,13 +374,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   ///
-  /// 把昨天及更早还挂在「进行中」的复习会话统一改成「中断」。
-  ///
-  /// 生活化解释：昨天做到一半退出去了，今天再打开 App，那一局已经没有意义
-  /// ——今天有今天的词库。不收掉的话，数据库里会攒下一堆永远不会结束的局。
-  /// 先落实上次已完成的结算，再读取词库和计划，避免首屏读到旧难度和旧统计。
+  /// 首屏数据加载：先收尾跨天会话，再并行读取词库、进度、今日计划和未完成会话。
   Future<void> _loadInitialData() async {
-    await _abortStaleReviewSessions(recoverSettlements: true);
+    // 启动时没有页面栈，收尾结果只用于保持数据库整洁，不需要送回首页。
+    await _closeStaleReviewSessions(recoverSettlements: true);
     if (!mounted) return;
     await Future.wait<void>(<Future<void>>[
       _loadWords(),
@@ -382,12 +387,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ]);
   }
 
-  Future<void> _refreshAfterResume() async {
-    await _abortStaleReviewSessions();
-    if (mounted) await _refreshReviewDashboard();
-  }
-
-  Future<void> _abortStaleReviewSessions({
+  ///
+  /// 跨天收尾：把昨天及更早还挂在「进行中」的会话收掉。
+  ///
+  /// 生活化解释：昨天做到一半退出去了，今天再打开 App，那一局已经没有意义
+  /// ——今天有今天的词库。收尾分两种走法：答过题的按已答情况当场结算并落实难度
+  /// （不弹结算页、不让用户调难度），一条答案都没答过的直接中断。
+  /// 先落实上次已完成但没提交的结算，再读取词库和计划，避免首屏读到旧难度和旧统计。
+  ///
+  /// 返回本次收尾掉的会话数量；调用方据此判断要不要把用户从答题页送回首页。
+  Future<int> _closeStaleReviewSessions({
     bool recoverSettlements = false,
   }) async {
     try {
@@ -396,12 +405,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // 普通恢复前台时，结算页可能仍在编辑，不能提前替用户确认。
       if (recoverSettlements) await _sessionStore.recoverPendingSettlements();
       // 会话表按日期组织；开局时会拿今天的日期查，昨天那些查不到也就不会被续上。
-      // 这里把它们统一收成「中断」，免得数据库里攒下一堆永远不会结束的局。
-      await _sessionStore.abortStaleSessions(todayKey());
+      // 这里把它们统一收尾，免得数据库里攒下一堆永远不会结束的局。
+      return await _sessionStore.settleStaleSessions(todayKey());
     } catch (error) {
-      // 清理属于后台维护动作，失败只写日志，绝不影响首页展示。
-      debugPrint('清理过期复习会话失败：$error');
+      // 收尾属于后台维护动作，失败只写日志，绝不影响首页展示。
+      debugPrint('收尾过期复习会话失败：$error');
+      return 0;
     }
+  }
+
+  Future<void> _refreshAfterResume() async {
+    final closed = await _closeStaleReviewSessions();
+    if (!mounted) return;
+    // 有会话被收尾，说明用户很可能还停在昨天那一局的答题页上：
+    // 把他送回首页，避免他继续答一份已经结算掉的试卷。
+    if (closed > 0) _leaveStaleReviewPage();
+    await _refreshReviewDashboard();
+  }
+
+  ///
+  /// 跨天收尾后，把还停在答题页的用户送回首页。
+  ///
+  /// 只收答题页那一层：用户可能正在看别的页面（比如随身听），不能一并弹掉。
+  /// 这一局已经在后台结算完，留在页面上继续答只会一路报「保存失败」。
+  void _leaveStaleReviewPage() {
+    final navigator = Navigator.of(context);
+    // 栈顶不是答题页时不会弹任何东西，等于什么都没发生。
+    var popped = false;
+    navigator.popUntil((route) {
+      if (route.isFirst || route.settings.name != _reviewRouteName) return true;
+      popped = true;
+      return false;
+    });
+    // 只有真的把用户从答题页里请出来才提示；启动时静默收尾不打扰用户。
+    if (popped) Toast.show(context, '上次没答完的练习已按已答情况结算');
   }
 
   ///
@@ -911,6 +948,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     SessionProgress? opened;
     final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute<dynamic>(
+        // 带上固定路由名：跨天收尾时首页据此精确地把答题页收掉（见 [_reviewRouteName]）。
+        settings: const RouteSettings(name: _reviewRouteName),
         builder: (_) => SessionGate<SessionProgress>(
           pending: pending,
           onDiscard: (progress) => progress.detach(),
@@ -1077,8 +1116,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _dailyWordSet = null;
         }
       });
-      // 后台待了一夜再回来，昨天没打完的局要先收成「中断」，
-      // 否则今天点开模块会续上昨天那一局。
+      // 后台待了一夜再回来，昨天没打完的局要先收尾（按已答情况结算），
+      // 否则今天点开模块会续上昨天那一局；用户还停在答题页时会被送回首页。
       unawaited(_refreshAfterResume());
       // 回到前台时把仪表盘的进度整体重算：今日复习数、每日词库、未完成会话，
       // 以及趋势曲线与打卡日历（跨天或后台产生过记录时保持准确）。
