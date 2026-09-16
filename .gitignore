@@ -17,6 +17,7 @@ __pycache__/
 # 但里面的 MyEnglish-*.json 是 App 导出的数据快照（单份 1~3M），
 # 属于可再生数据且体积大，只留在本地，不进版本库。
 memory/MyEnglish-*.json
+memory/MyEnglish-*.txt
 memory/audio_test/
 outputs/
 
