@@ -533,11 +533,15 @@ class _TrendChartPainter extends CustomPainter {
     // 数值气泡和横轴日期就会整体挪位。字号仍然引用总表台阶。
     // 复习时间：不足 1 小时显示分钟，否则显示小时；整数取整、非整数保留一位小数；
     // 结果为 0 时只写一个「0」，不带单位（见 _formatReviewDuration 的说明）。
+    //
+    // 字号与字重：这行数字只起"读数"作用，粗体让它比曲线本身还抢眼，和它
+    // 衬托的节点权重倒过来了。改为正文字重 + 比原来小一档（fs5 → fs6，
+    // 14 → 12），让它安静地待在节点上方。字号仍走总表台阶，不写死数字。
     final valueSpan = TextSpan(
       text: _formatReviewDuration(data[selectedIndex].value),
       style: TextStyle(
-        fontSize: AppFont.fs5,
-        fontWeight: AppWeight.bold,
+        fontSize: AppFont.fs6,
+        fontWeight: AppWeight.normal,
         color: color,
       ),
     );
