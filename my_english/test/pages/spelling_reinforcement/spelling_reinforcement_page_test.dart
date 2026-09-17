@@ -12,7 +12,7 @@ import 'package:my_english/models/meaning.dart';
 import 'package:my_english/models/word.dart';
 // 被测页面与其布局尺寸表。
 import 'package:my_english/pages/spelling_reinforcement/spelling_reinforcement_page.dart';
-import 'package:my_english/widgets/letter_slot.dart';
+import 'package:my_english/widgets/answer_slots.dart';
 import 'package:my_english/pages/review/services/session_progress.dart';
 import 'package:my_english/services/word_audio.dart';
 import 'package:my_english/store/settings.dart';
@@ -103,7 +103,7 @@ void main() {
         tester.getRect(find.byKey(Key('spelling-slot-$i'))),
     ];
     for (final rect in rects) {
-      expect(rect.width, LetterSlotLayout.letterWidth);
+      expect(rect.width, AnswerSlotsLayout.letterWidth);
       expect(rect.top, rects[0].top);
     }
     // 拼写页固定使用键盘（通用组件 QwertyKeyboard 的字母键自带 qwerty-key-*）。
@@ -172,12 +172,13 @@ void main() {
     );
 
     // 占位格从空白重新开始（v2.0 不恢复「拼了一半」的现场）。
-    // 空槽不渲染文字节点，直接读字母格组件自身的 text 字段确认是空位。
+    // 空槽不渲染文字节点，直接读答案槽位自身的数据确认是空位。
     expect(
       tester
-          .widget<LetterSlot>(find.byKey(const Key('spelling-slot-0')))
-          .text,
-      isNull,
+          .widget<AnswerSlot>(find.byKey(const Key('spelling-slot-0')))
+          .cell
+          .filled,
+      isFalse,
       reason: '续玩应从当前词的开头重新拼',
     );
     // 页面仍可正常作答，不抛异常。

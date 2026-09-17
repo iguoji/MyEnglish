@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import '../common/theme.dart';
 // 引入释义分组模型，只读模式可以直接吃模型层整理好的结果。
 import '../models/meaning.dart';
-// 引入统一的闪烁光标，揭示模式下提示「下一条含义填在这里」。
-import 'blinking_caret.dart';
+// 引入全App统一的答案槽位：含义的下划线、光标与入场动画都由它负责。
+import 'answer_slots.dart';
 
 ///
 /// 「词性及含义」面板的尺寸表。
@@ -15,6 +15,9 @@ import 'blinking_caret.dart';
 /// `lib/pages/spelling_reinforcement/widgets/spelling_layout.dart` 的
 /// `meaning*` 一族常量，现在跟着组件搬到这里（值一个没改）。
 /// 参照 `lib/widgets/qwerty_keyboard.dart` 的做法：公共组件自己维护尺寸。
+///
+/// 含义空位的下划线、光标尺寸不在本表：它们和字母格是同一种「填空」，
+/// 统一由 `lib/widgets/answer_slots.dart` 的 `AnswerSlotsLayout` 维护。
 ///
 abstract final class PosMeaningPanelLayout {
   // 「标题字距压平为 0」这一档已经删除：全站默认早就不加字距了，这里再写一遍 0
@@ -76,44 +79,6 @@ abstract final class PosMeaningPanelLayout {
   ///
   /// 含义正文字号，对应原型的 `text-[14.5px]`。
   static const double textSize = AppFont.fs5;
-
-  ///
-  /// 待填含义下方那条下划线的粗细。
-  ///
-  /// 这个值必须与 `LetterSlotLayout.underlineHeight` 保持一致：
-  /// 拼写巩固填字母、这里填含义，两处是同一种「填空」观感，粗细一旦不同
-  /// 用户会立刻看出是两套东西。改动时请同步另一处。
-  static const double underlineHeight = AppStroke.mark;
-
-  ///
-  /// 当前待填下划线外围的淡蓝焦点扩散宽度。
-  ///
-  /// 与字母格共用总表同一档 [AppSize.underlineGlow]，不再需要人工同步。
-  static const double underlineFocusSpread = AppSize.underlineGlow;
-
-  ///
-  /// 当前待填下划线焦点扩散的透明度。
-  ///
-  /// 与字母格共用总表同一档 [AppAlpha.a10]，不再需要人工同步。
-  static const double underlineFocusAlpha = AppAlpha.a10;
-
-  ///
-  /// 光标粗细。
-  ///
-  /// 与字母格共用总表同一档 [AppSize.caretWidth]，不再需要人工同步。
-  static const double caretWidth = AppSize.caretWidth;
-
-  ///
-  /// 光标高度上限。
-  ///
-  /// 含义行只有一行文字那么高（[textSize] × [AppLine.lhBase]），塞不下字母格
-  /// 那样的满高光标，所以实际高度会按可用空间收缩，这里只封顶。封顶值取总表
-  /// [AppSize.caretHeight]，与字母格的光标同源同一档，高度随总表一起变。
-  static const double caretMaxHeight = AppSize.caretHeight;
-
-  ///
-  /// 光标底部与下划线之间留出的空隙，避免竖线压在横线上。
-  static const double caretGap = AppSpace.p1;
 }
 
 ///
@@ -397,9 +362,10 @@ class PosMeaningPanel extends StatelessWidget {
   ///
   /// 构建卡片右侧的含义列表。
   ///
-  /// 用 Wrap 而不是一整段文字，是因为揭示模式必须能单独盖住其中某一条。
-  /// 为了让换行位置和一整段文字一致，分隔符不作为独立元素排队，而是跟在
-  /// 它前面那条含义后面一起走——这样分隔符永远不会被挤到下一行的行首。
+  /// 整块交给公共的答案槽位组件（含义模式：按文字自动定宽、揭开后不再画
+  /// 下划线）。为了让换行位置和一整段文字一致，分隔符不作为独立元素排队，
+  /// 而是作为后缀跟在它前面那条含义后面一起走——这样分隔符永远不会被挤到
+  /// 下一行的行首。
   Widget _buildDefinitions(
     AppTokens tokens,
     TextTheme textTheme,
@@ -411,156 +377,41 @@ class PosMeaningPanel extends StatelessWidget {
     // 收敛前这里另写过「24 像素 ÷ 字号」，是全站唯一按像素写的行高；并档之后
     // 它和正文档正好相等，于是这一行删掉，交回主题继承。
     final style = textTheme.fs5.copyWith(color: tokens.definition);
+    final isReadOnly = mode == PosMeaningPanelMode.readOnly;
+    // 光标只落在正在作答的那一条上；这一行没有正在作答的含义就不显示光标。
+    final flatActive = activeIndex;
+    final localActive = flatActive == null ? null : flatActive - firstFlatIndex;
+    final hasActive =
+        !isReadOnly &&
+        localActive != null &&
+        localActive >= 0 &&
+        localActive < row.definitions.length;
 
-    final children = <Widget>[];
-    for (var index = 0; index < row.definitions.length; index += 1) {
-      final definition = row.definitions[index];
-      final flatIndex = firstFlatIndex + index;
-      // 最后一条后面不跟分隔符。
-      final tail = index == row.definitions.length - 1 ? '' : separator;
-      // 只读模式全部公开；揭示模式只公开已经答对的那几条。
-      final isRevealed =
-          mode == PosMeaningPanelMode.readOnly || flatIndex < revealedCount;
-
-      if (isRevealed) {
-        // 已公开：含义和它后面的分隔符合成一段文字，读起来就是普通句子。
-        children.add(
-          Text(
-            '$definition$tail',
-            key: Key('$keyPrefix-definition-$flatIndex'),
-            style: style,
-          ),
-        );
-        continue;
-      }
-
-      final blank = _DefinitionBlank(
-        key: Key('$keyPrefix-blank-$flatIndex'),
-        definition: definition,
-        style: style,
-        isActive: flatIndex == activeIndex,
-        lineColor: flatIndex == activeIndex ? AppTokens.primary : tokens.check,
-      );
-      // 未公开：遮盖只盖含义本身，分隔符照常显示，所以两者要拼成一个整体，
-      // 总宽度才与公开后的「含义 + 分隔符」完全相等。
-      children.add(
-        tail.isEmpty
-            ? blank
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Flexible(child: blank),
-                  Text(tail, style: style),
-                ],
-              ),
-      );
-    }
-
-    return Wrap(
+    return AnswerSlots(
+      line: AnswerSlotLine.hideWhenFilled,
+      cellWidth: null,
+      textStyle: style,
       alignment: WrapAlignment.start,
-      crossAxisAlignment: WrapCrossAlignment.start,
-      children: children,
-    );
-  }
-}
-
-///
-/// 一条还没答对的含义：只露出一条下划线，当前那条再加一个闪烁光标。
-///
-/// 核心技巧：**真实含义就垫在底层**，只是被设成完全透明不绘制。
-/// 它照常参与排版，所以这块空白的宽高与答对后一模一样；答对时组件换成
-/// 普通文字，尺寸不变，用户看到的就是含义「无声无息地填了进去」。
-///
-/// 这里不用「和卡片同色的实心遮罩」去盖文字：那样一旦卡片底色变成半透明
-/// 或渐变，答案就会透出来提前泄题。透明度为 0 不依赖任何颜色，更安全。
-///
-class _DefinitionBlank extends StatelessWidget {
-  ///
-  /// 创建一条待填含义的空位。
-  const _DefinitionBlank({
-    required this.definition,
-    required this.style,
-    required this.isActive,
-    required this.lineColor,
-    super.key,
-  });
-
-  ///
-  /// 真实含义；只用来撑出宽高，不会显示也不会被朗读。
-  final String definition;
-
-  ///
-  /// 与已公开含义完全相同的文字样式，宽度才能对得上。
-  final TextStyle style;
-
-  ///
-  /// 是否是用户当前正在作答的那一条。
-  final bool isActive;
-
-  ///
-  /// 下划线颜色：当前条用品牌蓝，后面还没轮到的用浅灰。
-  final Color lineColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      // 焦点扩散会画到边界外一点，不能裁掉。
-      clipBehavior: Clip.none,
-      children: [
-        // 不带 Positioned 的这一个孩子决定 Stack 的尺寸，也就是「尺子」。
-        ExcludeSemantics(
-          child: Opacity(
-            opacity: AppAlpha.none,
-            child: Text(definition, style: style),
-          ),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Container(
-            height: PosMeaningPanelLayout.underlineHeight,
-            decoration: BoxDecoration(
-              color: lineColor,
-              borderRadius: BorderRadius.circular(AppRadius.roundedPill),
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color: AppTokens.primary.withValues(
-                          alpha: PosMeaningPanelLayout.underlineFocusAlpha,
-                        ),
-                        // blurRadius 为 0 + spreadRadius，等价于 CSS 的
-                        // `box-shadow: 0 0 0 3px`：一圈实心淡蓝描边而不是模糊光晕。
-                        blurRadius: AppShadow.none,
-                        spreadRadius:
-                            PosMeaningPanelLayout.underlineFocusSpread,
-                      ),
-                    ]
-                  : null,
-            ),
-          ),
-        ),
-        if (isActive)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom:
-                PosMeaningPanelLayout.underlineHeight +
-                PosMeaningPanelLayout.caretGap,
-            // 光标高度跟随这条含义的实际可用高度，不给空位强行套一个固定高度。
-            child: LayoutBuilder(
-              builder: (context, constraints) => Align(
-                alignment: Alignment.bottomCenter,
-                child: BlinkingCaret(
-                  width: PosMeaningPanelLayout.caretWidth,
-                  height: constraints.maxHeight
-                      .clamp(1.0, PosMeaningPanelLayout.caretMaxHeight)
-                      .toDouble(),
-                ),
-              ),
-            ),
+      spacing: AppSpace.p0,
+      runSpacing: AppSpace.p0,
+      showCaret: hasActive,
+      activeIndex: hasActive ? localActive : null,
+      cells: [
+        for (var index = 0; index < row.definitions.length; index += 1)
+          AnswerSlotCell(
+            // key 在揭开前后保持不变：换 key 等于把这一格销毁重建，
+            // 入场动画就播不出来了。
+            key: Key('$keyPrefix-definition-${firstFlatIndex + index}'),
+            text: row.definitions[index],
+            // 只读模式全部公开；揭示模式只公开已经答对的那几条。
+            filled: isReadOnly || firstFlatIndex + index < revealedCount,
+            // 揭示模式下：没揭开时没有入场票，揭开那一刻拿到票（null → 1），
+            // 组件据此播一次入场动画。只读模式恒为 null，从不播动画。
+            entryToken: !isReadOnly && firstFlatIndex + index < revealedCount
+                ? 1
+                : null,
+            // 最后一条后面不跟分隔符。
+            suffix: index == row.definitions.length - 1 ? '' : separator,
           ),
       ],
     );

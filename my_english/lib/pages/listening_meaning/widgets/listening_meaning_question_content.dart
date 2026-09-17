@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../common/theme.dart';
 import '../../../widgets/audio_speaker_button.dart';
-import '../../../widgets/letter_slot.dart';
+import '../../../widgets/answer_slots.dart';
 import '../../../widgets/pos_meaning_panel.dart';
 import 'listening_meaning_layout.dart';
 
@@ -94,6 +94,8 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
     required this.steps,
     required this.definitionSeparator,
     required this.accentLabel,
+    this.wordRevealToken,
+    this.onWordRevealSettled,
     // 底部结果提示三件套由页面算好传进来，不传即不展示提示。
     this.hintText,
     this.hintColor,
@@ -121,6 +123,16 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
 
   /// 当前口音的中文名称，显示在播音胶囊第二行。
   final String accentLabel;
+
+  /// 听音阶段选对单词后的「入场票」：不为 null 时字母格整词填入并转绿。
+  ///
+  /// 页面选对的那一刻发一张票，字母依次弹出；动画播完后经
+  /// [onWordRevealSettled] 通知页面，页面再切到释义阶段。这样选对与切换
+  /// 之间的那几百毫秒里屏幕上是有内容的，而不是干等。
+  final int? wordRevealToken;
+
+  /// 听音阶段整词填入的动画播完时调用。
+  final VoidCallback? onWordRevealSettled;
 
   /// 卡片底部的结果提示文案（错误次数 / 全对），为 null 表示当前不展示提示。
   ///
@@ -184,6 +196,8 @@ class ListeningMeaningQuestionContent extends StatelessWidget {
                             spelling: spelling,
                             isPlaying: isPlaying,
                             onSpeakerTap: onSpeakerTap,
+                            revealToken: wordRevealToken,
+                            onRevealSettled: onWordRevealSettled,
                             tokens: tokens,
                           ),
                   ),
@@ -259,21 +273,27 @@ class _ListenStage extends StatelessWidget {
     required this.spelling,
     required this.isPlaying,
     required this.onSpeakerTap,
+    required this.revealToken,
+    required this.onRevealSettled,
     required this.tokens,
   });
 
   final String spelling;
   final bool isPlaying;
   final VoidCallback onSpeakerTap;
+
+  /// 选对后的入场票；为 null 表示还在作答，字母格全是空位。
+  final int? revealToken;
+
+  /// 整词填入动画播完时的通知。
+  final VoidCallback? onRevealSettled;
+
   final AppTokens tokens;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final characters = spelling.runes
-        .map(String.fromCharCode)
-        .where(_isEnglishLetter)
-        .toList(growable: false);
+    final revealed = revealToken != null;
 
     return Column(
       key: const Key('listening-meaning-question-content'),
@@ -301,25 +321,28 @@ class _ListenStage extends StatelessWidget {
           style: textTheme.fs5.copyWith(color: tokens.textSecondary),
         ),
         const SizedBox(height: AppSpace.pBase),
-        // 答案字母格：复用看义选词 / 拼写巩固同一套 LetterSlot，三个模块的
-        // 「填空」观感完全一致——不再用一排短横线占位。听音选词阶段答案还没
-        // 揭晓，所有格子都是空位；光标落在第一格，配色与看义选词未答组相同
-        // （第一格蓝下划线 + 光晕 + 闪烁光标，其余格子浅灰下划线）。
-        Wrap(
+        // 答案槽位：与拼写巩固 / 看义选词共用同一个 AnswerSlots，三个模块的
+        // 「填空」观感完全一致。作答中字母格全部是空位，光标自动落在第一个
+        // 字母上；选对后整词填入、字母依次弹出并转绿。撇号、连字符、空格这类
+        // 静态字符从一开始就显示（`o'clock` 的撇号以前在这里被过滤掉了）。
+        AnswerSlots(
           key: const Key('listening-meaning-spelling-mask'),
-          alignment: WrapAlignment.center,
-          spacing: LetterSlotLayout.letterGap,
-          runSpacing: LetterSlotLayout.letterRunGap,
-          children: [
-            for (var index = 0; index < characters.length; index += 1)
-              LetterSlot(
-                key: Key('listening-meaning-mask-$index'),
-                text: null,
-                isActive: index == 0,
-                lineColor: index == 0 ? AppTokens.primary : tokens.check,
-                textColor: tokens.textSecondary,
-                entryToken: null,
-              ),
+          tone: revealed ? AnswerSlotTone.correct : AnswerSlotTone.neutral,
+          showCaret: !revealed,
+          onSettled: onRevealSettled,
+          cells: [
+            for (var index = 0; index < spelling.length; index += 1)
+              AnswerSlots.isLetter(spelling[index])
+                  ? AnswerSlotCell(
+                      text: spelling[index],
+                      filled: revealed,
+                      entryToken: revealToken,
+                      key: Key('listening-meaning-mask-$index'),
+                    )
+                  : AnswerSlotCell.static(
+                      spelling[index],
+                      key: Key('listening-meaning-mask-$index'),
+                    ),
           ],
         ),
       ],
@@ -452,7 +475,3 @@ class _MeaningRowBuilder {
 ///
 /// 播放状态只驱动一组低频声纹，不依赖页面的业务定时器；这样正文滚动、切题
 /// 和系统返回时，胶囊都能自行停止动画，不会把状态更新泄漏到已离场页面。
-///
-/// 判断是否为 ASCII 英文字母；遮罩只为字母生成短线。
-bool _isEnglishLetter(String character) =>
-    RegExp(r'^[A-Za-z]$').hasMatch(character);

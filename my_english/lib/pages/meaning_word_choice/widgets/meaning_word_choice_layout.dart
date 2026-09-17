@@ -17,8 +17,8 @@ import '../../../widgets/module_scaffold.dart';
 ///
 /// 正文区对齐听音辨义：一张白卡浮在页面底色上，卡内内容垂直居中，
 /// 从上到下是「标签 → 中文释义大字 → 词性说明 → 下划线字母格 → 底部提示」。
-/// 字母格自身的尺寸不在本表，它由公共组件 `lib/widgets/letter_slot.dart`
-/// 的 `LetterSlotLayout` 维护（与拼写巩固共用同一套）。
+/// 字母格自身的尺寸不在本表，它由公共组件 `lib/widgets/answer_slots.dart`
+/// 的 `AnswerSlotsLayout` 维护（与拼写巩固、听音辨义共用同一套）。
 ///
 /// 本表里**不再有字号**：字号连同字重、文字色一起搬进了主题的文字档位
 /// （见 `lib/common/theme.dart`），页面直接写 `textTheme.fs4Semibold` 这样的

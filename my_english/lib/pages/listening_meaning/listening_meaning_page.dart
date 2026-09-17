@@ -1,4 +1,5 @@
 import '../../widgets/choice_option_grid.dart';
+import '../../widgets/answer_slots.dart';
 import 'dart:math' show max;
 // dart:async 提供 unawaited，播放音频时不阻塞按钮响应。
 import 'dart:async';
@@ -148,6 +149,21 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 当前正在进行拼写选择还是释义选择。
   ListeningMeaningStage _stage = ListeningMeaningStage.word;
+
+  ///
+  /// 听音阶段选对后发给字母格的「入场票」；null 表示还在作答。
+  ///
+  /// 有票时字母格整词填入并转绿，字母依次弹出；动画播完（见
+  /// [_wordRevealSettled]）才切到释义阶段。这样选对与切换之间不再是干等。
+  int? _wordRevealToken;
+
+  ///
+  /// 入场票流水号，每次选对加一，保证新票和旧票不同。
+  int _wordRevealSeq = 0;
+
+  ///
+  /// 字母格「整词填入 + 转绿」播完的信号，由正文组件的 onSettled 触发。
+  Completer<void>? _wordRevealSettled;
 
   ///
   /// 当前词性组在有效释义列表中的下标。
@@ -595,9 +611,16 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
         _wrongOptions.contains(option.text)) {
       return;
     }
+    // 听音阶段选对：立刻给字母格发票，整词填入、依次弹出并转绿。
+    final revealsWord =
+        option.isCorrect && _stage == ListeningMeaningStage.word;
     setState(() {
       _isSavingAnswer = true;
       _pendingChoice = option;
+      if (revealsWord) {
+        _wordRevealToken = ++_wordRevealSeq;
+        _wordRevealSettled = Completer<void>();
+      }
     });
     if (option.isCorrect) {
       HapticFeedback.lightImpact();
@@ -605,14 +628,22 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       HapticFeedback.heavyImpact();
     }
     try {
-      // 点击立刻反馈，短动画与落盘同时进行；成功保存后才换题。
+      // 点击立刻反馈，动画与落盘同时进行；成功保存后才换题。
+      // 听音阶段等的是字母格真正播完，不是估一个毫秒数；释义阶段没有
+      // 整词填入，只等候选卡变绿那一小段。
       await Future.wait<void>(<Future<void>>[
         _recordAnswer(input: option.text, isCorrect: option.isCorrect),
-        if (option.isCorrect && !MediaQuery.disableAnimationsOf(context))
+        if (revealsWord)
+          _awaitWordReveal()
+        else if (option.isCorrect && !MediaQuery.disableAnimationsOf(context))
           Future<void>.delayed(const Duration(milliseconds: AppDuration.ms160)),
       ], eagerError: true);
     } catch (error) {
-      if (mounted) Toast.show(context, '答案保存失败：$error');
+      if (mounted) {
+        // 保存失败要把字母格退回空位，用户才能重新点。
+        setState(() => _wordRevealToken = null);
+        Toast.show(context, '答案保存失败：$error');
+      }
       return;
     } finally {
       if (mounted) {
@@ -679,6 +710,31 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     unawaited(_persistSession());
     // 下一条释义拥有独立缓存，不能沿用上一条释义的三个干扰项。
     unawaited(_restoreOrCreateCurrentConfusions());
+  }
+
+  ///
+  /// 等字母格把整词填完、变色播完。
+  ///
+  /// 以正文组件的完成通知为准；通知万一没来，最多等一次动画的最长时长
+  /// 也往下走，页面不会卡在这里。
+  Future<void> _awaitWordReveal() {
+    final settled = _wordRevealSettled;
+    if (settled == null) return Future<void>.value();
+    // 兜底用可取消的 Timer：通知先到就把它撤掉，不留一个挂着的定时器。
+    final fallback = Timer(
+      const Duration(milliseconds: AnswerSlotsLayout.maxSettleMs),
+      () {
+        if (!settled.isCompleted) settled.complete();
+      },
+    );
+    return settled.future.whenComplete(fallback.cancel);
+  }
+
+  ///
+  /// 字母格报告「整词填入 + 转绿」播完。
+  void _onWordRevealSettled() {
+    final settled = _wordRevealSettled;
+    if (settled != null && !settled.isCompleted) settled.complete();
   }
 
   ///
@@ -902,8 +958,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     setState(() {
       // 保持 widget.words 原始顺序，只把下标向后移动一位。
       _wordIndex++;
-      // 每个新单词都从拼写阶段开始。
+      // 每个新单词都从拼写阶段开始，字母格回到空位。
       _stage = ListeningMeaningStage.word;
+      _wordRevealToken = null;
       // 词性下标回到第一项。
       _meaningIndex = 0;
       // 清除上一题的错误禁用项。
@@ -952,8 +1009,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     // 一次 setState 完整回滚当前题的全部答题状态（与 _goToNextWord 相同的字段集，
     // 唯一区别是不移动 _wordIndex，仍停留在同一个单词上）。
     setState(() {
-      // 回到拼写阶段，重新"听音选词"。
+      // 回到拼写阶段，重新"听音选词"，字母格回到空位。
       _stage = ListeningMeaningStage.word;
+      _wordRevealToken = null;
       // 词性下标回到第一项。
       _meaningIndex = 0;
       // 清除被标红禁用的错误候选项。
@@ -1204,6 +1262,9 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
                           definitionSeparator: widget.definitionSeparator,
                           // 播音胶囊沿用拼写巩固模块的口音文案，确保设置和实际发音一致。
                           accentLabel: widget.accent.label,
+                          // 听音阶段选对后整词填入；播完由正文组件回报，页面再切阶段。
+                          wordRevealToken: _wordRevealToken,
+                          onWordRevealSettled: _onWordRevealSettled,
                           // 结果提示（错误次数 / 全对）贴在白卡底部；不展示时 text 为 null。
                           hintText: hint.text,
                           hintColor: hint.color,

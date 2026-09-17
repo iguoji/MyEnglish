@@ -20,9 +20,9 @@ import '../../../widgets/module_scaffold.dart';
 /// 统一提供，本表因此不再有 `headerTop` / `headerButtonSize` / `progressTop`
 /// 这一族档位；结算页那一套同理，见 [ModuleSummaryLayout]。
 ///
-/// 「下划线字母格」也不在本表：它已抽成通用组件
-/// `lib/widgets/letter_slot.dart`，尺寸由 `LetterSlotLayout` 维护，
-/// 拼写巩固与看义选词共用。
+/// 「下划线字母格」也不在本表：它已抽成通用组件「答案槽位」
+/// `lib/widgets/answer_slots.dart`，尺寸由 `AnswerSlotsLayout` 维护，
+/// 拼写巩固、看义选词、听音辨义共用。
 ///
 /// 26 键键盘不在本表：它已抽成通用组件
 /// `lib/widgets/qwerty_keyboard.dart`（视觉复刻 ui/听音拼写1.html），
@@ -167,10 +167,10 @@ abstract final class SpellingLayout {
   static const double playbackLabelLetterSpacing =
       AudioCapsuleLayout.playbackLabelLetterSpacing;
 
-  // 字母格（下划线 + 光标 + 入场动画）已抽成通用组件
-  // `lib/widgets/letter_slot.dart`，原来的 `spellingLetter*` /
+  // 字母格（下划线 + 光标 + 入场动画）已抽成通用组件「答案槽位」
+  // `lib/widgets/answer_slots.dart`，原来的 `spellingLetter*` /
   // `spellingUnderline*` / `spellingCaret*` / `letterEntry*` 一族常量
-  // 跟着搬进了 `LetterSlotLayout`（值一个没改），看义选词现在共用同一套。
+  // 跟着搬进了 `AnswerSlotsLayout`（值一个没改），看义选词、听音辨义共用。
 
   /// 拼写字母区域与底部提示文字之间的距离。
   static const double spellingStatusTop = AppSpace.p3;

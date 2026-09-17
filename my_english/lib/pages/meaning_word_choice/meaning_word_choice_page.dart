@@ -26,7 +26,7 @@ import '../../store/settings.dart';
 // 引入模块页面模板：上中下三段骨架、顶栏三个插槽与结算页共用版式。
 import '../../widgets/module_scaffold.dart';
 import '../../widgets/settlement_summary.dart';
-import '../../widgets/letter_slot.dart';
+import '../../widgets/answer_slots.dart';
 // 引入复习模块共用的进度出口：负责把快照落进今天的会话。
 import '../review/services/session_progress.dart';
 // 引入含义序列与候选词构建服务。
@@ -35,8 +35,9 @@ import 'services/meaning_word_choice_round_builder.dart';
 import 'widgets/meaning_word_choice_layout.dart';
 
 ///
-/// 只有 ASCII 英文字母才占一格下划线；撇号、连字符、空格直接显示。
-final RegExp _englishLetterPattern = RegExp(r'^[A-Za-z]$');
+/// 只有 ASCII 英文字母才占一格下划线；撇号、连字符、空格由答案槽位当静态
+/// 字符直接显示。判定规则与答案槽位组件同一处。
+bool _isLetter(String character) => AnswerSlots.isLetter(character);
 
 ///
 /// 全屏看义选词页面。
@@ -654,7 +655,7 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
                       ),
                       _buildPosLine(tokens, round),
                       const SizedBox(height: MeaningWordChoiceLayout.slotsTop),
-                      _buildAnswerSlots(tokens, round),
+                      _buildAnswerSlots(round),
                       const SizedBox(height: MeaningWordChoiceLayout.hintTop),
                       Text(
                         '选错的选项将被禁用，直到选中正确答案',
@@ -736,12 +737,12 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 构建下划线字母格区：一条释义对应几个单词，就排几组字母格。
   ///
-  /// 字母格用的是拼写巩固同一个组件（`lib/widgets/letter_slot.dart`），
+  /// 字母格用的是拼写巩固同一个组件（`lib/widgets/answer_slots.dart`），
   /// 所以两个模块的「填空」观感完全一致：这边不用键盘敲，选中正确候选后
-  /// 整个单词一次填入并转绿。
+  /// 整个单词一次填入并转绿，字母按顺序依次弹出。
   ///
   /// 排列顺序按拼写字母升序固定，闪烁光标落在第一个还没答出来的那组上。
-  Widget _buildAnswerSlots(AppTokens tokens, MeaningWordChoiceRound round) {
+  Widget _buildAnswerSlots(MeaningWordChoiceRound round) {
     final ordered = <int>[...round.matchIds]
       ..sort((first, second) {
         final bySpelling = (_wordsById[first]?.spelling ?? '')
@@ -765,7 +766,6 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
           if (index > 0)
             const SizedBox(height: MeaningWordChoiceLayout.slotRowGap),
           _buildAnswerRow(
-            tokens,
             ordered[index],
             isActiveWord: ordered[index] == activeWordId,
           ),
@@ -779,75 +779,44 @@ class _MeaningWordChoicePageState extends State<MeaningWordChoicePage>
   ///
   /// 已答出的整组转绿，并且点一下可以重听发音——这一条能力从原来的
   /// 「点单词气泡重播」平移过来，去掉气泡后没有丢。
-  Widget _buildAnswerRow(
-    AppTokens tokens,
-    int wordId, {
-    required bool isActiveWord,
-  }) {
+  Widget _buildAnswerRow(int wordId, {required bool isActiveWord}) {
     final spelling = _wordsById[wordId]?.spelling ?? '';
     final revealed = _pickedIds.contains(wordId);
     final entryToken = _revealTokens[wordId];
-    final children = <Widget>[];
-    // 记住第一个字母的位置：光标只画在这一格上。
-    var firstLetterIndex = -1;
-    for (var index = 0; index < spelling.length; index += 1) {
-      final character = spelling[index];
-      // 撇号、连字符、空格这类非字母字符直接显示，不占用一格下划线。
-      if (!_englishLetterPattern.hasMatch(character)) {
-        children.add(
-          SizedBox(
-            width: character == ' '
-                ? LetterSlotLayout.letterWidth * 0.55
-                : LetterSlotLayout.letterWidth * 0.65,
-            height: LetterSlotLayout.letterHeight,
-            child: Center(
-              child: Text(
-                character == ' ' ? '' : character,
-                style: TextStyle(
-                  color: revealed ? AppTokens.success : tokens.textSecondary,
-                  fontSize: LetterSlotLayout.letterTextSize,
-                  fontWeight: AppWeight.semibold,
-                ),
-              ),
+    final row = AnswerSlots(
+      // 已答出的整组转绿；光标只落在当前作答那一组的第一个字母上。
+      tone: revealed ? AnswerSlotTone.correct : AnswerSlotTone.neutral,
+      showCaret: !revealed && isActiveWord,
+      cells: [
+        for (var index = 0; index < spelling.length; index += 1)
+          // 撇号、连字符、空格这类非字母字符是静态字符，直接显示，不占下划线。
+          if (!_isLetter(spelling[index]))
+            AnswerSlotCell.static(
+              spelling[index],
+              key: Key('meaning-word-choice-slot-$wordId-$index'),
+            )
+          else
+            AnswerSlotCell(
+              key: Key('meaning-word-choice-slot-$wordId-$index'),
+              text: spelling[index],
+              filled: revealed,
+              // 整组共用同一张入场票：组件按格子顺序给每个字母递增延迟。
+              entryToken: revealed ? entryToken : null,
             ),
-          ),
-        );
-        continue;
-      }
-      if (firstLetterIndex < 0) firstLetterIndex = index;
-      final isCaret = !revealed && isActiveWord && index == firstLetterIndex;
-      children.add(
-        LetterSlot(
-          key: Key('meaning-word-choice-slot-$wordId-$index'),
-          text: revealed ? character : null,
-          isActive: isCaret,
-          lineColor: revealed
-              ? AppTokens.success
-              : isCaret
-              ? AppTokens.primary
-              : tokens.check,
-          textColor: AppTokens.success,
-          entryToken: revealed ? entryToken : null,
-          // 整词一次填入，用「轻轻浮现」那一档；敲键盘式的从零弹出会让
-          // 一整排字母显得晚了一拍才出现。
-          entryStyle: LetterEntryStyle.reveal,
-        ),
-      );
-    }
-    final row = Wrap(
-      alignment: WrapAlignment.center,
-      spacing: LetterSlotLayout.letterGap,
-      runSpacing: LetterSlotLayout.letterRunGap,
-      children: children,
+      ],
     );
     // 还没答出来的组不可点：点它既没有发音可放，也不该泄露任何信息。
-    if (!revealed || spelling.isEmpty) return row;
+    //
+    // 这层包装**始终存在**，只是未答出时不响应点击：答出的那一刻若才套上
+    // Semantics + InkWell，整排槽位的组件树形状就变了，Flutter 会把它销毁
+    // 重建，新建的首帧不播入场动画，整词就会「啪」一下同时出现。
+    final canReplay = revealed && spelling.isNotEmpty;
     return Semantics(
-      button: true,
-      label: '播放 $spelling 的发音',
+      button: canReplay,
+      label: canReplay ? '播放 $spelling 的发音' : null,
       child: InkWell(
         key: Key('meaning-word-choice-answer-$wordId'),
-        onTap: () => unawaited(_playWordAudio(spelling)),
+        onTap: canReplay ? () => unawaited(_playWordAudio(spelling)) : null,
         child: row,
       ),
     );

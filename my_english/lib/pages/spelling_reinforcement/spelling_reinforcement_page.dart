@@ -31,14 +31,15 @@ import '../../widgets/module_scaffold.dart';
 import '../../widgets/settlement_summary.dart';
 // 复用听音辨义模块的公共扬声器按钮，避免多个页面各自维护一套样式。
 // 引入公共「词性及含义」面板，与听音辨义共用同一套版式。
-import '../../widgets/letter_slot.dart';
+import '../../widgets/answer_slots.dart';
 import '../../widgets/pos_meaning_panel.dart';
 
 /// 拼写题中允许用户从 26 键键盘输入的字符范围。
 ///
 /// 只把英文字母交给用户输入；空格、撇号、连字符以及其他非字母字符
-/// 都属于单词本身的一部分，由页面直接展示并自动跳过。
-final RegExp _englishLetterPattern = RegExp(r'^[A-Za-z]$');
+/// 都属于单词本身的一部分，由答案槽位当静态字符直接展示并自动跳过。
+/// 判定规则与答案槽位组件同一处，页面和组件不会各认各的字母。
+bool _isLetter(String character) => AnswerSlots.isLetter(character);
 
 /// 答错时只记录错误并短暂锁定键盘，让用户看清反馈后继续作答。
 ///
@@ -382,7 +383,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     final target = _targetSpelling;
     while (_typedLetters.length < target.length) {
       final next = target[_typedLetters.length];
-      if (_englishLetterPattern.hasMatch(next)) break;
+      if (_isLetter(next)) break;
       _typedLetters.add(next);
       _typedEntryTokens.add(null);
     }
@@ -539,8 +540,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     if (_typedLetters.isEmpty) return;
     setState(() {
       // 先退掉末尾那些自动补的非字母字符。
-      while (_typedLetters.isNotEmpty &&
-          !_englishLetterPattern.hasMatch(_typedLetters.last)) {
+      while (_typedLetters.isNotEmpty && !_isLetter(_typedLetters.last)) {
         _typedLetters.removeLast();
         _typedEntryTokens.removeLast();
       }
@@ -985,7 +985,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
     if (_preparing) {
       return const SizedBox(
         height:
-            LetterSlotLayout.letterHeight +
+            AnswerSlotsLayout.letterHeight +
             SpellingLayout.spellingStatusTop +
             SpellingLayout.spellingStatusHeight,
       );
@@ -1005,7 +1005,7 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
                 : 0.0;
             return Transform.translate(offset: Offset(offset, 0), child: child);
           },
-          child: _buildSlotRow(tokens, target),
+          child: _buildSlotRow(target),
         ),
         const SizedBox(height: SpellingLayout.spellingStatusTop),
         SizedBox(
@@ -1072,70 +1072,38 @@ class _SpellingReinforcementPageState extends State<SpellingReinforcementPage>
 
   /// 构建 HTML 原型中的下划线字母位。
   ///
-  /// 所有非英文字母字符都直接显示，不占用需要用户点击的字母位；
-  /// 例如 `o'clock` 开局就显示撇号，输入 `o` 后焦点直接落到 `c`。
-  Widget _buildSlotRow(AppTokens tokens, String target) {
-    final children = <Widget>[];
-    for (var i = 0; i < target.length; i += 1) {
-      final character = target[i];
-      if (!_englishLetterPattern.hasMatch(character)) {
-        children.add(
-          SizedBox(
-            width: character == ' '
-                ? LetterSlotLayout.letterWidth * 0.55
-                : LetterSlotLayout.letterWidth * 0.65,
-            height: LetterSlotLayout.letterHeight,
-            child: Center(
-              child: Text(
-                character == ' ' ? '' : character,
-                style: TextStyle(
-                  color: tokens.textSecondary,
-                  fontSize: LetterSlotLayout.letterTextSize,
-                  fontWeight: AppWeight.semibold,
-                ),
-              ),
+  /// 整排交给公共的答案槽位组件：所有非英文字母字符都是静态字符，直接
+  /// 显示、不占需要用户点击的字母位；例如 `o'clock` 开局就显示撇号，
+  /// 输入 `o` 后光标直接落到 `c`。答错整排转红、答对整排转绿，由这里
+  /// 按页面状态换成对应的颜色状态传进去，单格不自己判断。
+  Widget _buildSlotRow(String target) {
+    final tone = _showWrongFeedback
+        ? AnswerSlotTone.wrong
+        : _showCorrectFeedback
+        ? AnswerSlotTone.correct
+        : AnswerSlotTone.neutral;
+    return AnswerSlots(
+      tone: tone,
+      // 输入锁住期间（自检、反馈、切题）不显示光标。
+      showCaret: !_inputLocked,
+      cells: [
+        for (var i = 0; i < target.length; i += 1)
+          if (!_isLetter(target[i]))
+            AnswerSlotCell.static(target[i], key: Key('spelling-slot-$i'))
+          else
+            AnswerSlotCell(
+              // 保留稳定的字母格 key，避免影响外部定位；动画是否重新开始由
+              // entryToken 明确控制，而不是依赖字母格整体销毁重建。
+              key: Key('spelling-slot-$i'),
+              text: target[i],
+              // 显示的是用户敲的字母，撑宽度的仍是正确答案。
+              shown: i < _typedLetters.length ? _typedLetters[i] : null,
+              filled: i < _typedLetters.length,
+              entryToken: i < _typedEntryTokens.length
+                  ? _typedEntryTokens[i]
+                  : null,
             ),
-          ),
-        );
-        continue;
-      }
-      final isFilled = i < _typedLetters.length;
-      final isActive = i == _typedLetters.length && !_inputLocked;
-      final entryToken = isFilled && i < _typedEntryTokens.length
-          ? _typedEntryTokens[i]
-          : null;
-      final lineColor = _showWrongFeedback
-          ? AppTokens.danger
-          : _showCorrectFeedback
-          ? AppTokens.success
-          : isFilled
-          ? tokens.text.withValues(alpha: AppAlpha.a36)
-          : isActive
-          ? AppTokens.primary
-          : tokens.check;
-      final textColor = _showWrongFeedback
-          ? AppTokens.danger
-          : _showCorrectFeedback
-          ? AppTokens.success
-          : tokens.text;
-      children.add(
-        LetterSlot(
-          // 保留稳定的字母格 key，避免影响外部定位；动画是否重新开始由
-          // entryToken 明确控制，而不是依赖字母格整体销毁重建。
-          key: Key('spelling-slot-$i'),
-          entryToken: entryToken,
-          text: isFilled ? _typedLetters[i] : null,
-          isActive: isActive,
-          lineColor: lineColor,
-          textColor: textColor,
-        ),
-      );
-    }
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: LetterSlotLayout.letterGap,
-      runSpacing: LetterSlotLayout.letterRunGap,
-      children: children,
+      ],
     );
   }
 
