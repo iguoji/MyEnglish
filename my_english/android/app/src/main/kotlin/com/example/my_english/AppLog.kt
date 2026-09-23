@@ -78,7 +78,7 @@ object AppLog {
             // 先处理「新的一天」：横幅日期不是今天就把昨天的内容整份清掉。
             rolloverIfNeededLocked(file)
             // 再处理超限：文件超过 4MB 时同样只留横幅重新开始。
-            if (file.length() > MAX_FILE_BYTES) file.writeText("")
+            if (file.length() > MAX_FILE_BYTES) file.writeText(banner(dayFormat.format(Date())))
             // 拼一行并追加；消息里的换行统一压成空格，保证一行一条记录。
             val line = buildString {
                 append(timeFormat.format(Date()))
@@ -99,6 +99,10 @@ object AppLog {
         }
     }
 
+    /** 横幅独占第一行；末尾必须带换行，否则第一条日志会粘在横幅后面。 */
+    private fun banner(day: String): String =
+        "# $day MyEnglish 运行日志（仅保留当天，次日启动自动清空）\n"
+
     /** 跨天检查：横幅第一行以 `# yyyy-MM-dd` 开头，日期不是今天就清空重记。 */
     private fun rolloverIfNeededLocked(file: File) {
         // 今天的日期键。
@@ -114,7 +118,7 @@ object AppLog {
             ?.substring(2, 12)
         // 横幅日期不是今天（或还没有横幅）→ 重写为今天的横幅。
         if (bannerDay != today) {
-            file.writeText("# $today MyEnglish 运行日志（仅保留当天，次日启动自动清空）")
+            file.writeText(banner(today))
         }
         // 记下今天，本次会话内不再重复读文件判断。
         cachedDayKey = today

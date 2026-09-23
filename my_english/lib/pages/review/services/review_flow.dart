@@ -6,6 +6,7 @@ import '../../../models/word.dart';
 import '../../../models/word_set.dart';
 import '../../../store/session.dart';
 import '../../../store/word.dart';
+import '../../../services/app_log.dart';
 import '../../../services/study_open_timing.dart';
 import '../../../services/self_test_policy.dart';
 import 'question_builder.dart';
@@ -139,6 +140,7 @@ class ReviewFlow {
     );
     timing?.mark('paper_ready');
     if (groups.isEmpty) return null;
+    _logPaper(module, words.length, groups);
     final session = await sessionStore.createStudySession(
       module: module,
       kind: kind,
@@ -151,6 +153,42 @@ class ReviewFlow {
     final entry = _entry(session);
     timing?.mark('entry_ready');
     return entry;
+  }
+
+  /// 试卷一编好就把结构记进日志：几道大题、各有几小题、哪些大题没排满。
+  /// 事后追查「某一大题为什么只有三张」时，能直接对上当时的试卷，不用猜。
+  void _logPaper(
+    ReviewModule module,
+    int wordCount,
+    List<Map<String, Object?>> groups,
+  ) {
+    final sizes = <int>[
+      for (final group in groups)
+        (group['questions']! as List<Map<String, Object?>>).length,
+    ];
+    final total = sizes.fold<int>(0, (sum, size) => sum + size);
+    // 连续相同的张数压成「5×47」，试卷再长也只占一行。
+    final runs = <String>[];
+    for (var i = 0; i < sizes.length;) {
+      var j = i;
+      while (j < sizes.length && sizes[j] == sizes[i]) {
+        j++;
+      }
+      runs.add(j - i == 1 ? '${sizes[i]}' : '${sizes[i]}×${j - i}');
+      i = j;
+    }
+    // 词义连连要求「除最后一大题外每题一样多」；不满足就单独点名，方便一眼看出。
+    final expected = sizes.isEmpty ? 0 : sizes.reduce(max);
+    final short = <int>[
+      for (var i = 0; i < sizes.length - 1; i++)
+        if (sizes[i] != expected) i + 1,
+    ];
+    AppLog.i(
+      'study_paper',
+      '出题 module=${module.storageKey} words=$wordCount 大题=${sizes.length} '
+          '小题=$total 各大题小题数=${runs.join(',')}'
+          '${short.isEmpty ? '' : ' 中间没排满的大题=$short'}',
+    );
   }
 
   ReviewEntry _entry(Session session) => ReviewEntry(

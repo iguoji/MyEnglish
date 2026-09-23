@@ -18,6 +18,8 @@ import '../../models/settlement.dart';
 import '../../store/settings.dart';
 // 引入发音服务，选中单词卡时播放读音。
 import '../../services/word_audio.dart';
+// 引入运行日志：记大题切换、每次配对与结算，事后能对着日志还原整局过程。
+import '../../services/app_log.dart';
 // 引入统一的进度出口：写进度、记每次点击、结算难度都走它。
 import '../review/services/session_progress.dart';
 // 引入集中管理的页面布局尺寸。
@@ -514,13 +516,25 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
             )
             .length;
       }
+      AppLog.i(
+        'meaning_match',
+        '进入 会话=${_progress.session.id} 大题=${groupIndex + 1}/${_groups.length} '
+            '已连=${connections.length}/${pairs.length} '
+            '进度=$_matchedPairs/$_totalPairs 卡片=${_describe(pairs)}',
+      );
       if (connections.length == pairs.length &&
           groupIndex + 1 == _groups.length) {
+        AppLog.i('meaning_match', '恢复时发现最后一大题已连完，直接结算');
         unawaited(_completeSession());
       }
       break;
     }
   }
+
+  /// 一轮卡片的一行文字：`feel→认为|feel→触觉|say→说`，日志里对得上截图。
+  String _describe(List<MatchPair> pairs) => pairs
+      .map((pair) => '${pair.spelling.trim()}→${pair.definition.trim()}')
+      .join('|');
 
   /// 启动每秒累加用时；归零不会触发任何失败状态。
   void _startElapsedTimer() {
@@ -620,11 +634,20 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         elapsed: _elapsedSeconds,
       );
     } catch (error) {
+      AppLog.e(
+        'meaning_match',
+        '配对保存失败 大题=${_groupIndex + 1} ${left.spelling}→${right.definition} 原因=$error',
+      );
       if (mounted) Toast.show(context, '配对保存失败：$error');
       return;
     } finally {
       _savingMatch = false;
     }
+    AppLog.i(
+      'meaning_match',
+      '配对 大题=${_groupIndex + 1} ${left.spelling}→${right.definition} '
+          '${correct ? '对' : '错'} 进度=${_matchedPairs + (correct ? 1 : 0)}/$_totalPairs',
+    );
     if (!mounted) return;
     setState(() {
       _selectedSide = null;
@@ -645,6 +668,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       await _persist();
     } catch (error) {
       // 配对答案已经保存，恢复时能据此还原；游标失败不能锁死已连完的棋盘。
+      AppLog.e('meaning_match', '进度保存失败 大题=${_groupIndex + 1} 原因=$error');
       if (mounted) Toast.show(context, '进度保存失败，配对结果已保留：$error');
     }
     if (!mounted) return;
@@ -678,9 +702,18 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
   /// 当前组全部连完后的推进：还有下一组则停顿后切组，否则整局完成。
   void _onGroupComplete() {
     if (_groupIndex + 1 >= _groups.length) {
+      AppLog.i(
+        'meaning_match',
+        '最后一大题连完 大题=${_groupIndex + 1}/${_groups.length} '
+            '进度=$_matchedPairs/$_totalPairs，进入结算',
+      );
       unawaited(_completeSession());
       return;
     }
+    AppLog.i(
+      'meaning_match',
+      '大题连完 大题=${_groupIndex + 1}/${_groups.length} 进度=$_matchedPairs/$_totalPairs',
+    );
     _roundAdvanceTimer?.cancel();
     _roundAdvanceTimer = Timer(
       const Duration(milliseconds: MeaningMatchLayout.groupAdvanceDelayMs),
@@ -716,6 +749,11 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
         _errorRightIndex = -1;
         _wrongByLeftIndex.clear();
       });
+      AppLog.i(
+        'meaning_match',
+        '进入 大题=${_groupIndex + 1}/${_groups.length} 张数=${_currentPairs.length} '
+            '进度=$_matchedPairs/$_totalPairs 卡片=${_describe(_currentPairs)}',
+      );
       final saved = _persist();
       if (MediaQuery.disableAnimationsOf(context)) {
         _fadeController.value = 1;
@@ -729,6 +767,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     } on TickerCanceled {
       // 返回页面时取消过渡即可，已保存的配对不受影响。
     } catch (error) {
+      AppLog.e('meaning_match', '换题后进度保存失败 大题=${_groupIndex + 1} 原因=$error');
       if (mounted) Toast.show(context, '进度保存失败：$error');
     } finally {
       if (mounted) setState(() => _roundTransitioning = false);
@@ -740,8 +779,14 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
     _stopElapsedTimer();
     try {
       await _finishSession();
+      AppLog.i(
+        'meaning_match',
+        '本局完成 会话=${_progress.session.id} 大题=${_groups.length} '
+            '配对=$_matchedPairs/$_totalPairs 用时=${_elapsedSeconds}s 连错=${_progress.wrongCount}',
+      );
       if (mounted) setState(() => _completed = true);
     } catch (error) {
+      AppLog.e('meaning_match', '结算保存失败 会话=${_progress.session.id} 原因=$error');
       if (mounted) Toast.show(context, '结算保存失败，重新进入可继续：$error');
     }
   }
@@ -1043,6 +1088,7 @@ class _MeaningMatchPageState extends State<MeaningMatchPage>
       if (mounted) Navigator.of(context).pop(retry);
     } catch (error) {
       debugPrint('提交词义连连结算失败：$error');
+      AppLog.e('meaning_match', '提交结算失败 会话=${_progress.session.id} 原因=$error');
       if (mounted) {
         setState(() => _isCommittingSummary = false);
         Toast.show(context, '保存结算失败，请重试：$error');
