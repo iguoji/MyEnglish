@@ -29,13 +29,11 @@ import '../../models/session_record.dart';
 import '../../services/word_audio.dart';
 // 引入口音设置枚举。
 import '../../store/settings.dart';
-// 引入单词 Store：混淆词第一次生成后要回写到单词行 / 含义行。
+// 引入单词 Store 类型：页面保留这个参数只为兼容已有的调用方式。
 import '../../store/word.dart';
 // 引入独立候选项生成服务，页面只负责当前答题状态。
 import '../review/services/session_progress.dart';
 // 引入听音辨义页面集中管理的布局尺寸。
-// 引入全站统一的二次确认对话框：长按刷新候选词时弹的就是它。
-import '../../widgets/app_confirm_dialog.dart';
 // 引入模块页面模板：上中下三段骨架、顶栏三个插槽与结算页共用版式。
 import '../../widgets/module_scaffold.dart';
 import '../../widgets/settlement_summary.dart';
@@ -94,11 +92,10 @@ class ListeningMeaningPage extends StatefulWidget {
   final List<Word> words;
 
   ///
-  /// 全库词库，仅用于生成中文释义混淆词的候选池；缺省回退到 [words]。
+  /// 全局词库。
   ///
-  /// 结合《含义混淆词.md》的共享汉字算法，混淆词要从**整个词库**几千条中文
-  /// 释义里找共享字，而不是只从本轮学习列表里抽，否则找不到同类项。首页持有
-  /// 全库字词，打开听音辨义时顺手传进来即可。
+  /// 候选里的混淆项现在由开局时统一挑好（见 `DistractorPlanner`），旧局补题用的
+  /// 词库也由 [progress] 自己持有；页面不再读取它，保留参数只为兼容已有的调用方式。
   final List<Word>? corpusWords;
 
   ///
@@ -117,9 +114,10 @@ class ListeningMeaningPage extends StatefulWidget {
   final SessionProgress progress;
 
   ///
-  /// 单词 Store：第一次生成的混淆词要回写到单词行 / 含义行。
+  /// 单词 Store。
   ///
-  /// 正式环境使用 SQLite 单例，Widget 测试可传入内存替身。
+  /// 混淆项只属于每一局，不再回写单词行 / 含义行，页面也就不再用它；
+  /// 保留参数只为兼容已有的调用方式。
   final WordStore? wordStore;
 
   ///
@@ -219,13 +217,14 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   ///
   /// 只在候选读取失败时用得上：屏幕上残留的候选如果属于上一道小题，
   /// 就必须清掉（留着会被点到当前小题头上，凭空记一次错）；属于本道小题
-  /// 就原样留着，长按刷新失败不该把好好的候选一起弄没。
+  /// 就原样留着，好好的候选不该因为一次读取失败一起弄没。
   int? _optionsQuestionId;
 
   ///
   /// 当前小题的候选是否还在读库。
   ///
-  /// 新小题的混淆词要走一次 SQLite 生成与写回，这段时间里同步拿不到候选。
+  /// 新局的候选在开局时就定好了，换小题时同步就能拿到；只有旧版本开的局里
+  /// 还没出过的题，要现挑混淆项并写进 SQLite，这段时间里同步拿不到候选。
   /// 这段过渡期用本标记把候选卡片的点击挡掉——屏幕上还是上一小题的词。
   bool _optionsPending = false;
 
@@ -246,16 +245,8 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
   Word get _currentWord => widget.words[_wordIndex];
 
   ///
-  /// 生成中文释义干扰项的全库语料；页面没传时退回本轮学习列表。
-  ///
-  /// 只用于 [buildDefinitionDistractors] 的候选池，不参与答题进度。
-
-  ///
   /// 本局进度的落盘出口。
   SessionProgress get _progress => widget.progress;
-
-  ///
-  /// 单词 Store：混淆词回写走它。
 
   ///
   /// 当前单词的全部释义（摊平后的一维列表），只作听音辨义的抽题池。
@@ -293,7 +284,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       if (!_optionsPending && (_options.isNotEmpty || _isCurrentWordComplete)) {
         timing?.controlsReady();
       }
-      // 精确恢复的候选已经包含顺序；新题才从长期干扰项缓存恢复或创建。
+      // 候选在开局时已经定好顺序，这里读出来即可；旧局还没出过的题才现补。
       if (!_isCurrentWordComplete && !_restoredExactOptions) {
         unawaited(_restoreOrCreateCurrentConfusions());
       }
@@ -448,12 +439,12 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     _optionsPending = true;
   }
 
-  Future<void> _restoreOrCreateCurrentConfusions({bool refresh = false}) async {
+  Future<void> _restoreOrCreateCurrentConfusions() async {
     final generation = ++_optionLoadGeneration;
     final question = _currentQuestion;
     if (question == null) return;
     try {
-      final options = await _progress.optionsFor(question, refresh: refresh);
+      final options = await _progress.optionsFor(question);
       if (!mounted || generation != _optionLoadGeneration) return;
       setState(() {
         // 候选到位：原地替换旧候选。四张卡保持同一个 element，只有卡里的
@@ -479,7 +470,7 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
             _options = const <ListeningMeaningOption>[];
             _optionsQuestionId = null;
           }
-          // 同一道小题的候选仍然有效（长按刷新失败就是这一种），原样留着。
+          // 同一道小题的候选仍然有效，原样留着。
           _optionsPending = false;
         });
         Toast.show(context, '候选保存失败：$error');
@@ -764,45 +755,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
       input: input,
       isCorrect: isCorrect,
       elapsed: _elapsedSeconds,
-    );
-  }
-
-  ///
-  /// 长按候选项后询问是否刷新；确认后保持四选一结构并立即替换当前文本。
-  Future<void> _requestOptionRefresh(int optionIndex) async {
-    if (_isDone ||
-        _isCurrentWordComplete ||
-        _isSavingAnswer ||
-        _optionsPending ||
-        optionIndex >= _options.length) {
-      return;
-    }
-    final confirmed = await _showOptionRefreshDialog(
-      _options[optionIndex].text,
-    );
-    if (!confirmed || !mounted || _isCurrentWordComplete) return;
-    // 刷新后仍统一排序，不能把正确答案人为挪到一个随机按钮上。
-    await _restoreOrCreateCurrentConfusions(refresh: true);
-  }
-
-  ///
-  /// 显示刷新确认框；返回 true 表示用户确认替换当前候选词。
-  ///
-  /// 骨架交给公共组件 [AppConfirmDialog]，这里只填这一处特有的文案与图标。
-  Future<bool> _showOptionRefreshDialog(String optionText) {
-    return AppConfirmDialog.show(
-      context,
-      AppConfirmDialog(
-        titleIcon: AppGlyph.retry,
-        title: '刷新候选词',
-        // 明确指出用户刚才长按的文本，避免误操作。
-        message: '是否将“$optionText”更换为新的候选词？',
-        cancelKey: const Key('cancel-option-refresh'),
-        cancelIcon: AppGlyph.dismiss,
-        confirmKey: const Key('confirm-option-refresh'),
-        confirmIcon: AppGlyph.retry,
-        confirmLabel: '刷新',
-      ),
     );
   }
 
@@ -1331,9 +1283,6 @@ class _ListeningMeaningPageState extends State<ListeningMeaningPage>
     enabled: !_isSavingAnswer && !_optionsPending,
     onTap: (text) =>
         _pickOption(_options.firstWhere((option) => option.text == text)),
-    onLongPress: (text) => _requestOptionRefresh(
-      _options.indexWhere((option) => option.text == text),
-    ),
   );
 
   Widget _buildNextQuestionButton(AppTokens tokens) {

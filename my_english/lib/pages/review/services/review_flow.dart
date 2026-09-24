@@ -30,10 +30,15 @@ class ReviewFlow {
     required this.wordStore,
     required this.sessionStore,
     Random? random,
-  }) : _random = random ?? Random();
+    Random? distractorRandom,
+  }) : _random = random ?? Random(),
+       _distractorRandom = distractorRandom ?? Random();
   final WordStore wordStore;
   final SessionStore sessionStore;
   final Random _random;
+
+  /// 每局挑混淆项用的随机源；与选词、编题的 [_random] 分开，互不影响。
+  final Random _distractorRandom;
 
   /// libraryCount 仅保留调用兼容；实际补缺直接读取数据库，首页缓存不会限制新词。
   Future<WordSet?> resolveWordSet({
@@ -42,11 +47,14 @@ class ReviewFlow {
     required String date,
   }) => sessionStore.resolvePlan(date: date, dailyGoal: dailyGoal);
 
+  /// [corpusWords] 是首页手上的全局词库，开局时从里面给选择题挑混淆项；
+  /// 不传时自己去数据库读一次。
   Future<ReviewEntry?> openModule(
     ReviewModule module, {
     required int dailyGoal,
     required int libraryCount,
     required String date,
+    List<Word> corpusWords = const <Word>[],
   }) async {
     await sessionStore.recoverPendingSettlements();
     final active = await sessionStore.getActiveSession(module, date);
@@ -63,7 +71,7 @@ class ReviewFlow {
     final ids = kind == SessionKind.daily
         ? _interleave(plan)
         : _reinforce(plan, dailyGoal);
-    return _create(module, kind, ids, date, plan.id);
+    return _create(module, kind, ids, date, plan.id, corpusWords: corpusWords);
   }
 
   /// 明确选词必定新建自测；恢复由 resumeSelf 独立处理，不会重新传入选词。
@@ -76,6 +84,7 @@ class ReviewFlow {
     required List<int> wordIds,
     required String date,
     List<Word> preloaded = const <Word>[],
+    List<Word> corpusWords = const <Word>[],
   }) async {
     if (wordIds.isEmpty) return null;
     if (module == ReviewModule.listening) {
@@ -92,6 +101,7 @@ class ReviewFlow {
       date,
       null,
       preloaded: preloaded,
+      corpusWords: corpusWords,
     );
   }
 
@@ -111,6 +121,7 @@ class ReviewFlow {
     String date,
     int? planId, {
     List<Word> preloaded = const <Word>[],
+    List<Word> corpusWords = const <Word>[],
   }) async {
     if (ids.isEmpty) return null;
     // 调用方已经给过单词对象就直接用，省掉一次「按编号把整库读回来」。
@@ -133,10 +144,17 @@ class ReviewFlow {
     }
     final timing = StudyOpenTiming.current;
     timing?.mark('targets_ready');
+    // 听音辨义、看义选词是选择题：开局时就从全局词库给整局挑好混淆项，
+    // 保证整局尽量不重复、答案位置均匀，恢复会话时原样读出。
+    final hasChoices =
+        module == ReviewModule.listeningMeaning ||
+        module == ReviewModule.meaningWordChoice;
     final groups = await ReviewQuestionBuilder.buildAsync(
       module,
       words,
       random: _random,
+      corpus: hasChoices ? await _corpusFor(corpusWords, words) : null,
+      distractorSeed: _distractorRandom.nextInt(0x7fffffff),
     );
     timing?.mark('paper_ready');
     if (groups.isEmpty) return null;
@@ -189,6 +207,17 @@ class ReviewFlow {
           '小题=$total 各大题小题数=${runs.join(',')}'
           '${short.isEmpty ? '' : ' 中间没排满的大题=$short'}',
     );
+  }
+
+  /// 挑混淆项用的全局词库：优先用首页手上那份，没有再读数据库，读不到就用本局单词。
+  Future<List<Word>> _corpusFor(List<Word> preferred, List<Word> words) async {
+    if (preferred.isNotEmpty) return preferred;
+    try {
+      final all = await wordStore.getAll();
+      return all.isEmpty ? words : all;
+    } catch (_) {
+      return words;
+    }
   }
 
   ReviewEntry _entry(Session session) => ReviewEntry(

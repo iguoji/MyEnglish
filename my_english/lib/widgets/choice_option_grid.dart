@@ -20,7 +20,6 @@ class ChoiceOptionGrid extends StatefulWidget {
     required this.keyPrefix,
     this.wrong = const <String>{},
     this.correct = const <String>{},
-    this.onLongPress,
     this.enabled = true,
     super.key,
   });
@@ -33,7 +32,6 @@ class ChoiceOptionGrid extends StatefulWidget {
   final Set<String> wrong;
   final Set<String> correct;
   final ValueChanged<String> onTap;
-  final ValueChanged<String>? onLongPress;
   final String keyPrefix;
   final bool enabled;
 
@@ -61,7 +59,7 @@ class _ChoiceOptionGridState extends State<ChoiceOptionGrid> {
       return;
     }
     _inputGeneration++;
-    // 第一份候选就位时直接可用；换题、同题刷新候选才需要拦住上一串点击。
+    // 第一份候选就位时直接可用；换题时才需要拦住上一串点击。
     if (oldWidget.options.isEmpty) return;
     _waitingForQuiet = true;
     _scheduleUnlock();
@@ -91,11 +89,6 @@ class _ChoiceOptionGridState extends State<ChoiceOptionGrid> {
     // 手势可能在旧题按下、在新题抬起；旧回调也必须在这里作废。
     if (!_canInteract || generation != _inputGeneration) return;
     widget.onTap(text);
-  }
-
-  void _longPress(int generation, String text) {
-    if (!_canInteract || generation != _inputGeneration) return;
-    widget.onLongPress?.call(text);
   }
 
   @override
@@ -157,12 +150,6 @@ class _ChoiceOptionGridState extends State<ChoiceOptionGrid> {
                             enabled: _canInteract,
                             onTap: () =>
                                 _tap(generation, options[row * 2 + column]),
-                            onLongPress: widget.onLongPress == null
-                                ? null
-                                : () => _longPress(
-                                    generation,
-                                    options[row * 2 + column],
-                                  ),
                           ),
                         ),
                       ],
@@ -186,7 +173,6 @@ class _ChoiceOption extends StatelessWidget {
     required this.correct,
     required this.enabled,
     required this.onTap,
-    this.onLongPress,
     super.key,
   });
   final int index;
@@ -195,7 +181,6 @@ class _ChoiceOption extends StatelessWidget {
   final bool correct;
   final bool enabled;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +220,6 @@ class _ChoiceOption extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: enabled && !wrong && !correct ? onTap : null,
-          onLongPress: enabled && !correct ? onLongPress : null,
           borderRadius: BorderRadius.circular(AppRadius.roundedLg),
           child: Container(
             constraints: const BoxConstraints(minHeight: AppSize.touchTarget),

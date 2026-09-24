@@ -4,27 +4,61 @@ import 'dart:math';
 import '../../../models/meaning.dart';
 import '../../../models/session.dart';
 import '../../../models/word.dart';
+import 'distractor_planner.dart';
 import 'matching_round_builder.dart';
 
 /// 开局一次性编排完整试卷，页面不会在恢复时重新挑题或拆题。
 abstract final class ReviewQuestionBuilder {
   /// 大词库在独立工作线程编题，跳页和点击动画不用等同步遍历完成。
+  ///
+  /// 传了 [corpus]（全局词库）时，顺带给选择题一次定好混淆项与四个候选的顺序，
+  /// 见 [DistractorPlanner.planPaper]。混淆项用单独的 [distractorSeed] 随机，
+  /// 不占用 [random] 的随机序列，编题结果与不挑混淆项时完全一样。
   static Future<List<Map<String, Object?>>> buildAsync(
     ReviewModule module,
     List<Word> words, {
     Random? random,
+    List<Word>? corpus,
+    int? distractorSeed,
   }) {
     final size = words.fold<int>(
       0,
       (total, word) => total + word.rawMeanings.length + 1,
     );
-    if (size < 256) return Future.value(build(module, words, random: random));
+    final seed = distractorSeed ?? Random().nextInt(0x7fffffff);
+    if (size < 256 && (corpus?.length ?? 0) < 256) {
+      return Future.value(
+        _planDistractors(
+          build(module, words, random: random),
+          words,
+          corpus,
+          seed,
+        ),
+      );
+    }
     return compute(_buildPaper, (
       module: module,
       words: words,
       seed: (random ?? Random()).nextInt(0x7fffffff),
+      corpus: corpus,
+      distractorSeed: seed,
     ), debugLabel: 'prepare-study-paper');
   }
+
+  /// 有全局词库时给整张试卷的选择题挑好混淆项；没有就原样返回。
+  static List<Map<String, Object?>> _planDistractors(
+    List<Map<String, Object?>> paper,
+    List<Word> words,
+    List<Word>? corpus,
+    int seed,
+  ) => corpus == null
+      ? paper
+      : DistractorPlanner.planPaper(
+          paper,
+          words: words,
+          corpus: corpus,
+          random: Random(seed),
+        );
 
   static List<Map<String, Object?>> build(
     ReviewModule module,
@@ -95,7 +129,8 @@ abstract final class ReviewQuestionBuilder {
     'answer_type': answerType,
     'content': <String>[content.trim()],
     'answers': answers,
-    // 选择题到首次显示时才从混淆字段准备，其他题型不需要干扰选项。
+    // 选择题的混淆项由 [buildAsync] 在开局时按全局词库一次挑好；这里先留空，
+    // 没有词库可挑时再由答题页在首次显示时补上。其他题型不需要干扰选项。
     'distractors': type == 100 || type == 200 ? null : const <String>[],
     'details': details,
   };
@@ -223,9 +258,21 @@ abstract final class ReviewQuestionBuilder {
 
 /// 只传普通数据，工作线程不持有页面、数据库或播放器。
 List<Map<String, Object?>> _buildPaper(
-  ({ReviewModule module, List<Word> words, int seed}) input,
-) => ReviewQuestionBuilder.build(
-  input.module,
+  ({
+    ReviewModule module,
+    List<Word> words,
+    int seed,
+    List<Word>? corpus,
+    int distractorSeed,
+  })
+  input,
+) => ReviewQuestionBuilder._planDistractors(
+  ReviewQuestionBuilder.build(
+    input.module,
+    input.words,
+    random: Random(input.seed),
+  ),
   input.words,
-  random: Random(input.seed),
+  input.corpus,
+  input.distractorSeed,
 );

@@ -118,15 +118,6 @@ class MemoryWordStore implements WordStore {
   }
 
   @override
-  Future<void> saveWordConfusions(int wordId, List<String> confusions) async {}
-
-  @override
-  Future<void> saveMeaningConfusions(
-    int meaningId,
-    List<String> confusions,
-  ) async {}
-
-  @override
   Future<void> saveWordSyllables(int wordId, List<String> syllables) async {}
 
   @override

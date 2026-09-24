@@ -119,11 +119,8 @@ class SessionProgress with WidgetsBindingObserver {
   }
 
   /// 候选成功保存后才启用答题；数据加载时间不计入小题答题用时。
-  Future<List<String>> optionsFor(
-    SessionSubQuestion question, {
-    bool refresh = false,
-  }) async {
-    final result = await _options.load(question, refresh: refresh);
+  Future<List<String>> optionsFor(SessionSubQuestion question) async {
+    final result = await _options.load(question);
     activateQuestion(question.id);
     final next = _nextQuestions[question.id];
     if (next != null && (next.type == 100 || next.type == 200)) {

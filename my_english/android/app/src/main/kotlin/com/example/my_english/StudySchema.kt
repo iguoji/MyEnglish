@@ -19,7 +19,7 @@ internal object StudySchema {
     val arrayColumns = mapOf(
         "words" to setOf("confusions", "syllables"),
         "word_meanings" to setOf("confusions"),
-        "session_sub_questions" to setOf("content", "answers", "distractors"),
+        "session_sub_questions" to setOf("content", "answers", "distractors", "options"),
         "session_question_answers" to setOf("answer"),
     )
 
@@ -87,7 +87,8 @@ internal object StudySchema {
                 used_seconds     INTEGER NOT NULL DEFAULT 0 CHECK(used_seconds >= 0),
                 content          TEXT    NOT NULL,
                 answers          TEXT    NULL,
-                distractors      TEXT    NULL
+                distractors      TEXT    NULL,
+                options          TEXT    NULL
             """,
             "session_question_details" to """
                 sub_question_id INTEGER NOT NULL REFERENCES session_sub_questions(id),

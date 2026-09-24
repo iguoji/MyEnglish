@@ -745,6 +745,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         dailyGoal: _settings.dailyGoal,
         libraryCount: _allWords.length,
         date: todayKey(),
+        // 选择题的混淆项从全局词库里挑；首页手上已有整库，不必再读一遍。
+        corpusWords: _allWords,
       );
       if (!mounted) return null;
       // 词库为空说明本地一个可复习的单词都没有。
@@ -821,6 +823,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           date: todayKey(),
           // 这批单词对象首页手上就有，直接带过去，别再按编号把整库读一遍。
           preloaded: words,
+          corpusWords: _allWords,
         );
         if (!mounted || entry == null) {
           timing?.cancel('entry_unavailable');

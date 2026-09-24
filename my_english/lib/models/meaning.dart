@@ -42,7 +42,8 @@ class Meaning {
   final String definition;
 
   ///
-  /// 外形、字数相近的混淆含义；复习时实时生成，用户长按可重新生成。
+  /// 旧版本保存的混淆含义。现在混淆项每局重新挑、只存在题目里，复习不再读写
+  /// 这个字段；保留它只为兼容数据库结构和已有备份。
   final List<String> confusions;
 
   ///

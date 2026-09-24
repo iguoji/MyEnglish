@@ -61,14 +61,6 @@ abstract interface class WordStore {
   Future<void> delete(int id);
 
   ///
-  /// 回写一个单词的混淆词。
-  Future<void> saveWordConfusions(int wordId, List<String> confusions);
-
-  ///
-  /// 回写一条释义的混淆含义。
-  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions);
-
-  ///
   /// 回写一个单词的音节拆分。
   Future<void> saveWordSyllables(int wordId, List<String> syllables);
 
@@ -171,20 +163,6 @@ class LocalWordStore implements WordStore {
     'deleteWord',
     <String, Object?>{'id': id},
   );
-
-  @override
-  Future<void> saveWordConfusions(int wordId, List<String> confusions) =>
-      _channel.invokeMethod<void>('saveWordConfusions', <String, Object?>{
-        'wordId': wordId,
-        'confusions': confusions,
-      });
-
-  @override
-  Future<void> saveMeaningConfusions(int meaningId, List<String> confusions) =>
-      _channel.invokeMethod<void>('saveMeaningConfusions', <String, Object?>{
-        'meaningId': meaningId,
-        'confusions': confusions,
-      });
 
   @override
   Future<void> saveWordSyllables(int wordId, List<String> syllables) =>

@@ -53,12 +53,13 @@ abstract interface class SessionStore {
   /// 听音辨义整词进入新一遍，旧答案保留但不再参与本遍结算。
   Future<Session> retryGroup(int sessionId, int groupId);
 
-  /// 一起保存题目混淆选项、来源混淆字段和会话副本；不保存候选顺序。
+  /// 保存一道题的混淆项和四个候选的排列顺序，只属于这一局；
+  /// 不写回单词和含义的混淆词字段。
   Future<void> saveQuestionDistractors({
     required int sessionId,
     required int questionId,
     required List<String> distractors,
-    required List<Map<String, Object?>> sources,
+    required List<String> options,
   });
 
   /// 保存当前播放位置、完成遍数、剩余间隔及暂停状态。
@@ -313,13 +314,13 @@ class LocalSessionStore implements SessionStore {
     required int sessionId,
     required int questionId,
     required List<String> distractors,
-    required List<Map<String, Object?>> sources,
+    required List<String> options,
   }) => _channel.invokeMethod<void>('saveQuestionDistractors', {
     if (StudyOpenTiming.current case final timing?) '_open_trace_id': timing.id,
     'sessionId': sessionId,
     'questionId': questionId,
     'distractors': distractors,
-    'sources': sources,
+    'options': options,
   });
 
   @override

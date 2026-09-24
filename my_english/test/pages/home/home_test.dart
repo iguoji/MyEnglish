@@ -2110,15 +2110,6 @@ class _MemoryWordStore implements WordStore {
   Future<List<Word>> getByMeaningIds(List<int> meaningIds) async => <Word>[];
 
   @override
-  Future<void> saveWordConfusions(int wordId, List<String> confusions) async {}
-
-  @override
-  Future<void> saveMeaningConfusions(
-    int meaningId,
-    List<String> confusions,
-  ) async {}
-
-  @override
   Future<void> saveWordSyllables(int wordId, List<String> syllables) async {}
 
   @override
@@ -2159,18 +2150,6 @@ class _ThrowingWordStore implements WordStore {
   @override
   Future<List<Word>> getByMeaningIds(List<int> meaningIds) async =>
       throw UnimplementedError();
-
-  /// 其余接口不属于本测试流程。
-  @override
-  Future<void> saveWordConfusions(int wordId, List<String> confusions) async =>
-      throw UnimplementedError();
-
-  /// 其余接口不属于本测试流程。
-  @override
-  Future<void> saveMeaningConfusions(
-    int meaningId,
-    List<String> confusions,
-  ) async => throw UnimplementedError();
 
   /// 其余接口不属于本测试流程。
   @override

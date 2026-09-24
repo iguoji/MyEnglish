@@ -161,28 +161,6 @@ class MainActivity : FlutterActivity() {
                         null
                     }
 
-                    // 回写某个单词的混淆词（复习时实时生成，或用户长按重新生成）。
-                    "saveWordConfusions" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *>
-                            ?: error("saveWordConfusions 缺少参数")
-                        wordsDatabase.saveWordConfusions(
-                            readLong(call.arguments, "wordId", "saveWordConfusions"),
-                            payload["confusions"],
-                        )
-                        null
-                    }
-
-                    // 回写某条含义的混淆含义。
-                    "saveMeaningConfusions" -> runDatabaseCall(result) {
-                        val payload = call.arguments as? Map<*, *>
-                            ?: error("saveMeaningConfusions 缺少参数")
-                        wordsDatabase.saveMeaningConfusions(
-                            readLong(call.arguments, "meaningId", "saveMeaningConfusions"),
-                            payload["confusions"],
-                        )
-                        null
-                    }
-
                     // 回写某个单词的音节拆分。
                     "saveWordSyllables" -> runDatabaseCall(result) {
                         val payload = call.arguments as? Map<*, *>

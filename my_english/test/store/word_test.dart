@@ -74,8 +74,6 @@ void main() {
           case 'deleteWord':
           case 'importData':
           case 'clearAll':
-          case 'saveWordConfusions':
-          case 'saveMeaningConfusions':
           case 'saveWordSyllables':
             return null;
         }
@@ -108,9 +106,7 @@ void main() {
       expect(await store.pickWords(limit: 1, exclude: const <int>[]), <int>[7]);
       // 更新用一次调用整体替换主体与释义。
       await store.update(Word(id: 7, spelling: 'persisted'));
-      // 保存混淆词与音节分别路由到各自的通道方法。
-      await store.saveWordConfusions(7, const <String>['persisted2']);
-      await store.saveMeaningConfusions(10, const <String>['能持久']);
+      // 保存音节路由到自己的通道方法。
       await store.saveWordSyllables(7, const <String>['per', 'sist']);
       // 删除进入原生软删除。
       await store.delete(7);
@@ -133,8 +129,6 @@ void main() {
         'getWordsByMeaningIds',
         'pickWords',
         'updateWord',
-        'saveWordConfusions',
-        'saveMeaningConfusions',
         'saveWordSyllables',
         'deleteWord',
         'importData',
@@ -142,7 +136,7 @@ void main() {
         'clearAll',
       ]);
       // 删除参数携带主键。
-      expect((nativeCalls[9].arguments as Map<Object?, Object?>)['id'], 7);
+      expect((nativeCalls[7].arguments as Map<Object?, Object?>)['id'], 7);
     },
   );
 

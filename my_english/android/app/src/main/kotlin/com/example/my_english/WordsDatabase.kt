@@ -33,6 +33,24 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         error("没有从结构 $oldVersion 升级到 $newVersion 的规则")
     }
+
+    /**
+     * 小题的 options 列（开局时排好的四个候选顺序）是后来加的：旧库没有就补上。
+     *
+     * 刻意不提升结构版本号：版本号一变，装回旧版本时系统会拒绝打开数据库；
+     * 只补一列则新旧版本都能打开，多出的这一列旧版本用不到，已有数据原样保留。
+     */
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        if (db.isReadOnly) return
+        val hasOptions = db.rawQuery("PRAGMA table_info(session_sub_questions)", null).use { cursor ->
+            val name = cursor.getColumnIndexOrThrow("name")
+            var found = false
+            while (cursor.moveToNext()) if (cursor.getString(name) == "options") found = true
+            found
+        }
+        if (!hasOptions) db.execSQL("ALTER TABLE session_sub_questions ADD COLUMN options TEXT NULL")
+    }
     override fun onConfigure(db: SQLiteDatabase) = db.setForeignKeyConstraintsEnabled(true)
 
     /** 共用事务：一组写入全部成功才保存；嵌套业务复用外层事务。 */
@@ -206,8 +224,6 @@ class WordsDatabase(context: Context, dbName: String = DATABASE_NAME) :
         // 计划在下次获取时补缺；已开局内容和历史结算都继续保留。
     }
 
-    fun saveWordConfusions(id: Long, raw: Any?) { update("words", id, mapOf("confusions" to strings(raw))) }
-    fun saveMeaningConfusions(id: Long, raw: Any?) { update("word_meanings", id, mapOf("confusions" to strings(raw))) }
     fun saveWordSyllables(id: Long, raw: Any?) { update("words", id, mapOf("syllables" to textArray(raw))) }
 
     /**

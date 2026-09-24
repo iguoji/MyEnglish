@@ -736,9 +736,10 @@ void main() {
     },
   );
 
-  testWidgets('candidate options are ordered by spelling ascending', (
+  testWidgets('candidate order is saved once and shown exactly as saved', (
     tester,
   ) async {
+    final store = MemorySessionStore();
     await tester.pumpWidget(
       MaterialApp(
         // 必须装上真实主题：页面里的字号、字重、文字色统一从主题的 TextTheme
@@ -748,25 +749,20 @@ void main() {
           words: _words,
           audioPlayer: _ImmediateAudioPlayer(),
           accent: PronunciationAccent.american,
-          progress: _freshProgress(),
+          progress: _freshProgress(store: store),
         ),
       ),
     );
-    // 候选是异步准备的（要写一次干扰项），必须等它落位再读。
+    // 这份测试试卷没有预先挑好混淆项，候选要现挑并写一次，必须等它落位再读。
     await tester.pumpAndSettle();
 
-    // 四选一（三个干扰项 + 正确答案 ability）应忽略大小写按字母升序排，
-    // 与看义选词、词义连连的候选口径统一；而不是固定在某个取模位上。
+    // 正确答案放在哪一格由「洗牌发牌」决定，不再按字母排序；排好的顺序和
+    // 混淆项一起存进这一局，屏幕上显示的就是存下的那一份，恢复时原样读回。
     final displayed = _visibleOptionTexts(tester);
     expect(displayed, hasLength(4));
-    final sorted = [...displayed]
-      ..sort((first, second) {
-        final byLetter = first.toLowerCase().compareTo(second.toLowerCase());
-        return byLetter != 0 ? byLetter : first.compareTo(second);
-      });
-    expect(displayed, sorted);
-    // 正确项只要在其中即可，身份不因排序丢失。
     expect(displayed, contains('ability'));
+    final saved = (await store.getSession(1))!.questions.first.presetOptions;
+    expect(displayed, saved);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -1089,8 +1085,8 @@ void _expectNoOptions(WidgetTester tester) {
 ///
 /// 断言当前小题有四个候选，且其中包含 [expected]。
 ///
-/// 释义题的干扰项从词库里找；词库小到找不出三个时，会由固定的备用释义补足
-/// （见 `QuestionOptions._definitionFallback`），所以哪怕整库只有两个词，
+/// 释义题的干扰项从词库里找；词库小到找不出三个时，会由内置备用词表补足
+/// （见 `distractor_reserve.dart` 的 `kReserveWords`），所以哪怕整库只有两个词，
 /// 释义题依然是四个候选，不会退化成「只有一个选项」。
 ///
 void _expectOptionsContaining(WidgetTester tester, String expected) {

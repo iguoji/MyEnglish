@@ -111,6 +111,7 @@ class MemorySessionStore implements SessionStore {
   // 选词那一步委托给挂进来的词表 Store。
   final Map<int, int> _retryCounts = {};
   final Map<int, List<String>> _questionDistractors = {};
+  final Map<int, List<String>> _questionOptions = {};
   final Map<int, Map<String, Object?>> _playbacks = {};
   int _nextGroupId = 1;
   int _nextQuestionId = 1;
@@ -510,9 +511,10 @@ class MemorySessionStore implements SessionStore {
     required int sessionId,
     required int questionId,
     required List<String> distractors,
-    required List<Map<String, Object?>> sources,
+    required List<String> options,
   }) async {
     _questionDistractors[questionId] = distractors;
+    _questionOptions[questionId] = options;
   }
 
   @override
@@ -799,6 +801,7 @@ class MemorySessionStore implements SessionStore {
                 answers: q.answers,
                 details: q.details,
                 distractors: _questionDistractors[q.id] ?? q.distractors,
+                optionOrder: _questionOptions[q.id] ?? q.optionOrder,
                 usedSeconds: q.usedSeconds,
               ),
           ],

@@ -16,7 +16,7 @@ internal class StudyRepository(private val owner: WordsDatabase) {
         // 一份字段清单就是页面与数据库之间的接口约定，所有模块共用。
         val pageGroupFields = listOf("id", "question_no", "phase", "retry_count", "current_sub_question_id")
         val pageQuestionFields = listOf("id", "main_question_id", "question_no", "question_type",
-            "content_type", "answer_type", "used_seconds", "content", "answers", "distractors")
+            "content_type", "answer_type", "used_seconds", "content", "answers", "distractors", "options")
         val pageDetailFields = listOf("word_id", "meaning_id")
     }
 
@@ -55,14 +55,7 @@ internal class StudyRepository(private val owner: WordsDatabase) {
     private fun answers(id: Long, attempt: Int) = rows("SELECT * FROM session_question_answers WHERE sub_question_id=? AND attempt_no=? AND deleted_at IS NULL ORDER BY id", id, attempt)
     private fun allQuestions(id: Long) = rows("SELECT q.* FROM session_sub_questions q JOIN session_main_questions g ON g.id=q.main_question_id WHERE g.session_id=? AND g.deleted_at IS NULL AND q.deleted_at IS NULL ORDER BY g.question_no,q.question_no", id)
     /** 只在数据库串行队列使用，最多缓存两局原始副本；不会让历史会话无限占内存。 */
-    private class WordSnapshot(val words: List<Map<*, *>>) {
-        val byWord = words.associateBy { it.long("id") }
-        val meanings = words.flatMap { word ->
-            ((word["meanings"] as? List<*>) ?: emptyList<Any?>()).filterIsInstance<Map<*, *>>().map {
-                it.long("id") to (word.long("id") to it)
-            }
-        }.toMap()
-    }
+    private class WordSnapshot(val words: List<Map<*, *>>)
     private val snapshotCache = object : LinkedHashMap<Long, WordSnapshot>(3, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, WordSnapshot>?): Boolean = size > 2
     }
@@ -106,42 +99,11 @@ internal class StudyRepository(private val owner: WordsDatabase) {
         (owner.setting("session.$id.snapshot") as? List<*>)?.filterIsInstance<Map<*, *>>() ?: error("会话缺少词库快照"),
     ).also { snapshotCache[id] = it }
 
-    /** 混淆字段以小补丁保存，读取时合入原副本；兼容已有完整副本和新版备份。 */
-    private fun snapshot(id: Long): List<Map<*, *>> {
-        val base = baseSnapshot(id)
-        val prefix = "session.$id.confusions."
-        val changes = rows("SELECT key,value FROM settings WHERE key>=? AND key<? AND deleted_at IS NULL ORDER BY key", prefix, prefix + "\uffff")
-        if (changes.isEmpty()) return base.words
-        val wordChanges = mutableMapOf<Long, List<String>>()
-        val meaningChanges = mutableMapOf<Long, List<String>>()
-        val affected = mutableSetOf<Long>()
-        for (change in changes) {
-            val suffix = change["key"].toString().removePrefix(prefix).split('.')
-            require(suffix.size == 2) { "混淆快照名称无效" }
-            val target = suffix[1].toLongOrNull() ?: error("混淆快照编号无效")
-            val values = strings(change["value"])
-            if (suffix[0] == "word") {
-                require(target in base.byWord) { "混淆快照引用的单词不存在" }
-                wordChanges[target] = values
-                affected.add(target)
-            } else {
-                require(suffix[0] == "meaning" && target in base.meanings) { "混淆快照引用的含义不存在" }
-                meaningChanges[target] = values
-                affected.add(base.meanings.getValue(target).first)
-            }
-        }
-        return base.words.map { word ->
-            val wordId = word.long("id")
-            if (wordId !in affected) word else word.toMutableMap().apply {
-                wordChanges[wordId]?.let { put("confusions", it) }
-                put("meanings", ((word["meanings"] as? List<*>) ?: emptyList<Any?>()).map { value ->
-                    val meaning = value as Map<*, *>
-                    val patch = meaningChanges[meaning.long("id")]
-                    if (patch == null) meaning else meaning.toMutableMap().apply { put("confusions", patch) }
-                })
-            }
-        }
-    }
+    /**
+     * 开局时的词库副本。混淆项只属于每道题（小题的 distractors / options），
+     * 不再以补丁形式改写副本里单词和含义的混淆字段；旧备份里遗留的补丁不再读取。
+     */
+    private fun snapshot(id: Long): List<Map<*, *>> = baseSnapshot(id).words
     private fun nextDate(date: String): String {
         val format = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
         val calendar = Calendar.getInstance().apply { time = format.parse(date) ?: error("日期无效"); add(Calendar.DATE, 1) }
@@ -318,7 +280,7 @@ internal class StudyRepository(private val owner: WordsDatabase) {
         var firstGroup = 0L
         var questionCount = 0
         owner.batchInserter("session_main_questions", listOf("session_id", "question_no", "phase")).use { mainWriter ->
-            owner.batchInserter("session_sub_questions", listOf("main_question_id", "question_no", "question_type", "content_type", "answer_type", "content", "answers", "distractors")).use { questionWriter ->
+            owner.batchInserter("session_sub_questions", listOf("main_question_id", "question_no", "question_type", "content_type", "answer_type", "content", "answers", "distractors", "options")).use { questionWriter ->
                 owner.batchInserter("session_question_details", listOf("sub_question_id", "word_id", "meaning_id")).use { detailWriter ->
                     owner.writableDatabase.compileStatement("UPDATE session_main_questions SET current_sub_question_id=?,updated_at=? WHERE id=?").use { pointer ->
                         for ((groupIndex, rawGroup) in paper.withIndex()) {
@@ -332,9 +294,16 @@ internal class StudyRepository(private val owner: WordsDatabase) {
                                 val type = raw.int("question_type")
                                 require(type != 100 || correct.size == 1) { "单选题必须有一个答案" }
                                 require(type != 200 || correct.size == 2) { "多选题必须有两个答案" }
+                                val distractors = raw["distractors"]?.let(::strings)
+                                val options = raw["options"]?.let(::strings)
+                                // 开局时已经挑好混淆项的选择题，候选内容和顺序一起核对后再保存。
+                                if (type == 100 || type == 200) {
+                                    if (distractors == null) require(options == null) { "还没有混淆项的题不能先定候选顺序" }
+                                    else checkChoices(correct, distractors, options, raw.int("answer_type"))
+                                }
                                 val qid = questionWriter.add(listOf(groupId, questionIndex + 1, type,
                                     raw.int("content_type"), raw.int("answer_type"), strings(raw["content"]),
-                                    if (type == 0) null else correct, raw["distractors"]?.let(::strings)))
+                                    if (type == 0) null else correct, distractors, options))
                                 questionCount++
                                 if (firstQuestion == 0L) firstQuestion = qid
                                 val ds = (raw["details"] as? List<*>)?.filterIsInstance<Map<*, *>>() ?: error("题目缺少考察对象")
@@ -399,6 +368,7 @@ internal class StudyRepository(private val owner: WordsDatabase) {
                     put("content", strings(q["content"]))
                     put("answers", strings(q["answers"]))
                     put("distractors", q["distractors"]?.let(::strings))
+                    put("options", q["options"]?.let(::strings))
                     put("details", loaded.detailsByQuestion[q.long("id")].orEmpty().map { d ->
                         selectPageFields(d, pageDetailFields)
                     })
@@ -622,40 +592,44 @@ internal class StudyRepository(private val owner: WordsDatabase) {
         readSession(sid)
     }
 
-    /** 候选只保存内容；英文按字母、中文按字符编码排序由共用 Dart 组件完成。 */
+    /**
+     * 旧版本开的局里还没出过的题：保存补挑的混淆项和四个候选的顺序。
+     *
+     * 混淆项只属于这一局，不写回单词和含义的混淆字段。一道题的候选一旦定好就不再
+     * 替换；同一份内容重复提交（保存成功但回包失败后重试）按成功处理。
+     */
     private fun saveDistractors(p: Map<*, *>): Any? = owner.transaction {
         val sid = p.long("sessionId")
         val s = session(sid)
         require(s.int("status") == 2) { "会话已经结束" }
         val q = question(p.long("questionId"))
         require(group(q.long("main_question_id")).long("session_id") == sid) { "题目不属于当前会话" }
+        require(q.int("question_type") in listOf(100, 200)) { "这道题没有候选" }
         val distractors = strings(p["distractors"])
+        val options = strings(p["options"])
         val correct = strings(q["answers"])
-        val keys = (correct + distractors).map { normalized(it, q.int("answer_type")) }
-        require(keys.size == 4 && keys.toSet().size == 4) { "选择题必须有四个不同候选" }
-        owner.update("session_sub_questions", q.long("id"), mapOf("distractors" to distractors))
-        val base = baseSnapshot(sid)
-        val targets = details(q.long("id")).map { it.long("word_id") }.toSet()
-        for (raw in (p["sources"] as? List<*>) ?: emptyList<Any?>()) {
-            val source = raw as? Map<*, *> ?: error("混淆来源格式无效")
-            val wordId = source.long("word_id")
-            require(wordId in targets) { "混淆来源不属于当前题目" }
-            val word = base.byWord[wordId] ?: error("混淆来源不属于会话")
-            val meaningId = (source["meaning_id"] as? Number)?.toLong()
-            val confusions = strings(source["confusions"])
-            if (meaningId == null) {
-                owner.putSetting("session.$sid.confusions.word.$wordId", encode(confusions))
-                val current = one("SELECT spelling FROM words WHERE id=? AND deleted_at IS NULL", wordId)
-                if (current?.get("spelling") == word["spelling"]) owner.saveWordConfusions(wordId, confusions)
-            } else {
-                val meaning = base.meanings[meaningId] ?: error("混淆含义不属于会话")
-                require(meaning.first == wordId) { "混淆含义不属于这个单词" }
-                owner.putSetting("session.$sid.confusions.meaning.$meaningId", encode(confusions))
-                val current = one("SELECT definition FROM word_meanings WHERE id=? AND word_id=? AND deleted_at IS NULL", meaningId, wordId)
-                if (current?.get("definition") == meaning.second["definition"]) owner.saveMeaningConfusions(meaningId, confusions)
-            }
+        val existing = q["distractors"]?.let(::strings)
+        if (existing != null && validChoices(correct, existing, q.int("answer_type"))) {
+            require(existing == distractors && q["options"]?.let(::strings) == options) { "这道题的候选已经定好，不能替换" }
+            return@transaction null
         }
+        checkChoices(correct, distractors, options, q.int("answer_type"))
+        owner.update("session_sub_questions", q.long("id"), mapOf("distractors" to distractors, "options" to options))
         null
+    }
+
+    /** 答案加混淆项正好是四个不同候选。 */
+    private fun validChoices(correct: List<String>, distractors: List<String>, answerType: Int): Boolean {
+        val keys = (correct + distractors).map { normalized(it, answerType) }
+        return keys.size == 4 && keys.toSet().size == 4
+    }
+
+    /** 核对四个候选；给了候选顺序时，顺序里必须恰好是这四个候选。 */
+    private fun checkChoices(correct: List<String>, distractors: List<String>, options: List<String>?, answerType: Int) {
+        require(validChoices(correct, distractors, answerType)) { "选择题必须有四个不同候选" }
+        if (options == null) return
+        val keys = (correct + distractors).map { normalized(it, answerType) }.toSet()
+        require(options.size == 4 && options.map { normalized(it, answerType) }.toSet() == keys) { "候选顺序与候选内容不一致" }
     }
 
     private fun wordQuestions(sid: Long, wordId: Long) = rows("SELECT DISTINCT q.*,g.retry_count FROM session_question_details d JOIN session_sub_questions q ON q.id=d.sub_question_id JOIN session_main_questions g ON g.id=q.main_question_id WHERE d.word_id=? AND g.session_id=? AND d.deleted_at IS NULL AND g.deleted_at IS NULL AND q.deleted_at IS NULL ORDER BY g.question_no,q.question_no", wordId, sid)
@@ -916,6 +890,11 @@ internal class StudyRepository(private val owner: WordsDatabase) {
             if (q["distractors"] != null) {
                 val candidates = (correct + strings(q["distractors"])).map { normalized(it, q.int("answer_type")) }
                 require(candidates.size == 4 && candidates.toSet().size == 4) { "选择题候选数量错误" }
+                q["options"]?.let(::strings)?.let { options ->
+                    require(options.size == 4 && options.map { normalized(it, q.int("answer_type")) }.toSet() == candidates.toSet()) { "选择题候选顺序与候选内容不一致" }
+                }
+            } else {
+                require(q["options"] == null) { "还没有混淆项的题不能先有候选顺序" }
             }
         }
     }

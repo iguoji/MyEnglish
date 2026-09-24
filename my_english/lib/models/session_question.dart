@@ -26,6 +26,7 @@ class SessionSubQuestion {
     required this.answers,
     required this.details,
     this.distractors,
+    this.optionOrder,
     this.usedSeconds = 0,
   });
 
@@ -38,18 +39,41 @@ class SessionSubQuestion {
   final List<String> content;
   final List<String> answers;
 
-  /// null 表示尚未按词库混淆字段准备选项，空数组用于没有候选的题型。
+  /// 这道题的干扰项；null 表示还没生成，空数组用于没有候选的题型。
   final List<String>? distractors;
+
+  /// 开局时排好的四个候选顺序（答案已放在「洗牌发牌」定下的那一格）。
+  ///
+  /// 旧版本开的局没有这一项，为 null。
+  final List<String>? optionOrder;
   final List<SessionQuestionDetail> details;
   final int usedSeconds;
 
   Set<int> get wordIds => details.map((detail) => detail.wordId).toSet();
 
-  /// 排序由内容决定，不保存第二份候选顺序。
-  List<String> get options => sortQuestionOptions(<String>[
-    ...answers,
-    ...?distractors,
-  ], english: answerType == 1);
+  /// 这道题已经定好的四个候选，按屏幕上 A、B、C、D 的顺序。
+  ///
+  /// 本局开局时排好的顺序原样使用，恢复会话时一模一样；旧版本开的局只存了
+  /// 干扰项，沿用当时「按字母 / 字符编码排序」的老规则还原。还没生成干扰项、
+  /// 或者存下的内容凑不成四个不同候选时返回 null，交给候选服务重新准备。
+  List<String>? get presetOptions {
+    final distractors = this.distractors;
+    if (distractors == null) return null;
+    final english = answerType == 1;
+    final pool = <String>[...answers, ...distractors];
+    String key(String text) =>
+        english ? text.trim().toLowerCase() : text.trim();
+    final keys = pool.map(key).toSet();
+    if (pool.length != 4 || keys.length != 4) return null;
+    final order = optionOrder;
+    if (order != null &&
+        order.length == 4 &&
+        order.map(key).toSet().containsAll(keys) &&
+        order.every((text) => pool.contains(text))) {
+      return List<String>.unmodifiable(order);
+    }
+    return sortQuestionOptions(pool, english: english);
+  }
 
   factory SessionSubQuestion.fromMap(Map<Object?, Object?> map) =>
       SessionSubQuestion(
@@ -64,6 +88,9 @@ class SessionSubQuestion {
         distractors: map['distractors'] == null
             ? null
             : readStringList(map['distractors'], '混淆选项'),
+        optionOrder: map['options'] == null
+            ? null
+            : readStringList(map['options'], '候选顺序'),
         usedSeconds: readIntOrFallback(map['used_seconds'], fallback: 0),
         details: <SessionQuestionDetail>[
           for (final raw in map['details'] as List? ?? const [])
@@ -109,7 +136,10 @@ class SessionMainQuestion {
       );
 }
 
-/// 英文忽略大小写按字母排列；中文按字符编码排列，设备语言不会改变顺序。
+/// 旧版本的候选排序：英文忽略大小写按字母排列，中文按字符编码排列。
+///
+/// 现在只用来还原旧版本开的局（它们没有保存候选顺序）；新局的顺序在开局时
+/// 按「洗牌发牌」排好并保存，见 [SessionSubQuestion.optionOrder]。
 List<String> sortQuestionOptions(
   Iterable<String> values, {
   required bool english,
