@@ -226,10 +226,10 @@ class LocalWordAudioPlayer implements WordAudioPlayer {
       if (error.code == 'AUDIO_PLAYBACK_FAILED') {
         throw WordAudioPlaybackException(error.message ?? '音频文件无法播放');
       }
-      // 没有本地英语 TTS 时，提示用户联网播放或安装英语语音包。
+      // 没有可用的英语 TTS 时，提示用户安装英语语音包。
       if (error.code == 'AUDIO_TTS_UNAVAILABLE') {
         throw WordAudioTtsUnavailableException(
-          error.message ?? '当前设备没有可用的离线英语 TTS 引擎，请联网播放单词或安装英语语音包',
+          error.message ?? '当前设备没有可用的英语 TTS 引擎，请在系统设置中安装英语语音包',
         );
       }
       // TTS 引擎拒绝朗读时，保留原生返回的可读错误。

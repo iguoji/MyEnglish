@@ -146,8 +146,7 @@ class WordAudioPlayer(
                 AudioManager.AUDIOFOCUS_LOSS,
                 -> {
                     if (hasAudioFocus || mediaPlayer != null || pendingTtsUtteranceId != null) {
-                        // 智能轮转播放被打断：回滚记账，让该渠道下次还能重新点名。
-                        clearActiveLedger(unmark = true)
+                        // 智能轮转播放被打断：点名已记账，不回滚，下一轮自然换别的渠道。
                         releasePlayer()
                         textToSpeech?.stop()
                         pendingTtsRequest = null
@@ -208,12 +207,11 @@ class WordAudioPlayer(
     // 网络渠道「就绪」= 本地有缓存；未就绪的渠道后台并发补下载、不占点名机会。
     // TTS 固定排最后一位参与轮询，也会被记入账本；只有轮到它或网络全不可用时才发声。
     // 某一轮的全部渠道（网络就绪全集 + TTS）都读过一遍，账本清空进入下一轮。
+    //
+    // 记账时机：点名那一刻就算“这一轮已经播过该渠道”，之后无论自然播完、失败还是
+    // 被打断，都不回滚。这样某个渠道（尤其本地 TTS）临时不可用时，不会在同一个词上
+    // 被反复点名、反复报错。
     private val rotationLedger = HashMap<String, MutableSet<String>>()
-
-    // 当前正在出声的记账条目（账本 key 到渠道）。播放自然完成时保留记账（下轮换人）；
-    // 播放失败、被打断或失去音频焦点时回滚记账，让该渠道下次还能被点名重读。
-    @Volatile
-    private var activeLedgerEntry: Pair<String, String>? = null
 
     // 后台补缓存的去重集合：同一个 (词,口音,渠道) 同时只允许一个下载任务在跑，
     // 手快连点或上一题刚触发过下载时，不会并发发起两个一模一样的下载。
@@ -610,10 +608,8 @@ class WordAudioPlayer(
                         "audio",
                         "点名播放 渠道=$pick 拼写=$normalizedSpelling 口音=$accent 本轮队列=$rotationPool",
                     )
-                    // 记账：本周期已读过这一家（TTS 也记账，保证它不会在正常轮转里反复出现）。
+                    // 记账：点名即算“这一轮播过”，后续失败或被打断都不回滚。
                     markLedgerRead(normalizedSpelling, accent, pick)
-                    // 记录正在出声的记账条目；播放失败/中断时按它回滚。
-                    activeLedgerEntry = ledgerKey to pick
                     // MediaPlayer / TTS 都必须回到 Android 主线程创建和启动。
                     mainHandler.post {
                         // 若用户期间点击了其他单词，旧请求绝不突然出声。
@@ -747,25 +743,6 @@ class WordAudioPlayer(
         }
     }
 
-    /**
-     * 清掉“当前正在出声”的记账条目。
-     *
-     * [unmark] 为 true 时同时回滚账本（失败/被打断，该渠道下次可重新点名）；
-     * 为 false 只清除活动条目、保留记账（自然播完，下一轮换别的渠道）。
-     */
-    private fun clearActiveLedger(unmark: Boolean) {
-        // 取出当前条目并置空，避免并发回调重复回滚。
-        val entry = activeLedgerEntry ?: return
-        activeLedgerEntry = null
-        if (!unmark) return
-        // 回滚账本：key 直接取自条目本身，不需要再从字符串里反解拼写与口音。
-        synchronized(rotationLedger) {
-            rotationLedger[entry.first]?.remove(entry.second)
-            // 账本变空就整体移除，避免无意义的空 key 越积越多。
-            if (rotationLedger[entry.first].isNullOrEmpty()) rotationLedger.remove(entry.first)
-        }
-    }
-
     /** Activity 销毁时释放系统资源和下载线程。 */
     fun dispose() {
         // 使所有尚未回到主线程的任务失效。
@@ -774,7 +751,6 @@ class WordAudioPlayer(
         synchronized(rotationLedger) {
             rotationLedger.clear()
         }
-        activeLedgerEntry = null
         // 销毁阶段不再向已经关闭的 Dart 引擎发送结果。
         pendingResult = null
         // 取消等待中的 TTS 兜底请求。
@@ -1393,7 +1369,6 @@ class WordAudioPlayer(
         synchronized(rotationLedger) {
             rotationLedger.clear()
         }
-        activeLedgerEntry = null
         backgroundFetchKeys.clear()
         // true 表示目录已经不存在，Dart 才可以把界面进度重置为 0%。
         return true
@@ -1485,9 +1460,7 @@ class WordAudioPlayer(
                 if (generation == requestGeneration && mediaPlayer === completedPlayer) {
                     // 先释放播放器。
                     releasePlayer()
-                    // 自然播完：保留“本周期已读”的记账（下一轮换别的渠道），只清活动条目。
-                    clearActiveLedger(unmark = false)
-                    // 自然播完：全程耗时可看出文件时长与是否被提前截断。
+                    // 自然播完：点名时已记账；全程耗时可看出文件时长与是否被提前截断。
                     AppLog.i("audio", "MP3 自然播完 全程=${System.currentTimeMillis() - decodeStartedAtMillis}ms")
                     // 再向 Dart 返回成功。
                     // false 表示本次使用的是本地或远程 MP3，而不是 TTS。
@@ -1569,31 +1542,46 @@ class WordAudioPlayer(
 
         // 根据当前设置选择美式或英式英语区域。
         val targetLocale = if (accent == AMERICAN) Locale.US else Locale.UK
-        // 只接受引擎明确标记为“不需要网络”的英语声音，避免离线时再次卡住。
-        val localVoices = textToSpeech?.voices
-            ?.filter { candidate ->
-                // 只接受英语且明确不依赖网络的声音。
-                !candidate.isNetworkConnectionRequired &&
-                    candidate.locale.language == targetLocale.language
-            }
-            .orEmpty()
-        // 优先使用当前口音对应的国家/地区；部分国产引擎只提供通用 en，因此允许降级。
-        val voice = localVoices.firstOrNull { candidate ->
-            candidate.locale.country == targetLocale.country
-        } ?: localVoices.firstOrNull()
-
-        // 没有本地英语声音时，不调用可能依赖网络的 speak，直接给用户明确提示。
-        if (voice == null) {
-            finishWithError(
-                "AUDIO_TTS_UNAVAILABLE",
-                "当前设备没有可用的离线英语 TTS 引擎，请联网播放单词或安装英语语音包",
-            )
-            return
-        }
+        // 引擎可能返回 null（刚就绪、厂商引擎异常），统一按空列表处理。
+        val allVoices = textToSpeech?.voices?.toList().orEmpty()
+        // 先挑英语声音，再在其中优先“明确不需要网络”的那些。
+        val englishVoices = allVoices.filter { it.locale.language == targetLocale.language }
+        val offlineEnglishVoices = englishVoices.filter { !it.isNetworkConnectionRequired }
+        // 声音清单是排查「TTS 明明可用却报没有引擎」的第一手证据，每次朗读前留痕。
+        AppLog.i(
+            "audio",
+            "TTS 引擎=${textToSpeech?.defaultEngine} 声音总数=${allVoices.size} " +
+                "英语=${englishVoices.size} 离线英语=${offlineEnglishVoices.size}",
+        )
+        // 优先使用离线英语声音；没有离线条目时退而使用引擎提供的联网英语声音，
+        // 避免「明明能联网合成，却被离线条件判成没有引擎」。
+        // 同口音国家优先；部分国产引擎只提供通用 en，因此允许降级。
+        val voice = offlineEnglishVoices.firstOrNull {
+            it.locale.country == targetLocale.country
+        } ?: offlineEnglishVoices.firstOrNull()
+            ?: englishVoices.firstOrNull { it.locale.country == targetLocale.country }
+            ?: englishVoices.firstOrNull()
 
         try {
-            // 切换到检测到的具体声音，口音由 Voice 的 Locale 决定。
-            textToSpeech?.voice = voice
+            if (voice != null) {
+                // 切换到检测到的具体声音，口音由 Voice 的 Locale 决定。
+                textToSpeech?.voice = voice
+            } else {
+                // 声音列表为空或没有英语条目时，让引擎按语言自己挑默认声音。
+                // 只有引擎明确回报语言缺失或不支持，才判定为不可用。
+                val languageResult = textToSpeech?.setLanguage(targetLocale)
+                    ?: TextToSpeech.LANG_NOT_SUPPORTED
+                AppLog.i("audio", "TTS 无英语声音条目，改用 setLanguage($targetLocale) 结果=$languageResult")
+                if (languageResult == TextToSpeech.LANG_MISSING_DATA ||
+                    languageResult == TextToSpeech.LANG_NOT_SUPPORTED
+                ) {
+                    finishWithError(
+                        "AUDIO_TTS_UNAVAILABLE",
+                        "当前设备没有可用的英语 TTS 引擎，请在系统设置中安装英语语音包",
+                    )
+                    return
+                }
+            }
             // TTS 也必须使用媒体语音通道，确保与 MP3 播放走同一条蓝牙输出路径。
             textToSpeech?.setAudioAttributes(speechAudioAttributes)
             // 与 MP3 保持一致：真正开始合成前申请短时媒体焦点。
@@ -1644,9 +1632,7 @@ class WordAudioPlayer(
         pendingTtsUtteranceId = null
         // 单词已经读完，释放焦点，避免蓝牙耳机或其他 App 后续仍认为本应用占用媒体输出。
         abandonAudioFocus()
-        // 自然读完：保留“本周期已读过 TTS”的记账（下一轮换别的渠道），只清活动条目，
-        // 与 MP3 自然播完的处理保持一致。
-        clearActiveLedger(unmark = false)
+        // 自然读完：点名时已经记账，这里不再重复处理。
         // 朗读完成后通知 Flutter 页面收起播放动画。
         // true 告诉 Flutter 本次实际由本地英语 TTS 完成朗读。
         pendingResult?.success(true)
@@ -1672,8 +1658,7 @@ class WordAudioPlayer(
 
     /** 停掉旧播放器并结束旧的 Dart play Future。 */
     private fun interruptCurrent(code: String, message: String) {
-        // 智能轮转播放被打断（换词/停止/清空）：这次没听完，回滚“本周期已读”记账。
-        clearActiveLedger(unmark = true)
+        // 智能轮转被打断（换词/停止/清空）：点名已记账，不回滚，下一轮自然换别的渠道。
         // 先释放系统音频资源。
         releasePlayer()
         // 同时停止系统 TTS，避免旧单词在新请求后继续出声。
@@ -1690,9 +1675,8 @@ class WordAudioPlayer(
     private fun finishWithError(code: String, message: String) {
         // 所有用户可见的播放失败都汇总到这里统一留痕，一处不漏。
         AppLog.e("audio", "播放失败 code=$code message=$message")
-        // 任何点名渠道（网络 MP3 或 TTS）只要没能成功出声，都回滚本次记账，
-        // 让该渠道在下一轮还能重新被点名；无活动条目时该调用是安全的空操作。
-        clearActiveLedger(unmark = true)
+        // 点名即记账，播放失败也不回滚：同一个词不会因为某家渠道坏了而被反复点名。
+        // 整轮渠道都读过一遍后账本自然清空，重新从最高优先级开始。
         // 错误后必须释放可能处于 prepare 状态的播放器。
         releasePlayer()
         // 把具体错误返回 Dart。
