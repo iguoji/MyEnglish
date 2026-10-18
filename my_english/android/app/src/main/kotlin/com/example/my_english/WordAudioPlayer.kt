@@ -217,6 +217,12 @@ class WordAudioPlayer(
     // 手快连点或上一题刚触发过下载时，不会并发发起两个一模一样的下载。
     private val backgroundFetchKeys = ConcurrentHashMap.newKeySet<String>()
 
+    // 接口调用型渠道的专属实现：按渠道 id 分派，新增一家只需在这里注册一个实现类。
+    // 实现类自己管 token、接口调用和音频地址解析，播放器只问它要一个能下载的 URL。
+    private val apiResolvers: Map<String, ApiAudioResolver> = mapOf(
+        AudioChannels.BAICIZHAN to BaicizhanAudioSource(appContext),
+    )
+
     init {
         // TTS 初始化是异步的，结果会在系统回调中返回。
         textToSpeech = TextToSpeech(appContext) { status ->
@@ -376,12 +382,8 @@ class WordAudioPlayer(
             result.error("AUDIO_ARGUMENT_ERROR", "不支持的发音口音：$accent", null)
             return
         }
-        // 渠道必须来自 Dart 约定的四个来源。
-        if (channel != CHANNEL_BEINGFINE &&
-            channel != CHANNEL_BAIDU &&
-            channel != CHANNEL_YOUDAO &&
-            channel != CHANNEL_TTS
-        ) {
+        // 渠道必须来自统一注册表（直接下载型、接口调用型或本地 TTS）。
+        if (AudioChannels.byId(channel) == null) {
             result.error("AUDIO_ARGUMENT_ERROR", "不支持的发音渠道：$channel", null)
             return
         }
@@ -1024,8 +1026,29 @@ class WordAudioPlayer(
         return File(channelDirectory, "$cacheKey.mp3")
     }
 
-    /** 根据口音与指定渠道生成准确 HTTPS URL；支持不背单词、百度翻译与有道三个网络渠道。 */
+    /**
+     * 按渠道类型取音频地址。
+     *
+     * 直接下载型当场拼 URL；接口调用型交给该渠道自己的实现类（可能要先换 token、
+     * 查词，再拿到接口下发的地址）；本地 TTS 没有可下载地址，走到这里属于调用错误。
+     */
     private fun channelUrl(spelling: String, accent: String, channel: String): String {
+        val definition = AudioChannels.byId(channel)
+            ?: error("不支持的发音渠道：$channel")
+        return when (definition.type) {
+            AudioChannelType.DIRECT -> directChannelUrl(spelling, accent, channel)
+            AudioChannelType.API -> {
+                // 每家接口调用型渠道一个实现，缺失说明注册表加了渠道却忘了注册实现。
+                val resolver = apiResolvers[channel]
+                    ?: error("接口调用型渠道缺少实现：$channel")
+                resolver.audioUrl(spelling, accent)
+            }
+            AudioChannelType.LOCAL_TTS -> error("本地 TTS 渠道没有可下载的音频地址")
+        }
+    }
+
+    /** 直接下载型渠道的 URL 拼装：地址只由单词与口音决定。 */
+    private fun directChannelUrl(spelling: String, accent: String, channel: String): String {
         // URLEncoder 默认把空格写成 +，路径中改用标准 %20；
         // 撇号会被编码成 %27，百度翻译接口两种写法都接受。
         val encodedSpelling = URLEncoder.encode(
@@ -1047,13 +1070,15 @@ class WordAudioPlayer(
                     "?lan=$baiduLan&text=$encodedSpelling&spd=3&source=web"
             CHANNEL_YOUDAO ->
                 "https://dict.youdao.com/dictvoice?audio=$encodedSpelling&type=$youdaoType"
-            else -> error("不支持的发音渠道：$channel")
+            else -> error("不是直接下载型渠道：$channel")
         }
     }
 
     /**
-     * 根据口音生成“不背单词 -> 百度翻译 -> 有道”的准确 HTTPS URL，
-     * 供普通固定顺序播放使用；顺序即优先级（数字越大越优先）。
+     * 旧版固定顺序播放（[play]）使用的来源列表，按优先级从高到低。
+     *
+     * 当前主入口 [playSmart] 已改为按注册表轮转，不再走这里。接口调用型渠道要先查
+     * 接口才能拿到地址，不适合在固定顺序路径里提前拼 URL，所以这里只列直接下载型。
      */
     private fun buildSources(spelling: String, accent: String): List<Pair<String, String>> {
         // List 保持明确优先级。
@@ -1951,24 +1976,22 @@ class WordAudioPlayer(
         // 英式缓存目录名与 Dart storageValue 一致。
         const val BRITISH = "british"
 
-        // 发音渠道：稳定协议值（历史版本与 Dart 侧 PronunciationChannel.storageValue
-        // 一一对应；4.5.0 起渠道挑选与轮转记账整体下沉到原生，Dart 不再参与挑选）。
-        // 优先级约定（数字越大越优先）：不背单词=100、百度翻译=50（新增渠道默认值）、
-        // 有道=10、系统 TTS=0。
-        const val CHANNEL_BEINGFINE = "beingfine"
+        // 发音渠道 id 统一来自 AudioChannels 注册表。这些值同时是缓存目录名和
+        // 轮转账本键，改动会让用户已经下载的离线音频全部失效，不能随手重命名。
+        const val CHANNEL_BEINGFINE = AudioChannels.BEINGFINE
 
         // 百度翻译网络 TTS 渠道（fanyi.baidu.com/gettts）。
-        const val CHANNEL_BAIDU = "baidu"
+        const val CHANNEL_BAIDU = AudioChannels.BAIDU
 
         // 有道网络音频渠道。
-        const val CHANNEL_YOUDAO = "youdao"
+        const val CHANNEL_YOUDAO = AudioChannels.YOUDAO
 
         // 系统离线英语 TTS 渠道：不做网络请求，直接朗读。
-        const val CHANNEL_TTS = "tts"
+        const val CHANNEL_TTS = AudioChannels.TTS
 
-        // 离线预缓存会尝试下载的网络渠道；系统 TTS 是设备实时合成，没有文件可缓存。
-        // 顺序即优先级：与 buildSources 的兜底顺序保持一致。
-        val NETWORK_CHANNELS = listOf(CHANNEL_BEINGFINE, CHANNEL_BAIDU, CHANNEL_YOUDAO)
+        // 离线预缓存会尝试下载的网络渠道（直接下载型 + 接口调用型）；
+        // 本地 TTS 是设备实时合成，没有文件可缓存。顺序即优先级。
+        val NETWORK_CHANNELS = AudioChannels.NETWORK_IDS
 
         // 旧版本的口音级缓存只保留一份“任意网络渠道成功”的结果；进度统计时把它
         // 当作一个虚拟渠道，避免升级后明明已有离线发音却显示成 0%。
